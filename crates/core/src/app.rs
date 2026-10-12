@@ -582,7 +582,13 @@ impl App {
     /// This frame's view values, dynamic instances and draws.
     pub fn frame(&self) -> (Vec<i32>, Vec<i32>, Vec<u32>) {
         let cam = self.camera();
-        let view = render::view_values(&cam, self.aspect(), scene::fog_range());
+        // the sky swings through colours at top speed (TRIAGE T20)
+        let speed = match (&self.play, self.stage) {
+            (Some(p), Stage::Race) => p.race.racers[p.local].ape.speed(),
+            _ => 0,
+        };
+        let colours = crate::sky::colours(scene::SKY, scene::FOG, speed, self.ticks);
+        let view = render::view_values(&cam, self.aspect(), scene::fog_range(), colours);
         let batch = match self.stage {
             Stage::Race => match &self.play {
                 Some(p) => {
@@ -629,6 +635,7 @@ impl App {
             "title": self.t("title"),
             "volume": self.settings.volume,
             "no_webgl": self.t("no_webgl"),
+            "tab_icon": crate::icon::data_url(),
             "speedo_face": crate::speedo::face(),
             "speedo_needle": crate::speedo::banana(),
             "want_pointer": self.screen == Screen::Race
@@ -1153,7 +1160,7 @@ mod tests {
             let ui: Value = serde_json::from_str(&a.ui()).unwrap();
             assert!(ui["screen"].is_string());
             let (view, _, _) = a.frame();
-            assert_eq!(view.len(), 21);
+            assert_eq!(view.len(), 27);
             let (statics, _, _) = a.static_scene();
             assert!(!statics.is_empty());
         }
