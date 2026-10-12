@@ -201,6 +201,38 @@ fn a_typical_swing_lasts_most_of_a_second() {
 }
 
 #[test]
+fn a_high_catch_is_taut_at_once_and_slides_down() {
+    // TRIAGE row 14: no slack drop and snap; the ape slides down instead
+    let c = Course::test_line(&[(int(60), int(44), int(27))]);
+    let a = c.vines[0].anchor;
+    let mut ape = Ape::new(
+        Kind::Chimpanzee,
+        true,
+        v3(a.x, a.y - int(5), a.z - int(1)),
+        0,
+    );
+    ape.mode = Mode::Flying;
+    ape.vel = v3(0, 0, int(15));
+    ape.step(&held(), &c, 0);
+    let Mode::Swinging { rope: first, .. } = ape.mode else {
+        panic!("not caught")
+    };
+    assert!(first < int(7));
+    let mut last = first;
+    for t in 1..120 {
+        ape.step(&held(), &c, t);
+        let Mode::Swinging { rope, .. } = ape.mode else {
+            panic!("let go")
+        };
+        // never slack: the hands stay on the rope's length
+        assert!((ape.pos.dist(a) - rope).abs() < cm(30), "slack at {t}");
+        assert!(rope >= last);
+        last = rope;
+    }
+    assert_eq!(last, MIN_ROPE);
+}
+
+#[test]
 fn the_drive_is_strongest_when_slow() {
     let c = one_vine();
     let gain = |speed: i32| {

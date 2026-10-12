@@ -193,29 +193,23 @@ impl Ape {
         let a = course.anchor(vine, tick);
         let length = course.vines[vine].length;
         let to = self.pos.sub(a);
-        // the vine stretches to the hands rather than yanking the ape to its
-        // end (a grab may come from a reach below the vine's end)
-        // and a catch high on a vine leaves the rope slack, so the ape drops
-        // into a long swing (TRIAGE row 11) rather than a short one
-        let rope = to
-            .len()
-            .clamp(MIN_ROPE.min(length), length + self.phys.reach);
+        // The vine is taut from the moment it is caught, so the swing starts
+        // at once (TRIAGE row 14: a slack catch dropped, then snapped). It
+        // stretches to hands below its end rather than yanking the ape up;
+        // a catch high on it slides down while swinging (see `swing`).
+        let rope = to.len().clamp(ONE, length + self.phys.reach);
         let n = to.norm();
         if to.len() > rope {
             self.pos = a.add(n.scale(rope));
         }
-        // a taut catch redirects the speed along the swing; Grab Keep holds
-        // most of it (a slack one keeps flying until the rope draws tight,
-        // and the swing keeps the speed then)
-        if to.len() >= rope {
-            let speed = self.vel.len();
-            let along = self.vel.reject(n);
-            let keep = mul(speed, GRAB_KEEP);
-            if along.len() > ONE / 20 {
-                self.vel = along.with_len(along.len().max(keep));
-            } else {
-                self.vel = along;
-            }
+        // the speed is redirected along the swing; Grab Keep holds most of it
+        let speed = self.vel.len();
+        let along = self.vel.reject(n);
+        let keep = mul(speed, GRAB_KEEP);
+        if along.len() > ONE / 20 {
+            self.vel = along.with_len(along.len().max(keep));
+        } else {
+            self.vel = along;
         }
         self.mode = Mode::Swinging { vine, rope };
         self.happened.push(Happening::Grab);
@@ -248,6 +242,17 @@ impl Ape {
 
     fn swing(&mut self, vine: usize, rope: i32, wish: V3, course: &Course, tick: u32) {
         let a = course.anchor(vine, tick);
+        // a short rope slides out to Min Rope while swinging: the ape slips
+        // down the vine into a longer, swingier arc (TRIAGE row 14)
+        let longest = MIN_ROPE.min(course.vines[vine].length);
+        let sliding = rope < longest;
+        let rope = if sliding {
+            let r = (rope + mul(VINE_SLIDE, DT)).min(longest);
+            self.mode = Mode::Swinging { vine, rope: r };
+            r
+        } else {
+            rope
+        };
         let n = self.pos.sub(a).norm();
         // WASD on a vine (TRIAGE rows 6 and 8): no pumping back and forth.
         // The wish drives the ape along the swing whichever way it is
@@ -276,7 +281,9 @@ impl Ape {
         self.vel.y -= mul(GRAVITY, DT);
         let mut p = self.pos.add(self.vel.scale(DT));
         let d = p.sub(a);
-        let taut = d.len() >= rope;
+        // while sliding the ape is held at the rope's length, so it never
+        // goes slack
+        let taut = d.len() >= rope || sliding;
         if taut {
             let n = d.norm();
             p = a.add(n.scale(rope));

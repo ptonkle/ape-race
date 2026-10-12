@@ -24,9 +24,11 @@ pub const BODY_DROP: i32 = cm(130);
 /// The body's radius, for hits and the walls.
 pub const BODY_RADIUS: i32 = cm(60);
 
-/// The shortest rope a grab makes (TRIAGE row 11: long ropes make long
-/// swings); a catch high on a vine leaves it slack.
+/// A rope shorter than this slides out to it while swinging (TRIAGE rows
+/// 11 and 14: long ropes make long swings, and the catch stays taut).
 pub const MIN_ROPE: i32 = int(18);
+/// How fast an ape slides down a vine caught high up.
+pub const VINE_SLIDE: i32 = int(14);
 /// Share of the speed a grab keeps, redirected along the swing (Grab Keep).
 pub const GRAB_KEEP: i32 = ONE * 96 / 100;
 /// Extra speed along the velocity when Space is let go on the upswing.
