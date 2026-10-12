@@ -118,6 +118,8 @@ pub struct Play {
     since_finish: Option<u32>,
     /// the local finish beat the saved best
     new_best: bool,
+    /// each vine drawn as a bending chain (TRIAGE row 12)
+    pub chains: Vec<crate::vinesim::Chain>,
 }
 
 pub struct App {
@@ -428,6 +430,7 @@ impl App {
             prev,
             since_finish: None,
             new_best: false,
+            chains: Vec::new(),
         });
     }
 
@@ -493,6 +496,7 @@ impl App {
         if p.online {
             self.online_step(p);
         }
+        step_chains(p);
         let me = &p.race.racers[p.local];
         // the course's way forward, a little ahead of the ape
         let c = &p.race.course;
@@ -595,6 +599,7 @@ impl App {
                         apes: &apes,
                         local: Some(p.local),
                         tick: self.ticks,
+                        chains: &p.chains,
                     })
                 }
                 None => Batch::new(),
@@ -924,6 +929,31 @@ impl App {
             Some(c) => sound::wav(c, self.settings.volume),
             None => Vec::new(),
         }
+    }
+}
+
+/// Vines near the local ape are chains that bend (TRIAGE row 12); those
+/// further off keep their last shape until the ape comes near.
+fn step_chains(p: &mut Play) {
+    let c = &p.race.course;
+    if p.chains.len() != c.vines.len() {
+        p.chains = (0..c.vines.len())
+            .map(|i| crate::vinesim::Chain::hanging(c.anchor(i, p.race.tick), c.vines[i].length))
+            .collect();
+    }
+    let me = p.race.racers[p.local].ape.pos;
+    for i in 0..c.vines.len() {
+        let a = c.anchor(i, p.race.tick);
+        if a.flat().sub(me.flat()).len() > int(170) {
+            continue;
+        }
+        let hands = p
+            .race
+            .racers
+            .iter()
+            .find(|r| r.ape.swinging() == Some(i))
+            .map(|r| r.ape.pos);
+        p.chains[i].step(a, c.vines[i].length, hands, p.race.tick, i as u32);
     }
 }
 

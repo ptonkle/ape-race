@@ -32,3 +32,4 @@ pub mod rules;
 pub mod scene;
 pub mod sound;
 pub mod speedo;
+pub mod vinesim;

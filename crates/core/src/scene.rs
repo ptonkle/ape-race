@@ -540,6 +540,8 @@ pub struct Frame<'a> {
     pub local: Option<usize>,
     /// ticks, for animation
     pub tick: u32,
+    /// the vines' bending chains, one per vine (empty: draw them straight)
+    pub chains: &'a [crate::vinesim::Chain],
 }
 
 /// Everything that moves.
@@ -575,15 +577,18 @@ pub fn dynamic(f: &Frame) -> Batch {
         } else {
             ONE / 5
         };
-        vine(
-            &mut b,
-            a,
-            c.vines[i].length,
-            held[i],
-            colour,
-            glow,
-            f.tick + i as u32 * 37,
-        );
+        match f.chains.get(i) {
+            Some(chain) => chain_vine(&mut b, chain, held[i], colour, glow, f.tick + i as u32 * 37),
+            None => vine(
+                &mut b,
+                a,
+                c.vines[i].length,
+                held[i],
+                colour,
+                glow,
+                f.tick + i as u32 * 37,
+            ),
+        }
     }
     for i in 0..c.logs.len() {
         let l = &c.logs[i];
@@ -675,6 +680,58 @@ fn vine(b: &mut Batch, a: V3, length: i32, hands: Option<V3>, colour: Rgb, glow:
             );
             leaves(b, a, bottom, t);
         }
+    }
+}
+
+/// A vine drawn from its bending chain. A held one's grip point is moved to
+/// where the hands are drawn this frame (between ticks).
+fn chain_vine(
+    b: &mut Batch,
+    chain: &crate::vinesim::Chain,
+    hands: Option<V3>,
+    colour: Rgb,
+    glow: i32,
+    t: u32,
+) {
+    let width = cm(20);
+    let mut pts = chain.pts;
+    if let Some(h) = hands {
+        let k = (1..pts.len())
+            .min_by_key(|k| pts[*k].sub(h).dot64(pts[*k].sub(h)))
+            .unwrap_or(pts.len() - 1);
+        pts[k] = h;
+    }
+    for w in pts.windows(2) {
+        b.push(Mesh::Cyl, &rod(w[0], w[1], width), colour, glow);
+        // a joint, so the bends read smooth
+        b.push(
+            Mesh::Sphere,
+            &placed(w[1], 0, v3(width, width, width)),
+            colour,
+            glow,
+        );
+    }
+    let bottom = pts[pts.len() - 1];
+    if hands.is_none() {
+        b.push(
+            Mesh::Sphere,
+            &placed(bottom, 0, v3(cm(34), cm(34), cm(34))),
+            colour,
+            glow,
+        );
+    }
+    for k in (1..pts.len() - 1).step_by(2) {
+        let side = if k % 4 == 1 { cm(18) } else { -cm(18) };
+        b.push(
+            Mesh::Blob,
+            &placed(
+                pts[k].add(v3(side, 0, 0)),
+                (t as i32) * 40 + k as i32 * 7000,
+                v3(cm(40), cm(14), cm(26)),
+            ),
+            VINE_LEAF,
+            0,
+        );
     }
 }
 

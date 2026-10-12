@@ -3,7 +3,7 @@
 person at the keys (and for the home page thumbnail).
 
     .venv/bin/python scripts/shot.py OUT.png [--query lineup] [--wait 2]
-        [--click id ...] [--hold KeyW,Space:1.5 ...] [--size 1280x720]
+        [--click id ...] [--hold KeyW,Mouse:1.5 ...] [--size 1280x720]
 
 --click presses the menu button with that element id, in order;
 --hold presses keys (comma-separated) for some seconds, in order.
@@ -60,10 +60,17 @@ def main():
             keys, secs = spec.split(":")
             keys = keys.split(",")
             for k in keys:
-                page.keyboard.down(k)
+                if k == "Mouse":
+                    page.mouse.move(w / 2, h / 2)
+                    page.mouse.down()
+                else:
+                    page.keyboard.down(k)
             page.wait_for_timeout(float(secs) * 1000)
             for k in keys:
-                page.keyboard.up(k)
+                if k == "Mouse":
+                    page.mouse.up()
+                else:
+                    page.keyboard.up(k)
         out = pathlib.Path(a.out)
         for i in range(a.frames):
             page.wait_for_timeout(a.wait * 1000)
