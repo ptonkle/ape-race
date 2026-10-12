@@ -9,3 +9,6 @@ The starting state, measured rather than recalled, so later changes can be compa
 | Toolchain | `rustc --version; wasm-bindgen --version` | rustc 1.99.0 (b940084d7 2026-09-28); wasm-bindgen 0.2.127; targets wasm32-unknown-unknown, x86_64-unknown-linux-gnu | 2026-10-11, before any code |
 | Core tests | `cargo test --workspace` | template: passes (placeholder tests only) | 2026-10-11, before any code |
 | Full check | `./scripts/check.sh` | not run on the bare template; first run recorded after the first game build | 2026-10-11 |
+| Core frame cost | `cargo run --release --example frame_cost` | about 0.1 ms per frame (advance + view model + frame), 4 apes | 2026-10-11 |
+| Full check | `./scripts/check.sh` | BUILDER CHECK PASSED (chromium, firefox, webkit) | 2026-10-11, first deploy |
+| Live site | `BUILDER_ORIGIN=https://ptonkle.github.io/ape-race tests/browser/check.py` | BROWSER CHECK PASSED in three engines | 2026-10-11 |
