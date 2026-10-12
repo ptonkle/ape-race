@@ -5,3 +5,8 @@ members = ["crates/core", "crates/shim"]
 [profile.release]
 opt-level = "s"
 lto = true
+
+# The physics and the AI run long simulated races in tests: optimise the
+# core even in test builds so they take seconds, not minutes.
+[profile.dev.package.tool_core]
+opt-level = 3

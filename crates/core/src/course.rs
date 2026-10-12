@@ -154,6 +154,12 @@ impl Course {
         build(JUNGLE, SEED)
     }
 
+    /// The jungle course laid out from another seed: the same legs and
+    /// rules, different vines (for tuning the layout rules and the AI).
+    pub fn jungle_seeded(seed: u64) -> Course {
+        build(JUNGLE, seed)
+    }
+
     /// A short flat test course: one straight, vines in a line.
     pub fn test_line(vines: &[(i32, i32, i32)]) -> Course {
         let mut c = centreline("test", &[Leg(400, 0)]);
