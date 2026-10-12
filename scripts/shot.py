@@ -45,7 +45,7 @@ def main():
     threading.Thread(target=server.serve_forever, daemon=True).start()
     url = f"http://127.0.0.1:{server.server_address[1]}/index.html" + (f"?{a.query}" if a.query else "")
     with sync_playwright() as p:
-        b = p.chromium.launch(args=["--use-angle=swiftshader", "--enable-unsafe-swiftshader", "--ignore-gpu-blocklist"])
+        b = p.chromium.launch(args=["--use-angle=swiftshader", "--enable-unsafe-swiftshader"])
         page = b.new_page(viewport={"width": w, "height": h})
         errors = []
         page.on("pageerror", lambda e: errors.append(str(e)))
