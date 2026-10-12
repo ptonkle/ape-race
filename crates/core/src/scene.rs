@@ -42,12 +42,12 @@ const ROCK: Rgb = rgb(128, 132, 124);
 const WOOD: Rgb = rgb(150, 104, 62);
 const BANNER: Rgb = rgb(240, 236, 220);
 const BANNER_DARK: Rgb = rgb(40, 40, 46);
-const SHADOW: Rgb = rgb(40, 70, 34);
+const SHADOW: Rgb = rgb(34, 40, 30);
 
 /// The light: its direction (toward the sun), its colour; the sky's and the
 /// fog's colours; the ground's bounce. Uploaded with the scene.
 pub fn uniforms() -> Vec<i32> {
-    let dir = v3(cm(40), ONE, cm(25)).norm();
+    let dir = v3(cm(55), cm(80), cm(35)).norm();
     let light = rgb(255, 244, 214);
     let mut v = vec![dir.x, dir.y, dir.z];
     v.extend(light);
@@ -452,10 +452,11 @@ fn start_tree(b: &mut Batch, centre: V3, fwd: V3, half_len: i32, half_width: i32
     let gy = ground(centre.x, centre.z);
     b.push(
         Mesh::Cyl,
+        // its top stops under the deck, so the two never fight for a pixel
         &placed(
-            v3(centre.x, (gy + centre.y) / 2, centre.z),
+            v3(centre.x, (gy + centre.y - int(1)) / 2, centre.z),
             0,
-            v3(int(4), centre.y - gy, int(4)),
+            v3(int(4), centre.y - int(1) - gy, int(4)),
         ),
         BARK[0],
         0,
@@ -625,7 +626,7 @@ pub fn dynamic(f: &Frame) -> Batch {
         let support = c.support(at);
         let feet = at.y - BODY_DROP;
         let high = (feet - support).clamp(0, int(30));
-        let size = cm(140) - high * 2 / 60;
+        let size = cm(110) - high * 2 / 60;
         b.push(
             Mesh::Cyl,
             &placed(

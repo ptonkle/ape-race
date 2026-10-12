@@ -25,7 +25,7 @@ void main() {
   float up = 0.5 + 0.5 * n.y;
   vec3 ambient = mix(uGround, uSky, up);
   vec3 base = vColor.rgb;
-  vec3 lit = base * (ambient * 0.62 + uLight * band * 0.55);
+  vec3 lit = base * (ambient * 0.78 + uLight * band * 0.6);
   lit = mix(lit, base * 1.08 + vec3(0.04), vColor.a);
   outColor = vec4(mix(lit, uFog, f), 1.0);
 }
