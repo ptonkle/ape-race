@@ -42,8 +42,20 @@ pub const DRIVE_FADE_SPEED: i32 = int(34);
 
 /// A jump from the ground, straight up.
 pub const JUMP_SPEED: i32 = int(11);
-/// Above Run Speed the ground takes this much speed a second.
-pub const GROUND_FRICTION: i32 = int(28);
+/// Above Run Speed the ground takes this much speed a second (TRIAGE T5:
+/// was 28, which stopped a fall dead; now a landing slides on for seconds).
+pub const GROUND_FRICTION: i32 = int(7);
+/// A landing rolls this share of the speed it hits the ground with on into
+/// speed along the ground (TRIAGE T5).
+pub const LANDING_ROLL: i32 = ONE * 3 / 10;
+/// Sliding fast on the ground, WASD turn the slide this hard (no faster).
+pub const SLIDE_STEER: i32 = int(14);
+/// A bounce mushroom's cap: its top above the ground, and its radius.
+pub const MUSHROOM_HEIGHT: i32 = cm(220);
+pub const MUSHROOM_RADIUS: i32 = cm(230);
+/// A bounce mushroom throws an ape up at this speed: some 14 m, into the
+/// reach of most vines (TRIAGE T5).
+pub const MUSHROOM_BOUNCE: i32 = int(22);
 /// How fast WASD bring the ape to its running velocity on the ground.
 pub const RUN_ACCEL: i32 = int(40);
 

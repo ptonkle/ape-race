@@ -9,7 +9,9 @@
 
 use crate::fx::{self, cm, deg, int, mul, sin, Dice, ONE};
 use crate::geom::{facing, right_of, v3, V3};
-use crate::rules::{BODY_DROP, BODY_RADIUS, CEILING, WALL_BOUNCE};
+use crate::rules::{
+    BODY_DROP, BODY_RADIUS, CEILING, MUSHROOM_HEIGHT, MUSHROOM_RADIUS, WALL_BOUNCE,
+};
 
 /// Centreline samples are this far apart.
 pub const STEP: i32 = int(2);
@@ -32,20 +34,14 @@ pub struct Slide {
     pub period: i32,
 }
 
-/// A swinging log (a moving part): hangs from `pivot` on two ropes and
-/// swings across the course. Touching it knocks an ape aside.
+/// A bounce mushroom on the forest floor (TRIAGE T5): an ape that lands on
+/// its cap, or runs into it, is thrown back up toward the vines.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct Log {
-    pub pivot: V3,
-    pub rope: i32,
-    /// the direction it swings in (across the course), a unit vector
-    pub across: V3,
-    /// along the log (the course's direction), a unit vector
-    pub along: V3,
-    pub half_len: i32,
+pub struct Mushroom {
+    /// the middle of the cap's top
+    pub top: V3,
+    /// the cap's radius
     pub radius: i32,
-    pub amplitude: i32,
-    pub period: i32,
 }
 
 /// A flat box an ape can stand on: the start tree's platform.
@@ -60,6 +56,44 @@ pub struct Platform {
     pub top: i32,
 }
 
+/// The kinds of tree (TRIAGE T16).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TreeKind {
+    /// a buttressed trunk under a cluster of leaf blobs
+    Broadleaf,
+    /// a giant standing out of the canopy, with a flat umbrella crown
+    Emergent,
+    /// a thin curved trunk and a star of fronds
+    Palm,
+    /// a strangler fig: roots twisted round a dead host
+    Fig,
+    /// a stand of bamboo canes
+    Bamboo,
+    /// a far tree on the valley's walls, a faceted cone or blob
+    Hill,
+}
+
+/// How far a tree's crown spreads from its trunk, and how far below the
+/// trunk's top it hangs (the drawing keeps inside these).
+pub fn crown(kind: TreeKind, height: i32) -> (i32, i32) {
+    match kind {
+        TreeKind::Broadleaf => {
+            let k = crown_scale(height);
+            (mul(int(11), k), mul(int(5), k))
+        }
+        TreeKind::Emergent => (int(17), int(5)),
+        TreeKind::Palm => (int(7), int(3)),
+        TreeKind::Fig => (int(12), int(6)),
+        TreeKind::Bamboo => (int(4), height),
+        TreeKind::Hill => (int(9), height * 3 / 4),
+    }
+}
+
+/// A broadleaf's crown grows with the tree: half size on a young tree.
+pub fn crown_scale(height: i32) -> i32 {
+    fx::div(height, int(65)).clamp(ONE / 2, ONE * 13 / 10)
+}
+
 /// Something in the jungle that is only drawn.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Prop {
@@ -69,6 +103,25 @@ pub enum Prop {
         radius: i32,
         height: i32,
         shade: u8,
+        kind: TreeKind,
+    },
+    /// a fallen trunk lying on the floor
+    Fallen {
+        from: V3,
+        to: V3,
+        radius: i32,
+    },
+    /// a stretch of stream, `width` wide
+    Water {
+        from: V3,
+        to: V3,
+        width: i32,
+    },
+    /// a rock outcrop on the valley's walls
+    Outcrop {
+        at: V3,
+        size: i32,
+        yaw: i32,
     },
     /// a branch from `from` to `to`, carrying a vine
     Branch {
@@ -106,7 +159,7 @@ pub struct Course {
     pub half_width: i32,
     pub laps: u32,
     pub vines: Vec<Vine>,
-    pub logs: Vec<Log>,
+    pub mushrooms: Vec<Mushroom>,
     pub platforms: Vec<Platform>,
     pub crates: Vec<V3>,
     pub props: Vec<Prop>,
@@ -140,6 +193,42 @@ const SEED: u64 = 0x0A9E_2ACE_0001;
 /// Where the start platform is, and how high.
 pub const START_HEIGHT: i32 = int(16);
 const START_LEN: i32 = int(14);
+
+/// The jungle goes on this far past the finish arch (TRIAGE T6): a clearing
+/// with a podium, closed by a cliff and a waterfall.
+pub const OUTRO: i32 = int(160);
+
+/// Streams cross the course this many metres along.
+pub const STREAMS: [i32; 3] = [int(405), int(1050), int(1700)];
+
+/// How high the valley's walls rise above the ground, `across` metres from
+/// the centreline at `s` metres along (TRIAGE T16: something beyond the
+/// trees). Flat out to 45 m, then up to some 25–50 m at 120 m. Drawing
+/// only: no ape gets past the corridor's walls at 20 m.
+pub fn rise(s: i32, across: i32) -> i32 {
+    let a = across.abs();
+    let side = if across < 0 { 23_000 } else { 0 };
+    // how high this stretch of wall is (60% to 140%), and a jagged ridge
+    let m = ONE + mul(sin(mul(s, 280) + side), ONE * 2 / 5);
+    let jag = mul(sin(mul(s, 1900) + 3 * side), int(4));
+    let nodes = [
+        (int(45), 0),
+        (int(70), int(2)),
+        (int(95), int(14)),
+        (int(120), int(36) + jag),
+    ];
+    if a <= nodes[0].0 {
+        return 0;
+    }
+    for w in nodes.windows(2) {
+        let ((a0, h0), (a1, h1)) = (w[0], w[1]);
+        if a <= a1 {
+            let t = fx::div(a - a0, a1 - a0);
+            return mul(h0 + mul(h1 - h0, t), m);
+        }
+    }
+    mul(nodes[3].1 + (a - int(120)), m)
+}
 
 /// The ground's gentle hills.
 pub fn ground(x: i32, z: i32) -> i32 {
@@ -203,20 +292,19 @@ impl Course {
         }
     }
 
-    /// A log's angle from hanging straight down, at a tick.
-    pub fn log_angle(&self, i: usize, tick: u32) -> i32 {
-        let l = &self.logs[i];
-        let phase = ((tick as i64 * fx::TURN as i64) / l.period as i64) as i32;
-        mul(l.amplitude, sin(phase + i as i32 * 21_000))
-    }
-
-    /// A log's middle at a tick.
-    pub fn log_centre(&self, i: usize, tick: u32) -> V3 {
-        let l = &self.logs[i];
-        let a = self.log_angle(i, tick);
-        l.pivot
-            .add(l.across.scale(mul(l.rope, sin(a))))
-            .sub(V3::UP.scale(mul(l.rope, fx::cos(a))))
+    /// The bounce mushroom whose cap a body at `p` (the hands) is on or in:
+    /// its feet are over the cap and no higher than its top.
+    pub fn mushroom_under(&self, p: V3) -> Option<usize> {
+        let feet = p.y - BODY_DROP;
+        self.mushrooms.iter().position(|m| {
+            let d = p.flat().sub(m.top.flat());
+            let r = m.radius + BODY_RADIUS / 2;
+            d.x.abs() <= r
+                && d.z.abs() <= r
+                && d.len() <= r
+                && feet <= m.top.y
+                && feet >= ground(m.top.x, m.top.z) - int(1)
+        })
     }
 
     /// The highest surface under a point: the ground, or a platform's top.
@@ -298,13 +386,25 @@ impl Course {
             }
             hit = true;
         }
-        // the start's back wall and the finish's far side
+        // the start's back wall and the finish's far side (a finished ape
+        // coasts on into the clearing past the arch, never out of it)
         let behind = pos.flat().sub(self.path[0]).dot(self.heading[0]);
         if behind < -int(6) {
             pos = pos.add(self.heading[0].scale(-int(6) - behind));
             let into = -vel.dot(self.heading[0]);
             if into > 0 {
                 vel = vel.add(self.heading[0].scale(into));
+            }
+        }
+        let last = self.path.len() - 1;
+        let fwd = self.heading[last];
+        let past = pos.flat().sub(self.path[last]).dot(fwd);
+        let stop = OUTRO - int(15);
+        if i == last && past > stop {
+            pos = pos.sub(fwd.scale(past - stop));
+            let into = vel.dot(fwd);
+            if into > 0 {
+                vel = vel.sub(fwd.scale(into));
             }
         }
         let top = ground(pos.x, pos.z) + CEILING;
@@ -345,7 +445,7 @@ fn centreline(name: &'static str, legs: &[Leg]) -> Course {
         half_width: int(20),
         laps: 1,
         vines: Vec::new(),
-        logs: Vec::new(),
+        mushrooms: Vec::new(),
         platforms: Vec::new(),
         crates: Vec::new(),
         props: Vec::new(),
@@ -377,9 +477,10 @@ fn build(legs: &[Leg], seed: u64) -> Course {
     }
     c.start_yaw = 0;
 
-    // Vines in stations every 13–19 m (TRIAGE row 1: the first layout was
-    // too sparse, one path and tight jumps). Each station has two or three
-    // vines spread across the course (left, middle, right lanes, at
+    // Vines in stations every 22–28 m (TRIAGE rows 1 and 13, then T18:
+    // with the long-vine physics an ape covers some 25 m a swing, so about
+    // 60% of row 1's vines are enough). Each station has two vines, now and
+    // then three, spread across the course (left, middle, right lanes, at
     // different heights), so there is always more than one way on; a low
     // vine at every other station lets an ape on the ground climb back up.
     // The start (TRIAGE row 7): a row of vines across the whole platform,
@@ -404,12 +505,13 @@ fn build(legs: &[Leg], seed: u64) -> Course {
     while s < len_m - 30 {
         let h = c.heading_at(int(s));
         let r = right_of(h);
-        // which lanes get a vine: two of the three, sometimes all three
-        let skip = if station == 0 || dice.below(3) == 0 {
+        // which lanes get a vine: two of the three, now and then all three
+        let skip = if station == 0 || dice.below(6) == 0 {
             3
         } else {
             dice.below(3) as i32
         };
+        let mut lanes = Vec::new();
         for lane in 0..3 {
             if lane == skip {
                 continue;
@@ -429,7 +531,7 @@ fn build(legs: &[Leg], seed: u64) -> Course {
             let ground_y = ground(base.x, base.z);
             let mut slide = None;
             // three sliding vines, spread down the course
-            if station > 0 && lane == 1 && station % 30 == 15 && slides < 3 {
+            if station > 0 && lane == 1 && station % 20 == 10 && slides < 3 {
                 slide = Some(Slide {
                     reach: r.scale(int(5)),
                     period: crate::rules::secs_to_ticks(450 + slides * 70),
@@ -442,6 +544,7 @@ fn build(legs: &[Leg], seed: u64) -> Course {
                 slide,
                 at: int(along),
             });
+            lanes.push(off);
         }
         // a low vine to climb back up by
         if station % 2 == 1 {
@@ -454,26 +557,18 @@ fn build(legs: &[Leg], seed: u64) -> Course {
                 slide: None,
                 at: int(s + 7),
             });
+        } else if station > 0 && station % 4 == 2 {
+            // and between them a bounce mushroom (TRIAGE T5), short of one
+            // of this station's vines, so the bounce rises into its reach
+            let off = lanes[dice.below(lanes.len() as u32) as usize];
+            let p = c.point(int(s - 11)).add(r.scale(int(off)));
+            c.mushrooms.push(Mushroom {
+                top: v3(p.x, ground(p.x, p.z) + MUSHROOM_HEIGHT, p.z),
+                radius: MUSHROOM_RADIUS,
+            });
         }
         station += 1;
-        s += dice.range(13, 19);
-    }
-
-    // two swinging logs, across the course in the racing line
-    for (k, at) in [len_m * 30 / 100, len_m * 72 / 100].into_iter().enumerate() {
-        let h = c.heading_at(int(at));
-        let base = c.point(int(at));
-        let gy = ground(base.x, base.z);
-        c.logs.push(Log {
-            pivot: v3(base.x, gy + int(47), base.z),
-            rope: int(28),
-            across: right_of(h),
-            along: h,
-            half_len: int(4),
-            radius: cm(90),
-            amplitude: deg(55),
-            period: crate::rules::secs_to_ticks(380 + k as i32 * 40),
-        });
+        s += dice.range(22, 28);
     }
 
     // item crates: rows of three across the course
@@ -494,15 +589,25 @@ fn build(legs: &[Leg], seed: u64) -> Course {
     c
 }
 
-/// Trunks along both walls and deeper in, branches to the vines, and the
-/// undergrowth. None of it hangs where an ape swings.
+/// Whether `s` metres along is in a stream's bed (nothing grows there).
+fn in_stream(s: i32) -> bool {
+    STREAMS.iter().any(|w| (s - w).abs() < int(8))
+}
+
+/// Trunks along both walls and deeper in, branches to the vines, the
+/// undergrowth, streams, and the valley's walls beyond the trees; on past
+/// the finish into the clearing (TRIAGE T6). None of it hangs where an ape
+/// swings: the crowns nearest the vines stand above their anchors.
 fn scenery(c: &mut Course, dice: &mut Dice) {
-    let n = c.path.len();
+    use TreeKind::*;
     let hw = c.half_width;
-    let mut i = 0;
-    while i < n {
-        let p = c.path[i];
-        let r = right_of(c.heading[i]);
+    let end = c.length + OUTRO;
+    // three rows of trees along each wall, of five kinds and of heights
+    // from 9 m (bamboo) to 100 m (TRIAGE T16, T21)
+    let mut s = 0;
+    while s < end {
+        let p = c.point(s);
+        let r = right_of(c.heading_at(s));
         for sign in [-1, 1] {
             for row in 0..3 {
                 let off = hw + int(2) + int(row * 7) + int(dice.range(0, 4));
@@ -512,16 +617,41 @@ fn scenery(c: &mut Course, dice: &mut Dice) {
                     0,
                     q.z + int(dice.range(-2, 2)),
                 );
-                let gy = ground(q.x, q.z);
+                let radius = cm(dice.range(70, 160)) + row * cm(20);
+                let shade = dice.below(4) as u8;
+                let roll = dice.below(20);
+                let (kind, height) = if row == 0 {
+                    // nearest the vines: crowns well above their anchors
+                    match roll {
+                        0..=10 => (Broadleaf, int(dice.range(60, 78))),
+                        11..=15 => (Emergent, int(dice.range(80, 100))),
+                        16..=17 => (Fig, int(dice.range(62, 74))),
+                        _ => (Palm, int(dice.range(16, 28))),
+                    }
+                } else {
+                    // deeper in: young trees and giants
+                    match roll {
+                        0..=3 => (Broadleaf, int(dice.range(24, 34))),
+                        4..=6 => (Broadleaf, int(dice.range(58, 80))),
+                        7..=9 => (Emergent, int(dice.range(82, 100))),
+                        10..=13 => (Palm, int(dice.range(14, 30))),
+                        14..=15 => (Fig, int(dice.range(60, 72))),
+                        _ => (Bamboo, int(dice.range(9, 16))),
+                    }
+                };
+                if in_stream(s) {
+                    continue;
+                }
                 c.props.push(Prop::Tree {
-                    at: v3(q.x, gy, q.z),
-                    radius: cm(dice.range(70, 160)) + row * cm(20),
-                    height: int(dice.range(60, 75)),
-                    shade: dice.below(4) as u8,
+                    at: v3(q.x, ground(q.x, q.z), q.z),
+                    radius,
+                    height,
+                    shade,
+                    kind,
                 });
             }
         }
-        i += (dice.range(9, 13) / 2).max(1) as usize * 2;
+        s += int(dice.range(8, 12) * 2);
     }
     // a branch from the nearer wall to each vine's anchor
     for v in &c.vines {
@@ -541,46 +671,140 @@ fn scenery(c: &mut Course, dice: &mut Dice) {
             to: v3(beyond.x, v.anchor.y, beyond.z),
         });
     }
-    // undergrowth on the floor: low, and thinner in the middle
-    let mut s = 4;
-    while s < c.length / ONE {
-        let h = c.heading_at(int(s));
-        let r = right_of(h);
-        let base = c.point(int(s));
-        for _ in 0..3 {
-            let off = int(dice.range(-19, 19));
-            let p = base.add(r.scale(off)).add(h.scale(int(dice.range(-2, 2))));
-            let gy = ground(p.x, p.z);
-            let at = v3(p.x, gy, p.z);
-            match dice.below(9) {
-                0..=2 => c.props.push(Prop::Fern {
-                    at,
-                    size: cm(dice.range(80, 160)),
-                    yaw: dice.range(0, fx::TURN),
-                }),
-                3..=4 => c.props.push(Prop::Bush {
-                    at,
-                    size: cm(dice.range(90, 200)),
-                    shade: dice.below(3) as u8,
-                }),
-                5..=7 => c.props.push(Prop::Flower {
-                    at,
-                    colour: dice.below(4) as u8,
-                }),
-                _ => c.props.push(Prop::Rock {
-                    at,
-                    size: cm(dice.range(50, 140)),
-                    yaw: dice.range(0, fx::TURN),
-                }),
+    // the valley's walls: far trees climbing them, and rock outcrops
+    let mut s = -int(50);
+    while s < end + int(20) {
+        let p = c.point(s);
+        let r = right_of(c.heading_at(s));
+        for sign in [-1, 1] {
+            for _ in 0..2 {
+                let a = int(dice.range(50, 116));
+                let q = p.add(r.scale(a * sign));
+                let height = int(dice.range(14, 30));
+                let radius = cm(dice.range(60, 120));
+                let shade = dice.below(4) as u8;
+                if in_stream(s) {
+                    continue;
+                }
+                c.props.push(Prop::Tree {
+                    at: v3(q.x, ground(q.x, q.z) + rise(s, a * sign) - int(2), q.z),
+                    radius,
+                    height,
+                    shade,
+                    kind: Hill,
+                });
             }
         }
-        s += 5;
+        if dice.below(4) == 0 {
+            let a = int(dice.range(78, 114)) * if dice.below(2) == 0 { 1 } else { -1 };
+            let q = p.add(r.scale(a));
+            c.props.push(Prop::Outcrop {
+                at: v3(q.x, ground(q.x, q.z) + rise(s, a), q.z),
+                size: int(dice.range(6, 14)),
+                yaw: dice.range(0, fx::TURN),
+            });
+        }
+        s += int(dice.range(10, 14));
+    }
+    // streams across the valley, down its walls and over the floor
+    for w in STREAMS {
+        let mut last: Option<V3> = None;
+        let mut a = -int(126);
+        while a <= int(126) {
+            let at = w + mul(sin(mul(a, 700)), int(5));
+            let q = c.point(at).add(right_of(c.heading_at(at)).scale(a));
+            let q = v3(q.x, ground(q.x, q.z) + rise(at, a) + cm(8), q.z);
+            if let Some(from) = last {
+                c.props.push(Prop::Water {
+                    from,
+                    to: q,
+                    width: if a.abs() < int(60) { int(4) } else { cm(260) },
+                });
+            }
+            if dice.below(3) == 0 && a.abs() < int(90) {
+                let side = right_of(c.heading_at(at)).cross(V3::UP).norm();
+                let k = int(dice.range(3, 4)) * if dice.below(2) == 0 { 1 } else { -1 };
+                let rock = q.add(side.scale(k));
+                c.props.push(Prop::Rock {
+                    at: v3(rock.x, ground(rock.x, rock.z) + rise(at, a), rock.z),
+                    size: cm(dice.range(50, 120)),
+                    yaw: dice.range(0, fx::TURN),
+                });
+            }
+            last = Some(q);
+            a += int(6);
+        }
+    }
+    // undergrowth on the floor: low, and thinner in the middle; past the
+    // finish it leaves the podium's clearing free
+    let mut s = int(4);
+    while s < end - int(20) {
+        let h = c.heading_at(s);
+        let r = right_of(h);
+        let base = c.point(s);
+        let clearing = s > c.length + int(25) && s < c.length + int(70);
+        for k in 0..4 {
+            // three on the floor, one deeper among the trunks
+            let off = if k < 3 {
+                int(dice.range(-19, 19))
+            } else {
+                int(dice.range(21, 42)) * if dice.below(2) == 0 { 1 } else { -1 }
+            };
+            let p = base.add(r.scale(off)).add(h.scale(int(dice.range(-2, 2))));
+            let at = v3(p.x, ground(p.x, p.z), p.z);
+            let roll = dice.below(20);
+            let (size, yaw, shade) = (
+                dice.range(50, 200),
+                dice.range(0, fx::TURN),
+                dice.below(4) as u8,
+            );
+            if in_stream(s) || (clearing && off.abs() < int(12)) {
+                continue;
+            }
+            c.props.push(match roll {
+                0..=5 => Prop::Fern {
+                    at,
+                    size: cm(size.clamp(80, 160)),
+                    yaw,
+                },
+                6..=9 => Prop::Bush {
+                    at,
+                    size: cm(size.max(90)),
+                    shade,
+                },
+                10..=15 => Prop::Flower { at, colour: shade },
+                16..=18 => Prop::Rock {
+                    at,
+                    size: cm(size.min(140)),
+                    yaw,
+                },
+                _ if off.abs() < hw => Prop::Rock {
+                    at,
+                    size: cm(size.min(140)),
+                    yaw,
+                },
+                _ => {
+                    // a fallen trunk among the trees, lying roughly along
+                    // the course so it stays out of the corridor
+                    let turn = yaw % deg(30) - deg(15);
+                    let d = crate::geom::facing(crate::geom::yaw_of(h) + turn, 0)
+                        .scale(int(4) + cm(size * 3));
+                    Prop::Fallen {
+                        from: at.sub(d),
+                        to: at.add(d),
+                        radius: cm(50) + cm(size / 2),
+                    }
+                }
+            });
+        }
+        s += int(5);
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::rules::{GRAVITY, MUSHROOM_BOUNCE};
 
     #[test]
     fn the_jungle_turns_and_does_not_come_back() {
@@ -663,8 +887,10 @@ mod tests {
 
     #[test]
     fn every_stretch_offers_more_than_one_way_on() {
-        // TRIAGE row 1: in every 25 m of the course there are at least two
-        // vines, at least 6 m apart across it, and a low vine within 40 m
+        // TRIAGE row 1: in every stretch of the course there are at least
+        // two vines, at least 6 m apart across it, and a low vine within
+        // 40 m. T18 thinned the vines, so a stretch is now any 35 m (it was
+        // every 25 m).
         let c = Course::jungle();
         let side = |v: &Vine| c.progress(v.anchor, c.nearest_anywhere(v.anchor)).1;
         let mut from = int(30);
@@ -672,7 +898,7 @@ mod tests {
             let here: Vec<&Vine> = c
                 .vines
                 .iter()
-                .filter(|v| v.at >= from && v.at < from + int(25))
+                .filter(|v| v.at >= from && v.at < from + int(35))
                 .collect();
             assert!(here.len() >= 2, "{} m: {} vines", from / ONE, here.len());
             let lo = here.iter().map(|v| side(v)).min().unwrap();
@@ -689,7 +915,7 @@ mod tests {
                     && v.anchor.y - v.length - ground(v.anchor.x, v.anchor.z) < int(4)
             });
             assert!(low, "{} m: no low vine near", from / ONE);
-            from += int(25);
+            from += int(5);
         }
     }
 
@@ -706,10 +932,132 @@ mod tests {
 
     #[test]
     fn no_more_than_five_moving_parts() {
+        // TRIAGE T17: the swinging logs are gone; the sliding vines remain
         let c = Course::jungle();
         let sliding = c.vines.iter().filter(|v| v.slide.is_some()).count();
-        assert!(sliding + c.logs.len() <= 5);
-        assert!(sliding + c.logs.len() >= 3);
+        assert_eq!(sliding, 3);
+    }
+
+    #[test]
+    fn there_are_about_sixty_percent_of_the_old_vines() {
+        // TRIAGE T18: 310 vines before; the start row and the low vines stay
+        let c = Course::jungle();
+        let n = c.vines.len();
+        assert!((165..=205).contains(&n), "{n} vines");
+        let low = c
+            .vines
+            .iter()
+            .filter(|v| v.anchor.y - v.length - ground(v.anchor.x, v.anchor.z) < int(4))
+            .count();
+        assert!(low >= 30, "{low} low vines");
+    }
+
+    #[test]
+    fn bounce_mushrooms_stand_along_the_course_under_vines() {
+        let c = Course::jungle();
+        assert!(c.mushrooms.len() >= 15, "{}", c.mushrooms.len());
+        for m in &c.mushrooms {
+            let k = c.nearest_anywhere(m.top);
+            let (along, side) = c.progress(m.top, k);
+            assert!(side.abs() < c.half_width - m.radius, "{} m off", side / ONE);
+            // a vine ahead of it, within 25 m, that the bounce reaches
+            let reach = crate::rules::Kind::Chimpanzee
+                .race_stats(true)
+                .physics()
+                .reach;
+            let peak =
+                m.top.y + BODY_DROP + fx::div(mul(MUSHROOM_BOUNCE, MUSHROOM_BOUNCE), 2 * GRAVITY);
+            let ahead = c.vines.iter().any(|v| {
+                v.at > along && v.at < along + int(25) && v.anchor.y - v.length < peak + reach
+            });
+            assert!(ahead, "{} m: no vine to bounce to", along / ONE);
+        }
+    }
+
+    #[test]
+    fn tree_crowns_stay_clear_of_the_vines() {
+        // TRIAGE T21: heights vary, but a crown never spreads over a vine
+        // unless it is wholly above its anchor
+        let c = Course::jungle();
+        let mut checked = 0;
+        for p in &c.props {
+            let Prop::Tree {
+                at, height, kind, ..
+            } = *p
+            else {
+                continue;
+            };
+            let (reach, below) = crown(kind, height);
+            let bottom = at.y + height - below;
+            for (i, v) in c.vines.iter().enumerate() {
+                let sway = v.slide.map(|s| s.reach.len()).unwrap_or(0);
+                let flat = v.anchor.flat().sub(at.flat()).len();
+                if flat < reach + sway + int(1) {
+                    checked += 1;
+                    assert!(
+                        bottom > v.anchor.y + int(1),
+                        "vine {i}: a {kind:?} {} m tall, {} m away, crown bottom {} m, anchor {} m",
+                        height / ONE,
+                        flat / ONE,
+                        bottom / ONE,
+                        v.anchor.y / ONE
+                    );
+                }
+            }
+        }
+        assert!(checked > 0);
+    }
+
+    #[test]
+    fn trees_vary_in_height_and_kind() {
+        let c = Course::jungle();
+        let mut heights = Vec::new();
+        let mut kinds = Vec::new();
+        for p in &c.props {
+            if let Prop::Tree { height, kind, .. } = *p {
+                if kind != TreeKind::Hill {
+                    heights.push(height);
+                }
+                if !kinds.contains(&kind) {
+                    kinds.push(kind);
+                }
+            }
+        }
+        heights.sort();
+        let lo = heights[heights.len() / 10];
+        let hi = heights[heights.len() * 9 / 10];
+        assert!(
+            lo <= int(25) && hi >= int(80),
+            "{} to {}",
+            lo / ONE,
+            hi / ONE
+        );
+        assert_eq!(kinds.len(), 6, "{kinds:?}");
+    }
+
+    #[test]
+    fn the_jungle_goes_on_past_the_finish() {
+        // TRIAGE T6: trees and undergrowth past the arch, up to the cliff
+        let c = Course::jungle();
+        let last = c.path.len() - 1;
+        let past = |p: V3| p.flat().sub(c.path[last]).dot(c.heading[last]);
+        let beyond = c
+            .props
+            .iter()
+            .filter(|p| match **p {
+                Prop::Tree { at, .. } | Prop::Bush { at, .. } | Prop::Fern { at, .. } => {
+                    past(at) > int(100)
+                }
+                _ => false,
+            })
+            .count();
+        assert!(beyond > 20, "{beyond}");
+        // and a finished ape coasting on is stopped short of the cliff
+        let fwd = c.heading[last];
+        let p = c.path[last].add(fwd.scale(OUTRO));
+        let (q, v, _) = c.contain(p, fwd.scale(int(20)), last);
+        assert!(past(q) < OUTRO - int(10));
+        assert!(v.dot(fwd) <= 0);
     }
 
     #[test]
@@ -752,13 +1100,9 @@ mod tests {
     }
 
     #[test]
-    fn sliding_vines_and_logs_move() {
+    fn sliding_vines_move() {
         let c = Course::jungle();
         let i = c.vines.iter().position(|v| v.slide.is_some()).unwrap();
         assert_ne!(c.anchor(i, 0), c.anchor(i, 200));
-        assert_ne!(c.log_centre(0, 0), c.log_centre(0, 100));
-        // a log's middle stays a rope's length from its pivot
-        let l = &c.logs[0];
-        assert!((c.log_centre(0, 77).dist(l.pivot) - l.rope).abs() < int(1) / 10);
     }
 }

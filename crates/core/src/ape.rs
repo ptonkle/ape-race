@@ -327,7 +327,16 @@ impl Ape {
         let speed = flat.len();
         let run = self.phys.run_speed;
         let next = if speed > run {
-            // too fast for legs: the ground takes the extra
+            // too fast for legs: the ground takes the extra, slowly (TRIAGE
+            // T5), and WASD across the slide turn it
+            let dir = flat.norm();
+            let across = wish.sub(dir.scale(wish.dot(dir)));
+            let flat = if across.len() > ONE / 20 {
+                let turn = across.with_len(mul(SLIDE_STEER, across.len().min(ONE)));
+                flat.add(turn.scale(DT)).with_len(speed)
+            } else {
+                flat
+            };
             flat.with_len(fx::approach(speed, run, mul(GROUND_FRICTION, DT)))
         } else {
             let target = wish.scale(run);
@@ -351,6 +360,17 @@ impl Ape {
         if wall {
             self.happened.push(Happening::Wall);
         }
+        // a bounce mushroom throws a falling or running ape back up
+        // toward the vines (TRIAGE T5)
+        if self.swinging().is_none() && self.vel.y <= 0 {
+            if let Some(m) = course.mushroom_under(self.pos) {
+                self.pos.y = self.pos.y.max(course.mushrooms[m].top.y + BODY_DROP);
+                self.vel.y = MUSHROOM_BOUNCE;
+                self.mode = Mode::Flying;
+                self.happened.push(Happening::Jump);
+                return;
+            }
+        }
         let support = course.support(self.pos);
         let feet = self.pos.y - BODY_DROP;
         if feet <= support {
@@ -358,6 +378,13 @@ impl Ape {
             if self.vel.y < 0 {
                 if self.mode == Mode::Flying && self.vel.y < -int_speed(4) {
                     self.happened.push(Happening::Land);
+                }
+                // a landing rolls some of its fall on along the ground
+                // rather than stopping dead (TRIAGE T5)
+                let flat = self.vel.flat();
+                if self.mode == Mode::Flying && flat.len() > ONE {
+                    let roll = mul(-self.vel.y, LANDING_ROLL);
+                    self.vel = flat.with_len(flat.len() + roll);
                 }
                 self.vel.y = 0;
                 if self.mode == Mode::Flying {
