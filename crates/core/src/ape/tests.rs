@@ -90,13 +90,15 @@ fn pumping_with_the_swing_raises_it() {
 }
 
 #[test]
-fn steering_across_the_swing_turns_it_without_adding_speed() {
+fn steering_turns_the_swing_and_adds_no_speed_when_fast() {
     let c = one_vine();
     let run = |side: i32| {
-        let mut ape = hanging(&c, deg(50));
+        let mut ape = hanging(&c, 0);
         ape.phys.drag = 0;
+        // fast, past the drive's fade: steering can only turn
+        ape.vel = v3(0, 0, DRIVE_FADE_SPEED + int(2));
         let mut fastest = 0;
-        for t in 0..240 {
+        for t in 0..60 {
             let ctl = Controls { side, ..held() };
             ape.step(&ctl, &c, t);
             fastest = fastest.max(ape.speed());
@@ -107,8 +109,7 @@ fn steering_across_the_swing_turns_it_without_adding_speed() {
     let (steered, fast_steered) = run(1);
     // D steers to the camera's right (-x for a camera facing +z)
     assert!(straight.abs() < cm(10), "{}", straight);
-    assert!(steered < -int(2), "{}", steered);
-    // and steering adds no speed
+    assert!(steered < -int(1), "{}", steered);
     assert!(
         fast_steered <= fast_straight + ONE / 4,
         "{fast_steered} vs {fast_straight}"
@@ -116,7 +117,34 @@ fn steering_across_the_swing_turns_it_without_adding_speed() {
 }
 
 #[test]
-fn pumping_from_slow_is_stronger() {
+fn holding_w_from_a_dead_hang_swings_forward_and_never_back() {
+    // TRIAGE row 8: no pumping back and forth
+    let c = one_vine();
+    let a = c.vines[0].anchor;
+    let mut ape = hanging(&c, 0);
+    let mut highest = i32::MIN;
+    for t in 0..240 {
+        let ctl = Controls { fwd: 1, ..held() };
+        ape.step(&ctl, &c, t);
+        assert!(ape.vel.z >= -ONE / 10, "swung back at tick {t}");
+        highest = highest.max(ape.pos.y);
+    }
+    // up past halfway to the anchor's height in front of it
+    assert!(highest > a.y - int(6), "{}", (a.y - highest) / ONE);
+    // and W on a backswing turns it round
+    let mut back = hanging(&c, 0);
+    back.vel = v3(0, 0, -int(8));
+    let mut turned = false;
+    for t in 0..120 {
+        let ctl = Controls { fwd: 1, ..held() };
+        back.step(&ctl, &c, t);
+        turned |= back.vel.z > 0;
+    }
+    assert!(turned);
+}
+
+#[test]
+fn the_drive_is_strongest_when_slow() {
     let c = one_vine();
     let gain = |speed: i32| {
         let mut ape = hanging(&c, 0);

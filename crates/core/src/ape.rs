@@ -253,13 +253,14 @@ impl Ape {
         self.happened.push(Happening::Release);
     }
 
-    /// Pumping is stronger when slow (TRIAGE row 6: a mistake must be
-    /// recoverable): half as strong again at rest, normal from Pump Boost
-    /// Speed.
-    fn pump_now(&self) -> i32 {
-        let speed = self.vel.len().min(PUMP_BOOST_SPEED);
-        let extra = fx::div(PUMP_BOOST_SPEED - speed, PUMP_BOOST_SPEED) / 2;
-        self.phys.pump + mul(self.phys.pump, extra)
+    /// The swing's drive now: full at rest, fading to nothing at Drive
+    /// Fade Speed (TRIAGE row 8).
+    fn drive_now(&self) -> i32 {
+        let speed = self.vel.len().min(DRIVE_FADE_SPEED);
+        mul(
+            self.phys.pump,
+            fx::div(DRIVE_FADE_SPEED - speed, DRIVE_FADE_SPEED),
+        )
     }
 
     fn drag(&mut self) {
@@ -272,24 +273,20 @@ impl Ape {
     fn swing(&mut self, vine: usize, rope: i32, wish: V3, course: &Course, tick: u32) {
         let a = course.anchor(vine, tick);
         let n = self.pos.sub(a).norm();
-        // WASD on a vine (TRIAGE row 6): the part of the wish along the
-        // motion pumps, and only with the motion (or from rest); the part
-        // across the motion steers the swing's plane, always, at full
-        // strength, without adding speed.
+        // WASD on a vine (TRIAGE rows 6 and 8): no pumping back and forth.
+        // The wish drives the ape along the swing whichever way it is
+        // moving (so W on a backswing turns it round), strongest when slow
+        // and fading to nothing at Drive Fade Speed, so at speed it is the
+        // line and the release that count. The part across the motion also
+        // steers the swing's plane, without adding speed.
         let t = wish.reject(n);
         if t.len() > ONE / 10 {
+            let drive = self.drive_now();
+            self.vel = self.vel.add(t.norm().scale(mul(mul(drive, t.len()), DT)));
             let speed = self.vel.len();
-            if speed < PUMP_FROM_REST {
-                let push = mul(self.pump_now(), t.len());
-                self.vel = self.vel.add(t.norm().scale(mul(push, DT)));
-            } else {
+            if speed > ONE {
                 let dir = self.vel.norm();
-                let along = t.dot(dir);
-                if along > 0 {
-                    let push = mul(self.pump_now(), along);
-                    self.vel = self.vel.add(dir.scale(mul(push, DT)));
-                }
-                let across = t.sub(dir.scale(along)).reject(n);
+                let across = t.sub(dir.scale(t.dot(dir))).reject(n);
                 if across.len() > ONE / 20 {
                     let turn = across.with_len(mul(SWING_STEER, across.len().min(ONE)));
                     // turn the velocity, keeping its size
