@@ -201,12 +201,16 @@ pub const BANANA_LIFE: i32 = secs_to_ticks(250);
 /// A Banana hit: speed kept, and how long the ape is Stunned.
 pub const BANANA_KEEP: i32 = ONE * 60 / 100;
 pub const BANANA_STUN: i32 = secs_to_ticks(70);
+/// A Banana leaves this much above the camera's aim, so it arcs.
+pub const BANANA_LOB: i32 = crate::fx::deg(6);
 
 /// A Stick swing reaches this far, takes this share of speed and knocks the
 /// ape off its vine.
 pub const STICK_RANGE: i32 = cm(350);
 pub const STICK_KEEP: i32 = ONE * 70 / 100;
 pub const STICK_STUN: i32 = secs_to_ticks(45);
+/// A Stick hit shoves the ape away from the swinger this fast.
+pub const STICK_PUSH: i32 = int(5);
 
 /// The Hook reaches the nearest ape ahead within this distance.
 pub const HOOK_RANGE: i32 = int(60);
@@ -216,6 +220,9 @@ pub const HOOK_PULL: i32 = int(12);
 pub const HOOK_STUN: i32 = secs_to_ticks(50);
 /// The user gains this much speed toward the hooked ape.
 pub const HOOK_GAIN: i32 = int(8);
+/// The Hook flies this fast, for at most this long.
+pub const HOOK_SPEED: i32 = int(80);
+pub const HOOK_LIFE: i32 = secs_to_ticks(100);
 
 /// The Speed Boost: this much speed along the current velocity.
 pub const BOOST_GAIN: i32 = int(14);
