@@ -873,6 +873,8 @@ impl App {
             },
             "item": [self.t("hud.item"), item],
             "item_key": me.item.map(|i| i.key()).unwrap_or(""),
+            // the held item as a picture (TRIAGE T19)
+            "item_icon": me.item.map(crate::items::icon_svg).unwrap_or_default(),
             "big": big,
             "hint": if self.pointer_locked { String::new() } else { self.t("hud.click") },
             "minimap": self.minimap(p),

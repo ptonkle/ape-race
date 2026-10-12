@@ -334,3 +334,9 @@ table.cells tr.me td { color: var(--banana); font-weight: 800; }
 /* the setup panel keeps one width whatever the ape's name (TRIAGE T2) */
 .panel.setup { width: 25rem; }
 .picker .name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* the held item's picture (TRIAGE T19) */
+.item-slot .icon { display: block; width: 4.5rem; height: 4.5rem; margin: 0.2rem auto; }
+.item-slot .icon:empty { display: none; }
+.item-slot .icon svg { width: 100%; height: 100%; }
+.item-slot .v { font-size: 0.9rem; }

@@ -231,6 +231,12 @@ function drawHud(h) {
   pair("hud-best", h.best);
   pair("hud-item", h.item);
   el("hud-item").className = h.item_key ? "item-slot full" : "item-slot";
+  // the item's picture, made by the core (TRIAGE T19)
+  const icon = el("hud-item-icon");
+  if (icon.dataset.key !== h.item_key) {
+    icon.dataset.key = h.item_key;
+    icon.innerHTML = h.item_icon;
+  }
   el("hud-big").textContent = h.big;
   el("hud-hint").textContent = h.hint;
   el("hud-reticle").className = h.cooldown ? "reticle cool" : "reticle";
