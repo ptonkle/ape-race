@@ -392,8 +392,8 @@ fn build(legs: &[Leg], seed: u64) -> Course {
             .point(at)
             .add(right_of(c.heading_at(at)).scale(int(3) * k));
         c.vines.push(Vine {
-            anchor: v3(base.x, START_HEIGHT + int(14), base.z),
-            length: int(13),
+            anchor: v3(base.x, START_HEIGHT + int(44), base.z),
+            length: int(43),
             slide: None,
             at,
         });
@@ -416,11 +416,11 @@ fn build(legs: &[Leg], seed: u64) -> Course {
             }
             let (anchor_h, length, off) = if station == 0 {
                 // off the start platform: close, and not too high
-                (int(28), int(11), (lane - 1) * 6)
+                (int(60), int(44), (lane - 1) * 6)
             } else {
                 (
-                    int(dice.range(22, 33)),
-                    int(dice.range(10, 16)),
+                    int(dice.range(54, 66)),
+                    int(dice.range(36, 46)),
                     (lane - 1) * 10 + dice.range(-2, 2),
                 )
             };
@@ -449,8 +449,8 @@ fn build(legs: &[Leg], seed: u64) -> Course {
             let b3 = c.point(int(s + 7)).add(r.scale(int(off3)));
             let g3 = ground(b3.x, b3.z);
             c.vines.push(Vine {
-                anchor: v3(b3.x, g3 + int(13), b3.z),
-                length: int(10) + cm(dice.range(0, 40)),
+                anchor: v3(b3.x, g3 + int(40), b3.z),
+                length: int(37) + cm(dice.range(0, 40)),
                 slide: None,
                 at: int(s + 7),
             });
@@ -465,8 +465,8 @@ fn build(legs: &[Leg], seed: u64) -> Course {
         let base = c.point(int(at));
         let gy = ground(base.x, base.z);
         c.logs.push(Log {
-            pivot: v3(base.x, gy + int(36), base.z),
-            rope: int(20),
+            pivot: v3(base.x, gy + int(58), base.z),
+            rope: int(36),
             across: right_of(h),
             along: h,
             half_len: int(4),
@@ -485,7 +485,7 @@ fn build(legs: &[Leg], seed: u64) -> Course {
         let gy = ground(base.x, base.z);
         for off in [-9, 0, 9] {
             let p = base.add(r.scale(int(off)));
-            c.crates.push(v3(p.x, gy + int(dice.range(13, 17)), p.z));
+            c.crates.push(v3(p.x, gy + int(dice.range(18, 28)), p.z));
         }
         at += 240;
     }
@@ -516,7 +516,7 @@ fn scenery(c: &mut Course, dice: &mut Dice) {
                 c.props.push(Prop::Tree {
                     at: v3(q.x, gy, q.z),
                     radius: cm(dice.range(70, 160)) + row * cm(20),
-                    height: int(dice.range(44, 58)),
+                    height: int(dice.range(74, 90)),
                     shade: dice.below(4) as u8,
                 });
             }

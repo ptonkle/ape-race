@@ -195,19 +195,27 @@ impl Ape {
         let to = self.pos.sub(a);
         // the vine stretches to the hands rather than yanking the ape to its
         // end (a grab may come from a reach below the vine's end)
-        let rope = to.len().clamp(MIN_ROPE, length + self.phys.reach);
+        // and a catch high on a vine leaves the rope slack, so the ape drops
+        // into a long swing (TRIAGE row 11) rather than a short one
+        let rope = to
+            .len()
+            .clamp(MIN_ROPE.min(length), length + self.phys.reach);
         let n = to.norm();
         if to.len() > rope {
             self.pos = a.add(n.scale(rope));
         }
-        // the speed is redirected along the swing; Grab Keep holds most of it
-        let speed = self.vel.len();
-        let along = self.vel.reject(n);
-        let keep = mul(speed, GRAB_KEEP);
-        if along.len() > ONE / 20 {
-            self.vel = along.with_len(along.len().max(keep));
-        } else {
-            self.vel = along;
+        // a taut catch redirects the speed along the swing; Grab Keep holds
+        // most of it (a slack one keeps flying until the rope draws tight,
+        // and the swing keeps the speed then)
+        if to.len() >= rope {
+            let speed = self.vel.len();
+            let along = self.vel.reject(n);
+            let keep = mul(speed, GRAB_KEEP);
+            if along.len() > ONE / 20 {
+                self.vel = along.with_len(along.len().max(keep));
+            } else {
+                self.vel = along;
+            }
         }
         self.mode = Mode::Swinging { vine, rope };
         self.happened.push(Happening::Grab);
