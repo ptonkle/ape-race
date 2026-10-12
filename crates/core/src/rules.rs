@@ -16,7 +16,7 @@ pub const fn secs_to_ticks(hundredths: i32) -> i32 {
 }
 
 /// Downward acceleration. Stronger than Earth's so a swing is quick.
-pub const GRAVITY: i32 = int(18);
+pub const GRAVITY: i32 = int(20);
 
 /// From the hands (the body's point) down to the feet.
 pub const BODY_DROP: i32 = cm(130);

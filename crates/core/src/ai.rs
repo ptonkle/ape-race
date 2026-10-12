@@ -48,10 +48,12 @@ const MOMENT: u32 = 2;
 const BUDGET: u32 = 2;
 /// A release moment is taken only once the search has looked this far past
 /// it for a better one (or has run to its horizon).
-const COVER: u32 = TICKS_PER_SECOND as u32 / 2;
+const COVER: u32 = 60;
 /// Vines this far ahead are candidates.
 const LOOK: i32 = int(70);
-const MAX_CANDS: usize = 6;
+const MAX_CANDS: usize = 10;
+/// A search tries steering for this many of them in turn.
+const STEERS: usize = 3;
 /// The hop it likes best, metres.
 const IDEAL_HOP: i32 = int(28);
 /// After this long on one vine with no way on, it lets go forward.
@@ -87,6 +89,8 @@ pub struct Brain {
     plan: Option<Box<Plan>>,
     /// Space was held last tick
     last_grab: bool,
+    /// Space (jump) was held last tick
+    last_jump: bool,
     pub replans: u32,
     /// the vine a release was planned to reach, and how often it did
     pub expect: Option<usize>,
@@ -197,6 +201,7 @@ pub fn think(race: &Race, who: usize, brain: &mut Brain) -> Controls {
         use_item(race, who, &mut c);
     }
     brain.last_grab = c.grab;
+    brain.last_jump = c.jump;
     c
 }
 
@@ -490,7 +495,14 @@ fn on_vine(a: &Ape, course: &Course, tick: u32, vine: usize, brain: &mut Brain) 
     };
 
     // search ahead
-    for _ in 0..BUDGET {
+    // a fresh plan looks far enough ahead at once to take a moment right
+    // away: the best release is often the first upswing
+    let budget = if plan.sim_tick == plan.began {
+        COVER / MOMENT + BUDGET
+    } else {
+        BUDGET
+    };
+    for _ in 0..budget {
         if plan.sim_tick >= plan.end || plan.sim.swinging() != Some(vine) {
             // this pass is done: if nothing reached a vine, try the next
             // target and way of swinging, from now
@@ -499,7 +511,7 @@ fn on_vine(a: &Ape, course: &Course, tick: u32, vine: usize, brain: &mut Brain) 
                 plan.sim = a.clone();
                 plan.sim_tick = tick;
                 plan.end = tick + HORIZON;
-                if plan.pick == 2 * brain.cands.len() {
+                if plan.pick == 2 * brain.cands.len().min(STEERS) {
                     // nothing ahead will do: any vine near will, even one
                     // behind, to come at the next from a better line
                     let wide = near(course, a, tick);
@@ -636,7 +648,8 @@ fn onward(a: &Ape, course: &Course, tick: u32, m: &Moment, cands: &[usize]) -> b
 
 /// A search pass's target and whether it swings without pumping.
 fn pick(cands: &[usize], pick: usize) -> (usize, bool) {
-    (cands[pick % cands.len()], (pick / cands.len()) % 2 == 1)
+    let n = cands.len().min(STEERS);
+    (cands[pick % n], (pick / n) % 2 == 1)
 }
 
 /// Every vine within reach of a flight from here but the one held, from
@@ -704,20 +717,20 @@ fn on_ground(a: &Ape, course: &Course, tick: u32, brain: &mut Brain) -> Controls
     if !brain.cands.contains(&t) {
         brain.cands.insert(0, t);
     }
-    if brain.last_grab {
+    if brain.last_jump {
         return c;
     }
     // would a jump now catch a vine?
     let mut j = a.clone();
-    let jump = Controls { grab: true, ..c };
+    let jump = Controls { jump: true, ..c };
     j.step(&jump, course, tick);
     let next = after(course, a, t, tick);
     brain.next = next;
-    if fly_ahead(&mut j, course, tick + 1, t, next, &brain.cands, true).is_some() {
-        c.grab = true;
+    if fly_ahead(&mut j, course, tick + 1, t, next, &brain.cands, false).is_some() {
+        c.jump = true;
     } else if !raised && to.len() < cm(40) {
         // right under it and still no: jump anyway
-        c.grab = true;
+        c.jump = true;
     }
     c
 }
