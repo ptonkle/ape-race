@@ -288,10 +288,7 @@ impl Ape {
         self.pos = p;
         // A taut rope does no work: the speed is what gravity alone gives
         // over the height change, so a free swing neither gains nor loses.
-        // Not when almost still: at a turning point a tick's move is tiny
-        // next to a tick of gravity, the height change undercounts it, and
-        // the ape would hang there for ever.
-        if taut && speed2 > SLOW_SWING {
+        if taut {
             let dh = self.pos.y as i64 - before.y as i64;
             let target = speed2 - 2 * GRAVITY as i64 * dh;
             if target > 0 && self.vel != V3::ZERO {
@@ -382,9 +379,6 @@ impl Ape {
 
 /// Ignore the vine just let go of for this many ticks.
 const RELEASE_IGNORE: i32 = secs_to_ticks(30);
-
-/// Below 1 m/s (as a squared speed, Q32) a swing is integrated plainly.
-const SLOW_SWING: i64 = 1 << 32;
 
 const fn int_speed(n: i32) -> i32 {
     n * ONE

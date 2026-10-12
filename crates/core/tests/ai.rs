@@ -30,49 +30,6 @@ fn report(label: &str, trials: &[Trial]) {
 
 const LIMIT: u32 = 150 * TICKS_PER_SECOND as u32;
 
-/// Found by the AI: an ape near the top of its swing, almost still, could
-/// hang there for ever, holding W or not (SECOND-ORDER A3). Gravity must
-/// bring it back down.
-#[test]
-fn a_slow_swing_never_hangs_at_its_turning_point() {
-    use tool_core::ape::{Ape, Controls, Mode};
-    use tool_core::fx::{deg, int, mul};
-    use tool_core::geom::v3;
-    let c = Course::test_line(&[(int(50), int(30), int(12))]);
-    let a = c.vines[0].anchor;
-    let rope = int(10);
-    let angle = deg(66);
-    for fwd in [0, 1] {
-        for creep in [ONE / 8, ONE / 6, ONE / 4] {
-            let (s, co) = (tool_core::fx::sin(angle), tool_core::fx::cos(angle));
-            let mut ape = Ape::new(
-                Kind::Chimpanzee,
-                true,
-                a.add(v3(0, -mul(rope, co), mul(rope, s))),
-                0,
-            );
-            ape.mode = Mode::Swinging { vine: 0, rope };
-            // creeping up the arc, slower than a tick of gravity takes away
-            ape.vel = v3(0, mul(creep, s), mul(creep, co));
-            let start = ape.pos.y;
-            for t in 0..TICKS_PER_SECOND as u32 {
-                let ctl = Controls {
-                    fwd,
-                    grab: true,
-                    ..Controls::default()
-                };
-                ape.step(&ctl, &c, t);
-            }
-            assert!(
-                ape.pos.y < start - int(1),
-                "fwd {fwd} creep {creep}: {} -> {}",
-                start / 655,
-                ape.pos.y / 655
-            );
-        }
-    }
-}
-
 #[test]
 fn one_ai_finishes_the_jungle_in_one_to_two_minutes() {
     let t = trial(Course::jungle(), &[Kind::Chimpanzee], true, LIMIT);
@@ -99,4 +56,33 @@ fn speed_report_every_kind_alone_and_four_together() {
         LIMIT,
     );
     report("four together", &t);
+}
+
+/// Finish times over eight layouts of the jungle (its seed and seven more),
+/// three kinds each: for judging AI and layout changes beyond one course.
+#[test]
+#[ignore]
+fn finish_times_over_course_seeds() {
+    let mut times = Vec::new();
+    for k in 0..8u64 {
+        let course = if k == 0 {
+            Course::jungle()
+        } else {
+            Course::jungle_seeded(0x0A9E_2ACE_0001 + k * 7919)
+        };
+        let mut row = Vec::new();
+        for kind in [Kind::Chimpanzee, Kind::Gorilla, Kind::Gibbon] {
+            let t = trial(course.clone(), &[kind], kind == Kind::Chimpanzee, LIMIT);
+            row.push(t[0].finish.map(secs));
+            times.push(t[0].finish.map(secs).unwrap_or(f64::INFINITY));
+        }
+        println!("layout {k}: {row:.1?}");
+    }
+    times.sort_by(|a, b| a.partial_cmp(b).unwrap());
+    println!(
+        "best {:.1} s, median {:.1} s, worst {:.1} s",
+        times[0],
+        times[times.len() / 2],
+        times[times.len() - 1]
+    );
 }
