@@ -9,7 +9,7 @@ A fresh session starts from this file, not from memory.
 - **Live:** https://ptonkle.github.io/ape-race/, with a card (the six-ape lineup) on https://ptonkle.github.io/.
 - **How:** `./scripts/pages.sh` builds the game into `~/slop/ptonkle.github.io/ape-race/` and screenshots the lineup into `img/ape-race/lineup.png`. Then commit and push in that folder. Site commits use author `ptonk <65458712+ptonkle@users.noreply.github.com>`. Only the built game is published; the source stays local.
 - **Privacy:** `build.sh` maps the home folder to `~` in paths baked into the wasm; the published files hold no personal names.
-- **First deploy is solo-first:** the person asked to ship before the AI was done. New players start with AI Opponents 0. The option is still in the menu; until the AI lands, an AI ape only holds W and walks off the start platform (SECOND-ORDER C2).
+- **Updates since:** the person's play feedback is TRIAGE rows 1–12 (denser vines in lanes, left-click hold-to-catch with double reach, W drives the swing with no pumping, equal restarts, 1–2 s swings on long vines, bending 8-link vines, a banana speedometer, a forward-facing camera, easy first vines). Each was redeployed. The AI landed (70–74 s a race) and three AI opponents are the default again.
 
 ## What passed
 
@@ -33,7 +33,7 @@ The Builder template became a 3D vine-swinging racer. The work was split across 
 
 ## What remains
 
-- **The AI** (P12): an agent was still building `ai.rs` and tuning the course and physics when the person chose to deploy. Its worktree branch is `worktree-agent-a85089a505766695c`. Merge it, check that an AI finishes in 60–120 s, then redeploy with `pages.sh`.
+- **AI difficulty** (SECOND-ORDER A3, *person*): one difficulty; the AI is consistent and may beat new players. A handicap (a release delay) is the place to add levels.
 - **Future ideas** are in `TRIAGE.md` (T1: time trial medals and an Author time; a draft is parked on branch `todo/time-trial`).
 - **Feel** (R5, *person*): nobody has played it yet. Every tuning number is in `rules.rs`.
 - **Sounds** (S6, *person*): not yet listened to.
@@ -45,3 +45,5 @@ The Builder template became a 3D vine-swinging racer. The work was split across 
 - Page JavaScript holds no number other than 0 and 1. Fractional values reach it as JSON numbers the core writes from text (`app::decimal`).
 - Do not request pointer lock from a menu click. It stalls headless Chromium (R2).
 - `.gitattributes` merges SECOND-ORDER.md as a union, for parallel agents.
+- PLAN.md P4–P6 describe the first grab and pump design; the person replaced it (SECOND-ORDER C3, TRIAGE rows 2, 6, 8–10). TRIAGE.md is the current word on feel.
+- `scripts/shot.py` screenshots the built game (`--hold KeyW,Mouse:1.5`); `examples/swing_time.rs` measures swing length; `cargo test --release -p tool_core --test ai -- --ignored --nocapture` reports AI finish times and speeds.
