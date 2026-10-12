@@ -202,12 +202,16 @@ impl Ape {
         if to.len() > rope {
             self.pos = a.add(n.scale(rope));
         }
-        // the speed is redirected along the swing; Grab Keep holds most of it
+        // the speed is redirected along the swing: all of the part across
+        // the rope, and Grab Keep of the part along it, so a grab caught
+        // moving across the vine keeps its speed and a mistimed one does
+        // not (TRIAGE row 23)
         let speed = self.vel.len();
         let along = self.vel.reject(n);
-        let keep = mul(speed, GRAB_KEEP);
+        let lost = speed - along.len();
+        let keep = along.len() + mul(lost, GRAB_KEEP);
         if along.len() > ONE / 20 {
-            self.vel = along.with_len(along.len().max(keep));
+            self.vel = along.with_len(keep);
         } else {
             self.vel = along;
         }

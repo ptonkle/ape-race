@@ -29,8 +29,10 @@ pub const BODY_RADIUS: i32 = cm(60);
 pub const MIN_ROPE: i32 = int(18);
 /// How fast an ape slides down a vine caught high up.
 pub const VINE_SLIDE: i32 = int(14);
-/// Share of the speed a grab keeps, redirected along the swing (Grab Keep).
-pub const GRAB_KEEP: i32 = ONE * 96 / 100;
+/// A grab keeps all the speed across the rope and this share of the part
+/// along it (moving toward or away from the anchor), redirected along the
+/// swing (TRIAGE row 23: a mistimed grab costs speed, a clean one nothing).
+pub const GRAB_KEEP: i32 = ONE / 2;
 /// Extra speed along the velocity when Space is let go on the upswing.
 pub const RELEASE_BOOST: i32 = cm(150);
 /// Steering on a vine: how fast WASD across the motion turn the swing.
@@ -101,8 +103,10 @@ impl Stats {
             // stat sets how fast the drive still helps, 30 to 38 m/s
             pump: DRIVE_AT_REST,
             drive_fade: int(30) + s(self.pump) * int(2),
-            // drag, in hundred-thousandths per metre: 0.0050 to 0.0034
-            drag: 500 - s(self.top_speed) * 40,
+            // drag, in hundred-thousandths per metre: 0.00125 to 0.00085
+            // (TRIAGE row 23: a quarter of before; mistimed swings, not the
+            // air, should be what slows an ape)
+            drag: 125 - s(self.top_speed) * 10,
             // 3.6 to 5.2 m from the hands (TRIAGE rows 1 and 9: twice the
             // first loosening; grabbing should not need precision)
             reach: cm(360) + s(self.reach) * cm(40),
