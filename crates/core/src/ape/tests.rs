@@ -668,3 +668,57 @@ fn running_into_a_mushroom_bounces_too() {
     }
     assert!(bounced);
 }
+
+#[test]
+fn hopping_in_place_never_speeds_an_ape_up() {
+    // TRIAGE row 25: jumping up and down gained speed from each landing
+    let c = Course::test_line(&[]);
+    let p = c.point(int(150));
+    let gy = ground(p.x, p.z);
+    let mut ape = Ape::new(Kind::Chimpanzee, true, v3(p.x, gy + BODY_DROP, p.z), 0);
+    // hopping along while running (W held), the way a player would
+    let mut fastest = 0;
+    for t in 0..1200u32 {
+        let jump = Controls {
+            fwd: 1,
+            jump: t % 2 == 0,
+            ..Controls::default()
+        };
+        ape.step(&jump, &c, t);
+        fastest = fastest.max(ape.vel.len_xz());
+    }
+    assert!(
+        fastest <= ape.phys.run_speed + ONE / 4,
+        "{} vs run {}",
+        fastest / 655,
+        ape.phys.run_speed / 655
+    );
+}
+
+#[test]
+fn a_chain_of_hops_does_not_keep_a_fast_slide_going() {
+    let c = Course::test_line(&[]);
+    let p = c.point(int(100));
+    let gy = ground(p.x, p.z);
+    let slide = || {
+        let mut a = Ape::new(Kind::Chimpanzee, true, v3(p.x, gy + BODY_DROP, p.z), 0);
+        a.vel = v3(0, 0, int(30));
+        a
+    };
+    let mut hopping = slide();
+    let mut sliding = slide();
+    for t in 0..240u32 {
+        let jump = Controls {
+            jump: t % 2 == 0,
+            ..Controls::default()
+        };
+        hopping.step(&jump, &c, t);
+        sliding.step(&Controls::default(), &c, t);
+    }
+    assert!(
+        hopping.vel.len_xz() <= sliding.vel.len_xz(),
+        "{} vs {}",
+        hopping.vel.len_xz() / 655,
+        sliding.vel.len_xz() / 655
+    );
+}

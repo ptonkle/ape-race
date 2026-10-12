@@ -63,6 +63,9 @@ pub struct Ape {
     pub stun: i32,
     /// jump was held last tick
     jump_held: bool,
+    /// in the air from a jump of its own (not a fall from a vine or a
+    /// bounce): its landing does not roll on (TRIAGE row 25)
+    hopped: bool,
     /// the vine let go of last, and how many ticks ago
     last_vine: Option<(usize, i32)>,
     /// the nearest centreline sample, kept as a search hint
@@ -81,6 +84,7 @@ impl Ape {
             vel: V3::ZERO,
             mode: Mode::Grounded,
             jump_held: false,
+            hopped: false,
             stun: 0,
             last_vine: None,
             hint: 0,
@@ -162,6 +166,16 @@ impl Ape {
         let jumped = c.jump && !self.jump_held;
         self.jump_held = c.jump;
         if jumped && !stunned && self.mode == Mode::Grounded {
+            // a hop out of a fast slide keeps only part of the extra speed,
+            // so hopping along is no way to keep it (TRIAGE row 25)
+            let flat = self.vel.flat();
+            let run = self.phys.run_speed;
+            if flat.len() > run {
+                let kept = run + mul(flat.len() - run, HOP_KEEP);
+                let f = flat.with_len(kept);
+                self.vel = v3(f.x, self.vel.y, f.z);
+            }
+            self.hopped = true;
             self.vel.y = JUMP_SPEED;
             self.mode = Mode::Flying;
             self.happened.push(Happening::Jump);
@@ -216,6 +230,7 @@ impl Ape {
             self.vel = along;
         }
         self.mode = Mode::Swinging { vine, rope };
+        self.hopped = false;
         self.happened.push(Happening::Grab);
     }
 
@@ -385,8 +400,9 @@ impl Ape {
                 }
                 // a landing rolls some of its fall on along the ground
                 // rather than stopping dead (TRIAGE T5)
+                // ... unless it is the end of the ape's own hop (TRIAGE row 25)
                 let flat = self.vel.flat();
-                if self.mode == Mode::Flying && flat.len() > ONE {
+                if self.mode == Mode::Flying && flat.len() > ONE && !self.hopped {
                     let roll = mul(-self.vel.y, LANDING_ROLL);
                     self.vel = flat.with_len(flat.len() + roll);
                 }
@@ -394,6 +410,7 @@ impl Ape {
                 if self.mode == Mode::Flying {
                     self.mode = Mode::Grounded;
                 }
+                self.hopped = false;
             }
         } else if self.mode == Mode::Grounded && feet > support + ONE / 4 {
             // walked off an edge
