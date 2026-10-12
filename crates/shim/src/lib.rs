@@ -43,6 +43,10 @@ impl Game {
         self.s.act(id, value)
     }
 
+    pub fn load_replays(&mut self, text: &str) {
+        self.s.load_replays(text)
+    }
+
     pub fn key(&mut self, code: &str, down: bool) {
         self.s.key(code, down)
     }
