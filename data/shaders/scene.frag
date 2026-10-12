@@ -13,11 +13,14 @@ uniform vec3 uLight;
 uniform vec3 uSky;
 uniform vec3 uFog;
 uniform vec3 uGround;
-// TRIAGE row 18 (a try): at top speed the scenery turns wild, in the
-// cycling colour (bright where lit, its complement in shadow); the vines,
-// apes and items (uScenery 0) keep their own.
+// TRIAGE rows 18 and 20 (a try): at top speed the jungle turns wild, each
+// part in its own colour so they stay distinct: the ground (uScenery 2),
+// the leaves and the wood (uScenery 1, told apart by their own green); the
+// vines, apes and items (uScenery 0) keep theirs.
 uniform float uTrip;
-uniform vec3 uWild;
+uniform vec3 uWildGround;
+uniform vec3 uWildWood;
+uniform vec3 uWildLeaves;
 uniform float uScenery;
 out vec4 outColor;
 void main() {
@@ -33,11 +36,16 @@ void main() {
   vec3 base = vColor.rgb;
   vec3 lit = base * (ambient * 0.78 + uLight * band * 0.6);
   lit = mix(lit, base * 1.08 + vec3(0.04), vColor.a);
-  float wild = uTrip * uScenery;
+  float wild = uTrip * step(0.5, uScenery);
   if (wild > 0.0) {
+    vec3 pal = uWildWood;
+    if (uScenery > 1.5) pal = uWildGround;
+    else if (base.g > base.r * 1.15 && base.g > base.b) pal = uWildLeaves;
+    // keep the light and shade, in the new colour
     float luma = dot(lit, vec3(0.3, 0.59, 0.11));
-    vec3 vivid = mix(uWild.gbr * 0.55, uWild * 1.25, clamp(luma * 1.6, 0.0, 1.0));
-    lit = mix(lit, vivid, wild * 0.8);
+    float own = max(dot(base, vec3(0.3, 0.59, 0.11)), 0.05);
+    vec3 vivid = pal * clamp(luma / own, 0.35, 1.35);
+    lit = mix(lit, vivid, wild * 0.85);
   }
   outColor = vec4(mix(lit, uFog, f), 1.0);
 }

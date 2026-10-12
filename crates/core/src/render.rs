@@ -22,10 +22,15 @@ pub const fn rgb(r: i32, g: i32, b: i32) -> Rgb {
 /// Values per instance: three rows (column x, y, z of each axis, then the
 /// translation), then r, g, b and glow.
 pub const INSTANCE_VALUES: usize = 16;
-/// Values per draw: buffer, mesh, byte offset, instance count, then the
-/// first vertex and the vertex count of the mesh to draw (0 and 0: all of
-/// it; the terrain is drawn a chunk at a time).
-pub const DRAW_VALUES: usize = 6;
+/// Values per draw: buffer, mesh, byte offset, instance count, the first
+/// vertex and the vertex count of the mesh to draw (0 and 0: all of it; the
+/// terrain is drawn a chunk at a time), then what it is for the colours at
+/// speed: 0 keeps its colour (vines, apes, items), 1 is scenery, 2 the
+/// ground (TRIAGE row 20).
+pub const DRAW_VALUES: usize = 7;
+pub const KEEPS_COLOUR: u32 = 0;
+pub const SCENERY: u32 = 1;
+pub const GROUND: u32 = 2;
 pub const BYTES_PER_VALUE: usize = 4;
 pub const STATIC_BUFFER: u32 = 0;
 pub const DYNAMIC_BUFFER: u32 = 1;
@@ -86,6 +91,13 @@ impl Batch {
                 (v.len() / INSTANCE_VALUES) as u32,
                 0,
                 0,
+                if buffer != STATIC_BUFFER {
+                    KEEPS_COLOUR
+                } else if m == Mesh::Terrain {
+                    GROUND
+                } else {
+                    SCENERY
+                },
             ]);
             values.extend_from_slice(v);
         }
@@ -155,7 +167,7 @@ pub fn view_values(
     aspect: i32,
     fog: (i32, i32),
     colours: (Rgb, Rgb),
-    world: (i32, Rgb),
+    world: (i32, [Rgb; 3]),
 ) -> Vec<i32> {
     let mut v = cam.matrix(aspect).0.to_vec();
     v.extend([cam.eye.x, cam.eye.y, cam.eye.z, fog.0, fog.1]);
@@ -164,7 +176,9 @@ pub fn view_values(
     // how far the scenery has turned wild (0..ONE), and to which colour
     // (TRIAGE row 18, a try)
     v.push(world.0);
-    v.extend(world.1);
+    for c in world.1 {
+        v.extend(c);
+    }
     v
 }
 
@@ -195,7 +209,7 @@ pub fn numbers_json() -> String {
         },
         "draw_values": DRAW_VALUES,
         "buffers": { "static": STATIC_BUFFER, "dynamic": DYNAMIC_BUFFER },
-        "view": { "matrix": [0, 16], "eye": [16, 19], "fog": [19, 21], "fog_colour": [21, 24], "sky": [24, 27], "trip": 27, "wild": [28, 31] },
+        "view": { "matrix": [0, 16], "eye": [16, 19], "fog": [19, 21], "fog_colour": [21, 24], "sky": [24, 27], "trip": 27, "wild_ground": [28, 31], "wild_wood": [31, 34], "wild_leaves": [34, 37] },
         "uniforms": [["uLightDir", 3], ["uLight", 3], ["uSky", 3], ["uFog", 3], ["uGround", 3]],
     })
     .to_string()
@@ -226,10 +240,12 @@ mod tests {
                 2,
                 0,
                 0,
+                0,
                 1,
                 1,
                 (2 * INSTANCE_VALUES * 4) as u32,
                 1,
+                0,
                 0,
                 0
             ]

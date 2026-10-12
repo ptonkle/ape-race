@@ -20,7 +20,7 @@ const CYCLE: [Rgb; 5] = [
 const STEP_M: i32 = int(25);
 /// km/h over the redline at which the sky is fully changed: it builds
 /// with the exact speed all the way up (TRIAGE row 15, a try).
-const RAMP_KMH: i32 = 30;
+const RAMP_KMH: i32 = 25;
 
 /// How changed the sky is, 0..=ONE, from a speed in Q16 m/s: zero at the
 /// redline, eased in (smoothstep) to full at the redline + `RAMP_KMH`.
@@ -54,10 +54,19 @@ pub fn colours(sky: Rgb, fog: Rgb, speed: i32, metres: i32) -> (Rgb, Rgb) {
     (mix(sky, wild, t), mix(fog, mix(wild_fog, fog, ONE / 3), t))
 }
 
-/// The jungle's own wild colour (TRIAGE row 18, a try): the scenery takes
-/// it, by `trip`, as the sky does; the vines, apes and items do not.
-pub fn world(speed: i32, metres: i32) -> (i32, Rgb) {
-    (trip(speed), cycle(metres + STEP_M * 2))
+/// The jungle's wild colours (TRIAGE rows 18 and 20, a try): the ground,
+/// the wood and the leaves each take their own colour from the cycle, a
+/// stop apart and apart from the sky, so they stay distinct from each
+/// other; the vines, apes and items keep theirs.
+pub fn world(speed: i32, metres: i32) -> (i32, [Rgb; 3]) {
+    (
+        trip(speed),
+        [
+            cycle(metres + STEP_M),
+            cycle(metres + STEP_M * 2),
+            cycle(metres + STEP_M * 3),
+        ],
+    )
 }
 
 #[cfg(test)]
@@ -68,15 +77,15 @@ mod tests {
     fn the_sky_changes_only_at_the_top_of_the_dial() {
         let sky = rgb(150, 206, 196);
         let fog = rgb(120, 178, 150);
-        // a good ordinary swing (75 km/h) leaves the sky alone
-        let fast = int(75) * 10 / 36;
+        // a good ordinary pace (65 km/h across the ground) leaves it alone
+        let fast = int(65) * 10 / 36;
         assert_eq!(colours(sky, fog, fast, 77), (sky, fog));
-        assert_eq!(trip(int(85) * 10 / 36), 0);
-        // past the redline (90 km/h, a person's best) it builds with the
-        // exact speed, full 30 km/h above (TRIAGE row 17)
+        assert_eq!(trip(int(72) * 10 / 36), 0);
+        // past the redline (75 km/h across the ground) it builds with the
+        // exact speed, full 25 km/h above (TRIAGE rows 17 and 19)
         let at = |kmh: i32| trip(int(kmh) * 10 / 36);
-        assert!(at(95) > 0 && at(95) < at(105) && at(105) < at(115) && at(115) < ONE);
-        assert_eq!(at(121), ONE);
+        assert!(at(80) > 0 && at(80) < at(88) && at(88) < at(96) && at(96) < ONE);
+        assert_eq!(at(101), ONE);
         let (s, _) = colours(sky, fog, int(60), 0);
         assert_ne!(s, sky);
     }
@@ -85,7 +94,12 @@ mod tests {
     fn the_jungle_changes_with_the_sky() {
         assert_eq!(world(int(20), 0).0, 0);
         assert_eq!(world(int(40), 0).0, ONE);
-        assert_ne!(world(int(40), 0).1, world(int(40), STEP_M).1);
+        let (_, [ground, wood, leaves]) = world(int(40), 0);
+        let (sky, _) = colours(rgb(1, 1, 1), rgb(1, 1, 1), int(40), 0);
+        // four different colours at once, wherever the cycle is
+        for (a, b) in [(sky, ground), (ground, wood), (wood, leaves), (leaves, sky)] {
+            assert_ne!(a, b);
+        }
     }
 
     #[test]

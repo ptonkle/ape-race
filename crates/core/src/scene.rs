@@ -280,6 +280,7 @@ pub fn scenery(c: &Course) -> Scenery {
                     1,
                     *first,
                     *count,
+                    crate::render::GROUND,
                 ]);
             }
         }
