@@ -168,10 +168,11 @@ fn every_ape_starts_from_a_standstill_alike() {
 }
 
 #[test]
-fn a_typical_swing_lasts_over_a_second() {
-    // TRIAGE row 11: an ape flying in at 22 m/s catches a long vine and
-    // holds W; it takes well over a second before it is climbing at 50°
-    let c = Course::test_line(&[(int(60), int(60), int(44))]);
+fn a_typical_swing_lasts_most_of_a_second() {
+    // TRIAGE rows 11 and 13: an ape flying in at 22 m/s catches a typical
+    // vine and holds W; it takes about three quarters of a second or more
+    // before it is climbing at 50° (it was 0.4 s at first, 1.1 s in row 11)
+    let c = Course::test_line(&[(int(60), int(44), int(27))]);
     let a = c.vines[0].anchor;
     let mut ape = Ape::new(
         Kind::Chimpanzee,
@@ -196,7 +197,7 @@ fn a_typical_swing_lasts_over_a_second() {
         }
     }
     let held_for = climbing.unwrap() - caught.unwrap();
-    assert!(held_for >= 120, "{held_for} ticks");
+    assert!((90..=150).contains(&held_for), "{held_for} ticks");
 }
 
 #[test]

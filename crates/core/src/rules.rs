@@ -17,7 +17,7 @@ pub const fn secs_to_ticks(hundredths: i32) -> i32 {
 
 /// Downward acceleration: a little floatier than Earth's x1.5, for long
 /// swings and time to aim (TRIAGE row 11).
-pub const GRAVITY: i32 = int(14);
+pub const GRAVITY: i32 = int(17);
 
 /// From the hands (the body's point) down to the feet.
 pub const BODY_DROP: i32 = cm(130);
@@ -26,7 +26,7 @@ pub const BODY_RADIUS: i32 = cm(60);
 
 /// The shortest rope a grab makes (TRIAGE row 11: long ropes make long
 /// swings); a catch high on a vine leaves it slack.
-pub const MIN_ROPE: i32 = int(32);
+pub const MIN_ROPE: i32 = int(18);
 /// Share of the speed a grab keeps, redirected along the swing (Grab Keep).
 pub const GRAB_KEEP: i32 = ONE * 96 / 100;
 /// Extra speed along the velocity when Space is let go on the upswing.
@@ -49,7 +49,7 @@ pub const RUN_ACCEL: i32 = int(40);
 /// that bounces back).
 pub const WALL_BOUNCE: i32 = ONE * 3 / 10;
 /// Nothing flies higher than this above the ground.
-pub const CEILING: i32 = int(82);
+pub const CEILING: i32 = int(66);
 
 /// The five stats of a kind of ape, each 1 to 5. Every kind's stats add up
 /// to [`STAT_SUM`], so no kind is simply better (PLAN P8).
