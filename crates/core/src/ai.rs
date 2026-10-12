@@ -91,7 +91,19 @@ const LEAD_NEAR: i32 = int(8);
 /// worse one, and a worse vine), and a wait before it uses an item. Stuck
 /// on one vine for two seconds, any level swings with all it has, so even
 /// the easiest finishes. All of it is deterministic, from the brain's seed.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Default)]
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    Default,
+    serde::Serialize,
+    serde::Deserialize,
+)]
+#[serde(rename_all = "snake_case")]
 pub enum Difficulty {
     Sloth,
     Monkey,

@@ -262,12 +262,14 @@ impl App {
         };
         o.update(now);
         if let Some(start) = o.take_race_start() {
-            let race = Race::new(
+            let mut race = Race::new(
                 self.course.clone(),
                 &start.entries,
                 start.equal_stats,
                 start.seed,
             );
+            // only the host runs the AI apes, at its own difficulty
+            race.ai_level = self.settings.ai_level;
             self.begin(race, start.local_index);
             if let Some(p) = &mut self.play {
                 p.online = true;

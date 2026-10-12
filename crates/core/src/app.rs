@@ -55,6 +55,8 @@ pub struct Settings {
     pub speed_colours: bool,
     pub kind: Kind,
     pub ai_count: u8,
+    /// the AI's difficulty (TRIAGE T14)
+    pub ai_level: crate::ai::Difficulty,
     pub equal_stats: bool,
     pub name: String,
     /// the fastest finish on the jungle course, in race ticks
@@ -75,6 +77,7 @@ impl Default for Settings {
             speed_colours: true,
             kind: Kind::Chimpanzee,
             ai_count: 3,
+            ai_level: crate::ai::Difficulty::default(),
             equal_stats: false,
             name: String::new(),
             best: None,
@@ -568,6 +571,12 @@ impl App {
                 self.settings.kind = Kind::ALL[j];
                 self.save = true;
             }
+            "setup.ai_level" => {
+                if let Some(d) = crate::ai::Difficulty::from_key(value) {
+                    self.settings.ai_level = d;
+                    self.save = true;
+                }
+            }
             "setup.opponents" => {
                 if let Ok(n) = value.parse::<u8>() {
                     self.settings.ai_count = n.min(3);
@@ -639,6 +648,7 @@ impl App {
         );
         // a Time Trial: crates give only the Speed Boost (TRIAGE T13)
         race.boost_only = self.trial;
+        race.ai_level = self.settings.ai_level;
         let record = Recording::of(&race, 0, self.mode());
         // (after `begin`, which keeps the run being left: it may be the best)
         self.begin(race, 0);
@@ -658,7 +668,11 @@ impl App {
         let at = race.racers[local].ape.pos;
         let chase = Chase::new(at, race.course.start_yaw);
         let prev = race.racers.iter().map(|r| r.ape.pos).collect();
-        let brains = vec![Brain::default(); race.racers.len()];
+        // each AI ape thinks at the race's difficulty, with its own dice
+        // from the race's seed, so a replay rebuilds the same brains
+        let brains = (0..race.racers.len())
+            .map(|i| Brain::new(race.ai_level, race.dice.0 ^ (0x9E37_79B9 * (i as u64 + 1))))
+            .collect();
         if let Some(mut old) = self.play.take() {
             self.keep_recording(&mut old);
         }
@@ -1021,6 +1035,14 @@ impl App {
         } else {
             items.push(json!({ "type": "select", "id": "setup.opponents", "label": self.t("setup.opponents"),
               "value": self.settings.ai_count.to_string(), "options": opponents }));
+            let levels: Vec<Value> = crate::ai::Difficulty::ALL
+                .iter()
+                .map(|d| json!({ "value": d.key(), "text": self.t(&format!("ai.{}", d.key())) }))
+                .collect();
+            items.push(
+                json!({ "type": "select", "id": "setup.ai_level", "label": self.t("setup.ai_level"),
+              "value": self.settings.ai_level.key(), "options": levels }),
+            );
         }
         items.push(
             json!({ "type": "toggle", "id": "setup.equal", "label": self.t("setup.equal"),
@@ -1749,6 +1771,23 @@ mod tests {
         p.race.racers[0].finish = Some(120 * 90);
         b.tick();
         assert_eq!(b.settings.best, Some(120 * 80));
+    }
+
+    #[test]
+    fn the_chosen_ai_difficulty_drives_the_ai_apes() {
+        let mut a = app();
+        a.act("menu.race", "");
+        a.act("setup.ai_level", "sloth");
+        a.act("setup.opponents", "2");
+        a.act("menu.start", "");
+        let p = a.play.as_ref().unwrap();
+        assert_eq!(p.race.ai_level, crate::ai::Difficulty::Sloth);
+        assert!(p
+            .brains
+            .iter()
+            .all(|b| b.difficulty == crate::ai::Difficulty::Sloth));
+        // and it is kept with the settings
+        assert_eq!(a.settings.ai_level, crate::ai::Difficulty::Sloth);
     }
 
     #[test]

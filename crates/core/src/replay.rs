@@ -63,6 +63,8 @@ pub struct Recording {
     pub equal_stats: bool,
     pub seed: u64,
     pub boost_only: bool,
+    /// the AI's difficulty (its brains are rebuilt from it)
+    pub ai_level: crate::ai::Difficulty,
     /// the local ape's controls, one per race tick from the first
     pub controls: Vec<Controls>,
     /// the local ape's finish, in race-clock ticks
@@ -91,6 +93,7 @@ impl Recording {
             equal_stats: race.equal_stats,
             seed: race.dice.0,
             boost_only: race.boost_only,
+            ai_level: race.ai_level,
             controls: Vec::new(),
             finish: None,
             serial: 0,
@@ -106,6 +109,7 @@ impl Recording {
     pub fn race(&self, course: &Course) -> Race {
         let mut r = Race::new(course.clone(), &self.entries, self.equal_stats, self.seed);
         r.boost_only = self.boost_only;
+        r.ai_level = self.ai_level;
         r
     }
 
@@ -291,6 +295,8 @@ struct Stored {
     equal_stats: bool,
     seed: u64,
     boost_only: bool,
+    #[serde(default)]
+    ai_level: crate::ai::Difficulty,
     finish: Option<u32>,
     serial: u32,
     controls: String,
@@ -307,6 +313,7 @@ impl Stored {
             equal_stats: r.equal_stats,
             seed: r.seed,
             boost_only: r.boost_only,
+            ai_level: r.ai_level,
             finish: r.finish,
             serial: r.serial,
             controls: pack(&r.controls),
@@ -327,6 +334,7 @@ impl Stored {
             equal_stats: self.equal_stats,
             seed: self.seed,
             boost_only: self.boost_only,
+            ai_level: self.ai_level,
             finish: self.finish,
             serial: self.serial,
         })

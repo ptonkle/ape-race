@@ -176,6 +176,8 @@ pub struct Race {
     pub dice: Dice,
     /// finishers so far, in order
     pub order: Vec<usize>,
+    /// how well the AI apes race (TRIAGE T14)
+    pub ai_level: crate::ai::Difficulty,
 }
 
 /// One entrant: a name, a kind of ape and who drives it.
@@ -224,6 +226,7 @@ impl Race {
             equal_stats,
             dice: Dice(seed),
             order: Vec::new(),
+            ai_level: crate::ai::Difficulty::default(),
         }
     }
 
