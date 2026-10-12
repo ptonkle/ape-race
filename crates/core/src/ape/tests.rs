@@ -90,6 +90,46 @@ fn pumping_with_the_swing_raises_it() {
 }
 
 #[test]
+fn steering_across_the_swing_turns_it_without_adding_speed() {
+    let c = one_vine();
+    let run = |side: i32| {
+        let mut ape = hanging(&c, deg(50));
+        ape.phys.drag = 0;
+        let mut fastest = 0;
+        for t in 0..240 {
+            let ctl = Controls { side, ..held() };
+            ape.step(&ctl, &c, t);
+            fastest = fastest.max(ape.speed());
+        }
+        (ape.pos.x - c.vines[0].anchor.x, fastest)
+    };
+    let (straight, fast_straight) = run(0);
+    let (steered, fast_steered) = run(1);
+    // D steers to the camera's right (-x for a camera facing +z)
+    assert!(straight.abs() < cm(10), "{}", straight);
+    assert!(steered < -int(2), "{}", steered);
+    // and steering adds no speed
+    assert!(
+        fast_steered <= fast_straight + ONE / 4,
+        "{fast_steered} vs {fast_straight}"
+    );
+}
+
+#[test]
+fn pumping_from_slow_is_stronger() {
+    let c = one_vine();
+    let gain = |speed: i32| {
+        let mut ape = hanging(&c, 0);
+        ape.vel = v3(0, 0, speed);
+        let before = ape.speed();
+        let ctl = Controls { fwd: 1, ..held() };
+        ape.step(&ctl, &c, 0);
+        ape.speed() - before
+    };
+    assert!(gain(int(3)) > gain(int(20)) + gain(int(20)) / 4);
+}
+
+#[test]
 fn letting_go_at_the_bottom_keeps_the_speed() {
     let c = one_vine();
     let mut ape = hanging(&c, deg(70));
@@ -152,7 +192,8 @@ fn speed_has_a_soft_top() {
     let mut ape = hanging(&c, deg(40));
     let mut fastest = 0;
     for t in 0..120 * 60 {
-        let fwd = if ape.vel.z >= 0 { 1 } else { -1 };
+        // with the motion; from rest, downhill (back toward -z)
+        let fwd = if ape.vel.z > 0 { 1 } else { -1 };
         let ctl = Controls { fwd, ..held() };
         ape.step(&ctl, &c, t);
         fastest = fastest.max(ape.speed());

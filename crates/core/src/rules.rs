@@ -29,16 +29,20 @@ pub const MIN_ROPE: i32 = int(3);
 pub const GRAB_KEEP: i32 = ONE * 96 / 100;
 /// Extra speed along the velocity when Space is let go on the upswing.
 pub const RELEASE_BOOST: i32 = cm(150);
+/// Steering on a vine: how fast WASD across the motion turn the swing.
+pub const SWING_STEER: i32 = int(16);
+/// Below this speed pumping is boosted, up to 1.5 times at rest.
+pub const PUMP_BOOST_SPEED: i32 = int(14);
 /// Below this speed a swing can be pumped either way, to start from rest.
 pub const PUMP_FROM_REST: i32 = int(2);
 
 /// How long a press of Space keeps looking for a vine (Grab Window).
 pub const GRAB_WINDOW: i32 = secs_to_ticks(15);
 /// After a Missed Grab, how long before Space can grab again (Grab Cooldown).
-pub const GRAB_COOLDOWN: i32 = secs_to_ticks(45);
+pub const GRAB_COOLDOWN: i32 = secs_to_ticks(30);
 
 /// A jump from the ground, straight up.
-pub const JUMP_SPEED: i32 = int(10);
+pub const JUMP_SPEED: i32 = int(11);
 /// Above Run Speed the ground takes this much speed a second.
 pub const GROUND_FRICTION: i32 = int(28);
 /// How fast WASD bring the ape to its running velocity on the ground.
@@ -92,8 +96,8 @@ impl Stats {
             air: int(8) + s(self.air_control) * int(2),
             // a hit takes 130% to 70% of its usual effect
             hit_scale: ONE * 13 / 10 - s(self.weight) * (ONE * 15 / 100),
-            // and the heavy run slower: 9 to 7 m/s
-            run_speed: int(9) - s(self.weight) * cm(50),
+            // and the heavy run slower: 12 to 10 m/s (TRIAGE row 6)
+            run_speed: int(12) - s(self.weight) * cm(50),
         }
     }
 }
