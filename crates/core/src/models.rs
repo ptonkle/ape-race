@@ -1323,7 +1323,24 @@ mod tests {
                 .max()
                 .unwrap();
             assert!(worst < cm(2), "{kind:?}");
-            assert_ne!(at(kind, 0), at(kind, 360));
+            // the eyes face the camera (+z) first, +x a quarter of the way round,
+            // and away from it half way
+            let eyes = |t: u32| {
+                let mut b = Batch::new();
+                showcase(&mut b, kind, t);
+                let e: Vec<V3> = shapes(b)
+                    .iter()
+                    .filter(|s| s.mesh == Mesh::Sphere as u32)
+                    .filter(|s| s.colour == EYE_WHITE || s.colour == LEMUR_EYE)
+                    .map(|s| s.at)
+                    .collect();
+                assert_eq!(e.len(), 2, "{kind:?}");
+                e[0].add(e[1]).scale(ONE / 2)
+            };
+            assert!(eyes(0).z > cm(10), "{kind:?}");
+            assert!(eyes(180).x > cm(10), "{kind:?}");
+            assert!(eyes(360).z < -cm(10), "{kind:?}");
+            assert!(eyes(540).x < -cm(10), "{kind:?}");
             for t in [0, 100, 250, 400, 600] {
                 for p in at(kind, t) {
                     for aspect in [ONE * 16 / 9, ONE] {
@@ -1337,12 +1354,26 @@ mod tests {
     }
 
     #[test]
-    fn bend_keeps_both_parts_their_length() {
+    fn a_limb_bends_toward_its_hint_and_keeps_its_length() {
         let root = v3(0, int(1), 0);
-        for target in [v3(cm(30), 0, cm(20)), v3(0, int(3), 0), root] {
-            let (mid, end) = bend(root, target, cm(80), v3(0, 0, -ONE));
-            assert!((mid.dist(root) - cm(40)).abs() < cm(1), "{target:?}");
+        let hint = v3(0, 0, -ONE);
+        // within reach: the end is on the target and the joint bends to the hint
+        for target in [v3(cm(30), cm(80), 0), v3(0, cm(50), cm(20))] {
+            let (mid, end) = bend(root, target, cm(80), hint);
+            assert!(end.dist(target) < cm(1), "{target:?}");
+            assert!(
+                (mid.dist(root) - cm(40)).abs() < cm(1),
+                "{target:?} {mid:?}"
+            );
             assert!((end.dist(mid) - cm(40)).abs() < cm(1), "{target:?}");
+            let straight = root.lerp(target, ONE / 2);
+            assert!(mid.sub(straight).dot(hint) > cm(5), "{target:?} {mid:?}");
+        }
+        // out of reach (or on the root itself): straight, at full length
+        for target in [v3(0, int(3), 0), root] {
+            let (mid, end) = bend(root, target, cm(80), hint);
+            assert!((mid.dist(root) - cm(40)).abs() < cm(1), "{target:?}");
+            assert!((end.dist(root) - cm(80)).abs() < cm(1), "{target:?}");
         }
     }
 }
