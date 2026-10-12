@@ -485,7 +485,7 @@ impl App {
                 None => self.flyover(),
             },
             Stage::Flyover => self.flyover(),
-            Stage::Showcase => models::showcase_camera(self.aspect()),
+            Stage::Showcase => models::showcase_camera(),
             Stage::Lineup => models::lineup_camera(self.aspect()),
         }
     }
