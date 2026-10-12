@@ -7,7 +7,7 @@
        'wasm-unsafe-eval' lets the page compile its own WebAssembly module;
        form-action 'none' blocks form posts. A meta policy cannot stop data
        leaving by navigation, so the browser check still watches requests. -->
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; connect-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'none'">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; connect-src 'self' wss://nos.lol wss://relay.mostr.pub wss://purplerelay.com wss://nostr.data.haus wss://relay.agorist.space; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'none'">
   <title>Builder tool</title>
   <link rel="stylesheet" href="style.css">
 </head>
