@@ -17,14 +17,16 @@
 pub mod ai;
 pub mod ape;
 pub mod api;
+pub mod app;
+pub mod camera;
 pub mod course;
 pub mod fx;
 pub mod geom;
 pub mod items;
 pub mod mesh;
 pub mod models;
-pub mod page;
 pub mod race;
 pub mod render;
 pub mod rules;
+pub mod scene;
 pub mod sound;

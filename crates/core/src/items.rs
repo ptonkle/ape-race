@@ -13,3 +13,8 @@ pub fn use_item(race: &mut Race, who: usize, c: &Controls) {
 pub fn step(race: &mut Race) {
     let _ = race;
 }
+
+/// Crates and thrown things.
+pub fn draw(b: &mut crate::render::Batch, race: &Race) {
+    let _ = (b, race);
+}

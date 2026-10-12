@@ -20,7 +20,7 @@ mkdir -p dist/pkg dist/data
 wasm-bindgen --target web --no-typescript --out-dir dist/pkg \
   target/wasm32-unknown-unknown/release/tool_shim.wasm
 cp web/* dist/
-cp data/* dist/data/
+cp -r data/. dist/data/
 
 echo "Built dist/:"
 find dist -type f | sort

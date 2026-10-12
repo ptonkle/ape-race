@@ -37,3 +37,52 @@ pub fn draw(b: &mut Batch, kind: Kind, pose: &Pose) {
         0,
     );
 }
+
+/// All six side by side (placeholder until the models work lands).
+pub fn lineup(b: &mut Batch, tick: u32) {
+    for (i, k) in Kind::ALL.iter().enumerate() {
+        let pose = Pose {
+            hands: v3((i as i32 - 3) * cm(180) + cm(90), cm(250), 0),
+            yaw: 0,
+            rope: None,
+            vel: V3::ZERO,
+            grounded: true,
+            stunned: false,
+            tick,
+            scale: 100,
+        };
+        draw(b, *k, &pose);
+    }
+}
+
+pub fn lineup_camera(aspect: i32) -> crate::render::Camera {
+    let _ = aspect;
+    crate::render::Camera {
+        eye: v3(0, cm(200), crate::fx::int(9)),
+        fwd: v3(0, -cm(10), -ONE).norm(),
+        fov: crate::fx::deg(60),
+    }
+}
+
+pub fn showcase(b: &mut Batch, kind: Kind, tick: u32) {
+    let pose = Pose {
+        hands: v3(0, cm(250), 0),
+        yaw: (tick as i32) * (crate::fx::TURN / 720),
+        rope: None,
+        vel: V3::ZERO,
+        grounded: true,
+        stunned: false,
+        tick,
+        scale: 100,
+    };
+    draw(b, kind, &pose);
+}
+
+pub fn showcase_camera(aspect: i32) -> crate::render::Camera {
+    let _ = aspect;
+    crate::render::Camera {
+        eye: v3(-cm(150), cm(220), crate::fx::int(5)),
+        fwd: v3(cm(30), -cm(15), -ONE).norm(),
+        fov: crate::fx::deg(50),
+    }
+}

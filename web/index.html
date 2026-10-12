@@ -8,15 +8,29 @@
        form-action 'none' blocks form posts. A meta policy cannot stop data
        leaving by navigation, so the browser check still watches requests. -->
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; connect-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'none'">
-  <title>Builder tool</title>
+  <title>Ape Race</title>
+  <link rel="icon" href="data:,">
   <link rel="stylesheet" href="style.css">
 </head>
-<body data-ready="false">
-  <main>
-    <h1 id="title"></h1>
-    <p id="intro"></p>
-    <p id="message" role="status"></p>
-  </main>
+<body data-ready="false" data-screen="">
+  <canvas id="view"></canvas>
+
+  <section id="hud" class="hud" hidden>
+    <div class="hud-top">
+      <div class="pair" id="hud-place"><span class="k"></span><span class="v"></span></div>
+      <div class="pair" id="hud-time"><span class="k"></span><span class="v"></span></div>
+      <div class="pair" id="hud-speed"><span class="k"></span><span class="v"></span></div>
+    </div>
+    <div class="item-slot" id="hud-item"><span class="k"></span><span class="v"></span></div>
+    <div class="big" id="hud-big"></div>
+    <div class="hint" id="hud-hint"></div>
+    <div class="reticle" id="hud-reticle"></div>
+    <canvas id="minimap" class="minimap"></canvas>
+  </section>
+
+  <main id="menus" class="menus"></main>
+  <p id="message" class="message" role="status"></p>
+
   <noscript><p>This page needs JavaScript and WebAssembly.</p></noscript>
   <script type="module" src="app.js"></script>
 </body>
