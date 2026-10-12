@@ -143,6 +143,9 @@ pub struct Play {
     /// second: what the speedometer, the hype and the colours read (TRIAGE
     /// row 19: a downswing's falling speed set them off)
     pub hype_speed: i32,
+    /// the same, smoothed over about a second, for the speed colours
+    /// (TRIAGE row 22: they followed each swing's rise and fall)
+    pub colour_speed: i32,
     /// the local finish beat the saved best
     new_best: bool,
     /// each vine drawn as a bending chain (TRIAGE row 12)
@@ -687,6 +690,7 @@ impl App {
             prev,
             since_finish: None,
             hype_speed: 0,
+            colour_speed: 0,
             new_best: false,
             chains: Vec::new(),
             trial: false,
@@ -760,6 +764,7 @@ impl App {
         }
         let flat = p.race.racers[p.local].ape.vel.len_xz();
         p.hype_speed += (flat - p.hype_speed) / 30;
+        p.colour_speed += (flat - p.colour_speed) / 120;
         if p.online {
             self.online_step(p);
         }
@@ -865,7 +870,7 @@ impl App {
         let (speed, metres) = match (&self.play, self.stage) {
             (Some(p), Stage::Race) if self.settings.speed_colours => {
                 let me = &p.race.racers[p.local];
-                (p.hype_speed, me.progress)
+                (p.colour_speed, me.progress)
             }
             _ => (0, 0),
         };
@@ -1438,6 +1443,7 @@ fn replay_tick(p: &mut Play) {
         replay::drive(&mut p.race, &mut p.brains, p.local, c);
         let flat = p.race.racers[p.local].ape.vel.len_xz();
         p.hype_speed += (flat - p.hype_speed) / 30;
+        p.colour_speed += (flat - p.colour_speed) / 120;
         let me = &p.race.racers[p.local];
         let course = &p.race.course;
         let ahead = course.heading[(me.ape.hint + 8).min(course.heading.len() - 1)];
@@ -1797,7 +1803,7 @@ mod tests {
         a.act("menu.start", "");
         let fast = |a: &mut App| {
             let p = a.play.as_mut().unwrap();
-            p.hype_speed = crate::fx::int(40);
+            p.colour_speed = crate::fx::int(40);
             let (view, _, _) = a.frame();
             view[27]
         };
