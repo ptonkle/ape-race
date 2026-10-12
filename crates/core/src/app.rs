@@ -55,7 +55,7 @@ impl Default for Settings {
             invert_y: false,
             auto_camera: true,
             kind: Kind::Chimpanzee,
-            ai_count: 3,
+            ai_count: 0,
             equal_stats: false,
             name: String::new(),
             best: None,
