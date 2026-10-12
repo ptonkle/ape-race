@@ -1,9 +1,9 @@
 //! Drawing the race (PLAN P2, P7, P10): the course's ground and scenery,
-//! uploaded once; and every frame the vines, logs, apes, items and the
-//! speed effects. Flat colours, with the vines kept bright and clear of
+//! uploaded once; and every frame the vines, apes, items and the speed
+//! effects. Flat colours, with the vines kept bright and clear of
 //! clutter (brief section 10: decorations must not hide what an ape grabs).
 
-use crate::course::{ground, Course, Prop};
+use crate::course::{crown_scale, ground, rise, Course, Mushroom, Prop, TreeKind, OUTRO, STEP};
 use crate::fx::{self, cm, deg, int, mul, sin, ONE};
 use crate::geom::{right_of, v3, Affine, V3};
 use crate::mesh::{Mesh, VERTEX_VALUES};
@@ -39,6 +39,31 @@ const FLOWERS: [Rgb; 4] = [
     rgb(250, 140, 60),
 ];
 const ROCK: Rgb = rgb(128, 132, 124);
+const MOSS: Rgb = rgb(124, 176, 48);
+const LITTER: Rgb = rgb(150, 112, 52);
+const MUD: Rgb = rgb(104, 80, 50);
+const SLOPE: Rgb = rgb(52, 116, 64);
+const HILL: [Rgb; 4] = [
+    rgb(40, 118, 76),
+    rgb(58, 138, 64),
+    rgb(30, 100, 82),
+    rgb(84, 148, 58),
+];
+const EMERGENT: Rgb = rgb(96, 164, 48);
+const PALM: Rgb = rgb(118, 192, 58);
+const PALM_BARK: Rgb = rgb(150, 126, 88);
+const FIG_BARK: Rgb = rgb(160, 148, 116);
+const FIG_LEAF: Rgb = rgb(34, 124, 84);
+const BAMBOO: Rgb = rgb(176, 202, 76);
+const WATER: Rgb = rgb(64, 182, 214);
+const WATERFALL: Rgb = rgb(186, 232, 248);
+const CAP: Rgb = rgb(238, 58, 96);
+const SPOT: Rgb = rgb(255, 246, 236);
+const STALK: Rgb = rgb(244, 228, 196);
+const GOLD: Rgb = rgb(250, 200, 60);
+const SILVER: Rgb = rgb(206, 212, 224);
+const BRONZE: Rgb = rgb(206, 128, 70);
+const BANANA: Rgb = rgb(255, 214, 56);
 const WOOD: Rgb = rgb(150, 104, 62);
 const BANNER: Rgb = rgb(240, 236, 220);
 const BANNER_DARK: Rgb = rgb(40, 40, 46);
@@ -66,10 +91,57 @@ pub fn fog_range() -> (i32, i32) {
     (int(60), int(170))
 }
 
-/// The ground under the course: a strip of triangles following the
-/// centreline, out past the trees, with a worn track down the middle.
+/// The ground under the course: a strip of faceted triangles following the
+/// centreline, from behind the start tree to the cliff past the finish
+/// (TRIAGE T6), out past the trees and up the valley's walls (T16), with a
+/// worn track down the middle and patches of moss, leaf litter and mud.
 pub fn terrain(c: &Course) -> Vec<i32> {
-    terrain_chunked(c, c.path.len().div_ceil(CHUNK)).0
+    terrain_chunked(c, chunk_count(c)).0
+}
+
+/// The course's chunks: one per `CHUNK` centreline samples, and one more
+/// for the clearing past the finish.
+fn chunk_count(c: &Course) -> usize {
+    c.path.len().div_ceil(CHUNK) + 1
+}
+
+/// The chunk that a point `s` metres along the course falls in.
+fn chunk_along(c: &Course, s: i32, n: usize) -> usize {
+    if s > c.length {
+        n - 1
+    } else {
+        ((s.max(0) / STEP) as usize / CHUNK).min(n - 2)
+    }
+}
+
+/// The ground's colour for a facet at `p`, `a` metres across the course.
+fn ground_tint(p: V3, a: i32, s: i32) -> Rgb {
+    let m = (sin(mul(p.x, 2000)) + sin(mul(p.z, 1700)) + 2 * ONE) / 4;
+    let mut t = mix(GROUND_A, GROUND_B, m);
+    // patches of moss, leaf litter and mud
+    let patch = mul(sin(mul(p.x, 610) + 9000), fx::cos(mul(p.z, 530)));
+    if patch > ONE * 11 / 20 {
+        t = mix(t, MOSS, ONE * 2 / 3);
+    } else if patch < -ONE * 3 / 5 {
+        t = mix(t, LITTER, ONE / 2);
+    }
+    if sin(mul(p.x, 900) + mul(p.z, 330)) > ONE * 17 / 20 && a.abs() < int(40) {
+        t = mix(t, MUD, ONE * 3 / 5);
+    }
+    let a = a.abs();
+    if a <= int(9) {
+        t = mix(t, PATH, ONE / 4);
+    }
+    // the valley's walls: forest green, bare rock near the top
+    if a > int(45) {
+        let up = rise(s, int(120));
+        let h = p.y - ground(p.x, p.z);
+        t = mix(t, SLOPE, fx::div(a - int(45), int(40)).min(ONE));
+        if up > 0 && h > int(18) {
+            t = mix(t, ROCK, fx::div(h - int(18), int(20)).min(ONE) * 3 / 4);
+        }
+    }
+    t
 }
 
 /// The terrain, and for each of `n` chunks the vertex ranges that lie in
@@ -78,116 +150,58 @@ fn terrain_chunked(c: &Course, n: usize) -> (Vec<i32>, Vec<(usize, u32, u32)>) {
     let mut o = Vec::new();
     let mut ranges: Vec<(usize, u32, u32)> = Vec::new();
     let verts = |o: &Vec<i32>| (o.len() / VERTEX_VALUES) as u32;
-    // columns across the course, metres from the centreline
-    let across: [i32; 11] = [-70, -45, -30, -20, -10, 0, 10, 20, 30, 45, 70];
-    let every = 3usize;
-    let rows: Vec<usize> = (0..c.path.len()).step_by(every).collect();
-    let point = |i: usize, k: usize| {
-        let p = c.path[i];
-        let r = right_of(c.heading[i]);
-        let q = p.add(r.scale(int(across[k])));
-        v3(q.x, ground(q.x, q.z), q.z)
+    // columns across the course, metres from the centreline: the floor,
+    // then up the valley's walls
+    let across: [i32; 15] = [
+        -120, -95, -70, -45, -30, -20, -10, 0, 10, 20, 30, 45, 70, 95, 120,
+    ];
+    let point = |s: i32, k: usize| {
+        let a = int(across[k]);
+        let q = c.point(s).add(right_of(c.heading_at(s)).scale(a));
+        v3(q.x, ground(q.x, q.z) + rise(s, a), q.z)
     };
-    let tint = |p: V3, k: usize, row: usize| {
-        let m = (sin(mul(p.x, 2000)) + sin(mul(p.z, 1700)) + 2 * ONE) / 4;
-        let mut t = mix(GROUND_A, GROUND_B, m);
-        if across[k].abs() <= 10 && (row.is_multiple_of(2) || across[k] == 0) {
-            t = mix(t, PATH, ONE / 3);
-        }
-        t
-    };
-    let normal = |p: V3| {
-        let e = ONE / 2;
-        let dx = ground(p.x + e, p.z) - ground(p.x - e, p.z);
-        let dz = ground(p.x, p.z + e) - ground(p.x, p.z - e);
-        v3(-dx, ONE, -dz).norm()
-    };
-    // the start of the strip reaches back behind the start tree
-    for w in 0..rows.len() - 1 {
-        let (i0, i1) = (rows[w], rows[w + 1]);
-        let chunk = (i0 / CHUNK).min(n - 1);
+    let every = int(6);
+    // from behind the start tree to under the cliff past the finish
+    let mut s = -int(60);
+    let mut row = 0;
+    while s < c.length + OUTRO + int(30) {
+        let s1 = s + every;
+        let chunk = chunk_along(c, s, n);
         match ranges.last() {
             Some((k, _, _)) if *k == chunk => {}
             _ => ranges.push((chunk, verts(&o), 0)),
         }
         for k in 0..across.len() - 1 {
-            let a = point(i0, k);
-            let b = point(i0, k + 1);
-            let cc = point(i1, k + 1);
-            let d = point(i1, k);
-            let ta = tint(a, k, w);
-            let tb = tint(b, k + 1, w);
-            let tc = tint(cc, k + 1, w + 1);
-            let td = tint(d, k, w + 1);
-            push_ground(&mut o, [a, d, cc], [ta, td, tc], normal);
-            push_ground(&mut o, [a, cc, b], [ta, tc, tb], normal);
+            let a = point(s, k);
+            let b = point(s, k + 1);
+            let cc = point(s1, k + 1);
+            let d = point(s1, k);
+            let mid_a = int(across[k] + across[k + 1]) / 2;
+            for (h, tri) in [[a, d, cc], [a, cc, b]].into_iter().enumerate() {
+                let centre = tri[0].add(tri[1]).add(tri[2]).scale(ONE / 3);
+                // each facet a touch lighter or darker, for the low-poly look
+                let wobble = 95 + ((row * 7 + k * 13 + h * 5) % 9) as i32;
+                let t = shade(ground_tint(centre, mid_a, s), wobble);
+                push_ground(&mut o, tri, t);
+            }
         }
         if let Some(last) = ranges.last_mut() {
             last.2 = verts(&o) - last.1;
         }
+        s = s1;
+        row += 1;
     }
-    // a skirt of ground behind the start
-    let skirt = verts(&o);
-    let back = c.path[0].sub(c.heading[0].scale(int(60)));
-    let r = right_of(c.heading[0]);
-    let s0 = c.path[0].add(r.scale(int(-70)));
-    let s1 = c.path[0].add(r.scale(int(70)));
-    let b0 = back.add(r.scale(int(-70)));
-    let b1 = back.add(r.scale(int(70)));
-    let lift = |p: V3| v3(p.x, ground(p.x, p.z), p.z);
-    push_ground(
-        &mut o,
-        [lift(b0), lift(s0), lift(s1)],
-        [GROUND_A; 3],
-        normal,
-    );
-    push_ground(
-        &mut o,
-        [lift(b0), lift(s1), lift(b1)],
-        [GROUND_A; 3],
-        normal,
-    );
-    ranges.push((0, skirt, verts(&o) - skirt));
-    // and past the finish
-    let finish = verts(&o);
-    let last = c.path.len() - 1;
-    let end = c.path[last];
-    let past = end.add(c.heading[last].scale(int(80)));
-    let r = right_of(c.heading[last]);
-    let e0 = end.add(r.scale(int(-70)));
-    let e1 = end.add(r.scale(int(70)));
-    let f0 = past.add(r.scale(int(-70)));
-    let f1 = past.add(r.scale(int(70)));
-    push_ground(
-        &mut o,
-        [lift(e0), lift(f0), lift(f1)],
-        [GROUND_B; 3],
-        normal,
-    );
-    push_ground(
-        &mut o,
-        [lift(e0), lift(f1), lift(e1)],
-        [GROUND_B; 3],
-        normal,
-    );
-    ranges.push((n - 1, finish, verts(&o) - finish));
     debug_assert_eq!(o.len() % (VERTEX_VALUES * 3), 0);
     (o, ranges)
 }
 
-fn push_ground(o: &mut Vec<i32>, p: [V3; 3], t: [Rgb; 3], normal: impl Fn(V3) -> V3) {
-    // make sure the triangle faces up
+/// One flat-shaded ground facet, turned to face up.
+fn push_ground(o: &mut Vec<i32>, p: [V3; 3], t: Rgb) {
     let up = p[1].sub(p[0]).cross(p[2].sub(p[0]));
-    let (p, t) = if up.y < 0 {
-        ([p[0], p[2], p[1]], [t[0], t[2], t[1]])
-    } else {
-        (p, t)
-    };
-    for k in 0..3 {
-        let n = normal(p[k]);
-        o.extend_from_slice(&[
-            p[k].x, p[k].y, p[k].z, n.x, n.y, n.z, t[k][0], t[k][1], t[k][2],
-        ]);
+    let p = if up.y < 0 { [p[0], p[2], p[1]] } else { p };
+    let n = p[1].sub(p[0]).cross(p[2].sub(p[0])).norm();
+    for q in p {
+        o.extend_from_slice(&[q.x, q.y, q.z, n.x, n.y, n.z, t[0], t[1], t[2]]);
     }
 }
 
@@ -241,16 +255,28 @@ impl Scenery {
 
 /// Builds the course's scenery and ground, chunked.
 pub fn scenery(c: &Course) -> Scenery {
-    let n = c.path.len().div_ceil(CHUNK);
+    let n = chunk_count(c);
     let mut batches: Vec<Batch> = (0..n).map(|_| Batch::new()).collect();
-    let chunk_of = |p: V3| (c.nearest_anywhere(p) / CHUNK).min(n - 1);
+    let last = c.path.len() - 1;
+    let chunk_of = |p: V3| {
+        let i = c.nearest_anywhere(p);
+        if i == last && p.flat().sub(c.path[last]).dot(c.heading[last]) > 0 {
+            n - 1
+        } else {
+            (i / CHUNK).min(n - 2)
+        }
+    };
     for p in &c.props {
         let at = match *p {
             Prop::Tree { at, .. } | Prop::Bush { at, .. } | Prop::Fern { at, .. } => at,
-            Prop::Flower { at, .. } | Prop::Rock { at, .. } => at,
+            Prop::Flower { at, .. } | Prop::Rock { at, .. } | Prop::Outcrop { at, .. } => at,
             Prop::Branch { to, .. } => to,
+            Prop::Fallen { from, to, .. } | Prop::Water { from, to, .. } => from.lerp(to, ONE / 2),
         };
         prop(&mut batches[chunk_of(at)], p);
+    }
+    for m in &c.mushrooms {
+        mushroom(&mut batches[chunk_of(m.top)], m);
     }
     for pl in &c.platforms {
         start_tree(
@@ -261,7 +287,8 @@ pub fn scenery(c: &Course) -> Scenery {
             pl.half_width,
         );
     }
-    finish_arch(&mut batches[n - 1], c);
+    finish_arch(&mut batches[n - 2], c);
+    outro(&mut batches[n - 1], c);
     // the terrain's one instance comes first; its draws name vertex ranges
     let mut values = Vec::new();
     let mut identity = Batch::new();
@@ -283,17 +310,31 @@ pub fn scenery(c: &Course) -> Scenery {
                 ]);
             }
         }
-        let mid = (k * CHUNK + CHUNK / 2).min(c.path.len() - 1);
-        chunks.push(Chunk {
-            centre: c.path[mid],
-            draws,
-        });
+        let centre = if k == n - 1 {
+            c.point(c.length + OUTRO / 2)
+        } else {
+            c.path[(k * CHUNK + CHUNK / 2).min(last)]
+        };
+        chunks.push(Chunk { centre, draws });
     }
     Scenery {
         values,
         terrain,
         chunks,
     }
+}
+
+/// A flat slab from `a` to `b`, `width` across and `thick` through.
+fn slab(a: V3, b: V3, width: i32, thick: i32) -> Affine {
+    let d = b.sub(a);
+    Affine::translate(a.add(d.scale(ONE / 2)))
+        .then(&Affine::along(d))
+        .then(&Affine::scale(v3(width, d.len(), thick)))
+}
+
+/// A point `r` out from `at` at angle `a` round it, `up` above it.
+fn around(at: V3, a: i32, r: i32, up: i32) -> V3 {
+    at.add(v3(mul(fx::sin(a), r), up, mul(fx::cos(a), r)))
 }
 
 fn prop(b: &mut Batch, p: &Prop) {
@@ -303,7 +344,15 @@ fn prop(b: &mut Batch, p: &Prop) {
             radius,
             height,
             shade: s,
-        } => tree(b, at, radius, height, s),
+            kind,
+        } => match kind {
+            TreeKind::Broadleaf => tree(b, at, radius, height, s, crown_scale(height)),
+            TreeKind::Emergent => emergent(b, at, radius, height, s),
+            TreeKind::Palm => palm(b, at, radius, height, s),
+            TreeKind::Fig => fig(b, at, radius, height, s),
+            TreeKind::Bamboo => bamboo(b, at, height, s),
+            TreeKind::Hill => hill_tree(b, at, radius, height, s),
+        },
         Prop::Branch { from, to } => {
             b.push(Mesh::Cyl, &rod(from, to, cm(55)), BARK[1], 0);
             // a few leaves along it
@@ -332,7 +381,7 @@ fn prop(b: &mut Batch, p: &Prop) {
         Prop::Fern { at, size, yaw } => {
             for k in 0..5 {
                 let a = yaw + k * deg(72);
-                let tip = at.add(v3(mul(fx::sin(a), size), size / 2, mul(fx::cos(a), size)));
+                let tip = around(at, a, size, size / 2);
                 b.push(
                     Mesh::Cube,
                     &rod(at, tip, size / 5),
@@ -367,10 +416,80 @@ fn prop(b: &mut Batch, p: &Prop) {
                 0,
             );
         }
+        Prop::Fallen { from, to, radius } => {
+            let lift = v3(0, radius * 7 / 10, 0);
+            b.push(
+                Mesh::Cyl,
+                &rod(from.add(lift), to.add(lift), radius * 2),
+                BARK[2],
+                0,
+            );
+            // moss along its top, and a broken branch sticking up
+            let mid = from.lerp(to, ONE * 2 / 5).add(lift).add(v3(0, radius, 0));
+            b.push(
+                Mesh::Blob,
+                &placed(mid, radius, v3(radius * 5, radius, radius * 3)),
+                MOSS,
+                0,
+            );
+            let knot = from.lerp(to, ONE * 3 / 4).add(lift);
+            b.push(
+                Mesh::Cone,
+                &rod(knot, knot.add(v3(radius / 2, radius * 3, 0)), radius),
+                BARK[3],
+                0,
+            );
+        }
+        Prop::Water { from, to, width } => {
+            b.push(Mesh::Cube, &slab(from, to, width, cm(16)), WATER, ONE / 5);
+        }
+        Prop::Outcrop { at, size, yaw } => {
+            // a few tilted faceted blocks, with green on top
+            let tilt = |a: i32| Affine::rot_z(a).then(&Affine::rot_x(a / 2));
+            let blocks = [
+                (V3::ZERO, v3(size, size * 3 / 2, size * 3 / 4), deg(9)),
+                (
+                    v3(size * 2 / 3, -size / 4, size / 3),
+                    v3(size * 3 / 4, size, size * 3 / 5),
+                    -deg(14),
+                ),
+                (
+                    v3(-size / 2, -size / 3, -size / 4),
+                    v3(size * 3 / 5, size * 4 / 5, size / 2),
+                    deg(20),
+                ),
+            ];
+            for (k, (off, dims, a)) in blocks.into_iter().enumerate() {
+                let p = at
+                    .add(Affine::rot_y(yaw).apply_dir(off))
+                    .add(v3(0, dims.y / 3, 0));
+                b.push(
+                    Mesh::Cube,
+                    &Affine::translate(p)
+                        .then(&Affine::rot_y(yaw + k as i32 * 9000))
+                        .then(&tilt(a))
+                        .then(&Affine::scale(dims)),
+                    shade(ROCK, 88 + k as i32 * 8),
+                    0,
+                );
+            }
+            b.push(
+                Mesh::Blob,
+                &placed(
+                    at.add(v3(0, size * 13 / 12, 0)),
+                    yaw,
+                    v3(size, size / 3, size * 4 / 5),
+                ),
+                SLOPE,
+                0,
+            );
+        }
     }
 }
 
-fn tree(b: &mut Batch, at: V3, radius: i32, height: i32, s: u8) {
+/// A broadleaf: a buttressed trunk, its crown a cluster of leaf blobs,
+/// `k` times full size.
+fn tree(b: &mut Batch, at: V3, radius: i32, height: i32, s: u8, k: i32) {
     let bark = BARK[s as usize % 4];
     b.push(
         Mesh::Cyl,
@@ -383,13 +502,9 @@ fn tree(b: &mut Batch, at: V3, radius: i32, height: i32, s: u8) {
         0,
     );
     // buttress roots
-    for k in 0..3 {
-        let a = k * deg(120) + radius;
-        let foot = at.add(v3(
-            mul(fx::sin(a), radius * 3),
-            0,
-            mul(fx::cos(a), radius * 3),
-        ));
+    for j in 0..3 {
+        let a = j * deg(120) + radius;
+        let foot = around(at, a, radius * 3, 0);
         b.push(
             Mesh::Cone,
             &rod(foot, at.add(v3(0, radius * 3, 0)), radius),
@@ -397,27 +512,277 @@ fn tree(b: &mut Batch, at: V3, radius: i32, height: i32, s: u8) {
             0,
         );
     }
-    // the crown: a cluster of leaf blobs, high above the vines
+    // the crown: a cluster of leaf blobs
     let top = at.add(v3(0, height, 0));
     let leaf = LEAF[(s as usize + 1) % 4];
     b.push(
         Mesh::Blob,
-        &placed(top, radius * 7, v3(int(14), int(7), int(14))),
+        &placed(
+            top,
+            radius * 7,
+            v3(mul(int(14), k), mul(int(7), k), mul(int(14), k)),
+        ),
         leaf,
         0,
     );
-    for k in 0..3 {
-        let a = k * deg(120) + radius * 3;
-        let p = top.add(v3(
-            mul(fx::sin(a), int(6)),
-            -int(2),
-            mul(fx::cos(a), int(6)),
-        ));
+    for j in 0..3 {
+        let a = j * deg(120) + radius * 3;
+        let p = around(top, a, mul(int(6), k), -mul(int(2), k));
         b.push(
             Mesh::Blob,
-            &placed(p, a, v3(int(9), int(5), int(9))),
-            shade(leaf, 85 + k * 8),
+            &placed(p, a, v3(mul(int(9), k), mul(int(5), k), mul(int(9), k))),
+            shade(leaf, 85 + j * 8),
             0,
+        );
+    }
+}
+
+/// A giant over the canopy: wide buttresses, a long bare trunk, and a flat
+/// umbrella crown on spreading limbs.
+fn emergent(b: &mut Batch, at: V3, radius: i32, height: i32, s: u8) {
+    let bark = shade(BARK[3], 100 + s as i32 * 4);
+    let r = radius * 13 / 10;
+    b.push(
+        Mesh::Cyl,
+        &placed(at.add(v3(0, height / 2, 0)), 0, v3(r * 2, height, r * 2)),
+        bark,
+        0,
+    );
+    for j in 0..4 {
+        let a = j * deg(90) + radius * 2;
+        b.push(
+            Mesh::Cone,
+            &rod(around(at, a, r * 4, 0), at.add(v3(0, r * 6, 0)), r * 3 / 2),
+            shade(bark, 88),
+            0,
+        );
+    }
+    let top = at.add(v3(0, height, 0));
+    b.push(
+        Mesh::Blob,
+        &placed(top, radius * 5, v3(int(24), int(6), int(24))),
+        EMERGENT,
+        0,
+    );
+    for j in 0..4 {
+        let a = j * deg(90) + deg(45) + radius;
+        let p = around(top, a, int(10), -ONE);
+        b.push(
+            Mesh::Blob,
+            &placed(p, a, v3(int(12), int(5), int(12))),
+            shade(EMERGENT, 82 + j * 7),
+            0,
+        );
+        if j % 2 == 0 {
+            b.push(
+                Mesh::Cyl,
+                &rod(
+                    top.sub(v3(0, int(8), 0)),
+                    around(top, a, int(8), -int(2)),
+                    r,
+                ),
+                bark,
+                0,
+            );
+        }
+    }
+}
+
+/// A palm: a thin trunk curving up, a star of drooping fronds.
+fn palm(b: &mut Batch, at: V3, radius: i32, height: i32, s: u8) {
+    let lean = crate::geom::facing(radius * 7, 0).scale((height / 8).min(int(2)));
+    let w = radius * 4 / 5;
+    let mut prev = at;
+    for j in 1..=3 {
+        let t = ONE * j / 3;
+        let p = at.add(v3(0, mul(height, t), 0)).add(lean.scale(mul(t, t)));
+        b.push(Mesh::Cyl, &rod(prev, p, w - j * w / 8), PALM_BARK, 0);
+        prev = p;
+    }
+    let top = prev;
+    for j in 0..7 {
+        let a = j * deg(51) + radius * 3;
+        let tip = around(top, a, int(5), -int(2));
+        b.push(
+            Mesh::Cube,
+            &slab(top, tip, cm(150), cm(14)),
+            shade(PALM, 86 + (j + s as i32) % 3 * 9),
+            0,
+        );
+    }
+    b.push(
+        Mesh::Blob,
+        &placed(top.sub(v3(0, cm(50), 0)), 0, v3(cm(140), cm(110), cm(140))),
+        rgb(120, 90, 40),
+        0,
+    );
+}
+
+/// A strangler fig: pale roots twisting round a dark core, a dense crown.
+fn fig(b: &mut Batch, at: V3, radius: i32, height: i32, s: u8) {
+    b.push(
+        Mesh::Cyl,
+        &placed(
+            at.add(v3(0, height * 2 / 5, 0)),
+            0,
+            v3(radius * 6 / 5, height * 4 / 5, radius * 6 / 5),
+        ),
+        BARK[0],
+        0,
+    );
+    for j in 0..4 {
+        let a = j * deg(90) + radius;
+        let p0 = around(at, a, radius * 5 / 2, 0);
+        let p1 = around(at, a + deg(70), radius * 6 / 5, height * 2 / 5);
+        let p2 = around(at, a + deg(140), radius * 3 / 4, height * 17 / 20);
+        b.push(Mesh::Cyl, &rod(p0, p1, radius * 3 / 5), FIG_BARK, 0);
+        b.push(Mesh::Cyl, &rod(p1, p2, radius / 2), FIG_BARK, 0);
+    }
+    let top = at.add(v3(0, height, 0));
+    let leaf = shade(FIG_LEAF, 92 + s as i32 * 5);
+    b.push(
+        Mesh::Blob,
+        &placed(top, radius * 3, v3(int(15), int(8), int(15))),
+        leaf,
+        0,
+    );
+    for j in 0..3 {
+        let a = j * deg(120) + radius * 2;
+        b.push(
+            Mesh::Blob,
+            &placed(
+                around(top, a, int(6), -int(2)),
+                a,
+                v3(int(10), int(5), int(10)),
+            ),
+            shade(leaf, 86 + j * 6),
+            0,
+        );
+    }
+}
+
+/// A stand of bamboo: canes fanning out, leafy at the top.
+fn bamboo(b: &mut Batch, at: V3, height: i32, s: u8) {
+    for j in 0..5 {
+        let a = j * deg(72) + s as i32 * 5000;
+        let foot = around(at, a, cm(110), 0);
+        let h = height - int((j * 3 + s as i32) % 4);
+        let top = around(at, a, cm(220), h);
+        let cane = if j % 2 == 0 {
+            BAMBOO
+        } else {
+            shade(BAMBOO, 84)
+        };
+        b.push(Mesh::Cyl, &rod(foot, top, cm(28)), cane, 0);
+        // two sprays of narrow leaves, drooping out from the top
+        for (k, turn) in [-deg(35), deg(35)].into_iter().enumerate() {
+            let from = top.sub(v3(0, cm(60) + k as i32 * cm(140), 0));
+            let tip = around(from, a + turn, cm(260), -cm(90));
+            b.push(
+                Mesh::Cube,
+                &slab(from, tip, cm(70), cm(10)),
+                LEAF[(j as usize + k + s as usize) % 4],
+                0,
+            );
+        }
+    }
+}
+
+/// A far tree on the valley's walls: a faceted cone, or a round blob.
+fn hill_tree(b: &mut Batch, at: V3, radius: i32, height: i32, s: u8) {
+    let leaf = HILL[s as usize % 4];
+    b.push(
+        Mesh::Cyl,
+        &placed(
+            at.add(v3(0, height / 5, 0)),
+            0,
+            v3(radius, height * 2 / 5, radius),
+        ),
+        BARK[2],
+        0,
+    );
+    let cr = (height * 7 / 20).min(int(8));
+    if s.is_multiple_of(2) {
+        b.push(
+            Mesh::Cone,
+            &placed(
+                at.add(v3(0, height * 11 / 20, 0)),
+                radius,
+                v3(cr * 2, height * 3 / 5, cr * 2),
+            ),
+            leaf,
+            0,
+        );
+        b.push(
+            Mesh::Cone,
+            &placed(
+                at.add(v3(0, height * 4 / 5, 0)),
+                radius * 3,
+                v3(cr * 7 / 5, height * 2 / 5, cr * 7 / 5),
+            ),
+            shade(leaf, 110),
+            0,
+        );
+    } else {
+        b.push(
+            Mesh::Blob,
+            &placed(
+                at.add(v3(0, height * 7 / 10, 0)),
+                radius * 5,
+                v3(cr * 2, height / 2, cr * 2),
+            ),
+            leaf,
+            0,
+        );
+    }
+}
+
+/// A bounce mushroom (TRIAGE T5): a thick pale stalk under a bright domed
+/// cap with white spots, lit a little so it reads from the vines.
+fn mushroom(b: &mut Batch, m: &Mushroom) {
+    let top = m.top;
+    let gy = ground(top.x, top.z);
+    let r = m.radius;
+    let cap_h = cm(170);
+    let under = top.y - cap_h * 3 / 4;
+    b.push(
+        Mesh::Cyl,
+        &placed(
+            v3(top.x, (gy + under) / 2, top.z),
+            0,
+            v3(r * 3 / 4, under - gy + cm(10), r * 3 / 4),
+        ),
+        STALK,
+        0,
+    );
+    // the gills under the cap, then the cap
+    b.push(
+        Mesh::Cyl,
+        &placed(v3(top.x, under, top.z), 0, v3(r * 9 / 5, cm(20), r * 9 / 5)),
+        shade(STALK, 85),
+        0,
+    );
+    b.push(
+        Mesh::Blob,
+        &placed(
+            top.sub(v3(0, cap_h / 2, 0)),
+            deg(15),
+            v3(r * 2, cap_h, r * 2),
+        ),
+        CAP,
+        ONE / 4,
+    );
+    for j in 0..6 {
+        let (a, out, down) = if j == 5 {
+            (0, 0, -cm(4))
+        } else {
+            (j * deg(72) + deg(20), r * 3 / 5, cm(22))
+        };
+        b.push(
+            Mesh::Blob,
+            &placed(around(top, a, out, -down), a, v3(cm(80), cm(28), cm(80))),
+            SPOT,
+            ONE / 4,
         );
     }
 }
@@ -530,6 +895,174 @@ fn finish_arch(b: &mut Batch, c: &Course) {
     );
 }
 
+/// Past the finish (TRIAGE T6): bunting over the run-out, a podium and a
+/// pile of bananas in a clearing, and the valley closed by a cliff with a
+/// waterfall into a pool, where a finished ape coasts to a stop.
+fn outro(b: &mut Batch, c: &Course) {
+    let last = c.path.len() - 1;
+    let fwd = c.heading[last];
+    let right = right_of(fwd);
+    let yaw = crate::geom::yaw_of(fwd);
+    let up = |h: i32| v3(0, h, 0);
+    let at = |s: i32, a: i32| {
+        let q = c.point(c.length + s).add(right.scale(a));
+        v3(q.x, ground(q.x, q.z), q.z)
+    };
+    // two lines of bunting across the run-out
+    for s in [int(26), int(66)] {
+        let ends = [at(s, -c.half_width), at(s, c.half_width)];
+        for e in ends {
+            b.push(Mesh::Cyl, &rod(e, e.add(up(int(10))), cm(40)), BARK[3], 0);
+        }
+        let (l, r) = (ends[0].add(up(int(10))), ends[1].add(up(int(10))));
+        let flags = 16;
+        let sag = |t: i32| up(-mul(mul(4 * t, ONE - t), cm(180)));
+        let mut prev = l;
+        for k in 0..flags {
+            let t = ONE * (2 * k + 1) / (2 * flags);
+            let p = l.lerp(r, t).add(sag(t));
+            b.push(Mesh::Cyl, &rod(prev, p, cm(8)), BANNER_DARK, 0);
+            prev = p;
+            b.push(
+                Mesh::Cone,
+                &Affine::translate(p.sub(v3(0, cm(70), 0)))
+                    .then(&Affine::rot_y(yaw))
+                    .then(&Affine::rot_x(deg(180)))
+                    .then(&Affine::scale(v3(cm(110), cm(130), cm(14)))),
+                if k % 5 == 4 {
+                    BANNER
+                } else {
+                    FLOWERS[k as usize % 4]
+                },
+                ONE / 4,
+            );
+        }
+        b.push(Mesh::Cyl, &rod(prev, r, cm(8)), BANNER_DARK, 0);
+    }
+    // the podium: first in the middle, second and third either side
+    let p = at(int(48), 0);
+    for (x, h, colour) in [
+        (0, int(3), GOLD),
+        (-cm(420), int(2), SILVER),
+        (cm(420), cm(130), BRONZE),
+    ] {
+        let q = p.add(right.scale(x));
+        b.push(
+            Mesh::Cube,
+            &placed(q.add(up(h / 2)), yaw, v3(int(4), h, int(4))),
+            colour,
+            ONE / 6,
+        );
+        b.push(
+            Mesh::Cube,
+            &placed(q.add(up(h + cm(5))), yaw, v3(cm(420), cm(10), cm(420))),
+            BANNER,
+            ONE / 6,
+        );
+    }
+    // a pile of bananas beside it: rings of bent bananas, smaller going up
+    let q = at(int(46), int(12));
+    b.push(
+        Mesh::Cone,
+        &placed(q.add(up(cm(60))), 0, v3(int(5), cm(120), int(5))),
+        shade(BANANA, 70),
+        0,
+    );
+    for (ring, count, r, h) in [
+        (0, 9, cm(230), cm(30)),
+        (1, 6, cm(150), cm(80)),
+        (2, 3, cm(70), cm(130)),
+    ] {
+        for k in 0..count {
+            let a = k * fx::TURN / count + ring * 4000;
+            let mid = around(q, a, r, h);
+            let along = crate::geom::facing(a + deg(90), 0).scale(cm(60));
+            let ends = [
+                mid.sub(along).add(up(cm(18))),
+                mid.add(along).add(up(cm(18))),
+            ];
+            b.push(Mesh::Cube, &rod(ends[0], mid, cm(24)), BANANA, ONE / 6);
+            b.push(Mesh::Cube, &rod(mid, ends[1], cm(24)), BANANA, ONE / 6);
+        }
+    }
+    // the cliff closing the valley, and its waterfall into a pool
+    let cliff = OUTRO + int(10);
+    let mut a = -int(126);
+    let mut k = 0;
+    while a <= int(126) {
+        let base = at(cliff + int(k % 3), a);
+        let h = int(30) + int((k * 7) % 13) + rise(c.length + cliff, a);
+        let w = int(14 + (k * 5) % 7);
+        // a broad base, and a narrower, set back, leaning block on it
+        b.push(
+            Mesh::Cube,
+            &Affine::translate(base.add(up(h * 3 / 10 - int(2))))
+                .then(&Affine::rot_y(yaw + (k % 5 - 2) * deg(9)))
+                .then(&Affine::rot_z((k % 3 - 1) * deg(4)))
+                .then(&Affine::scale(v3(w, h * 3 / 5, int(14)))),
+            shade(ROCK, 80 + (k * 5) % 18),
+            0,
+        );
+        let upper = base.add(fwd.scale(int(4))).add(up(h * 7 / 10 - int(3)));
+        b.push(
+            Mesh::Cube,
+            &Affine::translate(upper)
+                .then(&Affine::rot_y(yaw - (k % 4 - 1) * deg(11)))
+                .then(&Affine::rot_x(-deg(6)))
+                .then(&Affine::rot_z((1 - k % 3) * deg(7)))
+                .then(&Affine::scale(v3(w * 3 / 4, h * 3 / 5, int(10)))),
+            shade(ROCK, 92 + (k * 7) % 16),
+            0,
+        );
+        b.push(
+            Mesh::Blob,
+            &placed(upper.add(up(h * 3 / 10)), k * 3000, v3(w, int(4), int(10))),
+            HILL[k as usize % 4],
+            0,
+        );
+        a += int(12);
+        k += 1;
+    }
+    let top = at(cliff - int(5), 0).add(up(int(36)));
+    let foot = at(OUTRO - int(4), 0).add(up(cm(30)));
+    b.push(
+        Mesh::Cube,
+        &slab(top, foot, int(8), cm(40)),
+        WATERFALL,
+        ONE / 3,
+    );
+    for x in [-int(3), int(3)] {
+        let side = right.scale(x);
+        b.push(
+            Mesh::Cube,
+            &slab(
+                top.add(side).add(up(-int(4))),
+                foot.add(side),
+                int(2),
+                cm(60),
+            ),
+            BANNER,
+            ONE / 3,
+        );
+    }
+    let pool = at(OUTRO - int(5), 0);
+    b.push(
+        Mesh::Cyl,
+        &placed(pool.add(up(cm(10))), yaw, v3(int(24), cm(20), int(14))),
+        WATER,
+        ONE / 5,
+    );
+    for j in 0..5 {
+        let p = foot.add(right.scale(int(j * 2 - 4)));
+        b.push(
+            Mesh::Blob,
+            &placed(p, j * 7000, v3(int(3), cm(120), int(2))),
+            BANNER,
+            ONE / 3,
+        );
+    }
+}
+
 /// What the frame draws, besides the scenery.
 pub struct Frame<'a> {
     pub race: &'a Race,
@@ -588,29 +1121,6 @@ pub fn dynamic(f: &Frame) -> Batch {
                 glow,
                 f.tick + i as u32 * 37,
             ),
-        }
-    }
-    for i in 0..c.logs.len() {
-        let l = &c.logs[i];
-        let m = c.log_centre(i, tick);
-        let yaw = crate::geom::yaw_of(l.along);
-        b.push(
-            Mesh::Cyl,
-            &Affine::translate(m)
-                .then(&Affine::rot_y(yaw))
-                .then(&Affine::rot_x(deg(90)))
-                .then(&Affine::scale(v3(
-                    l.radius * 2,
-                    l.half_len * 2,
-                    l.radius * 2,
-                ))),
-            BARK[1],
-            0,
-        );
-        for s in [-1, 1] {
-            let end = m.add(l.along.scale(s * (l.half_len - cm(50))));
-            let top = l.pivot.add(l.along.scale(s * (l.half_len - cm(50))));
-            b.push(Mesh::Cyl, &rod(end, top, cm(12)), VINE, ONE / 5);
         }
     }
     for (k, r) in race.racers.iter().enumerate() {
@@ -814,7 +1324,14 @@ fn stage_batch() -> Batch {
     for k in 0..14 {
         let x = int(-26) + k * int(4);
         let z = -int(10) - int((k * 7) % 5);
-        tree(&mut b, v3(x, -cm(10), z), cm(90), int(16), (k % 4) as u8);
+        tree(
+            &mut b,
+            v3(x, -cm(10), z),
+            cm(90),
+            int(16),
+            (k % 4) as u8,
+            ONE,
+        );
     }
     for k in 0..9 {
         let x = int(-8) + k * int(2);
@@ -879,7 +1396,8 @@ mod tests {
         let s = scenery(&c);
         let n = s.values.len() / crate::render::INSTANCE_VALUES;
         assert!(n > 1000 && n < 20_000, "{n}");
-        assert_eq!(s.chunks.len(), c.path.len().div_ceil(CHUNK));
+        // one chunk per 100 m, and the clearing past the finish
+        assert_eq!(s.chunks.len(), c.path.len().div_ceil(CHUNK) + 1);
         // every terrain vertex is drawn by exactly one chunk
         let mut drawn = 0;
         for ch in &s.chunks {

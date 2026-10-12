@@ -398,20 +398,20 @@ fn landing_and_running() {
     ape.mode = Mode::Flying;
     ape.vel = v3(0, 0, int(25));
     let mut landed = false;
-    for t in 0..240 {
+    for t in 0..600 {
         ape.step(&Controls::default(), &c, t);
         landed |= ape.happened.contains(&Happening::Land);
     }
     assert!(landed);
     assert_eq!(ape.mode, Mode::Grounded);
-    // the ground has taken the extra speed
+    // the ground has taken the extra speed (slowly: TRIAGE T5)
     assert!(
         ape.speed() <= ape.phys.run_speed + ONE / 4,
         "{}",
         ape.speed() / 655
     );
     // and WASD run at Run Speed
-    for t in 240..480 {
+    for t in 600..840 {
         let ctl = Controls {
             fwd: 1,
             ..Controls::default()
@@ -538,4 +538,115 @@ fn the_same_controls_give_the_same_path() {
     assert_eq!(run(Kind::Gibbon, false), run(Kind::Gibbon, false));
     // with Equal Stats a Gorilla and a Lemur are the same ape
     assert_eq!(run(Kind::Gorilla, true), run(Kind::Lemur, true));
+}
+
+/// An ape flying at 25 m/s along the course, 10 m up, falling at 12 m/s.
+fn falling(c: &Course) -> Ape {
+    let p = c.point(int(100));
+    let gy = ground(p.x, p.z);
+    let mut ape = Ape::new(Kind::Chimpanzee, true, v3(p.x, gy + int(10), p.z), 0);
+    ape.mode = Mode::Flying;
+    ape.vel = v3(0, -int(12), int(25));
+    ape
+}
+
+#[test]
+fn a_landing_keeps_most_of_its_speed() {
+    // TRIAGE T5: a fall to the ground used to bleed to Run Speed in half a
+    // second; now the landing rolls on and slides for seconds
+    let c = one_vine();
+    let mut ape = falling(&c);
+    let mut t = 0;
+    while ape.mode != Mode::Grounded {
+        ape.step(&Controls::default(), &c, t);
+        t += 1;
+    }
+    assert!(ape.speed() >= int(25), "{}", ape.speed() / 655);
+    for k in 0..120 {
+        ape.step(&Controls::default(), &c, t + k);
+    }
+    assert_eq!(ape.mode, Mode::Grounded);
+    assert!(ape.speed() >= int(20), "{}", ape.speed() / 655);
+}
+
+#[test]
+fn a_slide_on_the_ground_can_be_steered() {
+    let c = one_vine();
+    let mut ape = falling(&c);
+    let mut t = 0;
+    while ape.mode != Mode::Grounded {
+        ape.step(&Controls::default(), &c, t);
+        t += 1;
+    }
+    let before = ape.speed();
+    let right = Controls {
+        side: 1,
+        ..Controls::default()
+    };
+    for k in 0..30 {
+        ape.step(&right, &c, t + k);
+    }
+    // turned toward +x (the camera faces +z), and no faster
+    assert!(ape.vel.x.abs() > int(3), "{}", ape.vel.x / 655);
+    assert!(ape.speed() <= before);
+}
+
+/// A course with one bounce mushroom 60 m along, and a vine past it.
+fn mushroom_course() -> Course {
+    let mut c = Course::test_line(&[(int(64), int(40), int(25))]);
+    let p = c.point(int(60));
+    c.mushrooms.push(crate::course::Mushroom {
+        top: v3(p.x, ground(p.x, p.z) + MUSHROOM_HEIGHT, p.z),
+        radius: MUSHROOM_RADIUS,
+    });
+    c
+}
+
+#[test]
+fn a_mushroom_bounces_a_falling_ape_up_to_the_vines() {
+    let c = mushroom_course();
+    let m = c.mushrooms[0].top;
+    let mut ape = Ape::new(Kind::Chimpanzee, true, m.add(v3(0, int(6), -int(3))), 0);
+    ape.mode = Mode::Flying;
+    ape.vel = v3(0, -int(5), int(4));
+    let mut bounced = false;
+    let mut top = 0;
+    let mut grabbed = false;
+    for t in 0..360 {
+        ape.step(&held(), &c, t);
+        bounced |= ape.happened.contains(&Happening::Jump);
+        top = top.max(ape.pos.y);
+        grabbed |= ape.swinging().is_some();
+        assert_ne!(ape.mode, Mode::Grounded, "landed at tick {t}");
+        if grabbed {
+            break;
+        }
+    }
+    assert!(bounced);
+    // thrown well up, and holding grab takes the vine up there
+    assert!(top - m.y > int(8), "{}", (top - m.y) / ONE);
+    assert!(grabbed);
+}
+
+#[test]
+fn running_into_a_mushroom_bounces_too() {
+    let c = mushroom_course();
+    let m = c.mushrooms[0].top;
+    let gy = ground(m.x, m.z);
+    let mut ape = Ape::new(
+        Kind::Gorilla,
+        false,
+        v3(m.x, gy + BODY_DROP, m.z - int(8)),
+        0,
+    );
+    let run = Controls {
+        fwd: 1,
+        ..Controls::default()
+    };
+    let mut bounced = false;
+    for t in 0..240 {
+        ape.step(&run, &c, t);
+        bounced |= ape.happened.contains(&Happening::Jump);
+    }
+    assert!(bounced);
 }
