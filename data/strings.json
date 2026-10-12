@@ -34,6 +34,7 @@
   "settings.sensitivity": "Mouse Sensitivity",
   "settings.invert": "Invert Mouse Y",
   "settings.auto_camera": "Camera Follows",
+  "settings.speed_colours": "Speed Colours",
   "on": "On",
   "off": "Off",
   "hud.place": "Place",

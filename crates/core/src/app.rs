@@ -42,6 +42,8 @@ pub struct Settings {
     pub sensitivity: i32,
     pub invert_y: bool,
     pub auto_camera: bool,
+    /// the sky and the jungle change colour at speed (TRIAGE row 21)
+    pub speed_colours: bool,
     pub kind: Kind,
     pub ai_count: u8,
     pub equal_stats: bool,
@@ -57,6 +59,7 @@ impl Default for Settings {
             sensitivity: 5,
             invert_y: false,
             auto_camera: true,
+            speed_colours: true,
             kind: Kind::Chimpanzee,
             ai_count: 3,
             equal_stats: false,
@@ -116,6 +119,10 @@ pub struct Play {
     prev: Vec<V3>,
     /// ticks since the local ape finished
     since_finish: Option<u32>,
+    /// the local ape's horizontal speed, smoothed over about a quarter
+    /// second: what the speedometer, the hype and the colours read (TRIAGE
+    /// row 19: a downswing's falling speed set them off)
+    pub hype_speed: i32,
     /// the local finish beat the saved best
     new_best: bool,
     /// each vine drawn as a bending chain (TRIAGE row 12)
@@ -376,6 +383,10 @@ impl App {
                 self.settings.invert_y = value == "on";
                 self.save = true;
             }
+            "settings.speed_colours" => {
+                self.settings.speed_colours = value == "on";
+                self.save = true;
+            }
             "settings.auto_camera" => {
                 self.settings.auto_camera = value == "on";
                 self.save = true;
@@ -429,6 +440,7 @@ impl App {
             online: false,
             prev,
             since_finish: None,
+            hype_speed: 0,
             new_best: false,
             chains: Vec::new(),
         });
@@ -493,6 +505,8 @@ impl App {
             controls.push(c);
         }
         p.race.step(&controls);
+        let flat = p.race.racers[p.local].ape.vel.len_xz();
+        p.hype_speed += (flat - p.hype_speed) / 30;
         if p.online {
             self.online_step(p);
         }
@@ -583,12 +597,16 @@ impl App {
     pub fn frame(&self) -> (Vec<i32>, Vec<i32>, Vec<u32>) {
         let cam = self.camera();
         // the sky swings through colours at top speed (TRIAGE T20)
-        let speed = match (&self.play, self.stage) {
-            (Some(p), Stage::Race) => p.race.racers[p.local].ape.speed(),
-            _ => 0,
+        let (speed, metres) = match (&self.play, self.stage) {
+            (Some(p), Stage::Race) if self.settings.speed_colours => {
+                let me = &p.race.racers[p.local];
+                (p.hype_speed, me.progress)
+            }
+            _ => (0, 0),
         };
-        let colours = crate::sky::colours(scene::SKY, scene::FOG, speed, self.ticks);
-        let view = render::view_values(&cam, self.aspect(), scene::fog_range(), colours);
+        let colours = crate::sky::colours(scene::SKY, scene::FOG, speed, metres);
+        let world = crate::sky::world(speed, metres);
+        let view = render::view_values(&cam, self.aspect(), scene::fog_range(), colours, world);
         let batch = match self.stage {
             Stage::Race => match &self.play {
                 Some(p) => {
@@ -863,13 +881,14 @@ impl App {
             "place": [self.t("hud.place"), format!("{}/{}", me.place, race.racers.len())],
             "time": [self.t("hud.time"), clock_text(shown_clock)],
             "best": [self.t("results.best"), self.settings.best.map(clock_text).unwrap_or_else(|| self.t("item.none"))],
-            "speed": [self.t("hud.speed"), format!("{} {}", me.ape.speed() / ONE, self.t("hud.unit"))],
+            "speed": [self.t("hud.speed"), format!("{} {}", p.hype_speed / ONE, self.t("hud.unit"))],
             "speedo": {
-                "value": crate::speedo::kmh(me.ape.speed()).to_string(),
+                "value": crate::speedo::kmh(p.hype_speed).to_string(),
                 "unit": self.t("hud.kmh"),
-                "needle": crate::speedo::needle(crate::speedo::kmh(me.ape.speed())),
-                "hype": crate::speedo::hype(crate::speedo::kmh(me.ape.speed())),
-                "shout": self.t(&format!("hud.hype{}", crate::speedo::hype(crate::speedo::kmh(me.ape.speed())))),
+                "needle": crate::speedo::needle(crate::speedo::kmh(p.hype_speed)),
+                "hype": crate::speedo::hype(crate::speedo::kmh(p.hype_speed)),
+                "amount": decimal(&crate::speedo::amount_text(crate::speedo::kmh(p.hype_speed))),
+                "shout": self.t(&format!("hud.hype{}", crate::speedo::hype(crate::speedo::kmh(p.hype_speed)))),
             },
             "item": [self.t("hud.item"), item],
             "item_key": me.item.map(|i| i.key()).unwrap_or(""),
@@ -1176,6 +1195,22 @@ mod tests {
     }
 
     #[test]
+    fn speed_colours_can_be_turned_off() {
+        let mut a = app();
+        a.act("menu.race", "");
+        a.act("menu.start", "");
+        let fast = |a: &mut App| {
+            let p = a.play.as_mut().unwrap();
+            p.hype_speed = crate::fx::int(40);
+            let (view, _, _) = a.frame();
+            view[27]
+        };
+        assert!(fast(&mut a) > 0);
+        a.act("settings.speed_colours", "off");
+        assert_eq!(fast(&mut a), 0);
+    }
+
+    #[test]
     fn clock_text_is_minutes_seconds_hundredths() {
         assert_eq!(clock_text(0), "0:00.00");
         assert_eq!(clock_text(120 * 75 + 60), "1:15.50");
@@ -1203,7 +1238,7 @@ mod tests {
             let ui: Value = serde_json::from_str(&a.ui()).unwrap();
             assert!(ui["screen"].is_string());
             let (view, _, _) = a.frame();
-            assert_eq!(view.len(), 27);
+            assert_eq!(view.len(), 37);
             let (statics, _, _) = a.static_scene();
             assert!(!statics.is_empty());
         }

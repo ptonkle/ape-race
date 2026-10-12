@@ -6,9 +6,9 @@
 use crate::fx::{self, deg, int, mul, ONE};
 
 /// The dial reads 0 to this many km/h.
-pub const TOP_KMH: i32 = 160;
+pub const TOP_KMH: i32 = 140;
 /// From here the dial is red.
-pub const REDLINE_KMH: i32 = 90;
+pub const REDLINE_KMH: i32 = 75;
 /// The needle sweeps from -135° (0 km/h) to +135° (the top of the dial).
 const SWEEP: i32 = 270;
 
@@ -21,15 +21,25 @@ pub fn kmh(speed: i32) -> i32 {
 /// reaches (TRIAGE row 16: on the fastest ape the person peaks around
 /// 90 km/h; the AI is faster, averaging 94 and peaking at 137–155):
 /// level 1 is a good swing, level 2 a fast one, level 3 a person's best.
-pub const HYPE: [i32; 3] = [60, 75, REDLINE_KMH];
+/// Read from the smoothed horizontal speed (TRIAGE row 19): the AI's sits
+/// at 94–110 km/h (half to 97% of the time), a person's lower.
+pub const HYPE: [i32; 3] = [50, 62, REDLINE_KMH];
 
 pub fn hype(kmh: i32) -> u8 {
     HYPE.iter().filter(|h| kmh >= **h).count() as u8
 }
 
+/// How hyped the dial looks, continuously (TRIAGE row 15, a try): 0 at the
+/// first hype level, 1 at the top of the dial, as text with two decimals
+/// for the page's glow and shake.
+pub fn amount_text(kmh: i32) -> String {
+    let pct = ((kmh - HYPE[0]) * 100 / (TOP_KMH - HYPE[0])).clamp(0, 100);
+    format!("{}.{:02}", pct / 100, pct % 100)
+}
+
 /// The needle's angle in degrees for a reading (0 is straight up).
 pub fn needle_degrees(kmh: i32) -> i32 {
-    let k = kmh.clamp(0, TOP_KMH + 8);
+    let k = kmh.clamp(0, TOP_KMH + 5);
     -SWEEP / 2 + k * SWEEP / TOP_KMH
 }
 
@@ -137,7 +147,7 @@ mod tests {
         assert_eq!(needle_degrees(TOP_KMH / 2), 0);
         assert_eq!(needle_degrees(TOP_KMH), 135);
         assert!(needle_degrees(9999) < 150);
-        assert_eq!(needle(80), "rotate(0deg)");
+        assert_eq!(needle(70), "rotate(0deg)");
     }
 
     #[test]
@@ -148,21 +158,29 @@ mod tests {
     }
 
     #[test]
+    fn the_hype_amount_follows_the_exact_speed() {
+        assert_eq!(amount_text(0), "0.00");
+        assert_eq!(amount_text(HYPE[0]), "0.00");
+        assert_eq!(amount_text(TOP_KMH), "1.00");
+        assert_ne!(amount_text(120), amount_text(121 + 2));
+    }
+
+    #[test]
     fn hype_rises_with_speed() {
-        assert_eq!(hype(50), 0);
-        assert_eq!(hype(65), 1);
-        assert_eq!(hype(80), 2);
-        // a person's best (about 90 km/h, TRIAGE row 16) reaches the top
-        assert_eq!(hype(90), 3);
+        assert_eq!(hype(45), 0);
+        assert_eq!(hype(55), 1);
+        assert_eq!(hype(65), 2);
+        // a good human pace across the ground reaches the top
+        assert_eq!(hype(78), 3);
     }
 
     #[test]
     fn the_face_has_a_number_every_40() {
         let f = face();
-        for k in [0, 40, 80, 120, 160] {
+        for k in [0, 40, 80, 120] {
             assert!(f.contains(&format!(">{k}</text>")), "{k}");
         }
-        assert_eq!(f.matches("<line").count(), 17);
+        assert_eq!(f.matches("<line").count(), 15);
         // 0 km/h sits lower left of the centre, the top lower right
         assert!(f.contains("class=\"speedo-num\">0<") && n(int(-3) / 2) == "-1.5");
     }
