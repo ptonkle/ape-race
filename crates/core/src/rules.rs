@@ -40,7 +40,7 @@ pub const GRAB_COOLDOWN: i32 = secs_to_ticks(45);
 pub const JUMP_WINDOW: i32 = secs_to_ticks(60);
 
 /// A jump from the ground, straight up.
-pub const JUMP_SPEED: i32 = int(9);
+pub const JUMP_SPEED: i32 = int(10);
 /// Above Run Speed the ground takes this much speed a second.
 pub const GROUND_FRICTION: i32 = int(28);
 /// How fast WASD bring the ape to its running velocity on the ground.
@@ -87,8 +87,8 @@ impl Stats {
             pump: int(8) + s(self.pump) * cm(125),
             // drag, in hundred-thousandths per metre: 0.0050 to 0.0034
             drag: 500 - s(self.top_speed) * 40,
-            // 1.4 to 2.2 m from the hands
-            reach: cm(140) + s(self.reach) * cm(20),
+            // 1.8 to 2.6 m from the hands (TRIAGE row 1: grabs were too tight)
+            reach: cm(180) + s(self.reach) * cm(20),
             // 4 to 9 m/s² of steering in the air
             air: int(4) + s(self.air_control) * cm(125),
             // a hit takes 130% to 70% of its usual effect

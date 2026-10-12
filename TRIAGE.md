@@ -6,7 +6,7 @@ One row per concrete change. Say what you did, what you expected, and what happe
 
 | # | What I did | Expected | What happened | Change wanted | Status |
 | --- | --- | --- | --- | --- | --- |
-| 1 | | | | | |
+| 1 | Played the first deploy (2026-10-11). | Several vines to choose from; a fall can be recovered. | Vines were far too sparse: about one path forward and one vine you could reach, and that jump was tight, worse after falling to the ground. | Denser vines and easier grabs. | done: stations every 13–19 m (was 24–38), two or three vines across each station in left/middle/right lanes, a low vine every other station (was every third), Reach +0.4 m on every ape, jump 10 m/s (was 9). Test `every_stretch_offers_more_than_one_way_on`. |
 
 ## Future ideas (the person's todos, for a later session)
 

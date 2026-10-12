@@ -371,79 +371,70 @@ fn build(legs: &[Leg], seed: u64) -> Course {
     }
     c.start_yaw = 0;
 
-    // Vines in stations. A station's vines sit off to one side, the next
-    // station's often to the other, so a straight line through them all
-    // does not exist; the gap between stations varies, so a slow ape must
-    // drop to a lower vine, and a low vine every few stations lets an ape
-    // on the ground climb back up.
-    let mut s = 30;
-    let mut side_sign = 1;
+    // Vines in stations every 13–19 m (TRIAGE row 1: the first layout was
+    // too sparse, one path and tight jumps). Each station has two or three
+    // vines spread across the course (left, middle, right lanes, at
+    // different heights), so there is always more than one way on; a low
+    // vine at every other station lets an ape on the ground climb back up.
+    let mut s = 24;
     let mut station = 0;
     let mut slides = 0;
-    while s < len_m - 40 {
+    while s < len_m - 30 {
         let h = c.heading_at(int(s));
         let r = right_of(h);
-        // the first vine is close, so the jump off the platform reaches it
-        let (anchor_h, length) = if station == 0 {
-            (int(30), int(12))
+        // which lanes get a vine: two of the three, sometimes all three
+        let skip = if station == 0 || dice.below(3) == 0 {
+            3
         } else {
-            (int(dice.range(23, 33)), int(dice.range(10, 17)))
+            dice.below(3) as i32
         };
-        let off = if station == 0 {
-            0
-        } else {
-            side_sign * dice.range(3, 11)
-        };
-        let base = c.point(int(s)).add(r.scale(int(off)));
-        let ground_y = ground(base.x, base.z);
-        let mut slide = None;
-        // three sliding vines, spread down the course
-        if station > 0 && station % 17 == 8 && slides < 3 {
-            slide = Some(Slide {
-                reach: r.scale(int(5)),
-                period: crate::rules::secs_to_ticks(450 + slides * 70),
-            });
-            slides += 1;
-        }
-        c.vines.push(Vine {
-            anchor: v3(base.x, ground_y + anchor_h, base.z),
-            length,
-            slide,
-            at: int(s),
-        });
-        // a second choice at some stations: higher or lower, on the other side
-        if station > 0 && dice.below(3) == 0 {
-            let off2 = -side_sign * dice.range(4, 12);
-            let b2 = c.point(int(s + dice.range(-4, 4))).add(r.scale(int(off2)));
-            let g2 = ground(b2.x, b2.z);
+        for lane in 0..3 {
+            if lane == skip {
+                continue;
+            }
+            let (anchor_h, length, off) = if station == 0 {
+                // off the start platform: close, and not too high
+                (int(28), int(11), (lane - 1) * 6)
+            } else {
+                (
+                    int(dice.range(22, 33)),
+                    int(dice.range(10, 16)),
+                    (lane - 1) * 10 + dice.range(-2, 2),
+                )
+            };
+            let along = s + dice.range(-3, 3);
+            let base = c.point(int(along)).add(r.scale(int(off)));
+            let ground_y = ground(base.x, base.z);
+            let mut slide = None;
+            // three sliding vines, spread down the course
+            if station > 0 && lane == 1 && station % 30 == 15 && slides < 3 {
+                slide = Some(Slide {
+                    reach: r.scale(int(5)),
+                    period: crate::rules::secs_to_ticks(450 + slides * 70),
+                });
+                slides += 1;
+            }
             c.vines.push(Vine {
-                anchor: v3(b2.x, g2 + int(dice.range(20, 34)), b2.z),
-                length: int(dice.range(9, 16)),
-                slide: None,
-                at: int(s),
+                anchor: v3(base.x, ground_y + anchor_h, base.z),
+                length,
+                slide,
+                at: int(along),
             });
         }
         // a low vine to climb back up by
-        if station % 3 == 1 {
-            let off3 = dice.range(-8, 8);
-            let b3 = c.point(int(s + 8)).add(r.scale(int(off3)));
+        if station % 2 == 1 {
+            let off3 = dice.range(-9, 9);
+            let b3 = c.point(int(s + 7)).add(r.scale(int(off3)));
             let g3 = ground(b3.x, b3.z);
             c.vines.push(Vine {
                 anchor: v3(b3.x, g3 + int(13), b3.z),
                 length: int(10) + cm(dice.range(0, 40)),
                 slide: None,
-                at: int(s + 8),
+                at: int(s + 7),
             });
         }
-        if dice.below(4) != 0 {
-            side_sign = -side_sign;
-        }
         station += 1;
-        s += if dice.below(5) == 0 {
-            dice.range(34, 38)
-        } else {
-            dice.range(24, 31)
-        };
+        s += dice.range(13, 19);
     }
 
     // two swinging logs, across the course in the racing line
@@ -616,6 +607,32 @@ mod tests {
             })
             .count();
         assert!(off * 2 > c.vines.len(), "{off} of {}", c.vines.len());
+    }
+
+    #[test]
+    fn every_stretch_offers_more_than_one_way_on() {
+        // TRIAGE row 1: in every 25 m of the course there are at least two
+        // vines, at least 6 m apart across it, and a low vine within 40 m
+        let c = Course::jungle();
+        let side = |v: &Vine| c.progress(v.anchor, c.nearest_anywhere(v.anchor)).1;
+        let mut from = int(30);
+        while from < c.length - int(60) {
+            let here: Vec<&Vine> = c
+                .vines
+                .iter()
+                .filter(|v| v.at >= from && v.at < from + int(25))
+                .collect();
+            assert!(here.len() >= 2, "{} m: {} vines", from / ONE, here.len());
+            let lo = here.iter().map(|v| side(v)).min().unwrap();
+            let hi = here.iter().map(|v| side(v)).max().unwrap();
+            assert!(hi - lo >= int(6), "{} m: lanes {} to {}", from / ONE, lo / ONE, hi / ONE);
+            let low = c.vines.iter().any(|v| {
+                (v.at - from).abs() < int(40)
+                    && v.anchor.y - v.length - ground(v.anchor.x, v.anchor.z) < int(4)
+            });
+            assert!(low, "{} m: no low vine near", from / ONE);
+            from += int(25);
+        }
     }
 
     #[test]

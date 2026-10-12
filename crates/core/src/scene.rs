@@ -646,7 +646,7 @@ pub fn dynamic(f: &Frame) -> Batch {
 /// A vine from its anchor: straight down and swaying a little; or, when
 /// held, taut from the anchor to the hands with the rest dangling below.
 fn vine(b: &mut Batch, a: V3, length: i32, hands: Option<V3>, colour: Rgb, glow: i32, t: u32) {
-    let width = cm(14);
+    let width = cm(20);
     match hands {
         Some(h) => {
             let rope = h.sub(a).len().min(length);
