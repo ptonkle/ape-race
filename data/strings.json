@@ -56,6 +56,8 @@
   "results.time": "Time",
   "results.racing": "Racing",
   "results.out": "Out",
+  "results.best": "Best",
+  "results.new_best": "New Best!",
   "player.you": "You",
   "player.ai": "AI",
   "controls.heading": "Controls",

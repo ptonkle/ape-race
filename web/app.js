@@ -225,6 +225,7 @@ function drawHud(h) {
   pair("hud-place", h.place);
   pair("hud-time", h.time);
   pair("hud-speed", h.speed);
+  pair("hud-best", h.best);
   pair("hud-item", h.item);
   el("hud-item").className = h.item_key ? "item-slot full" : "item-slot";
   el("hud-big").textContent = h.big;

@@ -43,6 +43,8 @@ pub struct Settings {
     pub ai_count: u8,
     pub equal_stats: bool,
     pub name: String,
+    /// the fastest finish on the jungle course, in race ticks
+    pub best: Option<u32>,
 }
 
 impl Default for Settings {
@@ -56,6 +58,7 @@ impl Default for Settings {
             ai_count: 3,
             equal_stats: false,
             name: String::new(),
+            best: None,
         }
     }
 }
@@ -110,6 +113,8 @@ pub struct Play {
     prev: Vec<V3>,
     /// ticks since the local ape finished
     since_finish: Option<u32>,
+    /// the local finish beat the saved best
+    new_best: bool,
 }
 
 pub struct App {
@@ -409,6 +414,7 @@ impl App {
             online: false,
             prev,
             since_finish: None,
+            new_best: false,
         });
     }
 
@@ -477,7 +483,15 @@ impl App {
         let me = &p.race.racers[p.local];
         p.chase
             .follow(me.ape.pos, me.ape.vel, self.settings.auto_camera);
-        if me.finish.is_some() {
+        if let Some(t) = me.finish {
+            if p.since_finish.is_none() {
+                // a personal best is kept with the settings
+                p.new_best = self.settings.best.map(|b| t < b).unwrap_or(true);
+                if p.new_best {
+                    self.settings.best = Some(t);
+                    self.save = true;
+                }
+            }
             p.since_finish = Some(p.since_finish.map(|t| t + 1).unwrap_or(0));
         }
         for e in p.race.events.clone() {
@@ -742,12 +756,28 @@ impl App {
             out.push(
                 json!({ "kind": "overlay", "heading": self.t("results.heading"), "items": [
                     self.results_table(p),
+                    self.best_row(p),
                     self.button("menu.rematch"),
                     self.button("menu.main"),
                 ]}),
             );
         }
         out
+    }
+
+    /// The personal best under the results, marked when it was just set.
+    fn best_row(&self, p: &Play) -> Value {
+        let best = self
+            .settings
+            .best
+            .map(clock_text)
+            .unwrap_or_else(|| self.t("item.none"));
+        let label = if p.new_best {
+            self.t("results.new_best")
+        } else {
+            self.t("results.best")
+        };
+        json!({ "type": "list", "rows": [[label, best]] })
     }
 
     fn results_table(&self, p: &Play) -> Value {
@@ -802,6 +832,7 @@ impl App {
         json!({
             "place": [self.t("hud.place"), format!("{}/{}", me.place, race.racers.len())],
             "time": [self.t("hud.time"), clock_text(shown_clock)],
+            "best": [self.t("results.best"), self.settings.best.map(clock_text).unwrap_or_else(|| self.t("item.none"))],
             "speed": [self.t("hud.speed"), format!("{} {}", me.ape.speed() / ONE, self.t("hud.unit"))],
             "item": [self.t("hud.item"), item],
             "item_key": me.item.map(|i| i.key()).unwrap_or(""),
@@ -1010,6 +1041,34 @@ mod tests {
         assert!(b.settings.invert_y);
         // nonsense in storage gives the defaults
         assert_eq!(Settings::parse("{oops"), Settings::default());
+    }
+
+    #[test]
+    fn a_faster_finish_becomes_the_saved_best() {
+        let mut a = app();
+        a.settings.best = Some(120 * 100);
+        a.act("menu.race", "");
+        a.act("setup.opponents", "0");
+        a.act("menu.start", "");
+        let p = a.play.as_mut().unwrap();
+        p.race.phase = Phase::Running;
+        p.race.clock = 120 * 90;
+        p.race.racers[0].finish = Some(120 * 90);
+        a.tick();
+        assert_eq!(a.settings.best, Some(120 * 90));
+        assert!(a.play.as_ref().unwrap().new_best);
+        let ui: Value = serde_json::from_str(&a.ui()).unwrap();
+        assert!(ui["save"].as_str().unwrap().contains("10800"));
+        // a slower one does not replace it
+        let mut b = app();
+        b.settings.best = Some(120 * 80);
+        b.act("menu.race", "");
+        b.act("menu.start", "");
+        let p = b.play.as_mut().unwrap();
+        p.race.phase = Phase::Running;
+        p.race.racers[0].finish = Some(120 * 90);
+        b.tick();
+        assert_eq!(b.settings.best, Some(120 * 80));
     }
 
     #[test]
