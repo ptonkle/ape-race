@@ -583,11 +583,14 @@ impl App {
     pub fn frame(&self) -> (Vec<i32>, Vec<i32>, Vec<u32>) {
         let cam = self.camera();
         // the sky swings through colours at top speed (TRIAGE T20)
-        let speed = match (&self.play, self.stage) {
-            (Some(p), Stage::Race) => p.race.racers[p.local].ape.speed(),
-            _ => 0,
+        let (speed, metres) = match (&self.play, self.stage) {
+            (Some(p), Stage::Race) => {
+                let me = &p.race.racers[p.local];
+                (me.ape.speed(), me.progress)
+            }
+            _ => (0, 0),
         };
-        let colours = crate::sky::colours(scene::SKY, scene::FOG, speed, self.ticks);
+        let colours = crate::sky::colours(scene::SKY, scene::FOG, speed, metres);
         let view = render::view_values(&cam, self.aspect(), scene::fog_range(), colours);
         let batch = match self.stage {
             Stage::Race => match &self.play {
@@ -869,6 +872,7 @@ impl App {
                 "unit": self.t("hud.kmh"),
                 "needle": crate::speedo::needle(crate::speedo::kmh(me.ape.speed())),
                 "hype": crate::speedo::hype(crate::speedo::kmh(me.ape.speed())),
+                "amount": decimal(&crate::speedo::amount_text(crate::speedo::kmh(me.ape.speed()))),
                 "shout": self.t(&format!("hud.hype{}", crate::speedo::hype(crate::speedo::kmh(me.ape.speed())))),
             },
             "item": [self.t("hud.item"), item],

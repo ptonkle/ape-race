@@ -26,6 +26,14 @@ pub fn hype(kmh: i32) -> u8 {
     HYPE.iter().filter(|h| kmh >= **h).count() as u8
 }
 
+/// How hyped the dial looks, continuously (TRIAGE row 15, a try): 0 at the
+/// first hype level, 1 at the top of the dial, as text with two decimals
+/// for the page's glow and shake.
+pub fn amount_text(kmh: i32) -> String {
+    let pct = ((kmh - HYPE[0]) * 100 / (TOP_KMH - HYPE[0])).clamp(0, 100);
+    format!("{}.{:02}", pct / 100, pct % 100)
+}
+
 /// The needle's angle in degrees for a reading (0 is straight up).
 pub fn needle_degrees(kmh: i32) -> i32 {
     let k = kmh.clamp(0, TOP_KMH + 8);
@@ -144,6 +152,14 @@ mod tests {
         assert_eq!(kmh(int(10)), 36);
         assert_eq!(kmh(int(50)), 180);
         assert_eq!(kmh(0), 0);
+    }
+
+    #[test]
+    fn the_hype_amount_follows_the_exact_speed() {
+        assert_eq!(amount_text(0), "0.00");
+        assert_eq!(amount_text(HYPE[0]), "0.00");
+        assert_eq!(amount_text(TOP_KMH), "1.00");
+        assert_ne!(amount_text(120), amount_text(121 + 2));
     }
 
     #[test]

@@ -15,37 +15,42 @@ const CYCLE: [Rgb; 5] = [
     rgb(64, 214, 196),
     rgb(255, 140, 60),
 ];
-/// Ticks per colour.
-const STEP: u32 = 60;
-/// km/h over the redline at which the sky is fully changed.
-const RAMP_KMH: i32 = 30;
+/// Metres travelled per colour: the colours turn with the ground covered,
+/// so they spin faster the faster the ape goes (TRIAGE row 15, a try).
+const STEP_M: i32 = int(25);
+/// km/h over the redline at which the sky is fully changed: it builds
+/// with the exact speed all the way up (TRIAGE row 15, a try).
+const RAMP_KMH: i32 = 60;
 
-/// How changed the sky is, 0..=ONE, from a speed in Q16 m/s.
+/// How changed the sky is, 0..=ONE, from a speed in Q16 m/s: zero at the
+/// redline, eased in (smoothstep) to full at the redline + `RAMP_KMH`.
 pub fn trip(speed: i32) -> i32 {
     let over = speedo::kmh(speed) - speedo::REDLINE_KMH;
     if over <= 0 {
         return 0;
     }
-    fx::div(int(over.min(RAMP_KMH)), int(RAMP_KMH))
+    let x = fx::div(int(over.min(RAMP_KMH)), int(RAMP_KMH));
+    fx::mul(fx::mul(x, x), int(3) - 2 * x)
 }
 
-/// The cycle's colour at a tick, blended between its stops.
-fn cycle(tick: u32) -> Rgb {
-    let k = (tick / STEP) as usize % CYCLE.len();
+/// The cycle's colour after `metres` (Q16) travelled, blended between stops.
+fn cycle(metres: i32) -> Rgb {
+    let m = metres.max(0);
+    let k = (m / STEP_M) as usize % CYCLE.len();
     let next = (k + 1) % CYCLE.len();
-    let t = ((tick % STEP) as i32 * ONE) / STEP as i32;
+    let t = fx::div(m % STEP_M, STEP_M);
     mix(CYCLE[k], CYCLE[next], t)
 }
 
-/// The sky and fog colours for a speed and a tick.
-pub fn colours(sky: Rgb, fog: Rgb, speed: i32, tick: u32) -> (Rgb, Rgb) {
+/// The sky and fog colours for a speed and the metres travelled.
+pub fn colours(sky: Rgb, fog: Rgb, speed: i32, metres: i32) -> (Rgb, Rgb) {
     let t = trip(speed);
     if t == 0 {
         return (sky, fog);
     }
-    let wild = cycle(tick);
+    let wild = cycle(metres);
     // the fog takes the colour a little behind the sky, for depth
-    let wild_fog = cycle(tick + STEP / 2);
+    let wild_fog = cycle(metres + STEP_M / 2);
     (mix(sky, wild, t), mix(fog, mix(wild_fog, fog, ONE / 3), t))
 }
 
@@ -61,16 +66,17 @@ mod tests {
         let fast = int(120) * 10 / 36;
         assert_eq!(colours(sky, fog, fast, 77), (sky, fog));
         assert_eq!(trip(int(130) * 10 / 36), 0);
-        // past the redline it eases in, and is fully on 30 km/h above
-        assert!(trip(int(150) * 10 / 36) > 0 && trip(int(150) * 10 / 36) < ONE);
-        assert_eq!(trip(int(200) * 10 / 36), ONE);
+        // past the redline it builds with the exact speed, full 60 km/h above
+        let at = |kmh: i32| trip(int(kmh) * 10 / 36);
+        assert!(at(150) > 0 && at(150) < at(170) && at(170) < at(190) && at(190) < ONE);
+        assert_eq!(at(205), ONE);
         let (s, _) = colours(sky, fog, int(60), 0);
         assert_ne!(s, sky);
     }
 
     #[test]
-    fn the_colours_cycle_over_ticks() {
-        assert_ne!(cycle(0), cycle(STEP));
-        assert_eq!(cycle(0), cycle(STEP * CYCLE.len() as u32));
+    fn the_colours_turn_with_the_ground_covered() {
+        assert_ne!(cycle(0), cycle(STEP_M));
+        assert_eq!(cycle(0), cycle(STEP_M * CYCLE.len() as i32));
     }
 }
