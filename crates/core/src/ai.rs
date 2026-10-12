@@ -91,7 +91,8 @@ const LEAD_NEAR: i32 = int(8);
 /// (with jitter), a liking for shorter hops (more vines on the way), a
 /// random error on how good each release looks (so it sometimes takes a
 /// worse one, and a worse vine), and a wait before it uses an item. Stuck
-/// on one vine for two seconds, any level swings with all it has, so even
+/// on one vine for two seconds, any level swings with all it has, and with
+/// no new progress for three seconds it drives at its best for four, so even
 /// the easiest finishes. All of it is deterministic, from the brain's seed.
 #[derive(
     Debug,
@@ -142,10 +143,10 @@ impl Difficulty {
         match self {
             Difficulty::Sloth => Tuning {
                 ideal_hop: int(22),
-                hesitate: 14,
-                jitter: 14,
-                noise: int(5),
-                drive: 3,
+                hesitate: 16,
+                jitter: 16,
+                noise: int(6),
+                drive: 2,
                 item_wait: 6 * second,
             },
             Difficulty::Monkey => Tuning {
@@ -153,15 +154,15 @@ impl Difficulty {
                 hesitate: 12,
                 jitter: 12,
                 noise: int(4),
-                drive: 4,
+                drive: 3,
                 item_wait: 3 * second,
             },
             Difficulty::Ape => Tuning {
                 ideal_hop: int(26),
-                hesitate: 2,
-                jitter: 2,
+                hesitate: 4,
+                jitter: 4,
                 noise: int(2),
-                drive: 6,
+                drive: 4,
                 item_wait: second,
             },
             Difficulty::KingKong => Tuning {
