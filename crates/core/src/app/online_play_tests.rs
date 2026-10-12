@@ -129,3 +129,27 @@ fn a_bad_room_code_is_refused_before_joining() {
     assert_eq!(j.online.status, "online.bad_room");
     assert!(requests(&mut j).is_empty());
 }
+
+#[test]
+fn an_invite_link_carries_the_room_and_opening_it_joins() {
+    // TRIAGE row 27: the lobby offers the room as a link to copy
+    let mut h = app("h");
+    h.act("flag.page_url", "https://example.test/ape-race/");
+    h.act("menu.online", "");
+    h.act("online.host", "");
+    let code = h.online.room.clone();
+    let ui = h.ui();
+    let link = format!("https://example.test/ape-race/#room={code}");
+    assert!(ui.contains(&link), "the lobby shows {link}");
+    assert!(ui.contains("online.copy_link"));
+    // a browser opened from it goes straight to that room
+    let mut j = app("j");
+    j.act("flag.page_url", "https://example.test/ape-race/");
+    j.act("flag.room_link", &code);
+    assert_eq!(j.online.room, code);
+    assert_eq!(requests(&mut j)[0]["op"], "join_room");
+    // and a link with nonsense in it does nothing
+    let mut k = app("k");
+    k.act("flag.room_link", "!!");
+    assert_eq!(k.screen, Screen::Title);
+}

@@ -29,6 +29,9 @@ pub struct OnlinePlay {
     /// a key in data/strings.json, or empty
     pub status: String,
     copied_ms: Option<i64>,
+    link_copied_ms: Option<i64>,
+    /// the page's own address (no query, no hash), for invite links
+    pub page_url: String,
     /// transport requests for the page: {"op": ...}
     requests: Vec<Value>,
     /// the last messages of a session that has been left (its Leave or
@@ -41,6 +44,15 @@ impl App {
         match id {
             "flag.codes" => self.online.codes = value == "on",
             "flag.client" => self.online.client_id = value.to_string(),
+            "flag.page_url" => self.online.page_url = value.to_string(),
+            // opened from an invite link: straight to the room
+            "flag.room_link" => {
+                if online::clean_code(value).is_some() {
+                    self.go(super::Screen::Online);
+                    self.online_act("online.room", value);
+                    self.online_act("online.join", "");
+                }
+            }
             _ => {}
         }
     }
@@ -129,6 +141,7 @@ impl App {
                 None => self.online.status = "online.bad_room".to_string(),
             },
             "online.copy" => self.online.copied_ms = Some(now),
+            "online.copy_link" => self.online.link_copied_ms = Some(now),
             "online.invite" => self.online.invite = value.trim().to_string(),
             "online.reply" => self.online.reply = value.trim().to_string(),
             "online.host_code" => {
@@ -325,6 +338,24 @@ impl App {
         }
     }
 
+    /// The room as a link: opening it joins the room (TRIAGE row 27).
+    pub(super) fn invite_link(&self) -> String {
+        format!("{}#room={}", self.online.page_url, self.online.room)
+    }
+
+    fn link_item(&self) -> Value {
+        let copied = self
+            .online
+            .link_copied_ms
+            .is_some_and(|t| self.now_ms - t < COPIED_MS);
+        json!({
+            "type": "copy", "id": "online.copy_link", "label": self.t("online.invite_link"),
+            "value": self.invite_link(), "copy": self.invite_link(),
+            "text": self.t(if copied { "online.copied" } else { "online.copy_link" }),
+            "disabled": self.online.room.is_empty() || self.online.page_url.is_empty(),
+        })
+    }
+
     fn copy_item(&self) -> Value {
         let copied = self
             .online
@@ -417,6 +448,7 @@ impl App {
         ];
         if !self.online.room.is_empty() {
             seats.insert(0, self.copy_item());
+            seats.insert(1, self.link_item());
         }
         let kinds: Vec<Value> = Kind::ALL
             .iter()
