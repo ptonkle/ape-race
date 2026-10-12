@@ -62,14 +62,15 @@ mod tests {
     fn the_sky_changes_only_at_the_top_of_the_dial() {
         let sky = rgb(150, 206, 196);
         let fog = rgb(120, 178, 150);
-        // a fast ordinary swing (120 km/h) leaves the sky alone
-        let fast = int(120) * 10 / 36;
+        // a good ordinary swing (75 km/h) leaves the sky alone
+        let fast = int(75) * 10 / 36;
         assert_eq!(colours(sky, fog, fast, 77), (sky, fog));
-        assert_eq!(trip(int(130) * 10 / 36), 0);
-        // past the redline it builds with the exact speed, full 60 km/h above
+        assert_eq!(trip(int(85) * 10 / 36), 0);
+        // past the redline (90 km/h, a person's best) it builds with the
+        // exact speed, full 60 km/h above
         let at = |kmh: i32| trip(int(kmh) * 10 / 36);
-        assert!(at(150) > 0 && at(150) < at(170) && at(170) < at(190) && at(190) < ONE);
-        assert_eq!(at(205), ONE);
+        assert!(at(100) > 0 && at(100) < at(120) && at(120) < at(140) && at(140) < ONE);
+        assert_eq!(at(155), ONE);
         let (s, _) = colours(sky, fog, int(60), 0);
         assert_ne!(s, sky);
     }
