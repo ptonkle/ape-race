@@ -90,6 +90,74 @@ fn pumping_with_the_swing_raises_it() {
 }
 
 #[test]
+fn steering_turns_the_swing_and_adds_no_speed_when_fast() {
+    let c = one_vine();
+    let run = |side: i32| {
+        let mut ape = hanging(&c, 0);
+        ape.phys.drag = 0;
+        // fast, past the drive's fade: steering can only turn
+        ape.vel = v3(0, 0, DRIVE_FADE_SPEED + int(2));
+        let mut fastest = 0;
+        for t in 0..60 {
+            let ctl = Controls { side, ..held() };
+            ape.step(&ctl, &c, t);
+            fastest = fastest.max(ape.speed());
+        }
+        (ape.pos.x - c.vines[0].anchor.x, fastest)
+    };
+    let (straight, fast_straight) = run(0);
+    let (steered, fast_steered) = run(1);
+    // D steers to the camera's right (-x for a camera facing +z)
+    assert!(straight.abs() < cm(10), "{}", straight);
+    assert!(steered < -int(1), "{}", steered);
+    assert!(
+        fast_steered <= fast_straight + ONE / 4,
+        "{fast_steered} vs {fast_straight}"
+    );
+}
+
+#[test]
+fn holding_w_from_a_dead_hang_swings_forward_and_never_back() {
+    // TRIAGE row 8: no pumping back and forth
+    let c = one_vine();
+    let a = c.vines[0].anchor;
+    let mut ape = hanging(&c, 0);
+    let mut highest = i32::MIN;
+    for t in 0..240 {
+        let ctl = Controls { fwd: 1, ..held() };
+        ape.step(&ctl, &c, t);
+        assert!(ape.vel.z >= -ONE / 10, "swung back at tick {t}");
+        highest = highest.max(ape.pos.y);
+    }
+    // up past halfway to the anchor's height in front of it
+    assert!(highest > a.y - int(6), "{}", (a.y - highest) / ONE);
+    // and W on a backswing turns it round
+    let mut back = hanging(&c, 0);
+    back.vel = v3(0, 0, -int(8));
+    let mut turned = false;
+    for t in 0..120 {
+        let ctl = Controls { fwd: 1, ..held() };
+        back.step(&ctl, &c, t);
+        turned |= back.vel.z > 0;
+    }
+    assert!(turned);
+}
+
+#[test]
+fn the_drive_is_strongest_when_slow() {
+    let c = one_vine();
+    let gain = |speed: i32| {
+        let mut ape = hanging(&c, 0);
+        ape.vel = v3(0, 0, speed);
+        let before = ape.speed();
+        let ctl = Controls { fwd: 1, ..held() };
+        ape.step(&ctl, &c, 0);
+        ape.speed() - before
+    };
+    assert!(gain(int(3)) > gain(int(20)) + gain(int(20)) / 4);
+}
+
+#[test]
 fn letting_go_at_the_bottom_keeps_the_speed() {
     let c = one_vine();
     let mut ape = hanging(&c, deg(70));
@@ -152,7 +220,8 @@ fn speed_has_a_soft_top() {
     let mut ape = hanging(&c, deg(40));
     let mut fastest = 0;
     for t in 0..120 * 60 {
-        let fwd = if ape.vel.z >= 0 { 1 } else { -1 };
+        // with the motion; from rest, downhill (back toward -z)
+        let fwd = if ape.vel.z > 0 { 1 } else { -1 };
         let ctl = Controls { fwd, ..held() };
         ape.step(&ctl, &c, t);
         fastest = fastest.max(ape.speed());

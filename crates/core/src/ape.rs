@@ -253,6 +253,16 @@ impl Ape {
         self.happened.push(Happening::Release);
     }
 
+    /// The swing's drive now: full at rest, fading to nothing at Drive
+    /// Fade Speed (TRIAGE row 8).
+    fn drive_now(&self) -> i32 {
+        let speed = self.vel.len().min(DRIVE_FADE_SPEED);
+        mul(
+            self.phys.pump,
+            fx::div(DRIVE_FADE_SPEED - speed, DRIVE_FADE_SPEED),
+        )
+    }
+
     fn drag(&mut self) {
         let speed = self.vel.len();
         // per second: drag / 100 000 × speed, as a share of the velocity
@@ -263,15 +273,25 @@ impl Ape {
     fn swing(&mut self, vine: usize, rope: i32, wish: V3, course: &Course, tick: u32) {
         let a = course.anchor(vine, tick);
         let n = self.pos.sub(a).norm();
-        // pump along the swing, only with the motion (or from rest)
+        // WASD on a vine (TRIAGE rows 6 and 8): no pumping back and forth.
+        // The wish drives the ape along the swing whichever way it is
+        // moving (so W on a backswing turns it round), strongest when slow
+        // and fading to nothing at Drive Fade Speed, so at speed it is the
+        // line and the release that count. The part across the motion also
+        // steers the swing's plane, without adding speed.
         let t = wish.reject(n);
         if t.len() > ONE / 10 {
-            let tn = t.norm();
-            let with = self.vel.dot(tn);
-            if with > 0 || self.vel.len() < PUMP_FROM_REST {
-                self.vel = self
-                    .vel
-                    .add(tn.scale(mul(mul(self.phys.pump, t.len()), DT)));
+            let drive = self.drive_now();
+            self.vel = self.vel.add(t.norm().scale(mul(mul(drive, t.len()), DT)));
+            let speed = self.vel.len();
+            if speed > ONE {
+                let dir = self.vel.norm();
+                let across = t.sub(dir.scale(t.dot(dir))).reject(n);
+                if across.len() > ONE / 20 {
+                    let turn = across.with_len(mul(SWING_STEER, across.len().min(ONE)));
+                    // turn the velocity, keeping its size
+                    self.vel = self.vel.add(turn.scale(DT)).with_len(speed);
+                }
             }
         }
         self.drag();
