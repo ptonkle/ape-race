@@ -219,7 +219,16 @@ fn ahead(course: &Course, a: &Ape, from: i32, tick: u32) -> Vec<usize> {
     } else {
         course.heading_at(from)
     };
-    ahead_from(course, a.swinging(), from, a.pos, dir, tick)
+    // how high its speed could carry it
+    let top = a.pos.y + (a.vel.dot64(a.vel) / (2 * GRAVITY as i64)) as i32;
+    ahead_from(
+        course,
+        a.swinging(),
+        from,
+        v3(a.pos.x, top, a.pos.z),
+        dir,
+        tick,
+    )
 }
 
 /// Vines ahead of `from`, as [`ahead`], seen from `origin` heading `dir`:
@@ -252,7 +261,9 @@ fn ahead_from(
         let d = course.anchor(i, tick).flat().sub(origin.flat());
         let along = d.dot(dir);
         let lat = d.sub(dir.scale(along)).len();
-        lat as i64 * 3 + (along - IDEAL_HOP).abs() as i64
+        // and a vine that hangs out of reach above costs four times over
+        let above = (course.anchor(i, tick).y - course.vines[i].length - origin.y).max(0);
+        lat as i64 * 3 + (along - IDEAL_HOP).abs() as i64 + above as i64 * 4
     });
     rest.sort_by_key(|&i| course.vines[i].at);
     good.extend(rest);
@@ -305,43 +316,16 @@ fn in_reach(
     None
 }
 
-/// On a vine: pump toward the target, push toward it on the way there and
-/// with the motion on the way back (to build the swing).
+/// On a vine: hold W toward the target. The drive pushes along the swing
+/// whichever way the ape moves, so this both speeds the swing toward the
+/// target and turns a backswing round, and its part across the motion
+/// steers the swing's plane onto the line. `coast` holds nothing (a search
+/// pass that lets the swing run free).
 pub fn swing_controls(a: &Ape, course: &Course, tick: u32, target: usize, coast: bool) -> Controls {
     let to = course.anchor(target, tick).flat().sub(a.pos.flat());
-    let v = a.vel.flat();
-    // back and forth along the line to the target, never round it. A pump
-    // only adds speed with the motion, so to turn a swing that has drifted
-    // off that line, push between the motion and the line.
-    let back = v.dot64(to) < 0;
-    let line = if back { to.neg().norm() } else { to.norm() };
-    let cos = if v.len() < ONE {
-        ONE
-    } else {
-        v.norm().dot(line)
-    };
-    let dir = if cos > ONE * 6 / 10 {
-        // nearly on the line: push along it and against the drift off it
-        line.scale(2 * ONE).sub(v.norm())
-    } else if cos > ONE / 4 {
-        line
-    } else {
-        v.norm().add(line.scale(2 * ONE))
-    };
-    // on the way back, build the swing only while it would stay below the
-    // anchor: going over the top backwards winds it the wrong way round
-    let mut fwd = if coast { 0 } else { 1 };
-    if back {
-        if let Some(vine) = a.swinging() {
-            let top = a.pos.y as i64 + a.vel.dot64(a.vel) / (2 * GRAVITY as i64);
-            if top > (course.anchor(vine, tick).y - int(2)) as i64 {
-                fwd = 0;
-            }
-        }
-    }
     Controls {
-        fwd,
-        yaw: yaw_of(dir),
+        fwd: if coast { 0 } else { 1 },
+        yaw: yaw_of(to),
         grab: true,
         ..Controls::default()
     }
