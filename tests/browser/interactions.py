@@ -86,7 +86,7 @@ def run(page, check, engine):
     )
     page.keyboard.down("KeyW")
     page.wait_for_function(
-        "() => document.querySelector('#hud-speed .v').innerText.trim().split(' ')[0] !== '0'",
+        "() => document.getElementById('speedo-value').innerText.trim() !== '0'",
         timeout=20000,
     )
     page.keyboard.up("KeyW")

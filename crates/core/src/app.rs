@@ -494,8 +494,11 @@ impl App {
             self.online_step(p);
         }
         let me = &p.race.racers[p.local];
+        // the course's way forward, a little ahead of the ape
+        let c = &p.race.course;
+        let ahead = c.heading[(me.ape.hint + 8).min(c.heading.len() - 1)];
         p.chase
-            .follow(me.ape.pos, me.ape.vel, self.settings.auto_camera);
+            .follow(me.ape.pos, me.ape.vel, ahead, self.settings.auto_camera);
         if let Some(t) = me.finish {
             if p.since_finish.is_none() {
                 // a personal best is kept with the settings
@@ -621,6 +624,8 @@ impl App {
             "title": self.t("title"),
             "volume": self.settings.volume,
             "no_webgl": self.t("no_webgl"),
+            "speedo_face": crate::speedo::face(),
+            "speedo_needle": crate::speedo::banana(),
             "want_pointer": self.screen == Screen::Race
                 && self.play.as_ref().map(|p| !p.paused).unwrap_or(false),
         });
@@ -847,6 +852,13 @@ impl App {
             "time": [self.t("hud.time"), clock_text(shown_clock)],
             "best": [self.t("results.best"), self.settings.best.map(clock_text).unwrap_or_else(|| self.t("item.none"))],
             "speed": [self.t("hud.speed"), format!("{} {}", me.ape.speed() / ONE, self.t("hud.unit"))],
+            "speedo": {
+                "value": crate::speedo::kmh(me.ape.speed()).to_string(),
+                "unit": self.t("hud.kmh"),
+                "needle": crate::speedo::needle(crate::speedo::kmh(me.ape.speed())),
+                "hype": crate::speedo::hype(crate::speedo::kmh(me.ape.speed())),
+                "shout": self.t(&format!("hud.hype{}", crate::speedo::hype(crate::speedo::kmh(me.ape.speed())))),
+            },
             "item": [self.t("hud.item"), item],
             "item_key": me.item.map(|i| i.key()).unwrap_or(""),
             "big": big,
