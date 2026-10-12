@@ -125,8 +125,12 @@ fn holding_w_from_a_dead_hang_swings_forward_and_never_back() {
     for t in 0..240 {
         let ctl = Controls { fwd: 1, ..held() };
         ape.step(&ctl, &c, t);
-        assert!(ape.vel.z >= -ONE / 10, "swung back at tick {t}");
         highest = highest.max(ape.pos.y);
+        // up high it is time to let go; until then it never swings back
+        if highest > a.y - int(6) {
+            break;
+        }
+        assert!(ape.vel.z >= -ONE / 10, "swung back at tick {t}");
     }
     // up past halfway to the anchor's height in front of it
     assert!(highest > a.y - int(6), "{}", (a.y - highest) / ONE);
@@ -161,6 +165,38 @@ fn every_ape_starts_from_a_standstill_alike() {
     for k in Kind::ALL {
         assert!((start(k) - lemur).abs() < ONE / 2, "{k:?}");
     }
+}
+
+#[test]
+fn a_typical_swing_lasts_over_a_second() {
+    // TRIAGE row 11: an ape flying in at 22 m/s catches a long vine and
+    // holds W; it takes well over a second before it is climbing at 50°
+    let c = Course::test_line(&[(int(60), int(60), int(44))]);
+    let a = c.vines[0].anchor;
+    let mut ape = Ape::new(
+        Kind::Chimpanzee,
+        true,
+        v3(a.x, a.y - int(18), a.z - int(3)),
+        0,
+    );
+    ape.mode = Mode::Flying;
+    ape.vel = v3(0, 0, int(22));
+    let mut caught = None;
+    let mut climbing = None;
+    for t in 0..720u32 {
+        let ctl = Controls { fwd: 1, ..held() };
+        ape.step(&ctl, &c, t);
+        if caught.is_none() && ape.swinging().is_some() {
+            caught = Some(t);
+        }
+        let v = ape.vel;
+        if caught.is_some() && v.y > 0 && v.y as i64 * 100 > 119 * v.len_xz() as i64 {
+            climbing = Some(t);
+            break;
+        }
+    }
+    let held_for = climbing.unwrap() - caught.unwrap();
+    assert!(held_for >= 120, "{held_for} ticks");
 }
 
 #[test]
