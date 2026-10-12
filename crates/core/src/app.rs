@@ -864,7 +864,6 @@ impl App {
             "big": big,
             "hint": if self.pointer_locked { String::new() } else { self.t("hud.click") },
             "minimap": self.minimap(p),
-            "cooldown": me.ape.cooldown > 0,
         })
     }
 

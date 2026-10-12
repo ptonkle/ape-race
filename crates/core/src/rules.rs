@@ -31,13 +31,10 @@ pub const GRAB_KEEP: i32 = ONE * 96 / 100;
 pub const RELEASE_BOOST: i32 = cm(150);
 /// Steering on a vine: how fast WASD across the motion turn the swing.
 pub const SWING_STEER: i32 = int(16);
-/// A swing's drive (Swing Power) fades to nothing at this speed.
+/// A swing's drive from a standstill, the same for every ape.
+pub const DRIVE_AT_REST: i32 = int(30);
+/// The average ape's drive fades to nothing at this speed.
 pub const DRIVE_FADE_SPEED: i32 = int(34);
-
-/// How long a press of Space keeps looking for a vine (Grab Window).
-pub const GRAB_WINDOW: i32 = secs_to_ticks(15);
-/// After a Missed Grab, how long before Space can grab again (Grab Cooldown).
-pub const GRAB_COOLDOWN: i32 = secs_to_ticks(30);
 
 /// A jump from the ground, straight up.
 pub const JUMP_SPEED: i32 = int(11);
@@ -83,13 +80,16 @@ impl Stats {
     pub fn physics(&self) -> Physics {
         let s = |v: i32| v.clamp(1, STAT_MAX) - 1;
         Physics {
-            // 24 to 34 m/s² of swing drive at rest (TRIAGE row 8): enough
-            // to carry a dead hang up and over in one arc
-            pump: int(24) + s(self.pump) * cm(250),
+            // Swing Power (TRIAGE row 10): every ape drives the same from a
+            // standstill (restarting is never harder for one kind); the
+            // stat sets how fast the drive still helps, 30 to 38 m/s
+            pump: DRIVE_AT_REST,
+            drive_fade: int(30) + s(self.pump) * int(2),
             // drag, in hundred-thousandths per metre: 0.0050 to 0.0034
             drag: 500 - s(self.top_speed) * 40,
-            // 1.8 to 2.6 m from the hands (TRIAGE row 1: grabs were too tight)
-            reach: cm(180) + s(self.reach) * cm(20),
+            // 3.6 to 5.2 m from the hands (TRIAGE rows 1 and 9: twice the
+            // first loosening; grabbing should not need precision)
+            reach: cm(360) + s(self.reach) * cm(40),
             // 8 to 16 m/s² of steering in the air (TRIAGE row 2: the middle
             // ape could not reliably reach the next vine at 6.5)
             air: int(8) + s(self.air_control) * int(2),
@@ -104,8 +104,11 @@ impl Stats {
 /// What a kind's stats mean to the physics.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Physics {
-    /// The swing's drive at rest (Swing Power); it fades with speed.
+    /// The swing's drive at rest, the same for every ape.
     pub pump: i32,
+    /// The speed at which the swing's drive has faded to nothing (Swing
+    /// Power).
+    pub drive_fade: i32,
     /// Quadratic drag, in hundred-thousandths per metre: speed lost per
     /// second is `drag / 100 000 × speed²`.
     pub drag: i32,
@@ -286,7 +289,8 @@ mod tests {
             weight: 5,
         }
         .physics();
-        assert!(hi.pump > lo.pump);
+        assert!(hi.drive_fade > lo.drive_fade);
+        assert_eq!(hi.pump, lo.pump);
         assert!(hi.drag < lo.drag && hi.drag > 0);
         assert!(hi.reach > lo.reach);
         assert!(hi.air > lo.air);

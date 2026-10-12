@@ -551,7 +551,7 @@ pub fn dynamic(f: &Frame) -> Batch {
     let eye = f.cam.eye;
     let reach = f.local.and_then(|i| {
         let a = &race.racers[i].ape;
-        if a.swinging().is_none() && a.cooldown == 0 && a.stun == 0 {
+        if a.swinging().is_none() && a.stun == 0 {
             a.vine_in_reach(c, tick)
         } else {
             None
