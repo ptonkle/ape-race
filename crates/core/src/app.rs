@@ -124,8 +124,10 @@ pub struct App {
     scene_version: u32,
     view_w: i32,
     view_h: i32,
-    /// the course, built once
+    /// the course and its scenery, built once
     course: Course,
+    jungle: scene::Scenery,
+    stage_set: scene::Scenery,
     seed: u64,
 }
 
@@ -135,6 +137,7 @@ fn s(map: &BTreeMap<String, String>, key: &str) -> String {
 
 impl App {
     pub fn new(strings_json: &str, settings_json: &str, seed: u64) -> Result<App, String> {
+        let course = Course::jungle();
         let strings: BTreeMap<String, String> = serde_json::from_str(strings_json)
             .map_err(|e| format!("The strings file could not be read: {e}"))?;
         Ok(App {
@@ -156,7 +159,9 @@ impl App {
             scene_version: 1,
             view_w: 1280,
             view_h: 720,
-            course: Course::jungle(),
+            jungle: scene::scenery(&course),
+            stage_set: scene::stage_set(),
+            course,
             seed,
         })
     }
@@ -464,18 +469,18 @@ impl App {
         self.scene_version
     }
 
-    /// The static batch and the terrain for the current stage.
-    pub fn static_scene(&self) -> (Vec<i32>, Vec<u32>, Vec<i32>) {
+    fn scenery(&self) -> &scene::Scenery {
         match self.stage {
-            Stage::Flyover | Stage::Race => {
-                let (v, d) = scene::scenery(&self.course).finish(render::STATIC_BUFFER);
-                (v, d, scene::terrain(&self.course))
-            }
-            Stage::Showcase | Stage::Lineup => {
-                let (v, d) = scene::stage_set().finish(render::STATIC_BUFFER);
-                (v, d, Vec::new())
-            }
+            Stage::Flyover | Stage::Race => &self.jungle,
+            Stage::Showcase | Stage::Lineup => &self.stage_set,
         }
+    }
+
+    /// The static instances and the terrain for the current stage (its
+    /// draws come with each frame, only the chunks near the camera).
+    pub fn static_scene(&self) -> (Vec<i32>, Vec<u32>, Vec<i32>) {
+        let s = self.scenery();
+        (s.values.clone(), Vec::new(), s.terrain.clone())
     }
 
     fn camera(&self) -> Camera {
@@ -543,7 +548,9 @@ impl App {
                 b
             }
         };
-        let (values, draws) = batch.finish(render::DYNAMIC_BUFFER);
+        let mut draws = self.scenery().draws_near(cam.eye);
+        let mut values = Vec::new();
+        draws.extend(batch.finish_into(render::DYNAMIC_BUFFER, &mut values));
         (view, values, draws)
     }
 

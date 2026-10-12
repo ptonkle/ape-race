@@ -69,7 +69,15 @@ pub fn fog_range() -> (i32, i32) {
 /// The ground under the course: a strip of triangles following the
 /// centreline, out past the trees, with a worn track down the middle.
 pub fn terrain(c: &Course) -> Vec<i32> {
+    terrain_chunked(c, c.path.len().div_ceil(CHUNK)).0
+}
+
+/// The terrain, and for each of `n` chunks the vertex ranges that lie in
+/// it: (chunk, first vertex, vertex count).
+fn terrain_chunked(c: &Course, n: usize) -> (Vec<i32>, Vec<(usize, u32, u32)>) {
     let mut o = Vec::new();
+    let mut ranges: Vec<(usize, u32, u32)> = Vec::new();
+    let verts = |o: &Vec<i32>| (o.len() / VERTEX_VALUES) as u32;
     // columns across the course, metres from the centreline
     let across: [i32; 11] = [-70, -45, -30, -20, -10, 0, 10, 20, 30, 45, 70];
     let every = 3usize;
@@ -97,6 +105,11 @@ pub fn terrain(c: &Course) -> Vec<i32> {
     // the start of the strip reaches back behind the start tree
     for w in 0..rows.len() - 1 {
         let (i0, i1) = (rows[w], rows[w + 1]);
+        let chunk = (i0 / CHUNK).min(n - 1);
+        match ranges.last() {
+            Some((k, _, _)) if *k == chunk => {}
+            _ => ranges.push((chunk, verts(&o), 0)),
+        }
         for k in 0..across.len() - 1 {
             let a = point(i0, k);
             let b = point(i0, k + 1);
@@ -109,8 +122,12 @@ pub fn terrain(c: &Course) -> Vec<i32> {
             push_ground(&mut o, [a, d, cc], [ta, td, tc], normal);
             push_ground(&mut o, [a, cc, b], [ta, tc, tb], normal);
         }
+        if let Some(last) = ranges.last_mut() {
+            last.2 = verts(&o) - last.1;
+        }
     }
     // a skirt of ground behind the start
+    let skirt = verts(&o);
     let back = c.path[0].sub(c.heading[0].scale(int(60)));
     let r = right_of(c.heading[0]);
     let s0 = c.path[0].add(r.scale(int(-70)));
@@ -130,11 +147,13 @@ pub fn terrain(c: &Course) -> Vec<i32> {
         [GROUND_A; 3],
         normal,
     );
+    ranges.push((0, skirt, verts(&o) - skirt));
     // and past the finish
-    let n = c.path.len() - 1;
-    let end = c.path[n];
-    let past = end.add(c.heading[n].scale(int(80)));
-    let r = right_of(c.heading[n]);
+    let finish = verts(&o);
+    let last = c.path.len() - 1;
+    let end = c.path[last];
+    let past = end.add(c.heading[last].scale(int(80)));
+    let r = right_of(c.heading[last]);
     let e0 = end.add(r.scale(int(-70)));
     let e1 = end.add(r.scale(int(70)));
     let f0 = past.add(r.scale(int(-70)));
@@ -151,8 +170,9 @@ pub fn terrain(c: &Course) -> Vec<i32> {
         [GROUND_B; 3],
         normal,
     );
+    ranges.push((n - 1, finish, verts(&o) - finish));
     debug_assert_eq!(o.len() % (VERTEX_VALUES * 3), 0);
-    o
+    (o, ranges)
 }
 
 fn push_ground(o: &mut Vec<i32>, p: [V3; 3], t: [Rgb; 3], normal: impl Fn(V3) -> V3) {
@@ -171,89 +191,183 @@ fn push_ground(o: &mut Vec<i32>, p: [V3; 3], t: [Rgb; 3], normal: impl Fn(V3) ->
     }
 }
 
-/// The scenery that never moves: one batch for the whole course.
-pub fn scenery(c: &Course) -> Batch {
-    let mut b = Batch::new();
-    // the ground strip itself, drawn from the terrain mesh at no transform
-    b.push(Mesh::Terrain, &Affine::IDENTITY, [ONE; 3], 0);
+/// Scenery chunks are this many centreline samples long (100 m).
+pub const CHUNK: usize = 50;
+
+/// The course's scenery that never moves, in chunks along the course so
+/// the frame draws only those near the camera (the fog hides the rest).
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct Scenery {
+    pub values: Vec<i32>,
+    pub terrain: Vec<i32>,
+    pub chunks: Vec<Chunk>,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct Chunk {
+    pub centre: V3,
+    pub draws: Vec<u32>,
+}
+
+/// Chunks whose middle is further than this from the eye are not drawn.
+pub const DRAW_DISTANCE: i32 = int(260);
+
+impl Scenery {
+    /// The draws of every chunk near `eye`.
+    pub fn draws_near(&self, eye: V3) -> Vec<u32> {
+        let mut out = Vec::new();
+        for ch in &self.chunks {
+            if ch.centre.flat().sub(eye.flat()).len() <= DRAW_DISTANCE {
+                out.extend_from_slice(&ch.draws);
+            }
+        }
+        out
+    }
+
+    /// A scenery of one chunk that is always drawn.
+    pub fn single(b: Batch) -> Scenery {
+        let mut values = Vec::new();
+        let draws = b.finish_into(crate::render::STATIC_BUFFER, &mut values);
+        Scenery {
+            values,
+            terrain: Vec::new(),
+            chunks: vec![Chunk {
+                centre: V3::ZERO,
+                draws,
+            }],
+        }
+    }
+}
+
+/// Builds the course's scenery and ground, chunked.
+pub fn scenery(c: &Course) -> Scenery {
+    let n = c.path.len().div_ceil(CHUNK);
+    let mut batches: Vec<Batch> = (0..n).map(|_| Batch::new()).collect();
+    let chunk_of = |p: V3| (c.nearest_anywhere(p) / CHUNK).min(n - 1);
     for p in &c.props {
-        match *p {
-            Prop::Tree {
-                at,
-                radius,
-                height,
-                shade: s,
-            } => tree(&mut b, at, radius, height, s),
-            Prop::Branch { from, to } => {
-                b.push(Mesh::Cyl, &rod(from, to, cm(55)), BARK[1], 0);
-                // a few leaves along it
-                for k in 1..4 {
-                    let p = from.lerp(to, ONE * k / 4).add(v3(0, cm(40), 0));
-                    b.push(
-                        Mesh::Blob,
-                        &placed(p, k * 9000, v3(cm(180), cm(90), cm(160))),
-                        LEAF[(k as usize) % 4],
-                        0,
-                    );
-                }
-            }
-            Prop::Bush { at, size, shade: s } => {
-                b.push(
-                    Mesh::Blob,
-                    &placed(
-                        at.add(v3(0, size / 3, 0)),
-                        size,
-                        v3(size * 2, size, size * 2),
-                    ),
-                    LEAF[s as usize % 4],
+        let at = match *p {
+            Prop::Tree { at, .. } | Prop::Bush { at, .. } | Prop::Fern { at, .. } => at,
+            Prop::Flower { at, .. } | Prop::Rock { at, .. } => at,
+            Prop::Branch { to, .. } => to,
+        };
+        prop(&mut batches[chunk_of(at)], p);
+    }
+    for pl in &c.platforms {
+        start_tree(
+            &mut batches[chunk_of(pl.centre)],
+            pl.centre,
+            pl.fwd,
+            pl.half_len,
+            pl.half_width,
+        );
+    }
+    finish_arch(&mut batches[n - 1], c);
+    // the terrain's one instance comes first; its draws name vertex ranges
+    let mut values = Vec::new();
+    let mut identity = Batch::new();
+    identity.push(Mesh::Terrain, &Affine::IDENTITY, [ONE; 3], 0);
+    identity.finish_into(crate::render::STATIC_BUFFER, &mut values);
+    let (terrain, ranges) = terrain_chunked(c, n);
+    let mut chunks = Vec::new();
+    for (k, b) in batches.into_iter().enumerate() {
+        let mut draws = b.finish_into(crate::render::STATIC_BUFFER, &mut values);
+        for (chunk, first, count) in &ranges {
+            if *chunk == k && *count > 0 {
+                draws.extend_from_slice(&[
+                    crate::render::STATIC_BUFFER,
+                    Mesh::Terrain as u32,
                     0,
-                );
+                    1,
+                    *first,
+                    *count,
+                ]);
             }
-            Prop::Fern { at, size, yaw } => {
-                for k in 0..5 {
-                    let a = yaw + k * deg(72);
-                    let tip = at.add(v3(mul(fx::sin(a), size), size / 2, mul(fx::cos(a), size)));
-                    b.push(
-                        Mesh::Cube,
-                        &rod(at, tip, size / 5),
-                        LEAF[(k as usize + 1) % 4],
-                        0,
-                    );
-                }
-            }
-            Prop::Flower { at, colour } => {
-                b.push(
-                    Mesh::Cyl,
-                    &placed(at.add(v3(0, cm(25), 0)), 0, v3(cm(5), cm(50), cm(5))),
-                    LEAF[1],
-                    0,
-                );
+        }
+        let mid = (k * CHUNK + CHUNK / 2).min(c.path.len() - 1);
+        chunks.push(Chunk {
+            centre: c.path[mid],
+            draws,
+        });
+    }
+    Scenery {
+        values,
+        terrain,
+        chunks,
+    }
+}
+
+fn prop(b: &mut Batch, p: &Prop) {
+    match *p {
+        Prop::Tree {
+            at,
+            radius,
+            height,
+            shade: s,
+        } => tree(b, at, radius, height, s),
+        Prop::Branch { from, to } => {
+            b.push(Mesh::Cyl, &rod(from, to, cm(55)), BARK[1], 0);
+            // a few leaves along it
+            for k in 1..4 {
+                let p = from.lerp(to, ONE * k / 4).add(v3(0, cm(40), 0));
                 b.push(
                     Mesh::Blob,
-                    &placed(at.add(v3(0, cm(55), 0)), 0, v3(cm(30), cm(18), cm(30))),
-                    FLOWERS[colour as usize % 4],
-                    ONE / 3,
-                );
-            }
-            Prop::Rock { at, size, yaw } => {
-                b.push(
-                    Mesh::Blob,
-                    &placed(
-                        at.add(v3(0, size / 4, 0)),
-                        yaw,
-                        v3(size * 3 / 2, size, size),
-                    ),
-                    ROCK,
+                    &placed(p, k * 9000, v3(cm(180), cm(90), cm(160))),
+                    LEAF[(k as usize) % 4],
                     0,
                 );
             }
         }
+        Prop::Bush { at, size, shade: s } => {
+            b.push(
+                Mesh::Blob,
+                &placed(
+                    at.add(v3(0, size / 3, 0)),
+                    size,
+                    v3(size * 2, size, size * 2),
+                ),
+                LEAF[s as usize % 4],
+                0,
+            );
+        }
+        Prop::Fern { at, size, yaw } => {
+            for k in 0..5 {
+                let a = yaw + k * deg(72);
+                let tip = at.add(v3(mul(fx::sin(a), size), size / 2, mul(fx::cos(a), size)));
+                b.push(
+                    Mesh::Cube,
+                    &rod(at, tip, size / 5),
+                    LEAF[(k as usize + 1) % 4],
+                    0,
+                );
+            }
+        }
+        Prop::Flower { at, colour } => {
+            b.push(
+                Mesh::Cyl,
+                &placed(at.add(v3(0, cm(25), 0)), 0, v3(cm(5), cm(50), cm(5))),
+                LEAF[1],
+                0,
+            );
+            b.push(
+                Mesh::Blob,
+                &placed(at.add(v3(0, cm(55), 0)), 0, v3(cm(30), cm(18), cm(30))),
+                FLOWERS[colour as usize % 4],
+                ONE / 3,
+            );
+        }
+        Prop::Rock { at, size, yaw } => {
+            b.push(
+                Mesh::Blob,
+                &placed(
+                    at.add(v3(0, size / 4, 0)),
+                    yaw,
+                    v3(size * 3 / 2, size, size),
+                ),
+                ROCK,
+                0,
+            );
+        }
     }
-    for pl in &c.platforms {
-        start_tree(&mut b, pl.centre, pl.fwd, pl.half_len, pl.half_width);
-    }
-    finish_arch(&mut b, c);
-    b
 }
 
 fn tree(b: &mut Batch, at: V3, radius: i32, height: i32, s: u8) {
@@ -620,7 +734,11 @@ fn speed_lines(b: &mut Batch, f: &Frame) {
 }
 
 /// The little stage the selection screen and the lineup stand on.
-pub fn stage_set() -> Batch {
+pub fn stage_set() -> Scenery {
+    Scenery::single(stage_batch())
+}
+
+fn stage_batch() -> Batch {
     let mut b = Batch::new();
     b.push(
         Mesh::Cyl,
@@ -700,7 +818,23 @@ mod tests {
     #[test]
     fn the_scenery_is_a_few_thousand_shapes() {
         let c = Course::jungle();
-        let n = scenery(&c).count();
+        let s = scenery(&c);
+        let n = s.values.len() / crate::render::INSTANCE_VALUES;
         assert!(n > 1000 && n < 20_000, "{n}");
+        assert_eq!(s.chunks.len(), c.path.len().div_ceil(CHUNK));
+        // every terrain vertex is drawn by exactly one chunk
+        let mut drawn = 0;
+        for ch in &s.chunks {
+            for d in ch.draws.chunks(crate::render::DRAW_VALUES) {
+                if d[1] == Mesh::Terrain as u32 {
+                    drawn += d[5];
+                }
+            }
+        }
+        assert_eq!(drawn as usize, s.terrain.len() / VERTEX_VALUES);
+        // near the start only a few chunks are drawn
+        let near = s.draws_near(c.path[0]);
+        let all: usize = s.chunks.iter().map(|ch| ch.draws.len()).sum();
+        assert!(near.len() * 3 < all, "{} of {all}", near.len());
     }
 }

@@ -64,11 +64,10 @@ export function makeRenderer(canvas, N, shaders, meshData, sceneUniforms, clearC
   gl.clearColor(r, g, b, 1);
 
   const instanceBuffers = [gl.createBuffer(), gl.createBuffer()];
-  let staticDraws = new Uint32Array();
 
   function drawList(draws) {
     for (let i = 0; i < draws.length; i += N.draw_values) {
-      const [buffer, meshId, byteOffset, count] = draws.subarray(i, i + N.draw_values);
+      const [buffer, meshId, byteOffset, count, first, vertices] = draws.subarray(i, i + N.draw_values);
       const mesh = meshes[meshId];
       if (!mesh.vertices) continue;
       gl.bindBuffer(gl.ARRAY_BUFFER, mesh.buffer);
@@ -79,20 +78,20 @@ export function makeRenderer(canvas, N, shaders, meshData, sceneUniforms, clearC
       for (const a of instanceAttributes) {
         gl.vertexAttribPointer(a.loc, a.size, gl.FLOAT, false, N.instance.stride, a.offset + byteOffset);
       }
-      gl.drawArraysInstanced(gl.TRIANGLES, 0, mesh.vertices, count);
+      gl.drawArraysInstanced(gl.TRIANGLES, first, vertices || mesh.vertices, count);
     }
   }
 
   return {
     // What never moves: uploaded once per stage, with the ground's mesh.
-    setScene(values, draws, terrain) {
+    // Which of it to draw comes with each frame.
+    setScene(values, terrain) {
       const ground = meshes[N.terrain_mesh];
       gl.bindBuffer(gl.ARRAY_BUFFER, ground.buffer);
       gl.bufferData(gl.ARRAY_BUFFER, terrain, gl.STATIC_DRAW);
       ground.vertices = terrain.length / N.vertex.values;
       gl.bindBuffer(gl.ARRAY_BUFFER, instanceBuffers[N.buffers.static]);
       gl.bufferData(gl.ARRAY_BUFFER, values, gl.STATIC_DRAW);
-      staticDraws = draws;
     },
     resize(width, height) {
       canvas.width = width;
@@ -106,7 +105,6 @@ export function makeRenderer(canvas, N, shaders, meshData, sceneUniforms, clearC
       gl.uniformMatrix4fv(uVP, false, view.subarray(...V.matrix));
       gl.uniform3fv(uEye, view.subarray(...V.eye));
       gl.uniform2fv(uFogRange, view.subarray(...V.fog));
-      drawList(staticDraws);
       drawList(draws);
     },
   };

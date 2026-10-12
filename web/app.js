@@ -42,11 +42,11 @@ function send(id, value) {
   afterAct();
 }
 
-// A click may need the pointer (Resume, Start): ask while the click lasts.
+// The pointer is locked only by a click on the 3D view itself (the HUD
+// says so), never by a menu button: the mouse stays free for menus.
 function afterAct() {
   ui = JSON.parse(game.ui());
   handle(ui);
-  if (ui.want_pointer && document.pointerLockElement !== canvas) lockPointer();
 }
 
 function button(item) {
@@ -403,7 +403,7 @@ async function start() {
       if (game.scene_version() !== sceneVersion) {
         sceneVersion = game.scene_version();
         game.build_scene();
-        renderer.setScene(game.static_instances(), game.static_draws(), game.terrain());
+        renderer.setScene(game.static_instances(), game.terrain());
       }
       game.build_frame();
       renderer.frame(game.view(), game.instances(), game.draws());

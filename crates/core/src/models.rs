@@ -1058,7 +1058,7 @@ mod tests {
     fn shapes(b: Batch) -> Vec<Shape> {
         let (values, draws) = b.finish(DYNAMIC_BUFFER);
         let mut out = Vec::new();
-        for d in draws.chunks(4) {
+        for d in draws.chunks(crate::render::DRAW_VALUES) {
             let first = d[2] as usize / 4 / INSTANCE_VALUES;
             for i in first..first + d[3] as usize {
                 let v = &values[i * INSTANCE_VALUES..(i + 1) * INSTANCE_VALUES];
@@ -1377,4 +1377,3 @@ mod tests {
         }
     }
 }
-
