@@ -13,7 +13,10 @@ if [ "$HAVE" != "$PIN" ]; then
   exit 1
 fi
 
-cargo build --release --target wasm32-unknown-unknown -p tool_shim
+# Paths baked into the module (for panic messages) must not reveal the
+# builder's home folder: it becomes "~" in the published file.
+RUSTFLAGS="${RUSTFLAGS:-} --remap-path-prefix=$HOME=~" \
+  cargo build --release --target wasm32-unknown-unknown -p tool_shim
 
 rm -rf dist
 mkdir -p dist/pkg dist/data
