@@ -34,11 +34,6 @@ pub const SWING_STEER: i32 = int(16);
 /// A swing's drive (Swing Power) fades to nothing at this speed.
 pub const DRIVE_FADE_SPEED: i32 = int(34);
 
-/// How long a press of Space keeps looking for a vine (Grab Window).
-pub const GRAB_WINDOW: i32 = secs_to_ticks(15);
-/// After a Missed Grab, how long before Space can grab again (Grab Cooldown).
-pub const GRAB_COOLDOWN: i32 = secs_to_ticks(30);
-
 /// A jump from the ground, straight up.
 pub const JUMP_SPEED: i32 = int(11);
 /// Above Run Speed the ground takes this much speed a second.
@@ -88,8 +83,9 @@ impl Stats {
             pump: int(24) + s(self.pump) * cm(250),
             // drag, in hundred-thousandths per metre: 0.0050 to 0.0034
             drag: 500 - s(self.top_speed) * 40,
-            // 1.8 to 2.6 m from the hands (TRIAGE row 1: grabs were too tight)
-            reach: cm(180) + s(self.reach) * cm(20),
+            // 3.6 to 5.2 m from the hands (TRIAGE rows 1 and 9: twice the
+            // first loosening; grabbing should not need precision)
+            reach: cm(360) + s(self.reach) * cm(40),
             // 8 to 16 m/s² of steering in the air (TRIAGE row 2: the middle
             // ape could not reliably reach the next vine at 6.5)
             air: int(8) + s(self.air_control) * int(2),

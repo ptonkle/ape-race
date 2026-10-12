@@ -23,7 +23,6 @@ fn hanging(c: &Course, angle: i32) -> Ape {
     let pos = a.add(v3(0, -mul(rope, fx::cos(angle)), mul(rope, fx::sin(angle))));
     let mut ape = Ape::new(Kind::Chimpanzee, true, pos, 0);
     ape.mode = Mode::Swinging { vine: 0, rope };
-    ape.held = true;
     ape
 }
 
@@ -270,44 +269,30 @@ fn a_press_with_a_vine_in_reach_grabs() {
 }
 
 #[test]
-fn a_press_into_empty_air_is_a_missed_grab_with_a_cooldown() {
+fn holding_grab_through_empty_air_catches_the_next_vine() {
+    // TRIAGE row 9: no timing; held early, the grab waits for a vine
     let c = one_vine();
-    // far from the vine: the window runs out
     let mut ape = passing(&c, int(30));
-    assert!(!fly_with(&mut ape, &c, GRAB_WINDOW as u32 + 1, true, 0));
-    assert!(ape.cooldown > 0);
-    // let go and press again, now in reach: the cooldown refuses it
-    fly_with(&mut ape, &c, 1, false, 100);
-    ape.pos.z = c.vines[0].anchor.z - int(1);
-    assert!(!fly_with(&mut ape, &c, 1, true, 101));
-    assert!(ape.swinging().is_none());
+    assert!(fly_with(&mut ape, &c, 600, true, 0));
+    assert!(!ape.happened.contains(&Happening::Miss));
 }
 
 #[test]
-fn after_the_cooldown_a_press_grabs_again() {
+fn a_vine_twice_the_old_reach_away_is_caught() {
+    // TRIAGE row 9: about 2x the grab distance of row 1 (1.8–2.6 m)
     let c = one_vine();
-    let mut ape = passing(&c, int(30));
-    fly_with(&mut ape, &c, GRAB_WINDOW as u32 + 1, true, 0);
-    fly_with(&mut ape, &c, GRAB_COOLDOWN as u32, false, 100);
-    assert_eq!(ape.cooldown, 0);
-    ape.pos.z = c.vines[0].anchor.z - int(1);
-    assert!(fly_with(&mut ape, &c, 1, true, 400));
+    let mut ape = passing(&c, cm(350));
+    assert!(fly_with(&mut ape, &c, 1, true, 0));
+    // but not one far beyond the reach
+    let mut far = passing(&c, ape_reach() + int(2));
+    assert!(!fly_with(&mut far, &c, 1, true, 0));
 }
 
 #[test]
-fn holding_space_through_a_vine_does_not_grab_it() {
+fn without_grab_held_a_vine_is_passed_by() {
     let c = one_vine();
     let mut ape = passing(&c, int(8));
-    // pressed far before the vine; the window closes, then the vine passes
-    assert!(!fly_with(&mut ape, &c, 120, true, 0));
-}
-
-#[test]
-fn a_late_press_inside_the_window_still_grabs() {
-    let c = one_vine();
-    // the vine comes into reach a few ticks after the press
-    let mut ape = passing(&c, int(1) + ape_reach());
-    assert!(fly_with(&mut ape, &c, GRAB_WINDOW as u32, true, 0));
+    assert!(!fly_with(&mut ape, &c, 120, false, 0));
 }
 
 fn ape_reach() -> i32 {
@@ -348,8 +333,8 @@ fn landing_and_running() {
 
 #[test]
 fn a_jump_under_a_low_vine_then_a_grab_takes_it() {
-    // a vine whose bottom is 4.5 m above the ground: out of reach standing
-    let c = Course::test_line(&[(int(50), int(14), cm(950))]);
+    // a vine whose bottom is 7.5 m above the ground: out of reach standing
+    let c = Course::test_line(&[(int(50), int(17), cm(950))]);
     let a = c.vines[0].anchor;
     let gy = ground(a.x, a.z);
     let mut ape = Ape::new(
@@ -403,8 +388,6 @@ fn space_jumps_but_never_grabs() {
         ape.step(&jump, &c, t);
         assert!(ape.swinging().is_none());
     }
-    // a jump is not a Missed Grab
-    assert_eq!(ape.cooldown, 0);
     // and Space in the air does nothing
     let mut flier = passing(&c, int(1));
     flier.step(&jump, &c, 0);

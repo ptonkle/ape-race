@@ -59,14 +59,8 @@ pub struct Ape {
     pub pos: V3,
     pub vel: V3,
     pub mode: Mode,
-    /// ticks left in a Grab Window
-    pub window: i32,
-    /// ticks left in a Grab Cooldown
-    pub cooldown: i32,
     /// ticks left Stunned
     pub stun: i32,
-    /// grab was held last tick
-    held: bool,
     /// jump was held last tick
     jump_held: bool,
     /// the vine let go of last, and how many ticks ago
@@ -86,11 +80,8 @@ impl Ape {
             pos,
             vel: V3::ZERO,
             mode: Mode::Grounded,
-            window: 0,
             jump_held: false,
-            cooldown: 0,
             stun: 0,
-            held: false,
             last_vine: None,
             hint: 0,
             yaw,
@@ -151,9 +142,6 @@ impl Ape {
     /// One tick (PLAN P3–P6).
     pub fn step(&mut self, c: &Controls, course: &Course, tick: u32) {
         self.happened.clear();
-        if self.cooldown > 0 {
-            self.cooldown -= 1;
-        }
         if self.stun > 0 {
             self.stun -= 1;
         }
@@ -161,8 +149,6 @@ impl Ape {
             self.last_vine = Some((v, ago + 1));
         }
         let stunned = self.stun > 0;
-        let pressed = c.grab && !self.held;
-        self.held = c.grab;
 
         // let go
         if let Mode::Swinging { vine, .. } = self.mode {
@@ -181,22 +167,11 @@ impl Ape {
             self.happened.push(Happening::Jump);
         }
 
-        // a fresh press of grab opens a Grab Window
-        if pressed && !stunned && self.cooldown == 0 && self.swinging().is_none() {
-            self.window = GRAB_WINDOW;
-        }
-
-        // the Grab Window: grab a vine in reach, or run out into a miss
-        if self.window > 0 {
-            if !c.grab || stunned {
-                self.close_window();
-            } else if let Some(v) = self.vine_in_reach(course, tick) {
+        // Holding grab catches the first vine in reach (TRIAGE row 9: no
+        // timing, no Missed Grab, no cooldown).
+        if c.grab && !stunned && self.swinging().is_none() {
+            if let Some(v) = self.vine_in_reach(course, tick) {
                 self.grab(v, course, tick);
-            } else {
-                self.window -= 1;
-                if self.window == 0 {
-                    self.close_window();
-                }
             }
         }
 
@@ -214,17 +189,13 @@ impl Ape {
         }
     }
 
-    fn close_window(&mut self) {
-        self.cooldown = GRAB_COOLDOWN;
-        self.happened.push(Happening::Miss);
-        self.window = 0;
-    }
-
     fn grab(&mut self, vine: usize, course: &Course, tick: u32) {
         let a = course.anchor(vine, tick);
         let length = course.vines[vine].length;
         let to = self.pos.sub(a);
-        let rope = to.len().clamp(MIN_ROPE, length);
+        // the vine stretches to the hands rather than yanking the ape to its
+        // end (a grab may come from a reach below the vine's end)
+        let rope = to.len().clamp(MIN_ROPE, length + self.phys.reach);
         let n = to.norm();
         if to.len() > rope {
             self.pos = a.add(n.scale(rope));
@@ -239,7 +210,6 @@ impl Ape {
             self.vel = along;
         }
         self.mode = Mode::Swinging { vine, rope };
-        self.window = 0;
         self.happened.push(Happening::Grab);
     }
 
@@ -397,7 +367,6 @@ impl Ape {
             self.mode = Mode::Flying;
             self.last_vine = Some((vine, 0));
         }
-        self.window = 0;
         self.happened.push(Happening::Knocked);
     }
 }
