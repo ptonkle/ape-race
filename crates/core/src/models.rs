@@ -1,4 +1,7 @@
-//! The six apes' models (PLAN P8), built from the unit meshes.
+//! The six apes' models (PLAN P8), built from the faceted unit meshes in a
+//! low-poly, flat-shaded style (TRIAGE T3): barrel torsos, geodesic heads,
+//! six-sided tapering limbs, bevelled hands and feet with fingers and toes,
+//! hexagonal discs for ears and face rings, and kite-shaped tufts of hair.
 //!
 //! Every ape is the same jointed figure (a torso, a head, two two-part arms
 //! and two two-part legs) with its own proportions and colours from [`look`],
@@ -124,8 +127,8 @@ fn look(kind: Kind) -> Look {
         },
         Kind::Gorilla => Look {
             size: 122,
-            fur: rgb(40, 40, 45),
-            limb: rgb(34, 34, 38),
+            fur: rgb(50, 50, 58),
+            limb: rgb(44, 44, 52),
             chest: rgb(64, 64, 70),
             face: rgb(84, 80, 88),
             skin: rgb(28, 28, 32),
@@ -239,7 +242,10 @@ const BLACK: Rgb = rgb(16, 14, 16);
 const EYE_WHITE: Rgb = rgb(250, 250, 246);
 const LEMUR_EYE: Rgb = rgb(255, 160, 20);
 const STAR: Rgb = rgb(255, 230, 60);
-const NOSE: Rgb = rgb(228, 136, 104);
+const NOSE: Rgb = rgb(238, 122, 98);
+/// the gibbon's face ring (not quite the eyes' white)
+const FACE_RING: Rgb = rgb(246, 244, 236);
+const TAIL_GREY: Rgb = rgb(208, 204, 196);
 
 // ---------------------------------------------------------------------------
 // Small helpers
@@ -331,21 +337,44 @@ impl Rig<'_> {
         self.b.push(mesh, &self.base.then(&a), c, glow);
     }
 
-    /// A ball `size` across at `at`, along the world's axes.
+    /// A faceted ball `size` across at `at`, along the world's axes.
     fn ball(&mut self, at: V3, size: i32, c: Rgb) {
         self.put(
-            Mesh::Sphere,
+            Mesh::Ico,
             Affine::translate(at).then(&Affine::scale(v3(size, size, size))),
             c,
         );
     }
 
-    /// A rounded rod from `a` to `b`, `w` thick, with a ball at `b`.
+    /// A six-sided segment from `a` (`w` across) tapering toward `b`, with a
+    /// faceted knuckle at `b`.
     fn bone(&mut self, a: V3, b: V3, w: i32, c: Rgb) {
         if a.dist(b) > ONE / 200 {
-            self.put(Mesh::Cyl, rod(a, b, w), c);
+            self.put(Mesh::Taper, rod(a, b, w), c);
         }
-        self.ball(b, w, c);
+        self.ball(b, pct(w, 66), c);
+    }
+
+    /// A flat kite from `a` to `b`, `w` wide along `side` and `thick` through
+    /// it: a tuft of hair, an ear, a patch of the lemur's mask.
+    fn blade(&mut self, a: V3, b: V3, side: V3, w: i32, thick: i32, c: Rgb) {
+        let d = b.sub(a);
+        let along = dir_or(d, V3::UP);
+        let x = dir_or(
+            side.reject(along),
+            dir_or(V3::UP.cross(along), v3(ONE, 0, 0)),
+        );
+        let z = x.cross(along).norm();
+        self.put(
+            Mesh::Shard,
+            Affine {
+                c0: x.scale(w),
+                c1: d,
+                c2: z.scale(thick),
+                t: a.lerp(b, ONE / 2),
+            },
+            c,
+        );
     }
 }
 
@@ -634,124 +663,211 @@ pub fn draw(b: &mut Batch, kind: Kind, pose: &Pose) {
 fn torso(rig: &mut Rig, kind: Kind, l: &Look, m: &Dims, s: &Skel) {
     let body = &s.body;
     let (w, t, d) = (m.w, m.t, m.d);
+    let at = |x: i32, y: i32, z: i32| v3(pct(w, x), pct(t, y), pct(d, z));
+    // the hips, the ribcage and a yoke across the shoulders
     rig.put(
-        Mesh::Sphere,
-        body.shape(v3(0, t / 2, 0), v3(w, pct(t, 118), d)),
+        Mesh::Barrel,
+        body.shape(at(0, 18, -4), at(86, 52, 90)),
         l.fur,
     );
     rig.put(
-        Mesh::Sphere,
+        Mesh::Barrel,
+        body.shape(at(0, 58, 0), at(100, 84, 100)),
+        l.fur,
+    );
+    rig.put(
+        Mesh::Bevel,
         body.shape(
-            v3(0, pct(t, 52), pct(d, 22)),
-            v3(pct(w, 70), pct(t, 76), pct(d, 66)),
+            at(0, 86, -4),
+            v3(2 * m.shoulder + pct(m.arm_w, 60), pct(t, 26), pct(d, 76)),
         ),
+        shade(l.fur, 94),
+    );
+    // the chest and belly patch
+    rig.put(
+        Mesh::Geo,
+        body.shape(at(0, 50, 30), at(62, 72, 50)),
         l.chest,
     );
     match kind {
         Kind::Gorilla => {
-            // the huge shoulders and chest
-            rig.put(
-                Mesh::Sphere,
-                body.shape(
-                    v3(0, pct(t, 80), pct(d, 4)),
-                    v3(pct(w, 120), pct(t, 62), pct(d, 104)),
-                ),
-                l.fur,
-            );
+            // the slabs of the chest, and the silver saddle across the back
             for side in SIDES {
                 rig.put(
-                    Mesh::Sphere,
-                    body.shape(
-                        v3(side * pct(w, 20), pct(t, 72), pct(d, 34)),
-                        v3(pct(w, 44), pct(t, 40), pct(d, 40)),
-                    ),
+                    Mesh::Bevel,
+                    body.shape(at(side * 22, 70, 38), at(44, 30, 34)),
                     l.chest,
                 );
             }
-            // the silver saddle across the back
             rig.put(
-                Mesh::Sphere,
-                body.shape(
-                    v3(0, pct(t, 48), -pct(d, 26)),
-                    v3(pct(w, 88), pct(t, 84), pct(d, 58)),
-                ),
-                rgb(178, 178, 184),
+                Mesh::Geo,
+                body.shape(at(0, 46, -26), at(84, 72, 54)),
+                rgb(158, 158, 166),
             );
         }
         Kind::Orangutan => {
-            // shaggy tufts over the shoulders and back
+            // long shaggy hair hanging off the shoulders and back
             for side in SIDES {
-                for (y, z) in [(78, -10), (50, -30), (20, -20)] {
-                    rig.put(
-                        Mesh::Blob,
-                        body.shape(
-                            v3(side * pct(w, 34), pct(t, y), pct(d, z)),
-                            v3(pct(w, 40), pct(t, 44), pct(d, 50)),
-                        ),
-                        shade(l.fur, 88),
+                for (x, y, z, len) in [(40, 90, -10, 60), (30, 70, -40, 70), (14, 46, -46, 66)] {
+                    let top = body.at(side * pct(w, x), pct(t, y), pct(d, z));
+                    let bottom = top
+                        .add(V3::UP.scale(-pct(t, len)))
+                        .add(body.x.scale(side * pct(w, 12)))
+                        .add(body.z.scale(-pct(d, 14)));
+                    rig.blade(
+                        top,
+                        bottom,
+                        body.x,
+                        pct(w, 30),
+                        pct(d, 12),
+                        shade(l.fur, 86),
                     );
                 }
             }
-        }
-        Kind::Proboscis => {
-            // the pot belly
-            rig.put(
-                Mesh::Sphere,
-                body.shape(
-                    v3(0, pct(t, 34), pct(d, 30)),
-                    v3(pct(w, 92), pct(t, 72), pct(d, 86)),
-                ),
-                l.chest,
+            rig.blade(
+                body.at(0, pct(t, 70), -pct(d, 48)),
+                body.at(0, pct(t, 10), -pct(d, 60)),
+                body.x,
+                pct(w, 40),
+                pct(d, 12),
+                shade(l.fur, 80),
             );
         }
-        _ => {}
+        Kind::Proboscis => {
+            // the pot belly, and the pale cape round the shoulders
+            rig.put(
+                Mesh::Geo,
+                body.shape(at(0, 34, 30), at(94, 74, 88)),
+                l.chest,
+            );
+            rig.put(
+                Mesh::Barrel,
+                body.shape(at(0, 90, 0), at(118, 30, 110)),
+                rgb(236, 220, 190),
+            );
+        }
+        Kind::Chimpanzee => {
+            // a ruff of dark hair on the shoulders
+            for side in SIDES {
+                let top = body.at(side * pct(w, 34), pct(t, 96), -pct(d, 24));
+                let bottom = body.at(side * pct(w, 40), pct(t, 66), -pct(d, 40));
+                rig.blade(
+                    top,
+                    bottom,
+                    body.x,
+                    pct(w, 30),
+                    pct(d, 12),
+                    shade(l.fur, 84),
+                );
+            }
+        }
+        Kind::Lemur => {
+            // a darker saddle down the back
+            rig.put(
+                Mesh::Bevel,
+                body.shape(at(0, 56, -30), at(76, 70, 40)),
+                shade(l.fur, 82),
+            );
+        }
+        Kind::Gibbon => {}
     }
+}
+
+/// A hand: a palm, four fingers ahead along the frame's z and a thumb on the
+/// inside (`side` is the hand's side, -1 or 1).
+fn hand(rig: &mut Rig, f: &Frame, at: V3, w: i32, side: i32, c: Rgb) {
+    let f = Frame { o: at, ..*f };
+    rig.put(
+        Mesh::Bevel,
+        f.shape(V3::ZERO, v3(pct(w, 140), pct(w, 84), pct(w, 120))),
+        c,
+    );
+    for i in 0..4 {
+        let x = pct(w, (2 * i - 3) * 17);
+        rig.put(
+            Mesh::Bevel,
+            f.shape(
+                v3(x, -pct(w, 12), pct(w, 70)),
+                v3(pct(w, 30), pct(w, 36), pct(w, 56)),
+            ),
+            shade(c, 92),
+        );
+    }
+    // the thumb, to the inside
+    rig.put(
+        Mesh::Pyramid,
+        f.shape(
+            v3(-side * pct(w, 76), -pct(w, 6), pct(w, 30)),
+            v3(pct(w, 34), pct(w, 30), pct(w, 34)),
+        ),
+        shade(c, 86),
+    );
+}
+
+/// A foot: a sole, three toes and a big toe set off to the inside, as apes have.
+fn foot(rig: &mut Rig, f: &Frame, ankle: V3, w: i32, side: i32, c: Rgb) {
+    let f = Frame { o: ankle, ..*f };
+    rig.put(
+        Mesh::Bevel,
+        f.shape(
+            v3(0, -pct(w, 6), pct(w, 40)),
+            v3(pct(w, 130), pct(w, 64), pct(w, 180)),
+        ),
+        c,
+    );
+    for i in 0..3 {
+        let x = side * pct(w, (i - 1) * 30 + 16);
+        rig.put(
+            Mesh::Bevel,
+            f.shape(
+                v3(x, -pct(w, 12), pct(w, 134)),
+                v3(pct(w, 28), pct(w, 34), pct(w, 44)),
+            ),
+            shade(c, 90),
+        );
+    }
+    let toe = f.at(-side * pct(w, 66), -pct(w, 8), pct(w, 104));
+    let root = f.at(-side * pct(w, 36), -pct(w, 4), pct(w, 76));
+    rig.put(Mesh::Taper, rod(root, toe, pct(w, 44)), shade(c, 90));
 }
 
 fn limbs(rig: &mut Rig, kind: Kind, l: &Look, m: &Dims, s: &Skel) {
     let ff = &s.feet_frame;
     for (i, side) in SIDES.into_iter().enumerate() {
-        // arm
+        // arm: a round shoulder, a tapering upper arm and forearm
         let sh = shoulder_of(&s.body, m, side);
-        let (elbow, hand) = bend(sh, s.hands[i], m.arm, s.arm_hint[i]);
-        rig.ball(sh, pct(m.arm_w, 150), l.limb);
-        rig.bone(sh, elbow, m.arm_w, l.limb);
-        rig.bone(elbow, hand, pct(m.arm_w, 88), l.limb);
-        rig.put(
-            Mesh::Sphere,
-            ff.shape(
-                V3::ZERO,
-                v3(pct(m.arm_w, 150), pct(m.arm_w, 120), pct(m.arm_w, 160)),
-            )
-            .at(hand),
-            l.skin,
-        );
+        let (elbow, wrist) = bend(sh, s.hands[i], m.arm, s.arm_hint[i]);
+        rig.ball(sh, pct(m.arm_w, 160), l.limb);
+        rig.bone(sh, elbow, pct(m.arm_w, 130), l.limb);
+        rig.bone(elbow, wrist, pct(m.arm_w, 112), l.limb);
+        hand(rig, ff, wrist, m.arm_w, side, l.skin);
         if kind == Kind::Orangutan {
             // long hair hanging from the arms
-            for (a, b) in [(sh, elbow), (elbow, hand)] {
-                let mid = a.lerp(b, ONE / 2).sub(v3(0, m.arm_w / 2, 0));
-                rig.put(
-                    Mesh::Blob,
-                    rod(mid, mid.add(b.sub(a).scale(ONE / 3)), pct(m.arm_w, 200)),
-                    shade(l.fur, 92),
-                );
+            for (a, b) in [(sh, elbow), (elbow, wrist)] {
+                for j in 1..4 {
+                    let top = a.lerp(b, ONE * j / 4);
+                    let along = b.sub(a);
+                    let bottom = top
+                        .sub(v3(0, pct(m.arm_w, 260), 0))
+                        .sub(along.scale(ONE / 6));
+                    rig.blade(
+                        top,
+                        bottom,
+                        along,
+                        pct(m.arm_w, 150),
+                        pct(m.arm_w, 50),
+                        shade(l.fur, 92 - 4 * j),
+                    );
+                }
             }
         }
         // leg
         let hip = hip_of(&s.body, m, side);
         let (knee, ankle) = bend(hip, s.feet[i], m.leg, s.leg_hint[i]);
-        rig.ball(hip, pct(m.leg_w, 140), l.limb);
-        rig.bone(hip, knee, m.leg_w, l.limb);
-        rig.bone(knee, ankle, pct(m.leg_w, 85), l.limb);
-        let foot = v3(0, 0, m.leg_w / 2);
-        rig.put(
-            Mesh::Sphere,
-            Frame { o: ankle, ..*ff }.shape(
-                foot,
-                v3(pct(m.leg_w, 140), pct(m.leg_w, 80), pct(m.leg_w, 230)),
-            ),
-            l.skin,
-        );
+        rig.ball(hip, pct(m.leg_w, 150), l.limb);
+        rig.bone(hip, knee, pct(m.leg_w, 130), l.limb);
+        rig.bone(knee, ankle, pct(m.leg_w, 110), l.limb);
+        foot(rig, ff, ankle, m.leg_w, side, l.skin);
     }
 }
 
@@ -790,84 +906,122 @@ fn nose_points(h: &Frame, d: i32, vel: V3, tick: u32) -> [V3; 4] {
     p
 }
 
+/// Two eyes: a faceted white (or orange) ball with a black diamond pupil.
 fn eyes(rig: &mut Rig, h: &Frame, d: i32, size: i32, colour: Rgb, y: i32, x: i32) {
     for side in SIDES {
         let e = h.at(side * pct(d, x), pct(d, y), pct(d, 42));
         let es = pct(d, size);
         rig.glow(
-            Mesh::Sphere,
-            h.shape(V3::ZERO, v3(es, es, es)).at(e),
+            Mesh::Ico,
+            h.shape(V3::ZERO, v3(es, es, pct(es, 80))).at(e),
             colour,
             ONE / 3,
         );
-        let ps = pct(es, 55);
+        let ps = pct(es, 56);
         rig.put(
-            Mesh::Sphere,
-            h.shape(V3::ZERO, v3(ps, ps, ps))
-                .at(e.add(h.z.scale(pct(es, 34)))),
+            Mesh::Octa,
+            h.shape(V3::ZERO, v3(ps, ps, pct(ps, 70)))
+                .at(e.add(h.z.scale(pct(es, 30)))),
             BLACK,
         );
     }
 }
 
+/// A flat hexagon in the face's plane, `across` wide and `thick` deep (the
+/// cheek flanges, the face ring).
+fn disc(rig: &mut Rig, h: &Frame, at: V3, across: i32, thick: i32, c: Rgb) {
+    let a = h.at(at.x, at.y, at.z);
+    rig.put(Mesh::Hex, rod(a, a.add(h.z.scale(thick)), across), c);
+}
+
 fn head(rig: &mut Rig, kind: Kind, l: &Look, h: &Frame, pose: &Pose) {
     let d = cm(l.head);
     let p = |x: i32, y: i32, z: i32| v3(pct(d, x), pct(d, y), pct(d, z));
-    // skull
-    rig.put(Mesh::Sphere, h.shape(V3::ZERO, p(100, 96, 96)), l.fur);
-    // a white ring or flanges behind the face
+    // the skull, and the bare face on its front
+    rig.put(Mesh::Geo, h.shape(V3::ZERO, p(100, 94, 96)), l.fur);
+    let face_size = match kind {
+        Kind::Lemur => p(84, 80, 52),
+        Kind::Proboscis => p(70, 70, 44),
+        Kind::Gibbon => p(68, 70, 44),
+        _ => p(78, 74, 44),
+    };
+    rig.put(Mesh::Geo, h.shape(p(0, -4, 30), face_size), l.face);
     match kind {
         Kind::Orangutan => {
-            let c = h.at(0, -pct(d, 4), pct(d, 22));
-            rig.put(
-                Mesh::Cyl,
-                rod(c, c.add(h.z.scale(pct(d, 10))), pct(d, 160)),
-                rgb(104, 84, 74),
+            // the broad cheek flanges, a throat sac and hair standing up
+            disc(
+                rig,
+                h,
+                p(0, -6, 14),
+                pct(d, 176),
+                pct(d, 14),
+                rgb(110, 86, 74),
             );
-            // the throat sac and a tuft on top
-            rig.put(Mesh::Sphere, h.shape(p(0, -55, 20), p(70, 50, 60)), l.skin);
-            rig.put(Mesh::Blob, h.shape(p(0, 46, -6), p(60, 34, 70)), l.fur);
+            disc(
+                rig,
+                h,
+                p(0, -6, 12),
+                pct(d, 196),
+                pct(d, 8),
+                shade(l.fur, 90),
+            );
+            rig.put(Mesh::Geo, h.shape(p(0, -58, 16), p(74, 54, 64)), l.skin);
+            for (x, tilt) in [(-30, -30), (-10, -10), (12, 12), (30, 32)] {
+                let root = h.at(pct(d, x), pct(d, 34), -pct(d, 6));
+                let tip = h.at(pct(d, x + tilt), pct(d, 84), -pct(d, 26));
+                rig.blade(root, tip, h.x, pct(d, 26), pct(d, 10), shade(l.fur, 104));
+            }
         }
         Kind::Gibbon => {
-            let c = h.at(0, -pct(d, 2), pct(d, 26));
-            rig.put(
-                Mesh::Cyl,
-                rod(c, c.add(h.z.scale(pct(d, 10))), pct(d, 94)),
-                EYE_WHITE,
-            );
+            // the white ring round the black face, and a tufted crown
+            disc(rig, h, p(0, -2, 22), pct(d, 100), pct(d, 10), FACE_RING);
+            for (x, tilt) in [(-20, -14), (0, 0), (20, 14)] {
+                let root = h.at(pct(d, x), pct(d, 36), -pct(d, 4));
+                let tip = h.at(pct(d, x + tilt), pct(d, 66), -pct(d, 18));
+                rig.blade(root, tip, h.x, pct(d, 26), pct(d, 10), shade(l.fur, 96));
+            }
         }
         Kind::Gorilla => {
             // the crest on top
-            rig.put(Mesh::Sphere, h.shape(p(0, 40, -8), p(36, 46, 76)), l.fur);
+            rig.put(Mesh::Pyramid, h.shape(p(0, 40, -10), p(40, 40, 74)), l.fur);
         }
-        _ => {}
+        Kind::Chimpanzee => {
+            // sideburns
+            for side in SIDES {
+                let root = h.at(side * pct(d, 40), -pct(d, 10), pct(d, 10));
+                let tip = h.at(side * pct(d, 54), -pct(d, 46), pct(d, 6));
+                rig.blade(root, tip, h.z, pct(d, 30), pct(d, 10), shade(l.fur, 110));
+            }
+        }
+        Kind::Proboscis => {
+            // a russet cap
+            rig.put(
+                Mesh::Geo,
+                h.shape(p(0, 22, -6), p(96, 62, 92)),
+                shade(l.fur, 88),
+            );
+        }
+        Kind::Lemur => {}
     }
-    // the bare face
-    let face_size = match kind {
-        Kind::Lemur => p(84, 80, 50),
-        Kind::Proboscis => p(66, 66, 40),
-        _ => p(76, 72, 42),
-    };
-    rig.put(Mesh::Sphere, h.shape(p(0, -3, 32), face_size), l.face);
     if l.brow > 0 {
         let c = if kind == Kind::Gorilla { l.fur } else { l.face };
         rig.put(
-            Mesh::Sphere,
-            h.shape(p(0, 22, 40), p(84, 10 + l.brow / 2, l.brow + 14)),
+            Mesh::Wedge,
+            h.shape(p(0, 20, 38), p(86, 10 + l.brow / 2, l.brow + 14)),
             shade(c, 90),
         );
     }
     if l.ear > 0 {
+        // flat hexagonal ears, a darker hollow in each
         for side in SIDES {
             let e = l.ear;
+            let at = h.at(side * pct(d, 46), pct(d, 4), 0);
+            let out = h.x.scale(side * pct(d, 8));
+            rig.put(Mesh::Hex, rod(at, at.add(out), pct(d, e)), l.skin);
+            let at = at.add(out);
             rig.put(
-                Mesh::Sphere,
-                h.shape(p(side * 50, 4, 0), p(e / 3, e, pct(e, 80))),
-                l.skin,
-            );
-            rig.put(
-                Mesh::Sphere,
-                h.shape(p(side * 52, 4, 2), p(e / 4, pct(e, 66), pct(e, 50))),
+                Mesh::Hex,
+                rod(at, at.add(out.scale(ONE / 3)), pct(d, pct(e, 60))),
                 shade(l.skin, 70),
             );
         }
@@ -875,26 +1029,26 @@ fn head(rig: &mut Rig, kind: Kind, l: &Look, h: &Frame, pose: &Pose) {
     if l.muzzle > 0 {
         let mz = l.muzzle;
         let muzzle = if kind == Kind::Orangutan || kind == Kind::Chimpanzee {
-            shade(l.face, 108)
+            shade(l.face, 110)
         } else {
             l.face
         };
         rig.put(
-            Mesh::Sphere,
-            h.shape(p(0, -24, 44), p(mz * 5 / 4, pct(mz, 85), mz)),
+            Mesh::Bevel,
+            h.shape(p(0, -26, 42), p(pct(mz, 110), pct(mz, 74), pct(mz, 90))),
             muzzle,
         );
         // nostrils and mouth
         for side in SIDES {
             rig.put(
-                Mesh::Sphere,
-                h.shape(p(side * 6, -16, 44 + mz / 2), p(8, 6, 6)),
+                Mesh::Octa,
+                h.shape(p(side * 7, -16, 40 + pct(mz, 46)), p(9, 6, 6)),
                 BLACK,
             );
         }
         rig.put(
-            Mesh::Cube,
-            h.shape(p(0, -34, 42 + pct(mz, 45)), p(pct(mz, 70), 3, 4)),
+            Mesh::Wedge,
+            h.shape(p(0, -36, 40 + pct(mz, 44)), p(pct(mz, 74), 4, 5)),
             BLACK,
         );
     }
@@ -902,32 +1056,49 @@ fn head(rig: &mut Rig, kind: Kind, l: &Look, h: &Frame, pose: &Pose) {
         Kind::Lemur => {
             // the black mask, the pointed snout and the pricked ears
             for side in SIDES {
-                rig.put(
-                    Mesh::Sphere,
-                    h.shape(p(side * 20, 8, 42), p(38, 32, 22)),
-                    BLACK,
-                );
+                let top = h.at(side * pct(d, 16), pct(d, 22), pct(d, 50));
+                let bottom = h.at(side * pct(d, 28), -pct(d, 12), pct(d, 42));
+                rig.blade(top, bottom, h.x, pct(d, 34), pct(d, 12), BLACK);
                 let base = h.at(side * pct(d, 30), pct(d, 28), -pct(d, 4));
-                let tip = h.at(side * pct(d, 50), pct(d, 66), -pct(d, 8));
-                rig.put(Mesh::Cone, rod(base, tip, pct(d, 30)), l.fur);
+                let tip = h.at(side * pct(d, 54), pct(d, 72), -pct(d, 10));
+                rig.blade(base, tip, h.x, pct(d, 36), pct(d, 12), l.fur);
+                rig.blade(
+                    base.add(h.z.scale(pct(d, 4))),
+                    base.lerp(tip, ONE * 3 / 4).add(h.z.scale(pct(d, 4))),
+                    h.x,
+                    pct(d, 20),
+                    pct(d, 8),
+                    l.face,
+                );
             }
-            let a = h.at(0, -pct(d, 12), pct(d, 34));
-            let b = h.at(0, -pct(d, 20), pct(d, 86));
-            rig.put(Mesh::Cone, rod(a, b, pct(d, 40)), l.face);
-            rig.ball(b.sub(h.z.scale(pct(d, 6))), pct(d, 14), BLACK);
+            rig.put(
+                Mesh::Geo,
+                h.shape(p(0, 30, -8), p(80, 50, 80)),
+                shade(l.fur, 80),
+            );
+            let a = h.at(0, -pct(d, 14), pct(d, 34));
+            let b = h.at(0, -pct(d, 20), pct(d, 90));
+            rig.put(Mesh::Spike, rod(a, b, pct(d, 44)), l.face);
+            rig.put(
+                Mesh::Octa,
+                h.shape(V3::ZERO, p(16, 12, 14))
+                    .at(b.sub(h.z.scale(pct(d, 4)))),
+                BLACK,
+            );
             eyes(rig, h, d, l.eye, LEMUR_EYE, 10, 20);
         }
         Kind::Proboscis => {
             eyes(rig, h, d, l.eye, EYE_WHITE, 14, 15);
             // a small mouth, under the nose
-            rig.put(Mesh::Cube, h.shape(p(0, -30, 44), p(26, 4, 6)), BLACK);
+            rig.put(Mesh::Wedge, h.shape(p(0, -30, 44), p(26, 4, 6)), BLACK);
+            // the nose widens to a heavy bulb that hangs over the mouth
             let n = nose_points(h, d, pose.vel, pose.tick);
-            let widths = [pct(d, 24), pct(d, 30), pct(d, 38)];
-            rig.ball(n[0], pct(d, 22), NOSE);
+            let widths = [pct(d, 26), pct(d, 32), pct(d, 42)];
+            rig.put(Mesh::Ico, h.shape(V3::ZERO, p(24, 24, 24)).at(n[0]), NOSE);
             for i in 0..3 {
-                rig.bone(n[i], n[i + 1], widths[i], NOSE);
+                rig.put(Mesh::Taper, rod(n[i + 1], n[i], widths[i]), NOSE);
             }
-            rig.ball(n[3], pct(d, 48), NOSE);
+            rig.put(Mesh::Geo, h.shape(V3::ZERO, p(60, 54, 56)).at(n[3]), NOSE);
         }
         _ => eyes(rig, h, d, l.eye, EYE_WHITE, 8, 17),
     }
@@ -935,8 +1106,8 @@ fn head(rig: &mut Rig, kind: Kind, l: &Look, h: &Frame, pose: &Pose) {
 
 fn tail(rig: &mut Rig, kind: Kind, m: &Dims, s: &Skel, tick: u32) {
     let (count, seg, w0, w1, bend_by) = match kind {
-        Kind::Lemur => (12, cm(8), cm(8), cm(6), s.tail_bend),
-        Kind::Proboscis => (8, cm(9), cm(5), cm(4), s.tail_bend / 3),
+        Kind::Lemur => (12, cm(8), cm(9), cm(7), s.tail_bend),
+        Kind::Proboscis => (8, cm(9), cm(6), cm(4), s.tail_bend / 3),
         _ => return,
     };
     // the lemur carries its tail up in a hook; the proboscis monkey's droops
@@ -948,10 +1119,11 @@ fn tail(rig: &mut Rig, kind: Kind, m: &Dims, s: &Skel, tick: u32) {
     let curl = dir_or(curl.reject(back), s.body.z.neg());
     let side = back.cross(curl).norm();
     let mut at = s.body.at(0, pct(m.t, 10), -pct(m.d, 42));
+    let mut way = back;
     for i in 0..count {
         let a = bend_by * (i + 1);
         let sway = mul(fx::sin(spin(tick, deg(3)) - i * deg(20)), cm(25));
-        let way = dir_or(
+        way = dir_or(
             back.scale(fx::cos(a))
                 .add(curl.scale(fx::sin(a)))
                 .add(side.scale(sway)),
@@ -959,13 +1131,26 @@ fn tail(rig: &mut Rig, kind: Kind, m: &Dims, s: &Skel, tick: u32) {
         );
         let next = at.add(way.scale(seg));
         let w = w0 + (w1 - w0) * i / count;
-        let c = match kind {
-            Kind::Lemur if i % 2 == 0 => rgb(242, 242, 240),
-            Kind::Lemur => BLACK,
-            _ => rgb(208, 204, 196),
-        };
-        rig.bone(at, next, w, c);
+        if kind == Kind::Lemur {
+            // crisp rings, white and black
+            let c = if i % 2 == 0 {
+                rgb(242, 242, 240)
+            } else {
+                BLACK
+            };
+            rig.put(Mesh::Hex, rod(at, next, w), c);
+        } else {
+            rig.put(Mesh::Taper, rod(at, next, pct(w, 120)), TAIL_GREY);
+            rig.ball(next, pct(w, 80), TAIL_GREY);
+        }
         at = next;
+    }
+    // the tip: a black point, or a pale tuft
+    if kind == Kind::Lemur {
+        rig.put(Mesh::Spike, rod(at, at.add(way.scale(seg)), w1), BLACK);
+    } else {
+        let tip = at.add(way.scale(seg / 2));
+        rig.blade(at, tip, side, w1 * 3, w1, rgb(232, 228, 220));
     }
 }
 
@@ -976,10 +1161,12 @@ fn stars(rig: &mut Rig, h: &Frame, d: i32, tick: u32) {
         let p =
             h.o.add(V3::UP.scale(pct(d, 80)))
                 .add(v3(mul(fx::cos(a), r), 0, mul(fx::sin(a), r)));
-        let size = pct(d, 22);
+        let size = pct(d, 26);
         rig.glow(
-            Mesh::Sphere,
-            Affine::translate(p).then(&Affine::scale(v3(size, size, size))),
+            Mesh::Octa,
+            Affine::translate(p)
+                .then(&Affine::rot_y(a * 2))
+                .then(&Affine::scale(v3(size, size, size / 2))),
             STAR,
             ONE,
         );
@@ -1130,7 +1317,7 @@ mod tests {
         for kind in Kind::ALL {
             for pose in poses() {
                 let n = drawn(kind, &pose).len();
-                assert!((30..=120).contains(&n), "{kind:?} {n} shapes");
+                assert!((50..=250).contains(&n), "{kind:?} {n} shapes");
             }
         }
     }
@@ -1139,7 +1326,7 @@ mod tests {
     fn every_kind_looks_different() {
         let sig = |kind: Kind| {
             let s = drawn(kind, &at_rest());
-            let mut per_mesh = [0usize; 7];
+            let mut per_mesh = [0usize; Mesh::ALL.len()];
             let mut colours: Vec<[i32; 3]> = Vec::new();
             for x in &s {
                 per_mesh[x.mesh as usize] += 1;
@@ -1330,7 +1517,7 @@ mod tests {
                 showcase(&mut b, kind, t);
                 let e: Vec<V3> = shapes(b)
                     .iter()
-                    .filter(|s| s.mesh == Mesh::Sphere as u32)
+                    .filter(|s| s.mesh == Mesh::Ico as u32)
                     .filter(|s| s.colour == EYE_WHITE || s.colour == LEMUR_EYE)
                     .map(|s| s.at)
                     .collect();
