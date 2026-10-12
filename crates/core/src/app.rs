@@ -1176,15 +1176,13 @@ impl App {
             ]}),
         ];
         // Speed Colours shows once unlocked (TRIAGE row 26)
-        if self.settings.colours_unlocked {
-            panels[0]["items"].as_array_mut().map(|items| {
+        if let Some(items) = panels[0]["items"].as_array_mut() {
+            if self.settings.colours_unlocked {
                 items.push(json!({ "type": "toggle", "id": "settings.speed_colours",
-                  "label": self.t("settings.speed_colours"), "value": self.settings.speed_colours }))
-            });
+                  "label": self.t("settings.speed_colours"), "value": self.settings.speed_colours }));
+            }
+            items.push(self.button("menu.back"));
         }
-        panels[0]["items"]
-            .as_array_mut()
-            .map(|items| items.push(self.button("menu.back")));
         panels
     }
 
