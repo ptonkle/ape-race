@@ -1012,11 +1012,11 @@ pub fn lineup_camera(aspect: i32) -> Camera {
     let half = fov / 2;
     let tan = fx::div(fx::sin(half), fx::cos(half));
     // the row is about 10 m wide and 2 m tall, plus a margin
-    let need_w = fx::div(cm(470), mul(tan, aspect.max(ONE / 4)));
+    let need_w = fx::div(cm(420), mul(tan, aspect.max(ONE / 4)));
     let need_h = fx::div(cm(110), tan);
     let back = need_w.max(need_h) + cm(60);
-    let target = v3(0, cm(70), 0);
-    let eye = v3(0, cm(170), back);
+    let target = v3(0, cm(80), 0);
+    let eye = v3(0, cm(120), back);
     Camera {
         eye,
         fwd: target.sub(eye).norm(),
