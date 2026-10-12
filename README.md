@@ -17,6 +17,8 @@ The design is in [`BRIEF.md`](BRIEF.md) and the build decisions in [`PLAN.md`](P
 | Apes | Orangutan, Gorilla, Chimpanzee, Gibbon, Proboscis Monkey, Lemur. Five stats: Swing Power, Top Speed, Reach, Air Control, Weight. Every ape's stats add up to the same total. **Equal Stats** gives every ape the average. |
 | Online | **Online → Host** gives a room code to share; others **Join** with it. Everyone picks an ape and readies up; the host adds AI apes and starts. |
 | Best time | Your fastest finish is kept on this device and shown in the HUD and results. |
+| Time Trial | Race alone (crates give only the Speed Boost) for Bronze, Silver and Gold target times; the Author time shows once you earn Gold. Your best Time Trial races beside you as a pale-blue ghost. |
+| Replays | **Watch Replay** on the results (or the pause menu) replays the race: play, pause, ½×/1×/2×, chase, orbit or trackside cameras, and a seek bar. Your fastest run per course and mode and your last 10 others are kept on this device under **Replays**. |
 
 ### Controls
 
@@ -28,6 +30,7 @@ The design is in [`BRIEF.md`](BRIEF.md) and the build decisions in [`PLAN.md`](P
 | Use item | Right click or E |
 | Look | Mouse (click the 3D view to capture the mouse) |
 | Pause | Esc (online, Esc shows the menu but the race goes on) |
+| Quick restart | R twice quickly (offline races and Time Trials) |
 
 Settings: Volume, Mouse Sensitivity, Invert Mouse Y, Camera Follows (the camera swings back behind you when the mouse rests). They are kept in browser storage.
 

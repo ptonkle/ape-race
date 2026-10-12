@@ -97,6 +97,31 @@ def run(page, check, engine):
     page.keyboard.press("Escape")
     page.wait_for_selector("[id='menu.resume']", timeout=5000)
     check(STRINGS["menu.paused"].upper() in text(page, "#menus").upper(), "Esc pauses the race")
+
+    # Watch the race so far (TRIAGE T15): the viewer and its seek bar, then
+    # back to the paused race
+    page.click("[id='menu.replay']")
+    page.wait_for_selector("#replay-bar:not([hidden])", timeout=5000)
+    check(page.is_visible("[id='replay.exit']"), "Watch Replay opens the replay viewer")
+    check(STRINGS["replay.heading"].upper() in text(page, "#menus").upper(), "the viewer says Replay")
+    page.select_option("[id='replay.speed']", "double")
+    page.select_option("[id='replay.camera']", "orbit")
+    page.wait_for_function(
+        "() => document.querySelector('#hud-time .v').innerText.trim() !== '0:00.00'",
+        timeout=20000,
+    )
+    check(True, "the replay plays past the countdown")
+    check(canvas_drawn(page), "the replay is drawn (orbit camera)")
+    page.fill("#replay-seek", "0")
+    page.dispatch_event("#replay-seek", "change")
+    page.wait_for_function(
+        "() => document.querySelector('#hud-time .v').innerText.trim() === '0:00.00'",
+        timeout=10000,
+    )
+    check(True, "seeking to the start shows the countdown again")
+    page.click("[id='replay.exit']")
+    page.wait_for_selector("[id='menu.resume']", timeout=5000)
+    check(page.is_hidden("#replay-bar"), "leaving the replay goes back to the paused race")
     page.click("[id='menu.quit']")
     check(page.evaluate("document.body.dataset.screen") == "title", "Quit returns to the title")
 
@@ -105,4 +130,36 @@ def run(page, check, engine):
     page.wait_for_selector("body[data-ready='true']", timeout=20000)
     page.click("[id='menu.settings']")
     check("35%" in text(page, "#menus"), "the volume is kept after a reload")
+    page.click("[id='menu.back']")
+
+    # Time Trial (TRIAGE T1, T13): solo, the medal targets, Bronze 1:45.00
+    # (105 s, set in trial.rs from the AI's 73–76 s) and the Author hidden
+    page.click("[id='menu.trial']")
+    check(page.evaluate("document.body.dataset.screen") == "setup", "Time Trial opens its setup")
+    shown = text(page, "#menus")
+    check(STRINGS["trial.heading"].upper() in shown.upper(), "the setup is headed Time Trial")
+    check("1:45.00" in shown and STRINGS["medal.bronze"] in shown, "the Bronze target is 1:45.00")
+    check(STRINGS["trial.hidden"] in shown, "the Author time is hidden")
+    check(page.query_selector("[id='setup.opponents']") is None, "no AI opponents in a Time Trial")
+    page.click("[id='menu.start']")
+    page.wait_for_function("() => document.getElementById('hud-place').innerText.includes('/1')", timeout=10000)
+    check("1:45.00" in text(page, "#hud-best"), "the HUD aims for Bronze first")
+
+    # R twice quickly restarts (TRIAGE T7): the clock goes back to the countdown
+    page.wait_for_function(
+        "() => document.querySelector('#hud-time .v').innerText.trim() !== '0:00.00'",
+        timeout=30000,
+    )
+    page.keyboard.press("KeyR")
+    page.keyboard.press("KeyR")
+    page.wait_for_timeout(200)
+    check(text(page, "#hud-time .v") == "0:00.00", "R R restarts the Time Trial")
+    check(page.evaluate("document.body.dataset.screen") == "race", "without leaving the race")
+    page.keyboard.press("Escape")
+    page.wait_for_selector("[id='menu.quit']", timeout=5000)
+    page.click("[id='menu.quit']")
+
+    # Replays: nothing finished yet, so the list says so
+    page.click("[id='menu.replays']")
+    check(STRINGS["replays.none"] in text(page, "#menus"), "the Replays list is empty before a finish")
     page.click("[id='menu.back']")

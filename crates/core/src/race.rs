@@ -135,6 +135,9 @@ pub struct Race {
     pub dice: Dice,
     /// finishers so far, in order
     pub order: Vec<usize>,
+    /// crates give only the Speed Boost (a Time Trial, TRIAGE T13); read
+    /// by the item rolls
+    pub boost_only: bool,
 }
 
 /// One entrant: a name, a kind of ape and who drives it.
@@ -176,6 +179,7 @@ impl Race {
             equal_stats,
             dice: Dice(seed),
             order: Vec::new(),
+            boost_only: false,
         }
     }
 

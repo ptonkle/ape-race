@@ -330,3 +330,39 @@ table.cells tr.me td { color: var(--banana); font-weight: 800; }
 @keyframes hum { from { transform: translate(0, 0); } to { transform: translate(0.5px, -0.5px); } }
 @keyframes shake { from { transform: translate(-1.5px, 1px) rotate(-0.6deg); } to { transform: translate(1.5px, -1px) rotate(0.6deg); } }
 @keyframes pulse { from { transform: translateX(-50%) rotate(-6deg) scale(1); } to { transform: translateX(-50%) rotate(-3deg) scale(1.15); } }
+
+/* ---- replays (TRIAGE T15) ---- */
+
+body[data-screen="race"] .menus:has(.panel.replay) {
+  background: none;
+  align-content: flex-end;
+  padding-bottom: 5.5rem;
+}
+.panel.replay {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem 1rem;
+  padding: 0.6rem 1rem;
+}
+.panel.replay .button { width: auto; margin-top: 0; font-size: 1rem; padding: 0.45rem 1rem; }
+.panel.replay .field { margin: 0; }
+.panel.replays { display: flex; flex-direction: column; gap: 0.3rem; max-width: 40rem; max-height: 80vh; overflow-y: auto; }
+.panel.replays .button { font-size: 1rem; text-align: left; }
+.button:disabled { opacity: 0.45; cursor: default; transform: none; }
+.replay-bar {
+  position: absolute;
+  left: 50%;
+  bottom: 1.6rem;
+  transform: translateX(-50%);
+  width: min(60vw, 40rem);
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  pointer-events: auto;
+  font-variant-numeric: tabular-nums;
+  text-shadow: 0 2px 4px #000;
+}
+.replay-bar input { flex: 1; accent-color: var(--accent); }
+.replay-bar[hidden] { display: none; }
+.panel.replay h2 { margin: 0 0.4rem 0 0; }

@@ -29,6 +29,13 @@ impl Session {
         }
     }
 
+    /// The replays kept in browser storage (TRIAGE T15), once at start.
+    pub fn load_replays(&mut self, text: &str) {
+        if let Ok(a) = &mut self.app {
+            a.load_replays(text);
+        }
+    }
+
     pub fn key(&mut self, code: &str, down: bool) {
         if let Ok(a) = &mut self.app {
             a.key(code, down);
