@@ -137,9 +137,17 @@ const JUNGLE: &[Leg] = &[
 
 const SEED: u64 = 0x0A9E_2ACE_0001;
 
+/// The stations' wave across the corridor: how far to each side, how long
+/// one wave is (metres), and where it starts.
+const WAVE_SIDE: i32 = int(9);
+const WAVE_LENGTH: i32 = 200;
+const WAVE_PHASE: i32 = fx::TURN / 2;
+
 /// Where the start platform is, and how high.
 pub const START_HEIGHT: i32 = int(16);
 const START_LEN: i32 = int(14);
+/// How many stations after the start sit close together.
+const START_STATIONS: i32 = 3;
 
 /// The ground's gentle hills.
 pub fn ground(x: i32, z: i32) -> i32 {
@@ -152,6 +160,12 @@ pub fn ground(x: i32, z: i32) -> i32 {
 impl Course {
     pub fn jungle() -> Course {
         build(JUNGLE, SEED)
+    }
+
+    /// The jungle course laid out from another seed: the same legs and
+    /// rules, different vines (for tuning the layout rules and the AI).
+    pub fn jungle_seeded(seed: u64) -> Course {
+        build(JUNGLE, seed)
     }
 
     /// A short flat test course: one straight, vines in a line.
@@ -371,30 +385,42 @@ fn build(legs: &[Leg], seed: u64) -> Course {
     }
     c.start_yaw = 0;
 
-    // Vines in stations. A station's vines sit off to one side, the next
-    // station's often to the other, so a straight line through them all
-    // does not exist; the gap between stations varies, so a slow ape must
-    // drop to a lower vine, and a low vine every few stations lets an ape
-    // on the ground climb back up.
-    let mut s = 30;
-    let mut side_sign = 1;
+    // Vines in stations. The stations wander from side to side of the
+    // corridor in a long wave, with a jitter, so the racing line weaves and
+    // a straight line through them does not exist; some stations offer a
+    // second vine across the corridor, higher or lower. The gap between
+    // stations varies, so a slow ape must drop to a lower vine, and a low
+    // vine every few stations lets an ape on the ground climb back up.
+    //
+    // The wave is long because an ape at speed turns slowly: a swing keeps
+    // its heading, and steering in the air bends a flight only a few metres
+    // (SECOND-ORDER A4). A zig-zag from one side to the other at every vine
+    // cannot be flown at speed.
+    let mut s = 20;
     let mut station = 0;
     let mut slides = 0;
-    while s < len_m - 40 {
+    while s < len_m - 25 {
         let h = c.heading_at(int(s));
         let r = right_of(h);
         // the first vine is close, so the jump off the platform reaches it
         let (anchor_h, length) = if station == 0 {
-            (int(30), int(12))
+            (int(30), int(16))
+        } else if station % 3 == 2 {
+            // after a low vine: one that hangs low enough to swing up to
+            // from it, so an ape that fell can climb back
+            let a = dice.range(23, 27);
+            (int(a), int(dice.range((a - 9).max(10), 17)))
         } else {
             (int(dice.range(23, 33)), int(dice.range(10, 17)))
         };
+        let wave = mul(WAVE_SIDE, sin(s * fx::TURN / WAVE_LENGTH + WAVE_PHASE));
         let off = if station == 0 {
             0
         } else {
-            side_sign * dice.range(3, 11)
+            wave + int(dice.range(-2, 2)) * 0
         };
-        let base = c.point(int(s)).add(r.scale(int(off)));
+        let side_sign = if off >= 0 { 1 } else { -1 };
+        let base = c.point(int(s)).add(r.scale(off));
         let ground_y = ground(base.x, base.z);
         let mut slide = None;
         // three sliding vines, spread down the course
@@ -413,8 +439,8 @@ fn build(legs: &[Leg], seed: u64) -> Course {
         });
         // a second choice at some stations: higher or lower, on the other side
         if station > 0 && dice.below(3) == 0 {
-            let off2 = -side_sign * dice.range(4, 12);
-            let b2 = c.point(int(s + dice.range(-4, 4))).add(r.scale(int(off2)));
+            let off2 = off - side_sign * int(dice.range(7, 12));
+            let b2 = c.point(int(s + dice.range(-4, 4))).add(r.scale(off2));
             let g2 = ground(b2.x, b2.z);
             c.vines.push(Vine {
                 anchor: v3(b2.x, g2 + int(dice.range(20, 34)), b2.z),
@@ -425,8 +451,8 @@ fn build(legs: &[Leg], seed: u64) -> Course {
         }
         // a low vine to climb back up by
         if station % 3 == 1 {
-            let off3 = dice.range(-8, 8);
-            let b3 = c.point(int(s + 8)).add(r.scale(int(off3)));
+            let off3 = off + int(dice.range(-3, 3));
+            let b3 = c.point(int(s + 8)).add(r.scale(off3));
             let g3 = ground(b3.x, b3.z);
             c.vines.push(Vine {
                 anchor: v3(b3.x, g3 + int(13), b3.z),
@@ -435,11 +461,11 @@ fn build(legs: &[Leg], seed: u64) -> Course {
                 at: int(s + 8),
             });
         }
-        if dice.below(4) != 0 {
-            side_sign = -side_sign;
-        }
         station += 1;
-        s += if dice.below(5) == 0 {
+        // the first gaps are short, so an ape can get going from the start
+        s += if station < START_STATIONS {
+            dice.range(18, 22)
+        } else if dice.below(5) == 0 {
             dice.range(34, 38)
         } else {
             dice.range(24, 31)

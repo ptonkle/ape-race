@@ -16,7 +16,7 @@ pub const fn secs_to_ticks(hundredths: i32) -> i32 {
 }
 
 /// Downward acceleration. Stronger than Earth's so a swing is quick.
-pub const GRAVITY: i32 = int(20);
+pub const GRAVITY: i32 = int(18);
 
 /// From the hands (the body's point) down to the feet.
 pub const BODY_DROP: i32 = cm(130);
@@ -87,10 +87,10 @@ impl Stats {
             pump: int(8) + s(self.pump) * cm(125),
             // drag, in hundred-thousandths per metre: 0.0050 to 0.0034
             drag: 500 - s(self.top_speed) * 40,
-            // 1.4 to 2.2 m from the hands
-            reach: cm(140) + s(self.reach) * cm(20),
+            // 2.2 to 3.4 m from the hands
+            reach: cm(220) + s(self.reach) * cm(30),
             // 4 to 9 m/s² of steering in the air
-            air: int(4) + s(self.air_control) * cm(125),
+            air: int(9) + s(self.air_control) * cm(200),
             // a hit takes 130% to 70% of its usual effect
             hit_scale: ONE * 13 / 10 - s(self.weight) * (ONE * 15 / 100),
             // and the heavy run slower: 9 to 7 m/s
