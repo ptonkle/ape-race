@@ -7,15 +7,15 @@
 use serde::{Deserialize, Serialize};
 
 use crate::ape::{Ape, Controls, Happening, Mode};
-use crate::course::Course;
-use crate::fx::{Dice, ONE};
-use crate::geom::V3;
+use crate::course::{Course, Vine};
+use crate::fx::{int, Dice, ONE};
+use crate::geom::{v3, V3};
 use crate::rules::{self, Kind};
 
 /// The countdown before the start: 3, 2, 1, then go.
 pub const COUNTDOWN: i32 = 3 * rules::TICKS_PER_SECOND;
 
-/// The four items (PLAN P9).
+/// The five items (PLAN P9; the Vine is TRIAGE T12).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Item {
@@ -23,10 +23,18 @@ pub enum Item {
     Stick,
     Hook,
     Boost,
+    /// summons a vine ahead of and above the user
+    Vine,
 }
 
 impl Item {
-    pub const ALL: [Item; 4] = [Item::Banana, Item::Stick, Item::Hook, Item::Boost];
+    pub const ALL: [Item; 5] = [
+        Item::Banana,
+        Item::Stick,
+        Item::Hook,
+        Item::Boost,
+        Item::Vine,
+    ];
 
     pub fn key(self) -> &'static str {
         match self {
@@ -34,6 +42,7 @@ impl Item {
             Item::Stick => "stick",
             Item::Hook => "hook",
             Item::Boost => "boost",
+            Item::Vine => "vine",
         }
     }
 }
@@ -80,6 +89,12 @@ pub enum Event {
         who: usize,
         place: usize,
     },
+    /// ape `who`'s Vine item put a vine at `course.vines[vine]` (here or,
+    /// online, in its owner's browser)
+    Summoned {
+        who: usize,
+        vine: usize,
+    },
 }
 
 /// One ape in the race.
@@ -109,6 +124,22 @@ pub struct Shot {
     pub target: Option<usize>,
 }
 
+/// A vine summoned by the Vine item (TRIAGE T12). It lives in
+/// `course.vines[slot]` until `life` runs out and no ape holds it. The slot
+/// depends only on who summoned it and how many it has summoned, so online
+/// every browser puts it at the same index (the online layer sends it).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Summon {
+    pub slot: usize,
+    pub by: usize,
+    /// the summoner's count of summons, from 0
+    pub serial: u32,
+    pub anchor: V3,
+    pub length: i32,
+    /// ticks left
+    pub life: i32,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Phase {
     /// ticks left before the start
@@ -129,6 +160,16 @@ pub struct Race {
     pub clock: u32,
     /// for each crate: ticks until it is back (0: there)
     pub crates: Vec<i32>,
+    /// for each crate: the vine it hangs on (TRIAGE T9)
+    pub crate_vines: Vec<usize>,
+    /// only Speed Boosts come out of crates (Time Trials, TRIAGE T13)
+    pub boost_only: bool,
+    /// summoned vines still standing
+    pub summons: Vec<Summon>,
+    /// the course's own vines: summoned ones come after
+    pub base_vines: usize,
+    /// for each ape: how many vines it has summoned
+    pub summon_count: Vec<u32>,
     pub shots: Vec<Shot>,
     pub events: Vec<Event>,
     pub equal_stats: bool,
@@ -163,14 +204,21 @@ impl Race {
                 }
             })
             .collect();
-        let crates = vec![0; course.crates.len()];
+        let crate_vines = crate::items::crate_vines(&course);
+        let crates = vec![0; crate_vines.len()];
+        let n = entries.len();
         Race {
+            base_vines: course.vines.len(),
             course,
             racers,
             phase: Phase::Countdown(COUNTDOWN),
             tick: 0,
             clock: 0,
             crates,
+            crate_vines,
+            boost_only: false,
+            summons: Vec::new(),
+            summon_count: vec![0; n],
             shots: Vec::new(),
             events: Vec::new(),
             equal_stats,
@@ -236,6 +284,11 @@ impl Race {
 
     /// Moves a remote ape to where its browser says it is.
     pub fn set_remote(&mut self, i: usize, pos: V3, vel: V3, mode: Mode, yaw: i32) {
+        // a vine this browser has not heard of yet: drawn as flying
+        let mode = match mode {
+            Mode::Swinging { vine, .. } if vine >= self.course.vines.len() => Mode::Flying,
+            m => m,
+        };
         if let Some(r) = self.racers.get_mut(i) {
             r.ape.pos = pos;
             r.ape.vel = vel;
@@ -276,6 +329,70 @@ impl Race {
         }
     }
 
+    /// The slot ape `by`'s summon number `serial` goes in.
+    pub fn summon_slot(&self, by: usize, serial: u32) -> usize {
+        self.base_vines + by * rules::SUMMON_SLOTS + serial as usize % rules::SUMMON_SLOTS
+    }
+
+    /// Puts a summoned vine in its slot (growing the vine list with buried
+    /// placeholders as needed) and raises `Event::Summoned`. The same summon
+    /// twice is ignored. An ape this browser moves that holds the vine the
+    /// slot had is let go first. Online, the layer calls this for summons
+    /// from other browsers.
+    pub fn place_vine(&mut self, s: Summon) {
+        let slots = self.base_vines + self.racers.len() * rules::SUMMON_SLOTS;
+        if s.slot < self.base_vines || s.slot >= slots || s.by >= self.racers.len() {
+            return;
+        }
+        let seen = self
+            .summons
+            .iter()
+            .any(|o| o.slot == s.slot && o.serial == s.serial && o.by == s.by);
+        if seen {
+            return;
+        }
+        while self.course.vines.len() <= s.slot {
+            self.course.vines.push(buried());
+        }
+        self.let_go_of(s.slot);
+        self.summons.retain(|o| o.slot != s.slot);
+        let hint = self.course.nearest_anywhere(s.anchor);
+        let (at, _) = self.course.progress(s.anchor, hint);
+        self.course.vines[s.slot] = Vine {
+            anchor: s.anchor,
+            length: s.length,
+            slide: None,
+            at,
+        };
+        if let Some(c) = self.summon_count.get_mut(s.by) {
+            *c = (*c).max(s.serial + 1);
+        }
+        self.summons.push(s);
+        self.events.push(Event::Summoned {
+            who: s.by,
+            vine: s.slot,
+        });
+    }
+
+    /// Takes a summoned vine away: its slot is buried (kept, so no other
+    /// vine's index moves).
+    pub fn bury_vine(&mut self, slot: usize) {
+        if slot >= self.base_vines && slot < self.course.vines.len() {
+            self.let_go_of(slot);
+            self.course.vines[slot] = buried();
+            self.summons.retain(|o| o.slot != slot);
+        }
+    }
+
+    /// Apes this browser moves let go of vine `slot`.
+    fn let_go_of(&mut self, slot: usize) {
+        for r in &mut self.racers {
+            if r.driver != Driver::Remote && r.ape.swinging() == Some(slot) {
+                r.ape.release(slot);
+            }
+        }
+    }
+
     /// Records a finish reported from another browser.
     pub fn remote_finish(&mut self, i: usize, clock: u32) {
         if i < self.racers.len() && self.racers[i].finish.is_none() {
@@ -292,11 +409,20 @@ impl Race {
     }
 }
 
+/// An empty vine slot: far underground, out of everyone's reach, and
+/// behind the start for the AI.
+fn buried() -> Vine {
+    Vine {
+        anchor: v3(0, -int(2000), 0),
+        length: ONE,
+        slide: None,
+        at: -int(10_000),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::fx::int;
-    use crate::geom::v3;
 
     fn entries(n: usize) -> Vec<Entry> {
         (0..n)

@@ -1,4 +1,5 @@
-//! Items (PLAN P9): crates, pickups, the Banana, Stick, Hook and Speed Boost.
+//! Items (PLAN P9): crates on vines, pickups, the Banana, Stick, Hook, Speed
+//! Boost and Vine, and their HUD icons.
 //!
 //! Who decides a hit: the browser that runs the user. Apes driven here
 //! (Local, Ai) are changed here; a Remote ape is moved by its own browser,
@@ -7,11 +8,12 @@
 //! ape (if the online layer replays one with `use_item`) is drawn but decides
 //! nothing here: its owner's browser decides its hits.
 
-use crate::ape::{Controls, Happening};
-use crate::fx::{self, mul, ONE};
+use crate::ape::{Controls, Happening, Mode};
+use crate::course::Course;
+use crate::fx::{self, int, mul, ONE};
 use crate::geom::{facing, v3, yaw_of, Affine, V3};
 use crate::mesh::Mesh;
-use crate::race::{Driver, Event, Item, Race, Shot};
+use crate::race::{Driver, Event, Item, Race, Shot, Summon};
 use crate::render::{self, placed, rgb, rod, Batch};
 use crate::rules::*;
 
@@ -27,21 +29,28 @@ pub fn use_item(race: &mut Race, who: usize, c: &Controls) {
     let (pos, vel) = (ape.middle(), ape.vel);
     match item {
         Item::Banana => {
+            let aim = facing(c.yaw, c.pitch);
             let dir = facing(c.yaw, c.pitch + BANANA_LOB);
+            let target = banana_target(race, who, aim);
             race.shots.push(Shot {
                 item,
                 by: who,
                 pos: pos.add(dir.scale(BODY_RADIUS)),
                 vel: vel.add(dir.scale(BANANA_SPEED)),
                 life: BANANA_LIFE,
-                target: None,
+                target,
             });
         }
         Item::Stick => {
-            for i in 0..race.racers.len() {
-                if owned && i != who && race.racers[i].ape.middle().dist(pos) <= STICK_RANGE {
+            if owned {
+                for i in stick_targets(race, who) {
                     strike(race, i, who, Item::Stick);
                 }
+            }
+        }
+        Item::Vine => {
+            if owned {
+                summon(race, who, c);
             }
         }
         Item::Hook => {
@@ -90,9 +99,116 @@ pub fn hook_target(race: &Race, who: usize) -> Option<usize> {
     best.map(|(_, i)| i)
 }
 
+/// The Banana's target (TRIAGE T10): the nearest other ape still racing
+/// within `BANANA_CONE` of the aim and `BANANA_SEEK` of the thrower.
+pub fn banana_target(race: &Race, who: usize, aim: V3) -> Option<usize> {
+    let at = race.racers.get(who)?.ape.middle();
+    let aim = aim.norm();
+    let wide = fx::cos(BANANA_CONE);
+    let mut best: Option<(i32, usize)> = None;
+    for (i, r) in race.racers.iter().enumerate() {
+        if i == who || r.finish.is_some() {
+            continue;
+        }
+        let to = r.ape.middle().sub(at);
+        let d = to.len();
+        if d > BANANA_SEEK || d == 0 || to.norm().dot(aim) < wide {
+            continue;
+        }
+        if best.is_none_or(|(bd, _)| d < bd) {
+            best = Some((d, i));
+        }
+    }
+    best.map(|(_, i)| i)
+}
+
+/// The apes a Stick swung by `who` now would hit (TRIAGE T11): every other
+/// ape within `STICK_RANGE`. The drawing lights them up while `who` holds a
+/// Stick.
+pub fn stick_targets(race: &Race, who: usize) -> Vec<usize> {
+    let Some(me) = race.racers.get(who) else {
+        return Vec::new();
+    };
+    let at = me.ape.middle();
+    (0..race.racers.len())
+        .filter(|&i| i != who && race.racers[i].ape.middle().dist(at) <= STICK_RANGE)
+        .collect()
+}
+
+/// The Vine item (TRIAGE T12): a vine ahead of the user along its motion
+/// (where the camera looks, at rest), its anchor high above the hands and
+/// its end below where the hands will be when they get there.
+fn summon(race: &mut Race, who: usize, c: &Controls) {
+    let ape = &race.racers[who].ape;
+    let flat = ape.vel.flat();
+    let speed = flat.len();
+    let dir = if speed > ONE {
+        flat.norm()
+    } else {
+        facing(c.yaw, 0)
+    };
+    let ahead = mul(speed, SUMMON_LEAD).clamp(SUMMON_AHEAD_MIN, SUMMON_AHEAD_MAX);
+    // seconds until the hands get there (at most one), and their height then
+    let t = if speed > ONE {
+        fx::div(ahead, speed).min(ONE)
+    } else {
+        0
+    };
+    let then = ape.pos.y + mul(ape.vel.y, t) - mul(GRAVITY, mul(t, t)) / 2;
+    let spot = ape.pos.add(dir.scale(ahead));
+    let floor = race.course.support(spot);
+    let bottom = (ape.pos.y.min(then) - SUMMON_BELOW).max(floor + ONE);
+    let top = (ape.pos.y.max(bottom) + SUMMON_RISE).min(floor + CEILING - int(2));
+    let length = (top - bottom).max(int(4));
+    let serial = race.summon_count.get(who).copied().unwrap_or(0);
+    let slot = race.summon_slot(who, serial);
+    race.place_vine(Summon {
+        slot,
+        by: who,
+        serial,
+        anchor: v3(spot.x, top, spot.z),
+        length,
+        life: SUMMON_LIFE,
+    });
+}
+
+/// Summoned vines age; one whose time is up goes once no ape holds it.
+fn expire(race: &mut Race) {
+    let mut gone = Vec::new();
+    for k in 0..race.summons.len() {
+        let s = &mut race.summons[k];
+        s.life = (s.life - 1).max(0);
+        let slot = s.slot;
+        let held = race.racers.iter().any(|r| r.ape.swinging() == Some(slot));
+        if race.summons[k].life == 0 && !held {
+            gone.push(slot);
+        }
+    }
+    for slot in gone {
+        race.bury_vine(slot);
+    }
+}
+
+/// The item a crate gives ape `who`: only a Boost in a Time Trial
+/// (`race.boost_only`, TRIAGE T13), otherwise [`roll`] by its place and
+/// whether it is low (on the ground or near it).
+pub fn roll_for(race: &mut Race, who: usize) -> Item {
+    if race.boost_only {
+        return Item::Boost;
+    }
+    let n = race.racers.len();
+    let r = &race.racers[who];
+    let low =
+        r.ape.mode == Mode::Grounded || r.ape.pos.y - race.course.support(r.ape.pos) < SUMMON_LOW;
+    let place = r.place;
+    roll(&mut race.dice, place, n, low)
+}
+
 /// A random item for an ape in `place` of `n`, Mario Kart style: the
-/// leaders get more Bananas and Sticks, those behind more Hooks and Boosts.
-pub fn roll(dice: &mut fx::Dice, place: usize, n: usize) -> Item {
+/// leaders get more Bananas and Sticks, those behind more Hooks, Boosts and
+/// Vines; an ape that is `low` (on or near the ground) gets many more
+/// Vines.
+pub fn roll(dice: &mut fx::Dice, place: usize, n: usize, low: bool) -> Item {
     let behind = if n > 1 {
         ((place.clamp(1, n) - 1) * 100 / (n - 1)) as i32
     } else {
@@ -103,6 +219,7 @@ pub fn roll(dice: &mut fx::Dice, place: usize, n: usize) -> Item {
         (Item::Stick, 30 - behind / 5),
         (Item::Hook, 15 + behind / 4),
         (Item::Boost, 15 + behind / 5),
+        (Item::Vine, 4 + behind / 10 + if low { 30 } else { 0 }),
     ];
     let total: i32 = weights.iter().map(|w| w.1).sum();
     let mut pick = dice.below(total as u32) as i32;
@@ -115,11 +232,57 @@ pub fn roll(dice: &mut fx::Dice, place: usize, n: usize) -> Item {
     Item::Boost
 }
 
-/// Crates, pickups and thrown things, once a tick after the apes move.
+/// Crates, pickups, thrown things and summoned vines, once a tick after the
+/// apes move.
 pub fn step(race: &mut Race) {
     pickups(race);
     fly(race);
+    expire(race);
 }
+
+/// The vines that carry a crate (TRIAGE T9): for each of the course's crate
+/// spots, the nearest vine within `CRATE_VINE_NEAR` not already carrying
+/// one; a course with no crate spots gets one on every
+/// `CRATE_VINE_EVERY`-th vine.
+pub fn crate_vines(course: &Course) -> Vec<usize> {
+    if course.crates.is_empty() {
+        return (0..course.vines.len()).step_by(CRATE_VINE_EVERY).collect();
+    }
+    let mut out: Vec<usize> = Vec::new();
+    for spot in &course.crates {
+        let best = course
+            .vines
+            .iter()
+            .enumerate()
+            .filter(|(i, _)| !out.contains(i))
+            .map(|(i, v)| (v.anchor.flat().sub(spot.flat()).len(), i))
+            .filter(|(d, _)| *d <= CRATE_VINE_NEAR)
+            .min();
+        if let Some((_, i)) = best {
+            out.push(i);
+        }
+    }
+    out
+}
+
+/// Where crate `k` hangs: just under the end of its vine (toward the hands
+/// of an ape swinging on it).
+pub fn crate_at(race: &Race, k: usize) -> V3 {
+    let v = race.crate_vines[k];
+    let a = race.course.anchor(v, race.tick);
+    let length = race.course.vines[v].length;
+    let down = race
+        .racers
+        .iter()
+        .find(|r| r.ape.swinging() == Some(v))
+        .map(|r| r.ape.pos.sub(a))
+        .filter(|d| d.len() > ONE)
+        .map_or(v3(0, -ONE, 0), |d| d.norm());
+    a.add(down.scale(length + CRATE_HANG))
+}
+
+/// From a vine's end to the middle of the crate on it.
+const CRATE_HANG: i32 = cm(90);
 
 fn pickups(race: &mut Race) {
     let n = race.racers.len();
@@ -130,15 +293,18 @@ fn pickups(race: &mut Race) {
                 continue;
             }
         }
-        let at = race.course.crates[k];
+        let vine = race.crate_vines[k];
+        let at = crate_at(race, k);
         for i in 0..n {
             let r = &race.racers[i];
             // a Remote ape picks up in its own browser
             if r.item.is_some() || r.finish.is_some() || r.driver == Driver::Remote {
                 continue;
             }
-            if r.ape.middle().dist(at) <= CRATE_RADIUS + BODY_RADIUS {
-                let item = roll(&mut race.dice, r.place, n);
+            // catching the crate's vine takes it, and so does flying into it
+            let caught = r.ape.swinging() == Some(vine);
+            if caught || r.ape.middle().dist(at) <= CRATE_RADIUS + BODY_RADIUS {
+                let item = roll_for(race, i);
                 race.racers[i].item = Some(item);
                 race.crates[k] = CRATE_RESPAWN;
                 race.events.push(Event::Pickup { who: i, item });
@@ -156,7 +322,20 @@ fn fly(race: &mut Race) {
         let owned = race.racers.get(s.by).map(|r| r.driver) != Some(Driver::Remote);
         let done = match s.item {
             Item::Banana => {
-                s.vel.y -= mul(GRAVITY, DT);
+                let target = s
+                    .target
+                    .filter(|t| race.racers.get(*t).is_some_and(|r| r.finish.is_none()));
+                match target {
+                    // homing (TRIAGE T10): turn toward the target at most
+                    // `BANANA_TURN`, at least `BANANA_CHASE` faster than it
+                    Some(t) => {
+                        let ape = &race.racers[t].ape;
+                        let speed = s.vel.len().max(ape.speed() + BANANA_CHASE);
+                        let to = ape.middle().sub(s.pos);
+                        s.vel = turn_toward(s.vel, to, mul(BANANA_TURN, DT)).scale(speed);
+                    }
+                    None => s.vel.y -= mul(GRAVITY, DT),
+                }
                 s.pos = s.pos.add(s.vel.scale(DT));
                 let hit = (0..race.racers.len()).find(|&i| {
                     i != s.by
@@ -192,13 +371,41 @@ fn fly(race: &mut Race) {
                     false
                 }
             },
-            Item::Stick | Item::Boost => true,
+            Item::Stick | Item::Boost | Item::Vine => true,
         };
         if !done && s.life > 0 {
             kept.push(s);
         }
     }
     race.shots = kept;
+}
+
+/// The unit direction `from` turned toward `to` by at most `max` (an
+/// angle).
+pub fn turn_toward(from: V3, to: V3, max: i32) -> V3 {
+    if to == V3::ZERO {
+        return from.norm();
+    }
+    let w = to.norm();
+    if from == V3::ZERO {
+        return w;
+    }
+    let u = from.norm();
+    let cos = u.dot(w);
+    if cos >= fx::cos(max) {
+        return w;
+    }
+    let mut side = w.sub(u.scale(cos));
+    if side.len() < ONE / 100 {
+        // straight behind: turn either way, here over the top
+        side = V3::UP.reject(u);
+        if side.len() < ONE / 100 {
+            side = v3(ONE, 0, 0);
+        }
+    }
+    u.scale(fx::cos(max))
+        .add(side.norm().scale(fx::sin(max)))
+        .norm()
 }
 
 /// The Hook arrives: the target is hit and pulled back, and the user is
@@ -254,7 +461,7 @@ fn effect(race: &mut Race, who: usize, by: usize, item: Item) {
             let pull = from.sub(ape.pos).with_len(mul(HOOK_PULL, scale));
             ape.hit(HOOK_KEEP, HOOK_STUN, pull);
         }
-        Item::Boost => return,
+        Item::Boost | Item::Vine => return,
     }
     race.events.push(Event::Body {
         who,
@@ -272,13 +479,36 @@ const TIP: render::Rgb = rgb(92, 62, 30);
 const ROPE: render::Rgb = rgb(150, 112, 62);
 const METAL: render::Rgb = rgb(170, 176, 186);
 
-/// Crates (not while they respawn), flying Bananas and Hooks with their
-/// ropes.
+const LEAFY: render::Rgb = rgb(90, 180, 70);
+const REACH: render::Rgb = rgb(255, 120, 60);
+
+/// Crates on their vines (not while they respawn), flying Bananas and Hooks
+/// with their ropes, the knot of leaves a summoned vine hangs from, and the
+/// Stick's reach for the player (this browser's `Driver::Local` ape) holding
+/// one: a ring round it, brighter with an ape inside, and a marker over each
+/// ape in reach.
 pub fn draw(b: &mut Batch, race: &Race) {
     let tick = race.tick as i32;
-    for (k, at) in race.course.crates.iter().enumerate() {
+    for k in 0..race.crate_vines.len() {
         if race.crates.get(k).copied().unwrap_or(0) == 0 {
-            draw_crate(b, *at, tick, k as i32);
+            let at = crate_at(race, k);
+            let v = race.crate_vines[k];
+            let a = race.course.anchor(v, race.tick);
+            // a short rope from the vine's end to the crate's top
+            let top = at.add(at.sub(a).with_len(-CRATE_SIZE / 2));
+            let end = at.add(at.sub(a).with_len(-CRATE_HANG));
+            b.push(Mesh::Cyl, &rod(end, top, cm(8)), ROPE, 0);
+            draw_crate(b, at, tick, k as i32);
+        }
+    }
+    for s in &race.summons {
+        if let Some(v) = race.course.vines.get(s.slot) {
+            b.push(
+                Mesh::Blob,
+                &placed(v.anchor, tick * 60, v3(cm(180), cm(90), cm(180))),
+                LEAFY,
+                ONE / 2,
+            );
         }
     }
     for s in &race.shots {
@@ -288,16 +518,57 @@ pub fn draw(b: &mut Batch, race: &Race) {
                 let from = race.racers.get(s.by).map(|r| r.ape.pos).unwrap_or(s.pos);
                 draw_hook(b, from, s.pos, s.vel);
             }
-            Item::Stick | Item::Boost => {}
+            Item::Stick | Item::Boost | Item::Vine => {}
+        }
+    }
+    for (i, r) in race.racers.iter().enumerate() {
+        if r.driver == Driver::Local && r.item == Some(Item::Stick) {
+            draw_stick_reach(b, race, i, tick);
         }
     }
 }
 
+/// The Stick's reach round ape `who`, and a marker over each ape in it.
+fn draw_stick_reach(b: &mut Batch, race: &Race, who: usize, tick: i32) {
+    let centre = race.racers[who].ape.middle();
+    let targets = stick_targets(race, who);
+    let glow = if targets.is_empty() { ONE / 4 } else { ONE };
+    let parts = 32;
+    let point = |k: i32| {
+        let a = k * fx::TURN / parts + tick * 40;
+        centre.add(v3(
+            mul(fx::cos(a), STICK_RANGE),
+            0,
+            mul(fx::sin(a), STICK_RANGE),
+        ))
+    };
+    // a dashed ring: every other piece
+    for k in (0..parts).step_by(2) {
+        b.push(Mesh::Cyl, &rod(point(k), point(k + 1), cm(9)), REACH, glow);
+    }
+    for t in targets {
+        let head = race.racers[t].ape.pos.add(v3(0, cm(120), 0));
+        let bob = mul(fx::sin(tick * 500), cm(15));
+        b.push(
+            Mesh::Cone,
+            &rod(
+                head.add(v3(0, cm(70) + bob, 0)),
+                head.add(v3(0, bob, 0)),
+                cm(45),
+            ),
+            REACH,
+            ONE,
+        );
+    }
+}
+
+/// A crate's edge.
+const CRATE_SIZE: i32 = cm(110);
+
 fn draw_crate(b: &mut Batch, at: V3, tick: i32, k: i32) {
-    let bob = mul(fx::sin(tick * 300 + k * 7_919), cm(25));
-    let yaw = tick * 180 + k * 5_003;
-    let c = at.add(v3(0, bob, 0));
-    let size = cm(130);
+    let yaw = tick * 120 + k * 5_003;
+    let c = at;
+    let size = CRATE_SIZE;
     let frame = Affine::translate(c).then(&Affine::rot_y(yaw));
     let glow = ONE / 5;
     b.push(
@@ -403,6 +674,48 @@ fn draw_hook(b: &mut Batch, from: V3, at: V3, vel: V3) {
         METAL,
         ONE / 6,
     );
+}
+
+// ---- icons (TRIAGE T19) ----
+
+/// The item's icon for the HUD's item slot: inline SVG markup, flat
+/// geometric shapes on a 64 × 64 view box, no background (so it sits on the
+/// HUD's own). The page sets it as the slot's `innerHTML`, or as an `<img>`
+/// via a `data:image/svg+xml,` URL.
+pub fn icon_svg(item: Item) -> String {
+    let body = match item {
+        Item::Banana => concat!(
+            r##"<path d="M16 10 L24 10 L25 22 Q30 40 50 46 L58 46 Q56 56 42 56 Q14 52 14 22 Z" "##,
+            r##"fill="#fad632" stroke="#5c3e1e" stroke-width="3" stroke-linejoin="round"/>"##,
+            r##"<path d="M20 24 Q22 42 40 50" fill="none" stroke="#e0b020" stroke-width="3" stroke-linecap="round"/>"##,
+            r##"<rect x="15" y="5" width="10" height="7" rx="2" fill="#5c3e1e"/>"##,
+        ),
+        Item::Stick => concat!(
+            r##"<polygon points="12,58 6,52 46,12 52,18" fill="#b27236" stroke="#5c3e1e" stroke-width="3" stroke-linejoin="round"/>"##,
+            r##"<polygon points="46,12 52,6 58,12 52,18" fill="#8a5428" stroke="#5c3e1e" stroke-width="3" stroke-linejoin="round"/>"##,
+            r##"<path d="M30 26 L36 20" stroke="#5c3e1e" stroke-width="3" stroke-linecap="round"/>"##,
+            r##"<path d="M34 6 L38 2 M58 30 L62 26 M44 4 L44 0 M60 20 L64 20" stroke="#ffd640" stroke-width="4" stroke-linecap="round"/>"##,
+        ),
+        Item::Hook => concat!(
+            r##"<path d="M40 4 L40 40 Q40 56 26 56 Q12 56 12 42 L12 34" fill="none" stroke="#aab0ba" stroke-width="7" stroke-linejoin="round"/>"##,
+            r##"<polygon points="4,36 12,22 20,36" fill="#aab0ba"/>"##,
+            r##"<rect x="34" y="2" width="12" height="8" rx="2" fill="#96703e"/>"##,
+        ),
+        Item::Boost => concat!(
+            r##"<polygon points="38,2 10,36 28,36 22,62 54,24 36,24" fill="#ff8c1a" stroke="#7a3a00" stroke-width="3" stroke-linejoin="round"/>"##,
+            r##"<polygon points="34,12 20,30 32,30" fill="#ffd640"/>"##,
+        ),
+        Item::Vine => concat!(
+            r##"<rect x="6" y="2" width="36" height="8" rx="4" fill="#6a4a26"/>"##,
+            r##"<path d="M24 8 Q34 20 22 30 Q12 40 24 50 L26 60" fill="none" stroke="#3c8c32" stroke-width="6" stroke-linecap="round"/>"##,
+            r##"<polygon points="28,18 40,14 34,24" fill="#5ab446"/>"##,
+            r##"<polygon points="18,34 6,32 14,42" fill="#5ab446"/>"##,
+            r##"<path d="M50 34 L50 54 M40 44 L60 44" stroke="#ffd640" stroke-width="6" stroke-linecap="round"/>"##,
+        ),
+    };
+    format!(
+        r#"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">{body}</svg>"#
+    )
 }
 
 const fn cm(n: i32) -> i32 {

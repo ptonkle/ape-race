@@ -435,7 +435,10 @@ fn a_fifth_player_is_refused_and_so_is_another_protocol() {
     assert_eq!(
         *net.nodes[1].status(),
         Status::Refused {
-            reason: Refusal::WrongVersion { host: 1, mine: 99 }
+            reason: Refusal::WrongVersion {
+                host: tool_core::online::PROTOCOL,
+                mine: 99
+            }
         }
     );
     assert_eq!(net.nodes[0].lobby().seats.len(), 1);
@@ -608,6 +611,37 @@ fn a_hit_reaches_the_victims_browser_only() {
     );
     assert_eq!(net.applied[1], vec![]);
     assert_eq!(net.applied[2], vec![hit(2, 1, Item::Stick)]);
+}
+
+#[test]
+fn a_summoned_vine_reaches_every_browser_at_the_same_index() {
+    let mut net = racing(3, 0);
+    net.run(4000);
+    // joiner 1's ape summons a vine in its own browser
+    {
+        let race = net.race_mut(1);
+        race.racers[1].item = Some(Item::Vine);
+        let press = Controls {
+            item: true,
+            ..Controls::default()
+        };
+        tool_core::items::use_item(race, 1, &press);
+    }
+    let mine = net.race(1).summons.clone();
+    assert_eq!(mine.len(), 1);
+    let slot = mine[0].slot;
+    assert_eq!(slot, net.race(1).summon_slot(1, 0));
+    net.run(300);
+    let key = |s: &tool_core::race::Summon| (s.slot, s.by, s.serial, s.anchor, s.length);
+    for i in [0, 2] {
+        let race = net.race(i);
+        let theirs: Vec<_> = race.summons.iter().map(key).collect();
+        assert_eq!(theirs, vec![key(&mine[0])], "browser {i} has it");
+        assert_eq!(race.course.vines[slot], net.race(1).course.vines[slot]);
+    }
+    // sent once: more frames add nothing
+    net.run(300);
+    assert_eq!(net.race(0).summons.len(), 1);
 }
 
 #[test]

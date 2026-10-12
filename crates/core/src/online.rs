@@ -68,6 +68,12 @@
 //!    apply every hit from [`Online::take_hits`] to the local race with
 //!    `items::apply_hit(race, hit.victim, hit.by, hit.item)`. A hit this
 //!    browser sends to an ape it owns comes straight back from `take_hits`.
+//!    Summoned vines (the Vine item) need no wiring: `sync_race` sends each
+//!    vine this browser's apes summon (`race.summons`) to everyone once, and
+//!    puts the vines other browsers summoned into the race
+//!    (`Race::place_vine`, which raises `Event::Summoned`). A summon's slot
+//!    in `course.vines` depends only on who summoned it and its count, so
+//!    every browser has it at the same index.
 //! 7. **Results:** [`Online::results`] (rows in place order) and
 //!    [`Online::results_final`]. A player who left mid-race is a DNF.
 //! 8. **Rematch / leave:** host [`Online::rematch`]`(now_ms)`; joiners follow
@@ -81,11 +87,12 @@ use serde::{Deserialize, Serialize};
 use crate::ape::{Ape, Mode};
 use crate::fx::{self, Dice, ONE};
 use crate::geom::V3;
-use crate::race::{Driver, Entry, Item, Race};
+use crate::race::{Driver, Entry, Item, Race, Summon};
 use crate::rules::{Kind, TICKS_PER_SECOND};
 
-/// The protocol version. A joiner with another one is refused.
-pub const PROTOCOL: u32 = 1;
+/// The protocol version. A joiner with another one is refused. 2: the Vine
+/// item's summoned vines (TRIAGE T12) and the Item `vine`.
+pub const PROTOCOL: u32 = 2;
 /// The most apes in a race, humans and AI together.
 pub const MAX_APES: usize = 4;
 /// The most AI apes the host may add.
@@ -383,6 +390,11 @@ enum Msg {
         i: usize,
         clock: u32,
     },
+    /// A vine summoned by an ape the sender owns (TRIAGE T12, PROTOCOL 2).
+    Vine {
+        r: u32,
+        s: Summon,
+    },
     Results {
         r: u32,
         fin: Vec<Fin>,
@@ -464,6 +476,10 @@ struct RaceState {
     host_gone: bool,
     /// Remote finishes already given to the local `Race`.
     applied: BTreeSet<usize>,
+    /// Summoned vines of this browser's apes already sent: (by, serial).
+    vines_sent: BTreeSet<(usize, u32)>,
+    /// Summoned vines from other browsers, for the next `sync_race`.
+    vines_in: Vec<Summon>,
 }
 
 /// One browser's online session.
@@ -809,6 +825,14 @@ impl Online {
                 }
             }
             Msg::Finish { r, i, clock } => self.on_finish(r, i, clock, now_ms),
+            Msg::Vine { r, s } => {
+                let mine = self.owns(s.by);
+                if let Some(race) = &mut self.race {
+                    if race.round == r && !mine {
+                        race.vines_in.push(s);
+                    }
+                }
+            }
             Msg::Results { r, fin } if from_host => {
                 if let Some(race) = &mut self.race {
                     if race.round == r && fin.len() == race.fin.len() {
@@ -1180,6 +1204,8 @@ impl Online {
             gone: BTreeSet::new(),
             host_gone: false,
             applied: BTreeSet::new(),
+            vines_sent: BTreeSet::new(),
+            vines_in: Vec::new(),
         });
         self.start = Some(start);
         self.status = Status::Racing;
@@ -1582,6 +1608,26 @@ impl Online {
     pub fn sync_race(&mut self, now_ms: i64, race: &mut Race) {
         if self.race.is_none() {
             return;
+        }
+        // summoned vines: ours out (once each, before the states that may
+        // hold them, on the same ordered channel), theirs in
+        let ours: Vec<Summon> = race
+            .summons
+            .iter()
+            .filter(|s| self.owns(s.by))
+            .copied()
+            .collect();
+        for s in ours {
+            let Some(state) = &mut self.race else { return };
+            if state.vines_sent.insert((s.by, s.serial)) {
+                let msg = Msg::Vine { r: state.round, s };
+                self.broadcast(&msg);
+            }
+        }
+        if let Some(state) = &mut self.race {
+            for s in std::mem::take(&mut state.vines_in) {
+                race.place_vine(s);
+            }
         }
         for i in 0..race.racers.len() {
             if self.owns(i) {

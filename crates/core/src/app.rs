@@ -943,10 +943,19 @@ impl App {
 /// further off keep their last shape until the ape comes near.
 fn step_chains(p: &mut Play) {
     let c = &p.race.course;
-    if p.chains.len() != c.vines.len() {
-        p.chains = (0..c.vines.len())
-            .map(|i| crate::vinesim::Chain::hanging(c.anchor(i, p.race.tick), c.vines[i].length))
-            .collect();
+    // a summoned vine (TRIAGE T12) adds a chain or, put where its slot's
+    // last one was, starts its own: the other chains keep their shape
+    p.chains.truncate(c.vines.len());
+    for i in 0..c.vines.len() {
+        let a = c.anchor(i, p.race.tick);
+        let fresh = || crate::vinesim::Chain::hanging(a, c.vines[i].length);
+        match p.chains.get(i) {
+            None => p.chains.push(fresh()),
+            Some(ch) if i >= p.race.base_vines && ch.pts[0].dist(a) > int(2) => {
+                p.chains[i] = fresh()
+            }
+            Some(_) => {}
+        }
     }
     let me = p.race.racers[p.local].ape.pos;
     for i in 0..c.vines.len() {
@@ -1073,6 +1082,38 @@ mod tests {
         b.advance(500_000);
         b.advance(1_000_020);
         assert!(b.play.as_ref().unwrap().race.tick >= 24);
+    }
+
+    #[test]
+    fn a_summoned_vine_adds_a_chain_and_leaves_the_others_bent() {
+        let mut a = app();
+        a.act("menu.race", "");
+        a.act("menu.start", "");
+        let p = a.play.as_mut().unwrap();
+        step_chains(p);
+        let n = p.race.course.vines.len();
+        assert_eq!(p.chains.len(), n);
+        // a far vine's chain, bent: it is not stepped from here
+        let me = p.race.racers[p.local].ape.pos;
+        let far = (0..n)
+            .find(|i| p.race.course.vines[*i].anchor.dist(me) > int(300))
+            .unwrap();
+        p.chains[far].pts[4].x += int(2);
+        let bent = p.chains[far];
+        let local = p.local;
+        p.race.racers[local].item = Some(crate::race::Item::Vine);
+        crate::items::use_item(&mut p.race, local, &Controls::default());
+        step_chains(p);
+        assert_eq!(p.chains.len(), n + 1);
+        assert_eq!(p.chains[far], bent);
+        assert_eq!(p.chains[n].pts[0], p.race.course.vines[n].anchor);
+        // the slot's next vine elsewhere starts its own chain
+        let mut s = p.race.summons[0];
+        s.serial += crate::rules::SUMMON_SLOTS as u32;
+        s.anchor = s.anchor.add(v3(int(30), 0, 0));
+        p.race.place_vine(s);
+        step_chains(p);
+        assert_eq!(p.chains[n].pts[0], s.anchor);
     }
 
     #[test]
