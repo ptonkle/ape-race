@@ -20,6 +20,9 @@ use crate::rules::{self, Kind, Stats};
 use crate::scene;
 use crate::sound::{self, Cue};
 
+mod online_play;
+pub use online_play::OnlinePlay;
+
 /// Ticks of physics a frame may catch up at most (a stalled tab does not
 /// fast-forward the race).
 const MAX_CATCH_UP: u32 = 12;
@@ -75,6 +78,10 @@ pub enum Screen {
     Settings,
     Race,
     Lineup,
+    /// online: name, Host, Join (PLAN P13)
+    Online,
+    /// online: the seats before a race
+    Lobby,
 }
 
 /// What the 3D view shows.
@@ -95,7 +102,10 @@ pub struct Play {
     pub brains: Vec<Brain>,
     pub chase: Chase,
     pub local: usize,
+    /// Paused offline; online the menu overlay is open and the race runs on.
     pub paused: bool,
+    /// an online race: never pauses, and the session sends and receives
+    pub online: bool,
     /// each ape's position last tick, for drawing between ticks
     prev: Vec<V3>,
     /// ticks since the local ape finished
@@ -127,6 +137,9 @@ pub struct App {
     /// the course, built once
     course: Course,
     seed: u64,
+    /// the page clock in milliseconds, for online play
+    pub now_ms: i64,
+    pub online: OnlinePlay,
 }
 
 fn s(map: &BTreeMap<String, String>, key: &str) -> String {
@@ -158,6 +171,8 @@ impl App {
             view_h: 720,
             course: Course::jungle(),
             seed,
+            now_ms: 0,
+            online: OnlinePlay::default(),
         })
     }
 
@@ -198,7 +213,7 @@ impl App {
         // losing the pointer mid-race (Esc, or a click away) pauses it
         if self.pointer_locked && !locked {
             if let Some(p) = &mut self.play {
-                if p.since_finish.is_none() {
+                if p.since_finish.is_none() && !p.online {
                     p.paused = true;
                 }
             }
@@ -239,7 +254,7 @@ impl App {
                     p.paused = !p.paused;
                 }
             }
-            Screen::Setup | Screen::Settings => self.go(Screen::Title),
+            Screen::Setup | Screen::Settings | Screen::Online => self.go(Screen::Title),
             _ => {}
         }
     }
@@ -249,8 +264,8 @@ impl App {
     fn go(&mut self, screen: Screen) {
         self.screen = screen;
         let stage = match screen {
-            Screen::Title | Screen::Settings => Stage::Flyover,
-            Screen::Setup => Stage::Showcase,
+            Screen::Title | Screen::Settings | Screen::Online => Stage::Flyover,
+            Screen::Setup | Screen::Lobby => Stage::Showcase,
             Screen::Lineup => Stage::Lineup,
             Screen::Race => Stage::Race,
         };
@@ -269,8 +284,20 @@ impl App {
 
     /// A button or field: `id` names it, `value` is its new value.
     pub fn act(&mut self, id: &str, value: &str) {
+        if id.starts_with("flag.") {
+            self.online_flag(id, value);
+            return;
+        }
         self.sounds.push(Cue::Click.key().to_string());
+        let in_online_race = self.play.as_ref().is_some_and(|p| p.online);
         match id {
+            _ if id.starts_with("online.") || id.starts_with("lobby.") => {
+                self.online_act(id, value)
+            }
+            "menu.rematch" | "menu.main" | "menu.quit" if in_online_race => {
+                self.online_race_menu(id)
+            }
+            "menu.online" => self.go(Screen::Online),
             "menu.race" => self.go(Screen::Setup),
             "menu.settings" => self.go(Screen::Settings),
             "menu.back" | "menu.main" | "menu.quit" => self.go(Screen::Title),
@@ -374,6 +401,7 @@ impl App {
             chase,
             local,
             paused: false,
+            online: false,
             prev,
             since_finish: None,
         });
@@ -398,6 +426,8 @@ impl App {
         if n == MAX_CATCH_UP {
             self.acc = 0;
         }
+        self.now_ms = now_us / 1000;
+        self.online_frame();
         self.alpha = ((self.acc * ONE as i64) / TICK_COST) as i32;
         // mouse movement is applied once a frame
         let (dx, dy) = std::mem::take(&mut self.mouse);
@@ -417,7 +447,7 @@ impl App {
         let Some(mut p) = self.play.take() else {
             return;
         };
-        if !p.paused {
+        if !p.paused || p.online {
             self.step_race(&mut p);
         }
         self.play = Some(p);
@@ -436,6 +466,9 @@ impl App {
             controls.push(c);
         }
         p.race.step(&controls);
+        if p.online {
+            self.online_step(p);
+        }
         let me = &p.race.racers[p.local];
         p.chase
             .follow(me.ape.pos, me.ape.vel, self.settings.auto_camera);
@@ -563,11 +596,14 @@ impl App {
             Screen::Settings => self.settings_panels(),
             Screen::Race => self.race_panels(),
             Screen::Lineup => Vec::new(),
+            Screen::Online => self.online_panels(),
+            Screen::Lobby => self.lobby_panels(),
         };
         v["panels"] = Value::Array(panels);
         if self.screen == Screen::Race {
             v["hud"] = self.hud();
         }
+        self.online_ui(&mut v);
         if !self.sounds.is_empty() {
             v["sounds"] = json!(std::mem::take(&mut self.sounds));
         }
@@ -590,7 +626,7 @@ impl App {
         }
     }
 
-    fn button(&self, id: &str) -> Value {
+    pub(crate) fn button(&self, id: &str) -> Value {
         json!({ "type": "button", "id": id, "text": self.t(id) })
     }
 
@@ -599,6 +635,7 @@ impl App {
             json!({ "kind": "title", "heading": self.t("title"), "sub": self.t("tagline"), "items": [] }),
             json!({ "kind": "menu", "items": [
                 self.button("menu.race"),
+                self.button("menu.online"),
                 self.button("menu.settings"),
             ]}),
             self.controls_panel(),
@@ -620,7 +657,7 @@ impl App {
         ]})
     }
 
-    fn stats_rows(&self, stats: &Stats) -> Value {
+    pub(crate) fn stats_rows(&self, stats: &Stats) -> Value {
         let row = |key: &str, v: i32| json!({ "label": self.t(&format!("stat.{key}")), "value": v, "max": rules::STAT_MAX });
         json!([
             row("pump", stats.pump),
@@ -678,6 +715,9 @@ impl App {
         let Some(p) = &self.play else {
             return Vec::new();
         };
+        if p.online {
+            return self.online_race_panels(p);
+        }
         let mut out = Vec::new();
         if p.paused {
             out.push(
@@ -843,7 +883,7 @@ fn colour_of(k: Kind) -> &'static str {
     }
 }
 
-fn ordinal(n: usize) -> String {
+pub(crate) fn ordinal(n: usize) -> String {
     let suffix = match (n % 10, n % 100) {
         (1, 11) | (2, 12) | (3, 13) => "th",
         (1, _) => "st",

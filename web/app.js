@@ -53,8 +53,43 @@ function button(item) {
   const b = make("button", "button", item.text);
   b.type = "button";
   b.id = item.id;
+  b.disabled = item.disabled === true;
   b.addEventListener("click", () => send(item.id, ""));
   return b;
+}
+
+// A text field (one line, or several for a pasted code). Each keystroke goes
+// to the core; drawMenus keeps the focus and caret across the rebuild.
+function field(item) {
+  const wrap = make("div", "field text-field");
+  const label = make("label", "", item.label);
+  const input = make(item.multiline ? "textarea" : "input");
+  input.id = item.id;
+  input.value = item.value;
+  if (item.placeholder) input.placeholder = item.placeholder;
+  input.spellcheck = false;
+  label.htmlFor = item.id;
+  input.addEventListener("input", () => send(item.id, input.value));
+  wrap.append(label, input);
+  return wrap;
+}
+
+// A code and its Copy button: the core gives the text; putting it on the
+// clipboard is the page's job.
+function copy(item) {
+  const wrap = make("div", "field copy-field");
+  const code = make("span", "copy-code", item.value);
+  code.id = item.id + ".code";
+  const b = make("button", "button quiet", item.text);
+  b.type = "button";
+  b.id = item.id;
+  b.disabled = item.disabled === true;
+  b.addEventListener("click", () => {
+    if (navigator.clipboard) navigator.clipboard.writeText(item.copy).catch(() => {});
+    send(item.id, "");
+  });
+  wrap.append(make("label", "", item.label), code, b);
+  return wrap;
 }
 
 function picker(item) {
@@ -153,12 +188,14 @@ function cells(item) {
   return table;
 }
 
-const builders = { button, picker, stats, select, slider, toggle, list, table: cells };
+const builders = { button, picker, stats, select, slider, toggle, list, table: cells, field, copy };
 
 function drawMenus() {
   const text = JSON.stringify(ui.panels || []);
   if (text === panelsText) return;
   panelsText = text;
+  const focused = document.activeElement && document.activeElement.id;
+  const caret = focused ? document.activeElement.selectionStart : null;
   const box = el("menus");
   box.replaceChildren();
   (ui.panels || []).forEach((p) => {
@@ -168,6 +205,11 @@ function drawMenus() {
     p.items.forEach((item) => panel.append(builders[item.type](item)));
     box.append(panel);
   });
+  const again = focused && el(focused);
+  if (again && again.tagName !== "BUTTON") {
+    again.focus();
+    if (caret !== null && caret !== undefined && again.setSelectionRange) again.setSelectionRange(caret, caret);
+  }
 }
 
 // ---- the race HUD ----
@@ -343,6 +385,39 @@ async function setWind(gain) {
   if (wind) wind.level.gain.value = gain;
 }
 
+// ---- online play: the transport (PLAN P13) ----
+// online.js is imported only when a player hosts or joins.
+
+let online = null;
+
+function onNet(e) {
+  game.net_event(e.kind, e.peer || "", e.text || "", !!e.host);
+}
+
+async function netRequest(req) {
+  try {
+    if (!online) online = await import("./online.js");
+    if (req.op === "host_room") await online.hostRoom(req.room, onNet);
+    else if (req.op === "join_room") await online.joinRoom(req.room, onNet);
+    else if (req.op === "host_code") game.net_code("invite", await online.hostByCode(onNet));
+    else if (req.op === "invite_code") game.net_code("invite", await online.inviteByCode());
+    else if (req.op === "join_code") game.net_code("reply", await online.joinByCode(req.invite, onNet));
+    else if (req.op === "accept_reply") await online.acceptAnswer(req.reply);
+    else if (req.op === "leave") online.leave();
+  } catch (err) {
+    game.net_event("error", "", (err && err.message) || "online.signal_failed", false);
+  }
+}
+
+function flushNet() {
+  const out = JSON.parse(game.outbox());
+  if (!online) return;
+  out.forEach((m) => {
+    if (m.to === null) online.broadcast(m.text);
+    else online.send(m.to, m.text);
+  });
+}
+
 // ---- the loop ----
 
 function handle(view) {
@@ -352,6 +427,12 @@ function handle(view) {
   }
   if (view.save) writeStore(view.save);
   if (view.sounds) view.sounds.forEach(play);
+  // Messages first: a Leave goes out before the transport closes.
+  if (view.net_requests) {
+    flushNet();
+    view.net_requests.forEach(netRequest);
+  }
+  if (view.remote_moved !== undefined) document.body.dataset.remoteMoved = String(view.remote_moved);
   document.body.dataset.screen = view.screen;
   el("hud").hidden = view.screen !== "race";
   if (view.hud) drawHud(view.hud);
@@ -393,6 +474,10 @@ async function start() {
   resize();
   bindInput();
   if (new URLSearchParams(location.search).has("lineup")) game.act("screen.lineup", "");
+  // This browser's id for online play, and `?codes`: the pasted-code path,
+  // for the automated online check only.
+  game.act("flag.client", crypto.randomUUID());
+  if (new URLSearchParams(location.search).has("codes")) game.act("flag.codes", "on");
 
   let sceneVersion = null;
   function frame(now) {
@@ -408,6 +493,7 @@ async function start() {
       game.build_frame();
       renderer.frame(game.view(), game.instances(), game.draws());
     }
+    flushNet();
     requestAnimationFrame(frame);
   }
   document.body.dataset.ready = "true";

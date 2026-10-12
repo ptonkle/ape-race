@@ -8,8 +8,7 @@
 #   BUILDER_ENGINES=chromium ./scripts/check-online.sh   one engine
 #
 # The room-code path (public Nostr relays) is never run automatically; the
-# person checks it by hand on dist/nettest.html. A race between tabs through
-# the game page is for the integrator to add here once app.js wires online.js.
+# person checks it by hand on the game's Online screen or dist/nettest.html.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -20,11 +19,14 @@ fi
 
 step() { printf '\n\033[1m== %s\033[0m\n' "$*"; }
 
-step "1/2 release build (scripts/build.sh, checks web/vendor/SHA256SUMS)"
+step "1/3 release build (scripts/build.sh, checks web/vendor/SHA256SUMS)"
 ./scripts/build.sh >/dev/null
 echo "dist/ assembled"
 
-step "2/2 transport between tabs (tests/browser/online.py)"
+step "2/3 transport between tabs (tests/browser/online.py)"
 "$PY" tests/browser/online.py
+
+step "3/3 a race between two tabs through the game page (tests/browser/online_race.py)"
+"$PY" tests/browser/online_race.py
 
 printf '\n\033[1mONLINE CHECK PASSED\033[0m\n'

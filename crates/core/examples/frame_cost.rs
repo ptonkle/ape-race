@@ -7,7 +7,9 @@ fn main() {
     let mut now = 0i64;
     a.key("KeyW", true);
     for f in 0..600 {
-        if f == 200 { a.key("Space", true); }
+        if f == 200 {
+            a.key("Space", true);
+        }
         now += 16_667;
         let t = Instant::now();
         a.advance(now);
@@ -17,7 +19,12 @@ fn main() {
         if f % 50 == 0 || e.as_millis() > 5 {
             let p = a.play.as_ref().unwrap();
             let ape = &p.race.racers[0].ape;
-            println!("{f}: {:?} pos {:?} mode {:?}", e, (ape.pos.x >> 16, ape.pos.y >> 16, ape.pos.z >> 16), ape.mode);
+            println!(
+                "{f}: {:?} pos {:?} mode {:?}",
+                e,
+                (ape.pos.x >> 16, ape.pos.y >> 16, ape.pos.z >> 16),
+                ape.mode
+            );
         }
     }
 }

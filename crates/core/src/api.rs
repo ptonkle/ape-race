@@ -82,6 +82,29 @@ impl Session {
         vec![w, h.max(1)]
     }
 
+    /// A transport event from web/online.js: connected, message,
+    /// disconnected or error.
+    pub fn net_event(&mut self, kind: &str, peer: &str, text: &str, host: bool) {
+        if let Ok(a) = &mut self.app {
+            a.net_event(kind, peer, text, host);
+        }
+    }
+
+    /// An invite or reply code from the pasted-code path.
+    pub fn net_code(&mut self, which: &str, code: &str) {
+        if let Ok(a) = &mut self.app {
+            a.net_code(which, code);
+        }
+    }
+
+    /// Messages to send, as JSON: [{"to": peer or null, "text": ...}].
+    pub fn outbox(&mut self) -> String {
+        match &mut self.app {
+            Ok(a) => a.take_outbox(),
+            Err(_) => "[]".to_string(),
+        }
+    }
+
     pub fn scene_version(&self) -> u32 {
         self.app.as_ref().map(|a| a.scene_version()).unwrap_or(0)
     }

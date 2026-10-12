@@ -1,0 +1,560 @@
+//! The app's online screens and race hooks (PLAN P13): the Online screen
+//! (name, Host, Join), the Lobby, the start of an online race, the per-tick
+//! sync and hits, the online results, and the transport requests the page
+//! carries out with `web/online.js`. The protocol itself is
+//! `crate::online`; this file only connects it to the screens.
+
+use serde_json::{json, Value};
+
+use super::{ordinal, App, Play, Screen};
+use crate::online::{self, Fin, Online, Refusal, Status};
+use crate::race::{Driver, Event, Race};
+use crate::rules::Kind;
+
+/// How long the Copy button reads Copied, in milliseconds.
+const COPIED_MS: i64 = 1500;
+
+/// The online part of the app.
+#[derive(Default)]
+pub struct OnlinePlay {
+    /// this browser's id, from the page (`crypto.randomUUID()`)
+    pub client_id: String,
+    pub session: Option<Online>,
+    /// the room code typed, or made by Host
+    pub room: String,
+    /// `?codes`: the pasted-code path, for the automated check
+    pub codes: bool,
+    pub invite: String,
+    pub reply: String,
+    /// a key in data/strings.json, or empty
+    pub status: String,
+    copied_ms: Option<i64>,
+    /// transport requests for the page: {"op": ...}
+    requests: Vec<Value>,
+    /// the last messages of a session that has been left (its Leave or
+    /// Dissolve), still to send
+    parting: Vec<online::Outgoing>,
+}
+
+impl App {
+    pub(super) fn online_flag(&mut self, id: &str, value: &str) {
+        match id {
+            "flag.codes" => self.online.codes = value == "on",
+            "flag.client" => self.online.client_id = value.to_string(),
+            _ => {}
+        }
+    }
+
+    fn player_name(&self) -> String {
+        let name = online::clean_name(&self.settings.name);
+        if name.is_empty() {
+            self.t("online.default_name")
+        } else {
+            name
+        }
+    }
+
+    fn hosting(&self) -> bool {
+        self.online.session.as_ref().is_some_and(|o| o.is_host())
+    }
+
+    fn open_session(&mut self, host: bool, request: Value) {
+        let id = self.online.client_id.clone();
+        let name = self.player_name();
+        let kind = self.settings.kind;
+        let mut o = if host {
+            Online::host(&id, &name, kind, self.now_ms)
+        } else {
+            Online::join(&id, &name, kind, self.now_ms)
+        };
+        if host {
+            let _ = o.set_ai_count(self.settings.ai_count as usize, self.now_ms);
+            let _ = o.set_equal_stats(self.settings.equal_stats, self.now_ms);
+        }
+        self.online.session = Some(o);
+        self.online.status = String::new();
+        self.online.requests.push(request);
+        self.go(Screen::Lobby);
+    }
+
+    /// The transport room for a code: the protocol version keeps browsers
+    /// of different versions apart.
+    fn room_name(code: &str) -> String {
+        format!("ape-race-p{}-{code}", online::PROTOCOL)
+    }
+
+    /// Leaves the session: its last messages go out before the transport
+    /// closes (the page flushes the outbox before the requests).
+    fn leave_online(&mut self) {
+        if let Some(o) = &mut self.online.session {
+            o.leave();
+            self.online.parting.extend(o.take_outbox());
+            self.online.requests.push(json!({"op": "leave"}));
+        }
+        self.online.invite.clear();
+        self.online.reply.clear();
+    }
+
+    pub(super) fn online_act(&mut self, id: &str, value: &str) {
+        let now = self.now_ms;
+        match id {
+            "online.name" => {
+                self.settings.name = value
+                    .chars()
+                    .filter(|c| !c.is_control())
+                    .take(online::MAX_NAME_CHARS)
+                    .collect();
+                self.save = true;
+            }
+            "online.room" => {
+                self.online.room = value
+                    .chars()
+                    .filter(|c| c.is_ascii_alphanumeric())
+                    .map(|c| c.to_ascii_uppercase())
+                    .take(online::CODE_LEN)
+                    .collect();
+            }
+            "online.host" => {
+                let seed = self.seed ^ (now as u64).rotate_left(17) ^ self.ticks as u64;
+                self.online.room = online::room_code(seed);
+                let room = App::room_name(&self.online.room);
+                self.open_session(true, json!({"op": "host_room", "room": room}));
+            }
+            "online.join" => match online::clean_code(&self.online.room) {
+                Some(code) => {
+                    self.online.room = code.clone();
+                    let room = App::room_name(&code);
+                    self.open_session(false, json!({"op": "join_room", "room": room}));
+                }
+                None => self.online.status = "online.bad_room".to_string(),
+            },
+            "online.copy" => self.online.copied_ms = Some(now),
+            "online.invite" => self.online.invite = value.trim().to_string(),
+            "online.reply" => self.online.reply = value.trim().to_string(),
+            "online.host_code" => {
+                if self.hosting() {
+                    self.online.requests.push(json!({"op": "invite_code"}));
+                } else {
+                    self.online.room.clear();
+                    self.open_session(true, json!({"op": "host_code"}));
+                }
+            }
+            "online.join_code" => {
+                self.online.room.clear();
+                let invite = self.online.invite.clone();
+                self.open_session(false, json!({"op": "join_code", "invite": invite}));
+            }
+            "online.connect" => {
+                let reply = self.online.reply.clone();
+                self.online
+                    .requests
+                    .push(json!({"op": "accept_reply", "reply": reply}));
+            }
+            "lobby.ape" | "lobby.ape.next" | "lobby.ape.prev" => {
+                let n = Kind::ALL.len();
+                let i = self.settings.kind.index();
+                let k = match id {
+                    "lobby.ape.next" => Kind::ALL[(i + 1) % n],
+                    "lobby.ape.prev" => Kind::ALL[(i + n - 1) % n],
+                    _ => Kind::from_key(value).unwrap_or(self.settings.kind),
+                };
+                self.settings.kind = k;
+                self.save = true;
+                if let Some(o) = &mut self.online.session {
+                    let _ = o.set_kind(k, now);
+                }
+            }
+            "lobby.ready" => {
+                if let Some(o) = &mut self.online.session {
+                    let ready = !o.lobby().ready;
+                    let _ = o.set_ready(ready, now);
+                }
+            }
+            "lobby.ai" => {
+                if let (Ok(n), Some(o)) = (value.parse::<usize>(), &mut self.online.session) {
+                    let _ = o.set_ai_count(n, now);
+                    self.settings.ai_count = n.min(online::MAX_AI) as u8;
+                    self.save = true;
+                }
+            }
+            "lobby.equal" => {
+                let on = value == "on";
+                if let Some(o) = &mut self.online.session {
+                    let _ = o.set_equal_stats(on, now);
+                    self.settings.equal_stats = on;
+                    self.save = true;
+                }
+            }
+            "lobby.start" => {
+                let seed = self.seed ^ (now as u64).rotate_left(29) ^ self.ticks as u64;
+                if let Some(o) = &mut self.online.session {
+                    let _ = o.start(seed, now);
+                }
+            }
+            "lobby.leave" => {
+                self.leave_online();
+                self.online.session = None;
+                self.go(Screen::Online);
+            }
+            _ => {}
+        }
+    }
+
+    /// Rematch (host) or Main Menu from an online race.
+    pub(super) fn online_race_menu(&mut self, id: &str) {
+        if id == "menu.rematch" {
+            let now = self.now_ms;
+            if let Some(o) = &mut self.online.session {
+                if o.rematch(now).is_ok() {
+                    self.go(Screen::Lobby);
+                }
+            }
+            return;
+        }
+        self.leave_online();
+        self.online.session = None;
+        self.go(Screen::Title);
+    }
+
+    /// A transport event from the page: `kind` is "connected", "message",
+    /// "disconnected" or "error" (then `text` is a key in data/strings.json).
+    pub fn net_event(&mut self, kind: &str, peer: &str, text: &str, host: bool) {
+        let now = self.now_ms;
+        if kind == "error" {
+            self.online.status = text.to_string();
+            return;
+        }
+        let Some(o) = &mut self.online.session else {
+            return;
+        };
+        match kind {
+            "connected" => o.peer_connected(peer, host, now),
+            "message" => o.receive(peer, text, now),
+            "disconnected" => o.peer_left(peer, now),
+            _ => {}
+        }
+    }
+
+    /// A code for the pasted-code path, from the page's transport.
+    pub fn net_code(&mut self, which: &str, code: &str) {
+        match which {
+            "invite" => self.online.invite = code.to_string(),
+            "reply" => self.online.reply = code.to_string(),
+            _ => {}
+        }
+    }
+
+    /// Messages for the page to send: [{"to": peer or null (everyone), "text"}].
+    pub fn take_outbox(&mut self) -> String {
+        let mut out = std::mem::take(&mut self.online.parting);
+        if let Some(o) = &mut self.online.session {
+            out.extend(o.take_outbox());
+        }
+        serde_json::to_string(&out).unwrap_or_else(|_| "[]".to_string())
+    }
+
+    /// Once a frame: the session's retries, the race start, a rematch, and
+    /// the end of a lobby.
+    pub(super) fn online_frame(&mut self) {
+        let now = self.now_ms;
+        let Some(o) = &mut self.online.session else {
+            return;
+        };
+        o.update(now);
+        if let Some(start) = o.take_race_start() {
+            let race = Race::new(
+                self.course.clone(),
+                &start.entries,
+                start.equal_stats,
+                start.seed,
+            );
+            self.begin(race, start.local_index);
+            if let Some(p) = &mut self.play {
+                p.online = true;
+            }
+            return;
+        }
+        let status = o.status().clone();
+        match status {
+            // the host pressed Rematch
+            Status::Lobby if self.screen == Screen::Race => self.go(Screen::Lobby),
+            Status::Refused { .. } | Status::Dissolved | Status::Lost
+                if self.screen == Screen::Lobby =>
+            {
+                self.online.status = status_key(&status).to_string();
+                self.online.requests.push(json!({"op": "leave"}));
+                self.online.session = None;
+                self.go(Screen::Online);
+            }
+            _ => {}
+        }
+    }
+
+    /// After each tick of an online race: hits this browser's items made on
+    /// apes it does not own go to their owners; states and finishes go out;
+    /// remote apes move; hits from elsewhere land on this browser's apes.
+    pub(super) fn online_step(&mut self, p: &mut Play) {
+        let now = self.now_ms;
+        let Some(o) = &mut self.online.session else {
+            return;
+        };
+        for e in &p.race.events {
+            if let Event::Hit { who, by, item } = *e {
+                if !o.owns(who) {
+                    o.send_hit(who, by, item);
+                }
+            }
+        }
+        o.sync_race(now, &mut p.race);
+        for h in o.take_hits() {
+            crate::items::apply_hit(&mut p.race, h.victim, h.by, h.item);
+        }
+    }
+
+    // ---- what the page shows ----
+
+    fn status_text(&self) -> String {
+        if !self.online.status.is_empty() {
+            return self.t(&self.online.status);
+        }
+        match &self.online.session {
+            None => self.t("online.idle"),
+            Some(o) => self.t(status_key(o.status())),
+        }
+    }
+
+    fn copy_item(&self) -> Value {
+        let copied = self
+            .online
+            .copied_ms
+            .is_some_and(|t| self.now_ms - t < COPIED_MS);
+        json!({
+            "type": "copy", "id": "online.copy", "label": self.t("online.room_code"),
+            "value": self.online.room, "copy": self.online.room,
+            "text": self.t(if copied { "online.copied" } else { "online.copy" }),
+            "disabled": self.online.room.is_empty(),
+        })
+    }
+
+    fn status_list(&self) -> Value {
+        json!({ "type": "list", "rows": [[self.t("online.status"), self.status_text()]] })
+    }
+
+    fn codes_panel(&self, host: bool, joiner: bool) -> Value {
+        let mut items = vec![
+            json!({"type": "field", "id": "online.invite", "label": self.t("online.invite_code"),
+                   "value": self.online.invite, "multiline": true}),
+            json!({"type": "field", "id": "online.reply", "label": self.t("online.reply_code"),
+                   "value": self.online.reply, "multiline": true}),
+        ];
+        if !host && !joiner {
+            items.push(self.button("online.host_code"));
+            items.push(self.button("online.join_code"));
+        }
+        if host {
+            items.push(self.button("online.host_code"));
+            items.push(self.button("online.connect"));
+        }
+        json!({ "kind": "codes", "heading": self.t("online.codes"), "items": items })
+    }
+
+    pub(super) fn online_panels(&self) -> Vec<Value> {
+        let mut out = vec![
+            json!({ "kind": "setup", "heading": self.t("menu.online"), "items": [
+                {"type": "field", "id": "online.name", "label": self.t("online.name"),
+                 "value": self.settings.name, "placeholder": self.t("online.default_name")},
+                {"type": "field", "id": "online.room", "label": self.t("online.room_code"),
+                 "value": self.online.room, "placeholder": self.t("online.room_hint")},
+                self.status_list(),
+                self.button("online.host"),
+                self.button("online.join"),
+                self.button("menu.back"),
+            ]}),
+        ];
+        if self.online.codes {
+            out.push(self.codes_panel(false, false));
+        }
+        out
+    }
+
+    pub(super) fn lobby_panels(&self) -> Vec<Value> {
+        let Some(o) = &self.online.session else {
+            return vec![
+                json!({ "kind": "setup", "heading": self.t("online.lobby"), "items": [
+                    self.status_list(), self.button("lobby.leave")
+                ]}),
+            ];
+        };
+        let view = o.lobby();
+        let ape = |k: Kind| self.t(&format!("ape.{}", k.key()));
+        let rows: Vec<Value> = view
+            .seats
+            .iter()
+            .map(|s| {
+                let ready = if s.ai {
+                    self.t("player.ai")
+                } else if s.host {
+                    self.t("online.host_seat")
+                } else if s.ready {
+                    self.t("online.readied")
+                } else {
+                    self.t("online.not_ready")
+                };
+                let ping = match s.ping_ms {
+                    Some(ms) => format!("{ms} {}", self.t("online.ms")),
+                    None => self.t("item.none"),
+                };
+                json!([s.name, ape(s.kind), ready, ping, s.me])
+            })
+            .collect();
+        let mut seats = vec![
+            json!({ "type": "table", "head": [
+                self.t("results.name"), self.t("results.ape"), self.t("online.ready"), self.t("online.ping")
+            ], "rows": rows }),
+            self.status_list(),
+        ];
+        if !self.online.room.is_empty() {
+            seats.insert(0, self.copy_item());
+        }
+        let kinds: Vec<Value> = Kind::ALL
+            .iter()
+            .map(|k| json!({ "value": k.key(), "text": ape(*k) }))
+            .collect();
+        let stats = self.settings.kind.race_stats(view.equal_stats);
+        let mut mine = vec![
+            json!({ "type": "picker", "id": "lobby.ape", "label": self.t("setup.ape"),
+                    "value": self.settings.kind.key(), "options": kinds,
+                    "text": ape(self.settings.kind) }),
+            json!({ "type": "stats", "label": self.t("setup.stats"), "rows": self.stats_rows(&stats) }),
+        ];
+        if view.is_host {
+            let options: Vec<Value> = (0..=view.max_ai)
+                .map(|n| json!({ "value": n.to_string(), "text": n.to_string() }))
+                .collect();
+            mine.push(
+                json!({ "type": "select", "id": "lobby.ai", "label": self.t("online.ai_count"),
+                              "value": view.ai_count.to_string(), "options": options }),
+            );
+            mine.push(
+                json!({ "type": "toggle", "id": "lobby.equal", "label": self.t("setup.equal"),
+                              "value": view.equal_stats }),
+            );
+            let mut start = self.button("lobby.start");
+            start["disabled"] = json!(!view.can_start);
+            mine.push(start);
+        } else {
+            mine.push(json!({ "type": "list", "rows": [[self.t("setup.equal"),
+                self.t(if view.equal_stats { "on" } else { "off" })]] }));
+            let mut ready = self.button("lobby.ready");
+            ready["text"] = json!(self.t(if view.ready {
+                "online.cancel_ready"
+            } else {
+                "online.ready_up"
+            }));
+            ready["disabled"] = json!(view.status != Status::Lobby);
+            mine.push(ready);
+        }
+        mine.push(self.button("lobby.leave"));
+        let mut out = vec![
+            json!({ "kind": "setup", "heading": self.t("online.lobby"), "items": seats }),
+            json!({ "kind": "setup", "heading": self.t("setup.heading"), "items": mine }),
+        ];
+        if self.online.codes {
+            out.push(self.codes_panel(view.is_host, !view.is_host));
+        }
+        out
+    }
+
+    /// The menu overlay (Esc; the race runs on) and the results.
+    pub(super) fn online_race_panels(&self, p: &Play) -> Vec<Value> {
+        let host = self.hosting();
+        let finished = p
+            .since_finish
+            .is_some_and(|t| t > crate::rules::TICKS_PER_SECOND as u32);
+        if p.paused {
+            return vec![
+                json!({ "kind": "overlay", "heading": self.t("menu.online"), "items": [
+                    self.button("menu.resume"),
+                    self.button("menu.main"),
+                ]}),
+            ];
+        }
+        if !finished {
+            return Vec::new();
+        }
+        let mut items = vec![self.online_results()];
+        if host {
+            items.push(self.button("menu.rematch"));
+        } else {
+            items.push(json!({ "type": "list", "rows": [[self.t("online.status"), self.t("online.wait_rematch")]] }));
+        }
+        items.push(self.button("menu.main"));
+        vec![json!({ "kind": "overlay", "heading": self.t("results.heading"), "items": items })]
+    }
+
+    fn online_results(&self) -> Value {
+        let rows: Vec<Value> = self
+            .online
+            .session
+            .as_ref()
+            .map(|o| o.results())
+            .unwrap_or_default()
+            .into_iter()
+            .map(|r| {
+                let place = r.place.map(ordinal).unwrap_or_else(|| self.t("item.none"));
+                let shown = match r.fin {
+                    Fin::Done(t) => super::clock_text(t),
+                    Fin::Racing => self.t("results.racing"),
+                    Fin::Dnf => self.t("results.out"),
+                };
+                json!([
+                    place,
+                    r.name,
+                    self.t(&format!("ape.{}", r.kind.key())),
+                    shown,
+                    r.me
+                ])
+            })
+            .collect();
+        json!({ "type": "table", "head": [
+            self.t("results.place"), self.t("results.name"), self.t("results.ape"), self.t("results.time")
+        ], "rows": rows })
+    }
+
+    /// Adds the transport requests, and for the online check whether a
+    /// remote ape has left its start.
+    pub(super) fn online_ui(&mut self, v: &mut Value) {
+        if !self.online.requests.is_empty() {
+            v["net_requests"] = Value::Array(std::mem::take(&mut self.online.requests));
+        }
+        if let Some(p) = &self.play {
+            if p.online {
+                let moved = p.race.racers.iter().enumerate().any(|(i, r)| {
+                    r.driver == Driver::Remote && r.ape.pos != p.race.course.starts[i % 4]
+                });
+                v["remote_moved"] = json!(moved);
+            }
+        }
+    }
+}
+
+/// The strings key for a session's status.
+fn status_key(s: &Status) -> &'static str {
+    match s {
+        Status::Joining => "online.connecting",
+        Status::Lobby => "online.in_lobby",
+        Status::Racing => "online.racing",
+        Status::Refused { reason } => match reason {
+            Refusal::WrongVersion { .. } => "online.wrong_version",
+            Refusal::Full => "online.full",
+            Refusal::Started => "online.already_started",
+        },
+        Status::Dissolved => "online.dissolved",
+        Status::Lost => "online.lost",
+        Status::Left => "online.idle",
+    }
+}
+
+#[cfg(test)]
+#[path = "online_play_tests.rs"]
+mod tests;
