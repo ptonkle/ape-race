@@ -73,6 +73,18 @@ impl Game {
             .resize(css_w as i32, css_h as i32, (dpr * 100.0) as i32)
     }
 
+    pub fn net_event(&mut self, kind: &str, peer: &str, text: &str, host: bool) {
+        self.s.net_event(kind, peer, text, host)
+    }
+
+    pub fn net_code(&mut self, which: &str, code: &str) {
+        self.s.net_code(which, code)
+    }
+
+    pub fn outbox(&mut self) -> String {
+        self.s.outbox()
+    }
+
     pub fn scene_version(&self) -> u32 {
         self.s.scene_version()
     }

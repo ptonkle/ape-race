@@ -252,3 +252,19 @@ table.cells tr.me td { color: var(--banana); font-weight: 800; }
   border: 1px solid var(--panel-line);
   border-radius: 16px;
 }
+
+/* Online play: text fields, the room code with its Copy button, pasted codes. */
+.text-field input,
+.text-field textarea {
+  font: inherit;
+  color: var(--ink);
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid var(--panel-line);
+  border-radius: 8px;
+  padding: 0.35rem 0.6rem;
+  min-width: 12rem;
+}
+.text-field textarea { min-height: 4rem; width: 18rem; word-break: break-all; }
+.copy-field .copy-code { font-weight: bold; letter-spacing: 0.2em; }
+.button:disabled { opacity: 0.45; cursor: not-allowed; transform: none; }
+.panel.setup .cells { margin: 0.5rem 0; }
