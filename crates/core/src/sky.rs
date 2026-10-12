@@ -22,7 +22,7 @@ const STEP_M: i32 = int(60);
 /// with the exact speed all the way up (TRIAGE row 15, a try).
 const RAMP_KMH: i32 = 40;
 /// The colours start here (TRIAGE row 22: a wider, gentler ramp).
-const FROM_KMH: i32 = 70;
+const FROM_KMH: i32 = 80;
 
 /// How changed the sky is, 0..=ONE, from a speed in Q16 m/s: zero at the
 /// redline, eased in (smoothstep) to full at the redline + `RAMP_KMH`.
@@ -82,12 +82,12 @@ mod tests {
         // a good ordinary pace (65 km/h across the ground) leaves it alone
         let fast = int(65) * 10 / 36;
         assert_eq!(colours(sky, fog, fast, 77), (sky, fog));
-        assert_eq!(trip(int(69) * 10 / 36), 0);
-        // from 70 km/h across the ground it builds gently with the speed,
-        // full at 110 (TRIAGE rows 17, 19 and 22)
+        assert_eq!(trip(int(79) * 10 / 36), 0);
+        // from 80 km/h across the ground it builds gently with the speed,
+        // full at 120 (TRIAGE rows 17, 19, 22 and 26)
         let at = |kmh: i32| trip(int(kmh) * 10 / 36);
-        assert!(at(75) > 0 && at(75) < at(90) && at(90) < at(105) && at(105) < ONE);
-        assert_eq!(at(111), ONE);
+        assert!(at(85) > 0 && at(85) < at(100) && at(100) < at(115) && at(115) < ONE);
+        assert_eq!(at(121), ONE);
         let (s, _) = colours(sky, fog, int(60), 0);
         assert_ne!(s, sky);
     }

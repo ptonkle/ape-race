@@ -42,6 +42,9 @@ const DOUBLE_TAP: u32 = rules::TICKS_PER_SECOND as u32 * 2 / 5;
 /// (or on leaving, whichever comes first), so the coasting is in it too.
 const KEEP_AFTER_FINISH: u32 = rules::TICKS_PER_SECOND as u32 * 3;
 
+/// Clicks on the title that unlock Speed Colours (TRIAGE row 26).
+const TITLE_CLICKS: u32 = 10;
+
 /// The person's settings, kept in browser storage as this JSON.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default)]
@@ -51,8 +54,11 @@ pub struct Settings {
     pub sensitivity: i32,
     pub invert_y: bool,
     pub auto_camera: bool,
-    /// the sky and the jungle change colour at speed (TRIAGE row 21)
+    /// the sky and the jungle change colour at speed (TRIAGE rows 21, 26:
+    /// off until unlocked)
     pub speed_colours: bool,
+    /// the Speed Colours setting is unlocked (the title clicked ten times)
+    pub colours_unlocked: bool,
     pub kind: Kind,
     pub ai_count: u8,
     /// the AI's difficulty (TRIAGE T14)
@@ -74,7 +80,8 @@ impl Default for Settings {
             sensitivity: 5,
             invert_y: false,
             auto_camera: true,
-            speed_colours: true,
+            speed_colours: false,
+            colours_unlocked: false,
             kind: Kind::Chimpanzee,
             ai_count: 3,
             ai_level: crate::ai::Difficulty::default(),
@@ -93,6 +100,9 @@ impl Settings {
         s.volume = s.volume.min(100);
         s.sensitivity = s.sensitivity.clamp(1, 10);
         s.ai_count = s.ai_count.min(3);
+        // Speed Colours is a secret until unlocked (TRIAGE row 26), even for
+        // settings saved while it was on by default
+        s.speed_colours &= s.colours_unlocked;
         s
     }
 }
@@ -166,6 +176,11 @@ pub struct App {
     strings: BTreeMap<String, String>,
     pub settings: Settings,
     pub screen: Screen,
+    /// clicks on the title text, toward the secret (TRIAGE row 26)
+    title_clicks: u32,
+    /// the title's background is celebrating an unlock, until the screen
+    /// changes
+    celebrate: bool,
     stage: Stage,
     pub play: Option<Play>,
     keys: BTreeSet<String>,
@@ -218,6 +233,8 @@ impl App {
             strings,
             settings: Settings::parse(settings_json),
             screen: Screen::Title,
+            title_clicks: 0,
+            celebrate: false,
             stage: Stage::Flyover,
             play: None,
             keys: BTreeSet::new(),
@@ -375,6 +392,8 @@ impl App {
 
     fn go(&mut self, screen: Screen) {
         self.screen = screen;
+        self.celebrate = false;
+        self.title_clicks = 0;
         let stage = match screen {
             Screen::Title | Screen::Settings | Screen::Online | Screen::Replays => Stage::Flyover,
             Screen::Setup | Screen::Lobby => Stage::Showcase,
@@ -605,6 +624,16 @@ impl App {
             "settings.invert" => {
                 self.settings.invert_y = value == "on";
                 self.save = true;
+            }
+            "title.click" => {
+                self.title_clicks += 1;
+                if self.title_clicks == TITLE_CLICKS && !self.settings.colours_unlocked {
+                    self.settings.colours_unlocked = true;
+                    self.settings.speed_colours = true;
+                    self.celebrate = true;
+                    self.save = true;
+                    self.sounds.push(Cue::Finish.key().to_string());
+                }
             }
             "settings.speed_colours" => {
                 self.settings.speed_colours = value == "on";
@@ -872,6 +901,9 @@ impl App {
                 let me = &p.race.racers[p.local];
                 (p.colour_speed, me.progress)
             }
+            // the unlock: the title's jungle goes wild, colours turning about
+            // once a second, until another menu opens
+            (_, Stage::Flyover) if self.celebrate => (int(60), (self.ticks as i32) * (ONE / 2)),
             _ => (0, 0),
         };
         let colours = crate::sky::colours(scene::SKY, scene::FOG, speed, metres);
@@ -978,7 +1010,8 @@ impl App {
 
     fn title_panels(&self) -> Vec<Value> {
         vec![
-            json!({ "kind": "title", "heading": self.t("title"), "sub": self.t("tagline"), "items": [] }),
+            json!({ "kind": "title", "heading": self.t("title"), "sub": self.t("tagline"),
+                    "click": "title.click", "items": [] }),
             json!({ "kind": "menu", "items": [
                 self.button("menu.race"),
                 self.button("menu.trial"),
@@ -1128,7 +1161,7 @@ impl App {
     }
 
     fn settings_panels(&self) -> Vec<Value> {
-        vec![
+        let mut panels = vec![
             json!({ "kind": "settings", "heading": self.t("settings.heading"), "items": [
                 { "type": "slider", "id": "settings.volume", "label": self.t("settings.volume"),
                   "min": 0, "max": 100, "step": 5, "value": self.settings.volume,
@@ -1140,9 +1173,19 @@ impl App {
                   "value": self.settings.invert_y },
                 { "type": "toggle", "id": "settings.auto_camera", "label": self.t("settings.auto_camera"),
                   "value": self.settings.auto_camera },
-                self.button("menu.back"),
             ]}),
-        ]
+        ];
+        // Speed Colours shows once unlocked (TRIAGE row 26)
+        if self.settings.colours_unlocked {
+            panels[0]["items"].as_array_mut().map(|items| {
+                items.push(json!({ "type": "toggle", "id": "settings.speed_colours",
+                  "label": self.t("settings.speed_colours"), "value": self.settings.speed_colours }))
+            });
+        }
+        panels[0]["items"]
+            .as_array_mut()
+            .map(|items| items.push(self.button("menu.back")));
+        panels
     }
 
     fn race_panels(&self) -> Vec<Value> {
@@ -1797,8 +1840,46 @@ mod tests {
     }
 
     #[test]
+    fn ten_clicks_on_the_title_unlock_speed_colours() {
+        let mut a = app();
+        assert!(!a.settings.speed_colours && !a.settings.colours_unlocked);
+        let shown = |a: &mut App| {
+            a.act("menu.settings", "");
+            let ui = a.ui();
+            a.act("menu.back", "");
+            ui.contains("settings.speed_colours")
+        };
+        assert!(!shown(&mut a));
+        for _ in 0..9 {
+            a.act("title.click", "");
+        }
+        assert!(!a.settings.colours_unlocked);
+        a.act("title.click", "");
+        assert!(a.settings.colours_unlocked && a.settings.speed_colours);
+        // a fanfare, and the title's jungle goes wild at once
+        let ui: Value = serde_json::from_str(&a.ui()).unwrap();
+        assert!(ui["sounds"].to_string().contains("finish"));
+        assert!(ui["save"]
+            .as_str()
+            .unwrap()
+            .contains("\"colours_unlocked\":true"));
+        assert!(a.frame().0[27] > 0);
+        // until another menu opens; the setting stays from then on
+        assert!(shown(&mut a));
+        assert_eq!(a.frame().0[27], 0);
+        // clicks on another screen visit do not count toward it twice
+        let saved = serde_json::to_string(&a.settings).unwrap();
+        let b = App::new(include_str!("../../../data/strings.json"), &saved, 1).unwrap();
+        assert!(b.settings.colours_unlocked && b.settings.speed_colours);
+        // a setting saved "on" before the secret existed reads as off
+        let old = Settings::parse("{\"speed_colours\":true}");
+        assert!(!old.speed_colours);
+    }
+
+    #[test]
     fn speed_colours_can_be_turned_off() {
         let mut a = app();
+        a.settings.speed_colours = true;
         a.act("menu.race", "");
         a.act("menu.start", "");
         let fast = |a: &mut App| {

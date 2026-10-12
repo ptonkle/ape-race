@@ -130,6 +130,14 @@ def run(page, check, engine):
     page.wait_for_selector("body[data-ready='true']", timeout=20000)
     page.click("[id='menu.settings']")
     check("35%" in text(page, "#menus"), "the volume is kept after a reload")
+    check(STRINGS["settings.speed_colours"] not in text(page, "#menus"), "Speed Colours is a secret at first")
+    page.click("[id='menu.back']")
+
+    # The secret (TRIAGE row 26): ten clicks on the title unlock Speed Colours
+    for _ in range(10):
+        page.click("[id='title.click']")
+    page.click("[id='menu.settings']")
+    check(STRINGS["settings.speed_colours"] in text(page, "#menus"), "ten clicks on the title unlock Speed Colours in Settings")
     page.click("[id='menu.back']")
 
     # Time Trial (TRIAGE T1, T13): solo, the medal targets, Bronze 1:45.00
