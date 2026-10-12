@@ -46,12 +46,10 @@ impl App {
             "flag.client" => self.online.client_id = value.to_string(),
             "flag.page_url" => self.online.page_url = value.to_string(),
             // opened from an invite link: straight to the room
-            "flag.room_link" => {
-                if online::clean_code(value).is_some() {
-                    self.go(super::Screen::Online);
-                    self.online_act("online.room", value);
-                    self.online_act("online.join", "");
-                }
+            "flag.room_link" if online::clean_code(value).is_some() => {
+                self.go(super::Screen::Online);
+                self.online_act("online.room", value);
+                self.online_act("online.join", "");
             }
             _ => {}
         }
