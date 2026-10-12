@@ -33,6 +33,10 @@ use crate::rules::{
 const MARGIN: i32 = cm(15);
 /// In the air it presses Space this much inside its reach.
 const GRAB_MARGIN: i32 = cm(5);
+/// A flight that crosses the finish line "reaches" this.
+const FINISH: usize = usize::MAX;
+/// It grabs a vine only this far below its anchor or more.
+const GOOD_ROPE: i32 = int(5);
 /// A predicted flight is followed for at most this many ticks.
 const FLIGHT_TICKS: u32 = 2 * TICKS_PER_SECOND as u32;
 /// A plan looks this far ahead along the swing before it tries another
@@ -50,6 +54,12 @@ const LOOK: i32 = int(70);
 const MAX_CANDS: usize = 6;
 /// After this long on one vine with no way on, it lets go forward.
 const GIVE_UP: u32 = 7 * TICKS_PER_SECOND as u32;
+/// Before letting go, it checks the landing has a way on: a second of
+/// swinging there, a release tried every few ticks. A dead end costs this
+/// much score.
+const ONWARD_TICKS: u32 = TICKS_PER_SECOND as u32;
+const ONWARD_STEP: u32 = 6;
+const DEAD_END: i64 = 60 * ONE as i64;
 /// This close to the finish, an ape on the ground runs for it.
 const FINISH_RUN: i32 = int(40);
 /// In the air it aims short of the target vine, back along the next leg, by
@@ -111,6 +121,9 @@ struct Moment {
     next: Option<usize>,
     /// the vine it reaches
     reach: usize,
+    /// whether a way on from that vine has been checked: 0 not yet, 1 there
+    /// is one, 2 there is none
+    onward: u8,
 }
 
 impl Brain {
@@ -232,7 +245,8 @@ fn in_reach(a: &Ape, course: &Course, tick: u32, cands: &[usize], margin: i32) -
         if (a.pos.x - an.x).abs() > reach || (a.pos.z - an.z).abs() > reach {
             continue;
         }
-        if vine_dist(course, i, tick, a.pos) <= reach {
+        // not right up by the anchor: a short rope only whirls round
+        if vine_dist(course, i, tick, a.pos) <= reach && a.pos.dist(an) >= GOOD_ROPE {
             return Some(i);
         }
     }
@@ -340,8 +354,16 @@ fn fly_ahead(
     cands: &[usize],
     mut last_grab: bool,
 ) -> Option<(usize, u32, i32, i32)> {
-    let far = cands.iter().map(|&i| course.vines[i].at).max().unwrap_or(0) + int(8);
+    let mut far = cands.iter().map(|&i| course.vines[i].at).max().unwrap_or(0) + int(8);
+    if course.length - far < int(50) {
+        // the finish line is in range too
+        far = course.length + int(1);
+    }
     for _ in 0..FLIGHT_TICKS {
+        if progress(course, a) >= course.length {
+            // over the line
+            return Some((FINISH, tick, a.vel.flat().len(), int(12)));
+        }
         if a.swinging().is_none() {
             if let Some(v) = in_reach(a, course, tick, cands, MARGIN) {
                 if !last_grab {
@@ -371,11 +393,16 @@ fn fly_ahead(
 
 /// How good a landing is, in metres-ish: further along, faster, and sooner.
 fn score(course: &Course, now: u32, (v, at_tick, speed, rope): (usize, u32, i32, i32)) -> i64 {
-    let at = course.vines[v].at as i64;
+    let at = if v == FINISH {
+        // the finish beats any vine
+        (course.length + int(100)) as i64
+    } else {
+        course.vines[v].at as i64
+    };
     let wait = (at_tick - now) as i64 * ONE as i64 / TICKS_PER_SECOND as i64;
     // a metre along is worth a metre per second of speed kept toward the
-    // vine after, and a second
-    // of waiting costs 20 m; a longer rope makes a bigger swing
+    // vine after, and a second of waiting costs 20 m; a longer rope makes a
+    // bigger swing
     at + speed as i64 - wait * 20 + rope.min(int(12)) as i64 * 3
 }
 
@@ -457,6 +484,7 @@ fn on_vine(a: &Ape, course: &Course, tick: u32, vine: usize, brain: &mut Brain) 
                 target: steer,
                 next,
                 reach: hit.0,
+                onward: 0,
             });
         }
         for _ in 0..MOMENT {
@@ -474,7 +502,20 @@ fn on_vine(a: &Ape, course: &Course, tick: u32, vine: usize, brain: &mut Brain) 
     let best = plan.moments.iter().copied().max_by_key(|m| m.score);
     if let Some(m) = best {
         let covered = plan.sim_tick >= m.tick + COVER || plan.sim_tick >= plan.end;
-        if m.tick == tick && covered {
+        let m = &m;
+        if m.tick == tick && covered && m.onward == 0 && m.pos == a.pos && m.vel == a.vel {
+            // the best so far: is there a way on from where it lands? If
+            // not, count it down and wait for the next best
+            let ok = onward(a, course, tick, &m, &brain.cands);
+            for x in plan.moments.iter_mut().filter(|x| x.tick == tick) {
+                x.onward = if ok { 1 } else { 2 };
+                if !ok {
+                    x.score -= DEAD_END;
+                }
+            }
+        }
+        let best = plan.moments.iter().copied().max_by_key(|m| m.score);
+        if let Some(m) = best.filter(|m| m.tick == tick && covered && m.onward != 0) {
             if m.pos == a.pos && m.vel == a.vel {
                 c = flight_controls(a, course, tick, m.target, m.next, &brain.cands, true);
                 brain.target = Some(m.target);
@@ -501,6 +542,48 @@ fn on_vine(a: &Ape, course: &Course, tick: u32, vine: usize, brain: &mut Brain) 
         }
     }
     c
+}
+
+/// Whether the vine the release at moment `m` lands on has a way on: a
+/// copy flies there, grabs it, and swings for a second, trying releases
+/// toward the vine after.
+fn onward(a: &Ape, course: &Course, tick: u32, m: &Moment, cands: &[usize]) -> bool {
+    if m.reach == FINISH {
+        return true;
+    }
+    let mut s = a.clone();
+    let Some((_, t, _, _)) = fly_ahead(&mut s, course, tick, m.target, m.next, cands, true) else {
+        return false;
+    };
+    let press = Controls {
+        grab: true,
+        ..Controls::default()
+    };
+    s.step(&press, course, t);
+    let Some(held) = s.swinging() else {
+        return false;
+    };
+    let cands = ahead(course, &s, course.vines[held].at, t);
+    let Some(&steer) = cands.first() else {
+        return true;
+    };
+    let next = after(course, &s, steer, t);
+    let mut t = t + 1;
+    for k in 0..ONWARD_TICKS {
+        if k % ONWARD_STEP == 0 {
+            let mut f = s.clone();
+            if fly_ahead(&mut f, course, t, steer, next, &cands, true).is_some() {
+                return true;
+            }
+        }
+        let c = swing_controls(&s, course, t, steer, false);
+        s.step(&c, course, t);
+        if s.swinging().is_none() {
+            return false;
+        }
+        t += 1;
+    }
+    false
 }
 
 /// A search pass's target and whether it swings without pumping.
