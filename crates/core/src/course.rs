@@ -376,7 +376,23 @@ fn build(legs: &[Leg], seed: u64) -> Course {
     // vines spread across the course (left, middle, right lanes, at
     // different heights), so there is always more than one way on; a low
     // vine at every other station lets an ape on the ground climb back up.
-    let mut s = 24;
+    // The start (TRIAGE row 7): a row of vines across the whole platform,
+    // just past its edge, hanging to a metre above the deck, so running off
+    // the edge and grabbing always catches one.
+    let edge = START_LEN / 2 - int(2) + START_LEN / 2 + int(2);
+    for k in -3..=3 {
+        let at = edge + cm(150);
+        let base = c
+            .point(at)
+            .add(right_of(c.heading_at(at)).scale(int(3) * k));
+        c.vines.push(Vine {
+            anchor: v3(base.x, START_HEIGHT + int(14), base.z),
+            length: int(13),
+            slide: None,
+            at,
+        });
+    }
+    let mut s = 32;
     let mut station = 0;
     let mut slides = 0;
     while s < len_m - 30 {
@@ -607,6 +623,36 @@ mod tests {
             })
             .count();
         assert!(off * 2 > c.vines.len(), "{off} of {}", c.vines.len());
+    }
+
+    #[test]
+    fn every_starter_can_run_off_the_platform_and_catch_a_vine() {
+        use crate::ape::{Ape, Controls};
+        use crate::rules::Kind;
+        let c = Course::jungle();
+        for kind in [Kind::Gorilla, Kind::Lemur, Kind::Chimpanzee] {
+            for start in c.starts {
+                let mut ape = Ape::new(kind, false, start, 0);
+                let mut caught = false;
+                for t in 0..360u32 {
+                    // run forward; once past the deck's edge, hold grab
+                    let off_edge = ape.pos.sub(c.path[0]).dot(c.heading[0])
+                        > c.platforms[0].centre.sub(c.path[0]).dot(c.heading[0])
+                            + c.platforms[0].half_len;
+                    let ctl = Controls {
+                        fwd: 1,
+                        grab: off_edge,
+                        ..Controls::default()
+                    };
+                    ape.step(&ctl, &c, t);
+                    if ape.swinging().is_some() {
+                        caught = true;
+                        break;
+                    }
+                }
+                assert!(caught, "{kind:?} from {:?} never caught a vine", start);
+            }
+        }
     }
 
     #[test]
