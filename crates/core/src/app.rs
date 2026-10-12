@@ -591,7 +591,8 @@ impl App {
             _ => (0, 0),
         };
         let colours = crate::sky::colours(scene::SKY, scene::FOG, speed, metres);
-        let view = render::view_values(&cam, self.aspect(), scene::fog_range(), colours);
+        let world = crate::sky::world(speed, metres);
+        let view = render::view_values(&cam, self.aspect(), scene::fog_range(), colours, world);
         let batch = match self.stage {
             Stage::Race => match &self.play {
                 Some(p) => {
@@ -1164,7 +1165,7 @@ mod tests {
             let ui: Value = serde_json::from_str(&a.ui()).unwrap();
             assert!(ui["screen"].is_string());
             let (view, _, _) = a.frame();
-            assert_eq!(view.len(), 27);
+            assert_eq!(view.len(), 31);
             let (statics, _, _) = a.static_scene();
             assert!(!statics.is_empty());
         }

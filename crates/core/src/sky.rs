@@ -54,6 +54,12 @@ pub fn colours(sky: Rgb, fog: Rgb, speed: i32, metres: i32) -> (Rgb, Rgb) {
     (mix(sky, wild, t), mix(fog, mix(wild_fog, fog, ONE / 3), t))
 }
 
+/// The jungle's own wild colour (TRIAGE row 18, a try): the scenery takes
+/// it, by `trip`, as the sky does; the vines, apes and items do not.
+pub fn world(speed: i32, metres: i32) -> (i32, Rgb) {
+    (trip(speed), cycle(metres + STEP_M * 2))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -73,6 +79,13 @@ mod tests {
         assert_eq!(at(121), ONE);
         let (s, _) = colours(sky, fog, int(60), 0);
         assert_ne!(s, sky);
+    }
+
+    #[test]
+    fn the_jungle_changes_with_the_sky() {
+        assert_eq!(world(int(20), 0).0, 0);
+        assert_eq!(world(int(40), 0).0, ONE);
+        assert_ne!(world(int(40), 0).1, world(int(40), STEP_M).1);
     }
 
     #[test]

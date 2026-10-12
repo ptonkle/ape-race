@@ -150,11 +150,21 @@ impl Camera {
 /// The view values the page uploads each frame: the matrix (16), the eye
 /// (3), the fog's start and end distances (2), then the fog's colour (3)
 /// and the sky's (3), which change at top speed (TRIAGE T20).
-pub fn view_values(cam: &Camera, aspect: i32, fog: (i32, i32), colours: (Rgb, Rgb)) -> Vec<i32> {
+pub fn view_values(
+    cam: &Camera,
+    aspect: i32,
+    fog: (i32, i32),
+    colours: (Rgb, Rgb),
+    world: (i32, Rgb),
+) -> Vec<i32> {
     let mut v = cam.matrix(aspect).0.to_vec();
     v.extend([cam.eye.x, cam.eye.y, cam.eye.z, fog.0, fog.1]);
     v.extend(colours.1);
     v.extend(colours.0);
+    // how far the scenery has turned wild (0..ONE), and to which colour
+    // (TRIAGE row 18, a try)
+    v.push(world.0);
+    v.extend(world.1);
     v
 }
 
@@ -185,7 +195,7 @@ pub fn numbers_json() -> String {
         },
         "draw_values": DRAW_VALUES,
         "buffers": { "static": STATIC_BUFFER, "dynamic": DYNAMIC_BUFFER },
-        "view": { "matrix": [0, 16], "eye": [16, 19], "fog": [19, 21], "fog_colour": [21, 24], "sky": [24, 27] },
+        "view": { "matrix": [0, 16], "eye": [16, 19], "fog": [19, 21], "fog_colour": [21, 24], "sky": [24, 27], "trip": 27, "wild": [28, 31] },
         "uniforms": [["uLightDir", 3], ["uLight", 3], ["uSky", 3], ["uFog", 3], ["uGround", 3]],
     })
     .to_string()
