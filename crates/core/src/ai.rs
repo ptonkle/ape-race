@@ -775,6 +775,12 @@ fn use_item(race: &Race, who: usize, c: &mut Controls) {
             }
         }
         Item::Stick => close < STICK_RANGE,
+        // with no vine in reach, on the ground or falling
+        Item::Vine => {
+            a.swinging().is_none()
+                && a.vine_in_reach(course, race.tick).is_none()
+                && (a.mode == Mode::Grounded || a.vel.y < 0)
+        }
     };
     c.item = fire;
 }

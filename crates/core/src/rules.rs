@@ -205,7 +205,16 @@ impl Kind {
 
 /// A Banana flies this fast, on top of the thrower's speed.
 pub const BANANA_SPEED: i32 = int(30);
-pub const BANANA_RADIUS: i32 = cm(70);
+/// A Banana hits an ape within this of its middle (plus the body's radius;
+/// TRIAGE T10: was 0.7 m).
+pub const BANANA_RADIUS: i32 = cm(150);
+/// A Banana homes on the nearest ape within this angle of the aim and this
+/// distance (TRIAGE T10), turning at most this fast, and flies at least this
+/// much faster than its target.
+pub const BANANA_CONE: i32 = crate::fx::deg(30);
+pub const BANANA_SEEK: i32 = int(70);
+pub const BANANA_TURN: i32 = crate::fx::deg(200);
+pub const BANANA_CHASE: i32 = int(15);
 pub const BANANA_LIFE: i32 = secs_to_ticks(250);
 /// A Banana hit: speed kept, and how long the ape is Stunned.
 pub const BANANA_KEEP: i32 = ONE * 60 / 100;
@@ -213,9 +222,9 @@ pub const BANANA_STUN: i32 = secs_to_ticks(70);
 /// A Banana leaves this much above the camera's aim, so it arcs.
 pub const BANANA_LOB: i32 = crate::fx::deg(6);
 
-/// A Stick swing reaches this far, takes this share of speed and knocks the
-/// ape off its vine.
-pub const STICK_RANGE: i32 = cm(350);
+/// A Stick swing reaches this far (TRIAGE T11: was 3.5 m), takes this share
+/// of speed and knocks the ape off its vine.
+pub const STICK_RANGE: i32 = cm(650);
 pub const STICK_KEEP: i32 = ONE * 70 / 100;
 pub const STICK_STUN: i32 = secs_to_ticks(45);
 /// A Stick hit shoves the ape away from the swinger this fast.
@@ -239,6 +248,27 @@ pub const BOOST_GAIN: i32 = int(14);
 /// An item crate gives an item and comes back this long after.
 pub const CRATE_RESPAWN: i32 = secs_to_ticks(400);
 pub const CRATE_RADIUS: i32 = cm(150);
+/// Crates hang on vines (TRIAGE T9): each course crate goes on the nearest
+/// vine within this distance.
+pub const CRATE_VINE_NEAR: i32 = int(40);
+/// With no course crates, every this-many-th vine carries one.
+pub const CRATE_VINE_EVERY: usize = 8;
+
+/// The Vine item (TRIAGE T12): the vine hangs this far ahead along the
+/// motion (the distance covered in `SUMMON_LEAD` seconds, within the
+/// bounds), its anchor this far above the hands, its end this far below
+/// where the hands will be, and it stays this long (and while held).
+pub const SUMMON_LEAD: i32 = ONE * 35 / 100;
+pub const SUMMON_AHEAD_MIN: i32 = cm(250);
+pub const SUMMON_AHEAD_MAX: i32 = int(12);
+pub const SUMMON_RISE: i32 = int(20);
+pub const SUMMON_BELOW: i32 = int(3);
+pub const SUMMON_LIFE: i32 = secs_to_ticks(1200);
+/// Vine slots kept for each ape: a fourth summon replaces its first.
+pub const SUMMON_SLOTS: usize = 3;
+/// An ape with its hands lower than this above the ground counts as low,
+/// for the Vine's odds.
+pub const SUMMON_LOW: i32 = int(8);
 
 #[cfg(test)]
 mod tests {
