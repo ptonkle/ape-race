@@ -23,6 +23,7 @@ pub mod geom;
 pub mod items;
 pub mod mesh;
 pub mod models;
+pub mod online;
 pub mod page;
 pub mod race;
 pub mod render;
