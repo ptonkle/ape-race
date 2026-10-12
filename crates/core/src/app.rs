@@ -30,6 +30,9 @@ const MAX_CATCH_UP: u32 = 12;
 /// `1_000_000` accumulated (the clock is kept in µs × ticks per second).
 const TICK_COST: i64 = 1_000_000;
 
+/// The left mouse button, held as if it were a key.
+const GRAB_BUTTON: &str = "Mouse0";
+
 /// The person's settings, kept in browser storage as this JSON.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default)]
@@ -206,9 +209,18 @@ impl App {
         }
     }
 
+    /// The left button is grab (held, like a key); the right button uses
+    /// the item (TRIAGE row 2).
     pub fn mouse_button(&mut self, button: i32, down: bool) {
-        if button == 0 && down && self.pointer_locked {
-            self.item_pressed = true;
+        match button {
+            0 if down && self.screen == Screen::Race => {
+                self.keys.insert(GRAB_BUTTON.to_string());
+            }
+            0 => {
+                self.keys.remove(GRAB_BUTTON);
+            }
+            2 if down && self.screen == Screen::Race => self.item_pressed = true,
+            _ => {}
         }
     }
 
@@ -250,7 +262,8 @@ impl App {
         Controls {
             fwd,
             side,
-            grab: self.held(&["Space"]),
+            grab: self.held(&[GRAB_BUTTON]),
+            jump: self.held(&["Space"]),
             item: std::mem::take(&mut self.item_pressed),
             yaw,
             pitch,
@@ -481,8 +494,11 @@ impl App {
             self.online_step(p);
         }
         let me = &p.race.racers[p.local];
+        // the course's way forward, a little ahead of the ape
+        let c = &p.race.course;
+        let ahead = c.heading[(me.ape.hint + 8).min(c.heading.len() - 1)];
         p.chase
-            .follow(me.ape.pos, me.ape.vel, self.settings.auto_camera);
+            .follow(me.ape.pos, me.ape.vel, ahead, self.settings.auto_camera);
         if let Some(t) = me.finish {
             if p.since_finish.is_none() {
                 // a personal best is kept with the settings
@@ -608,6 +624,8 @@ impl App {
             "title": self.t("title"),
             "volume": self.settings.volume,
             "no_webgl": self.t("no_webgl"),
+            "speedo_face": crate::speedo::face(),
+            "speedo_needle": crate::speedo::banana(),
             "want_pointer": self.screen == Screen::Race
                 && self.play.as_ref().map(|p| !p.paused).unwrap_or(false),
         });
@@ -664,7 +682,7 @@ impl App {
     }
 
     fn controls_panel(&self) -> Value {
-        let rows: Vec<Value> = ["swing", "grab", "item", "look", "pause"]
+        let rows: Vec<Value> = ["swing", "grab", "jump", "item", "look", "pause"]
             .iter()
             .map(|k| {
                 json!([
@@ -834,6 +852,13 @@ impl App {
             "time": [self.t("hud.time"), clock_text(shown_clock)],
             "best": [self.t("results.best"), self.settings.best.map(clock_text).unwrap_or_else(|| self.t("item.none"))],
             "speed": [self.t("hud.speed"), format!("{} {}", me.ape.speed() / ONE, self.t("hud.unit"))],
+            "speedo": {
+                "value": crate::speedo::kmh(me.ape.speed()).to_string(),
+                "unit": self.t("hud.kmh"),
+                "needle": crate::speedo::needle(crate::speedo::kmh(me.ape.speed())),
+                "hype": crate::speedo::hype(crate::speedo::kmh(me.ape.speed())),
+                "shout": self.t(&format!("hud.hype{}", crate::speedo::hype(crate::speedo::kmh(me.ape.speed())))),
+            },
             "item": [self.t("hud.item"), item],
             "item_key": me.item.map(|i| i.key()).unwrap_or(""),
             "big": big,

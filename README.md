@@ -9,11 +9,11 @@ The design is in [`BRIEF.md`](BRIEF.md) and the build decisions in [`PLAN.md`](P
 | Goal | How |
 | --- | --- |
 | Win | Reach the finish arch first. The course runs about 1.8 km from the start tree and turns both ways. |
-| Swing | Press and **hold Space** near a vine to grab it. Let go to fly. Speed is kept: a grab redirects your speed along the swing, and letting go on the way up adds a little more. |
+| Swing | Press and **hold the left mouse button** near a vine to grab it. Let go to fly. Speed is kept: a grab redirects your speed along the swing, and letting go on the way up adds a little more. |
 | Pump | **W A S D** push the swing the way you are moving, relative to the camera. Pushing against the motion does nothing, so time it with the swing. |
 | Grab timing | A press looks for a vine for a moment. If none comes into reach, it is a **Missed Grab** and Space cannot grab again for a short cooldown (the centre dot turns red). Mashing Space does not work. |
-| The ground | Fall and you run (slowly). Space jumps, and a jump can grab a low vine. Low vines hang every few stations. |
-| Items | Fly through a crate to take an item (one at a time). **Left click** or **E** uses it. **Banana:** thrown where you look; a hit stuns and slows. **Stick:** whacks any ape next to you off its vine. **Hook:** pulls back the nearest ape ahead and pulls you forward. **Speed Boost:** a burst along your motion. |
+| The ground | Fall and you run (slowly). **Space** jumps; click to grab a low vine from the jump. Low vines hang every few stations. |
+| Items | Fly through a crate to take an item (one at a time). **Right click** or **E** uses it. **Banana:** thrown where you look; a hit stuns and slows. **Stick:** whacks any ape next to you off its vine. **Hook:** pulls back the nearest ape ahead and pulls you forward. **Speed Boost:** a burst along your motion. |
 | Apes | Orangutan, Gorilla, Chimpanzee, Gibbon, Proboscis Monkey, Lemur. Five stats: Pump, Top Speed, Reach, Air Control, Weight. Every ape's stats add up to the same total. **Equal Stats** gives every ape the average. |
 | Online | **Online → Host** gives a room code to share; others **Join** with it. Everyone picks an ape and readies up; the host adds AI apes and starts. |
 | Best time | Your fastest finish is kept on this device and shown in the HUD and results. |
@@ -23,8 +23,9 @@ The design is in [`BRIEF.md`](BRIEF.md) and the build decisions in [`PLAN.md`](P
 | Action | Key |
 | --- | --- |
 | Swing, steer | W A S D (or the arrow keys) |
-| Grab (hold) | Space |
-| Use item | Left click or E |
+| Grab (hold) | Left mouse button |
+| Jump (from the ground) | Space |
+| Use item | Right click or E |
 | Look | Mouse (click the 3D view to capture the mouse) |
 | Pause | Esc (online, Esc shows the menu but the race goes on) |
 

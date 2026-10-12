@@ -71,17 +71,26 @@ impl Chase {
         self.pitch = (self.pitch + dpitch).clamp(PITCH_MIN, PITCH_MAX);
     }
 
-    /// One tick: follow the ape at `at` moving at `vel`.
-    pub fn follow(&mut self, at: V3, vel: V3, follow: bool) {
+    /// One tick: follow the ape at `at` moving at `vel`, on a course that
+    /// runs along `ahead` there (a unit vector on the ground).
+    pub fn follow(&mut self, at: V3, vel: V3, ahead: V3, follow: bool) {
         self.prev_eye = self.eye;
         self.prev_target = self.target;
         self.prev_fov = self.fov;
         self.idle = self.idle.saturating_add(1);
         let speed = vel.len();
         let flat = vel.len_xz();
-        // ease back behind the travel, faster when going fast
-        if follow && self.idle > IDLE_TICKS && flat > int(3) {
-            let want = yaw_of(vel);
+        // Ease back to face down the course (TRIAGE row 5: on a backswing
+        // the travel points backwards, which is never useful). The travel
+        // bends the view only when it heads forward, and only by a third.
+        if follow && self.idle > IDLE_TICKS && (flat > int(3) || ahead != V3::ZERO) {
+            let course = yaw_of(ahead);
+            let forward = vel.flat().dot(ahead) > 0 && flat > int(3);
+            let want = if forward {
+                course + fx::wrap(yaw_of(vel) - course) / 3
+            } else {
+                course
+            };
             let diff = fx::wrap(want - self.yaw);
             let rate = (ONE / 120) + mul(ONE / 40, fx::div(speed.min(FAST), FAST));
             self.yaw = fx::wrap(self.yaw + mul(diff, rate));
@@ -140,7 +149,7 @@ mod tests {
         let at = v3(0, int(20), 0);
         let mut c = Chase::new(at, 0);
         for _ in 0..200 {
-            c.follow(at, v3(0, 0, int(10)), true);
+            c.follow(at, v3(0, 0, int(10)), v3(0, 0, ONE), true);
         }
         let cam = c.camera(ONE);
         let (x, y) = cam.screen(ONE * 16 / 9, at).unwrap();
@@ -154,8 +163,8 @@ mod tests {
         let mut slow = Chase::new(at, 0);
         let mut fast = Chase::new(at, 0);
         for _ in 0..300 {
-            slow.follow(at, v3(0, 0, int(2)), true);
-            fast.follow(at, v3(0, 0, int(45)), true);
+            slow.follow(at, v3(0, 0, int(2)), v3(0, 0, ONE), true);
+            fast.follow(at, v3(0, 0, int(45)), v3(0, 0, ONE), true);
         }
         assert!(fast.fov > slow.fov + deg(15));
         assert!(fast.back > slow.back);
@@ -166,16 +175,33 @@ mod tests {
         let at = v3(0, int(20), 0);
         let mut c = Chase::new(at, deg(90));
         for _ in 0..600 {
-            c.follow(at, v3(0, 0, int(20)), true);
+            c.follow(at, v3(0, 0, int(20)), v3(0, 0, ONE), true);
         }
         assert!(fx::wrap(c.yaw).abs() < deg(5), "{}", c.yaw);
         // but a moving mouse holds it
         let mut c = Chase::new(at, deg(90));
         for _ in 0..600 {
             c.turn(1, 0);
-            c.follow(at, v3(0, 0, int(20)), true);
+            c.follow(at, v3(0, 0, int(20)), v3(0, 0, ONE), true);
         }
         assert!(fx::wrap(c.yaw - deg(90)).abs() < deg(5));
+    }
+
+    #[test]
+    fn a_backswing_does_not_turn_the_camera_round() {
+        let at = v3(0, int(20), 0);
+        let mut c = Chase::new(at, 0);
+        // swinging back: moving -z on a course that runs +z
+        for _ in 0..600 {
+            c.follow(at, v3(0, 0, -int(15)), v3(0, 0, ONE), true);
+        }
+        assert!(fx::wrap(c.yaw).abs() < deg(5), "{}", c.yaw);
+        // moving forward and to the side bends it a little that way
+        let mut c = Chase::new(at, 0);
+        for _ in 0..600 {
+            c.follow(at, v3(int(20), 0, int(20)), v3(0, 0, ONE), true);
+        }
+        assert!(c.yaw > deg(10) && c.yaw < deg(20), "{}", c.yaw);
     }
 
     #[test]
@@ -184,7 +210,7 @@ mod tests {
         let mut c = Chase::new(at, 0);
         c.turn(0, deg(40));
         for _ in 0..50 {
-            c.follow(at, V3::ZERO, true);
+            c.follow(at, V3::ZERO, v3(0, 0, ONE), true);
         }
         assert!(c.eye.y >= ground(c.eye.x, c.eye.z) + cm(80) - 2);
     }
