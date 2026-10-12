@@ -1,6 +1,6 @@
 //! The AI on the jungle course (PLAN P12, and P7's race length).
 
-use tool_core::ai::{trial, Trial};
+use tool_core::ai::{trial, trial_at, Brain, Difficulty, Trial};
 use tool_core::course::Course;
 use tool_core::fx::ONE;
 use tool_core::rules::{Kind, TICKS_PER_SECOND};
@@ -85,4 +85,89 @@ fn finish_times_over_course_seeds() {
         times[times.len() / 2],
         times[times.len() - 1]
     );
+}
+
+/// Finish times per difficulty over eight layouts (TRIAGE T14): for tuning
+/// the levels' spacing.
+#[test]
+#[ignore]
+fn difficulty_report_over_course_seeds() {
+    for level in Difficulty::ALL {
+        let mut times = Vec::new();
+        for k in 0..8u64 {
+            let course = if k == 0 {
+                Course::jungle()
+            } else {
+                Course::jungle_seeded(0x0A9E_2ACE_0001 + k * 7919)
+            };
+            for kind in [Kind::Chimpanzee, Kind::Gorilla, Kind::Gibbon] {
+                let t = trial_at(
+                    course.clone(),
+                    &[kind],
+                    &[level],
+                    kind == Kind::Chimpanzee,
+                    LIMIT,
+                );
+                times.push(t[0].finish.map(secs).unwrap_or(f64::INFINITY));
+            }
+        }
+        let mean = times.iter().sum::<f64>() / times.len() as f64;
+        times.sort_by(|a, b| a.partial_cmp(b).unwrap());
+        println!(
+            "{:<10} best {:>6.1} s  median {:>6.1} s  mean {:>6.1} s  worst {:>6.1} s",
+            level.key(),
+            times[0],
+            times[times.len() / 2],
+            mean,
+            times[times.len() - 1]
+        );
+    }
+}
+
+/// The difficulties (TRIAGE T14) are ordered and spaced: over three layouts
+/// (one Chimpanzee, Equal Stats), each easier level's mean finish is at
+/// least `GAP` slower than the next harder's, and every race finishes
+/// inside the limit.
+#[test]
+fn difficulties_are_ordered_and_spaced() {
+    const GAP: f64 = 6.0;
+    let courses = [
+        Course::jungle(),
+        Course::jungle_seeded(0x0A9E_2ACE_0001 + 7919),
+        Course::jungle_seeded(0x0A9E_2ACE_0001 + 2 * 7919),
+    ];
+    let mut means = Vec::new();
+    for level in Difficulty::ALL {
+        let mut row = Vec::new();
+        for course in &courses {
+            let t = trial_at(course.clone(), &[Kind::Chimpanzee], &[level], true, LIMIT);
+            let f = t[0].finish.unwrap_or_else(|| {
+                panic!("{} finishes (at {} m)", level.key(), t[0].progress / ONE)
+            });
+            row.push(secs(f));
+        }
+        let mean = row.iter().sum::<f64>() / row.len() as f64;
+        println!("{:<10} {row:.1?} mean {mean:.1} s", level.key());
+        means.push(mean);
+    }
+    for (i, w) in means.windows(2).enumerate() {
+        assert!(
+            w[0] >= w[1] + GAP,
+            "{} ({:.1} s) is not {GAP} s slower than {} ({:.1} s)",
+            Difficulty::ALL[i].key(),
+            w[0],
+            Difficulty::ALL[i + 1].key(),
+            w[1]
+        );
+    }
+}
+
+#[test]
+fn difficulty_keys_round_trip_and_the_default_is_the_best() {
+    for d in Difficulty::ALL {
+        assert_eq!(Difficulty::from_key(d.key()), Some(d));
+    }
+    assert_eq!(Difficulty::from_key("gorilla_glue"), None);
+    assert_eq!(Difficulty::default(), Difficulty::KingKong);
+    assert_eq!(Brain::default().difficulty, Difficulty::KingKong);
 }

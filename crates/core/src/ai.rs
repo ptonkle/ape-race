@@ -19,6 +19,8 @@
 //! - **On the ground** (or the start platform) it runs at the nearest vine it
 //!   can jump to, and jumps when a copy of itself jumping now would grab one.
 //! - **Items**: simple moments for each (see [`use_item`]).
+//! - **Difficulty**: [`Difficulty`] handicaps all of the above for the
+//!   easier levels; [`Difficulty::KingKong`] (the default) is the full AI.
 //!
 //! Call [`think`] for ape `who` just before `Race::step`. [`trial`] runs AI
 //! apes alone on a course, for the tests and for tuning (finish times,
@@ -26,7 +28,7 @@
 
 use crate::ape::{Ape, Controls, Happening, Mode};
 use crate::course::{ground, Course};
-use crate::fx::{cm, int, ONE};
+use crate::fx::{cm, int, Dice, ONE};
 use crate::geom::{pitch_of, v3, yaw_of, V3};
 use crate::race::{Driver, Entry, Item, Race};
 use crate::rules::{
@@ -59,8 +61,6 @@ const LOOK: i32 = int(70);
 const MAX_CANDS: usize = 10;
 /// A search tries steering for this many of them in turn.
 const STEERS: usize = 3;
-/// The hop it likes best, metres.
-const IDEAL_HOP: i32 = int(28);
 /// After this long on one vine with no way on, it lets go forward.
 const GIVE_UP: u32 = 7 * TICKS_PER_SECOND as u32;
 /// Before letting go, it checks the landing has a way on: a second of
@@ -82,9 +82,122 @@ const LEAD: i32 = 2;
 /// Within this distance it aims at the vine itself.
 const LEAD_NEAR: i32 = int(8);
 
+/// How well an AI drives (TRIAGE T14). The top level is the AI at its best;
+/// each level below handicaps it through the same controls: weaker arms (on
+/// a vine it holds W only part of the time, and plans with that, so its
+/// plans stay exact), a reaction time on each vine before it may let go
+/// (with jitter), a liking for shorter hops (more vines on the way), a
+/// random error on how good each release looks (so it sometimes takes a
+/// worse one, and a worse vine), and a wait before it uses an item. Stuck
+/// on one vine for two seconds, any level swings with all it has, so even
+/// the easiest finishes. All of it is deterministic, from the brain's seed.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Default)]
+pub enum Difficulty {
+    Sloth,
+    Monkey,
+    Ape,
+    /// the AI at its best (and the default)
+    #[default]
+    KingKong,
+}
+
+impl Difficulty {
+    /// Easiest first.
+    pub const ALL: [Difficulty; 4] = [
+        Difficulty::Sloth,
+        Difficulty::Monkey,
+        Difficulty::Ape,
+        Difficulty::KingKong,
+    ];
+
+    pub fn key(self) -> &'static str {
+        match self {
+            Difficulty::Sloth => "sloth",
+            Difficulty::Monkey => "monkey",
+            Difficulty::Ape => "ape",
+            Difficulty::KingKong => "king_kong",
+        }
+    }
+
+    pub fn from_key(k: &str) -> Option<Difficulty> {
+        Difficulty::ALL.into_iter().find(|d| d.key() == k)
+    }
+
+    fn tuning(self) -> Tuning {
+        let second = TICKS_PER_SECOND as u32;
+        match self {
+            Difficulty::Sloth => Tuning {
+                ideal_hop: int(22),
+                hesitate: 16,
+                jitter: 16,
+                noise: int(6),
+                drive: 2,
+                item_wait: 6 * second,
+            },
+            Difficulty::Monkey => Tuning {
+                ideal_hop: int(24),
+                hesitate: 12,
+                jitter: 12,
+                noise: int(4),
+                drive: 3,
+                item_wait: 3 * second,
+            },
+            Difficulty::Ape => Tuning {
+                ideal_hop: int(26),
+                hesitate: 6,
+                jitter: 6,
+                noise: int(3),
+                drive: 5,
+                item_wait: second,
+            },
+            Difficulty::KingKong => Tuning {
+                ideal_hop: int(28),
+                hesitate: 0,
+                jitter: 0,
+                noise: 0,
+                drive: DUTY,
+                item_wait: 0,
+            },
+        }
+    }
+}
+
+/// A difficulty's handicaps.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct Tuning {
+    /// the hop it likes best, metres
+    ideal_hop: i32,
+    /// on a vine it holds W this many ticks of every [`DUTY`] (weaker arms)
+    drive: u32,
+    /// it lets go of a vine no sooner than this many ticks after the grab,
+    /// plus up to `jitter` more (drawn on each grab)
+    hesitate: u32,
+    jitter: u32,
+    /// each release moment's score is off by up to this much either way,
+    /// so it sometimes takes a worse one (and so a worse vine)
+    noise: i32,
+    /// it holds an item this many ticks before it thinks of using it
+    item_wait: u32,
+}
+
+/// The drive pattern's length, ticks.
+const DUTY: u32 = 8;
+/// After this long on one vine any AI drives its swing in full.
+const STRUGGLE: u32 = 2 * TICKS_PER_SECOND as u32;
+
 /// What an AI remembers between ticks.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Brain {
+    /// how well it drives
+    pub difficulty: Difficulty,
+    /// its own dice, for the handicaps
+    dice: Dice,
+    /// the first tick it may let go of the vine it holds
+    ready: u32,
+    /// when it grabbed the vine it holds
+    grabbed: u32,
+    /// the tick it got the item it holds
+    item_since: Option<u32>,
     /// the vine it is heading for
     pub target: Option<usize>,
     /// the vine after that, to line up for
@@ -147,14 +260,44 @@ struct Moment {
 }
 
 impl Brain {
-    pub fn new() -> Brain {
-        Brain::default()
+    /// A brain at `difficulty`, its handicaps drawn from `seed` (say, the
+    /// race's dice and the ape's index; any seed gives the same AI at the
+    /// top level).
+    pub fn new(difficulty: Difficulty, seed: u64) -> Brain {
+        Brain {
+            difficulty,
+            dice: Dice(seed),
+            ready: 0,
+            grabbed: 0,
+            item_since: None,
+            target: None,
+            next: None,
+            cands: Vec::new(),
+            plan: None,
+            last_grab: false,
+            last_jump: false,
+            replans: 0,
+            expect: None,
+            hits: 0,
+            misses: 0,
+            give_ups: 0,
+            avoid: None,
+            left: None,
+        }
+    }
+}
+
+/// The AI at its best ([`Difficulty::KingKong`]).
+impl Default for Brain {
+    fn default() -> Brain {
+        Brain::new(Difficulty::default(), 0)
     }
 }
 
 /// This tick's controls for AI ape `who`. Call it just before `Race::step`.
 pub fn think(race: &Race, who: usize, brain: &mut Brain) -> Controls {
     let tick = race.tick + 1;
+    let tune = brain.difficulty.tuning();
     let r = &race.racers[who];
     let ape = &r.ape;
     let course = &race.course;
@@ -183,10 +326,10 @@ pub fn think(race: &Race, who: usize, brain: &mut Brain) -> Controls {
                 brain.plan = None;
                 if brain.cands.is_empty() {
                     let at = progress(course, ape) - int(4);
-                    brain.cands = ahead(course, ape, at, tick);
+                    brain.cands = ahead(course, ape, at, tick, tune);
                     brain.cands.retain(|&v| Some(v) != brain.left);
                     brain.target = brain.cands.first().copied();
-                    brain.next = brain.target.and_then(|t| after(course, ape, t, tick));
+                    brain.next = brain.target.and_then(|t| after(course, ape, t, tick, tune));
                 }
                 let target = brain.target.unwrap_or(0);
                 let next = brain.next;
@@ -206,7 +349,20 @@ pub fn think(race: &Race, who: usize, brain: &mut Brain) -> Controls {
             }
         }
     };
-    if race.running() && r.finish.is_none() && r.item.is_some() && ape.swinging().is_none() {
+    // it holds an item a while (by difficulty) before it thinks of using it
+    let since = match r.item {
+        Some(_) => *brain.item_since.get_or_insert(tick),
+        None => {
+            brain.item_since = None;
+            tick
+        }
+    };
+    if race.running()
+        && r.finish.is_none()
+        && r.item.is_some()
+        && ape.swinging().is_none()
+        && tick >= since + tune.item_wait
+    {
         use_item(race, who, &mut c);
     }
     brain.last_grab = c.grab;
@@ -221,7 +377,7 @@ fn progress(course: &Course, a: &Ape) -> i32 {
 
 /// Vines ahead of `from` (metres along), the good ones first (well ahead
 /// and not low), best lying first; then the rest, nearest first.
-fn ahead(course: &Course, a: &Ape, from: i32, tick: u32) -> Vec<usize> {
+fn ahead(course: &Course, a: &Ape, from: i32, tick: u32, tune: Tuning) -> Vec<usize> {
     let v = a.vel.flat();
     let dir = if v.len() > int(5) {
         v.norm()
@@ -237,6 +393,7 @@ fn ahead(course: &Course, a: &Ape, from: i32, tick: u32) -> Vec<usize> {
         v3(a.pos.x, top, a.pos.z),
         dir,
         tick,
+        tune,
     )
 }
 
@@ -249,6 +406,7 @@ fn ahead_from(
     origin: V3,
     dir: V3,
     tick: u32,
+    tune: Tuning,
 ) -> Vec<usize> {
     let mut good = Vec::new();
     let mut rest = Vec::new();
@@ -272,7 +430,7 @@ fn ahead_from(
         let lat = d.sub(dir.scale(along)).len();
         // and a vine that hangs out of reach above costs four times over
         let above = (course.anchor(i, tick).y - course.vines[i].length - origin.y).max(0);
-        lat as i64 * 3 + (along - IDEAL_HOP).abs() as i64 + above as i64 * 4
+        lat as i64 * 3 + (along - tune.ideal_hop).abs() as i64 + above as i64 * 4
     });
     rest.sort_by_key(|&i| course.vines[i].at);
     good.extend(rest);
@@ -281,7 +439,7 @@ fn ahead_from(
 }
 
 /// The vine to make for after `target`.
-fn after(course: &Course, a: &Ape, target: usize, tick: u32) -> Option<usize> {
+fn after(course: &Course, a: &Ape, target: usize, tick: u32, tune: Tuning) -> Option<usize> {
     let at = course.anchor(target, tick);
     let dir = at.flat().sub(a.pos.flat());
     let dir = if dir.len() > int(2) {
@@ -289,9 +447,17 @@ fn after(course: &Course, a: &Ape, target: usize, tick: u32) -> Option<usize> {
     } else {
         course.heading_at(course.vines[target].at)
     };
-    ahead_from(course, Some(target), course.vines[target].at, at, dir, tick)
-        .first()
-        .copied()
+    ahead_from(
+        course,
+        Some(target),
+        course.vines[target].at,
+        at,
+        dir,
+        tick,
+        tune,
+    )
+    .first()
+    .copied()
 }
 
 /// How far the hands at `p` are from vine `i`.
@@ -331,10 +497,18 @@ fn in_reach(
 /// target and turns a backswing round, and its part across the motion
 /// steers the swing's plane onto the line. `coast` holds nothing (a search
 /// pass that lets the swing run free).
-fn swing_controls(a: &Ape, course: &Course, tick: u32, target: usize, coast: bool) -> Controls {
+fn swing_controls(
+    a: &Ape,
+    course: &Course,
+    tick: u32,
+    target: usize,
+    coast: bool,
+    tune: Tuning,
+) -> Controls {
     let to = course.anchor(target, tick).flat().sub(a.pos.flat());
+    let drive = !coast && tick % DUTY < tune.drive;
     Controls {
-        fwd: if coast { 0 } else { 1 },
+        fwd: if drive { 1 } else { 0 },
         yaw: yaw_of(to),
         grab: true,
         ..Controls::default()
@@ -399,6 +573,7 @@ fn fly_ahead(
     next: Option<usize>,
     cands: &[usize],
     mut last_grab: bool,
+    tune: Tuning,
 ) -> Option<(usize, u32, i32, i32)> {
     let mut far = cands.iter().map(|&i| course.vines[i].at).max().unwrap_or(0) + int(8);
     if course.length - far < int(50) {
@@ -416,7 +591,7 @@ fn fly_ahead(
                     let rope = a.pos.dist(course.anchor(v, tick));
                     // the speed that will carry on toward the vine after
                     // (a swing keeps its heading)
-                    let on = match after(course, a, v, tick) {
+                    let on = match after(course, a, v, tick, tune) {
                         Some(n) => course.anchor(n, tick).flat().sub(a.pos.flat()),
                         None => course.heading_at(course.vines[v].at),
                     };
@@ -453,9 +628,20 @@ fn score(course: &Course, now: u32, (v, at_tick, speed, rope): (usize, u32, i32,
 }
 
 fn on_vine(a: &Ape, course: &Course, tick: u32, vine: usize, brain: &mut Brain) -> Controls {
+    let mut tune = brain.difficulty.tuning();
     let fresh = a.happened.contains(&Happening::Grab);
     if fresh && brain.avoid != Some(vine) {
         brain.avoid = None;
+    }
+    if fresh {
+        // its reaction time on this vine
+        brain.grabbed = tick;
+        brain.ready = tick + tune.hesitate + brain.dice.below(tune.jitter + 1);
+    }
+    if tick.saturating_sub(brain.grabbed) > STRUGGLE {
+        // stuck on this vine: a weak swing may never get it out, so it
+        // swings with all it has
+        tune.drive = DUTY;
     }
     let stale = match &brain.plan {
         Some(p) => p.vine != vine || fresh,
@@ -463,7 +649,7 @@ fn on_vine(a: &Ape, course: &Course, tick: u32, vine: usize, brain: &mut Brain) 
     };
     if stale {
         let from = course.vines[vine].at;
-        brain.cands = ahead(course, a, from, tick);
+        brain.cands = ahead(course, a, from, tick, tune);
         brain.target = brain.cands.first().copied();
         brain.plan = Some(Box::new(Plan {
             vine,
@@ -478,7 +664,7 @@ fn on_vine(a: &Ape, course: &Course, tick: u32, vine: usize, brain: &mut Brain) 
     if brain.cands.is_empty() {
         // nothing ahead: the finish. Swing on and let go forward.
         let h = course.heading_at(progress(course, a));
-        let mut c = swing_controls(a, course, tick, vine, false);
+        let mut c = swing_controls(a, course, tick, vine, false, tune);
         c.yaw = yaw_of(h);
         c.grab = !(a.vel.y > 0 && a.vel.flat().dot(h) > 0);
         return c;
@@ -517,7 +703,7 @@ fn on_vine(a: &Ape, course: &Course, tick: u32, vine: usize, brain: &mut Brain) 
             break;
         }
         let (steer, coast) = pick(&brain.cands, plan.pick);
-        let next = after(course, a, steer, tick);
+        let next = after(course, a, steer, tick, tune);
         let mut fl = plan.sim.clone();
         let hit = fly_ahead(
             &mut fl,
@@ -527,11 +713,14 @@ fn on_vine(a: &Ape, course: &Course, tick: u32, vine: usize, brain: &mut Brain) 
             next,
             &brain.cands,
             true,
+            tune,
         );
-        if let Some(hit) = hit {
+        if let Some(hit) = hit.filter(|_| plan.sim_tick >= brain.ready) {
+            // a weaker AI misjudges how good a moment is
+            let error = brain.dice.range(-tune.noise, tune.noise) as i64;
             plan.moments.push(Moment {
                 tick: plan.sim_tick,
-                score: score(course, plan.began, hit),
+                score: score(course, plan.began, hit) + error,
                 pos: plan.sim.pos,
                 vel: plan.sim.vel,
                 target: steer,
@@ -541,7 +730,7 @@ fn on_vine(a: &Ape, course: &Course, tick: u32, vine: usize, brain: &mut Brain) 
             });
         }
         for _ in 0..MOMENT {
-            let c = swing_controls(&plan.sim, course, plan.sim_tick, steer, coast);
+            let c = swing_controls(&plan.sim, course, plan.sim_tick, steer, coast, tune);
             plan.sim.step(&c, course, plan.sim_tick);
             plan.sim_tick += 1;
         }
@@ -549,7 +738,7 @@ fn on_vine(a: &Ape, course: &Course, tick: u32, vine: usize, brain: &mut Brain) 
     plan.moments.retain(|m| m.tick >= tick);
     let (steer, coast) = pick(&brain.cands, plan.pick);
     brain.target = Some(steer);
-    let mut c = swing_controls(a, course, tick, steer, coast);
+    let mut c = swing_controls(a, course, tick, steer, coast, tune);
 
     // the best moment still to come; let go if it is now
     let best = plan.moments.iter().copied().max_by_key(|m| m.score);
@@ -559,7 +748,7 @@ fn on_vine(a: &Ape, course: &Course, tick: u32, vine: usize, brain: &mut Brain) 
         if m.tick == tick && covered && m.onward == 0 && m.pos == a.pos && m.vel == a.vel {
             // the best so far: is there a way on from where it lands? If
             // not, count it down and wait for the next best
-            let ok = onward(a, course, tick, m, &brain.cands);
+            let ok = onward(a, course, tick, m, &brain.cands, tune);
             for x in plan.moments.iter_mut().filter(|x| x.tick == tick) {
                 x.onward = if ok { 1 } else { 2 };
                 if !ok {
@@ -600,12 +789,13 @@ fn on_vine(a: &Ape, course: &Course, tick: u32, vine: usize, brain: &mut Brain) 
 /// Whether the vine the release at moment `m` lands on has a way on: a
 /// copy flies there, grabs it, and swings for a second, trying releases
 /// toward the vine after.
-fn onward(a: &Ape, course: &Course, tick: u32, m: &Moment, cands: &[usize]) -> bool {
+fn onward(a: &Ape, course: &Course, tick: u32, m: &Moment, cands: &[usize], tune: Tuning) -> bool {
     if m.reach == FINISH {
         return true;
     }
     let mut s = a.clone();
-    let Some((_, t, _, _)) = fly_ahead(&mut s, course, tick, m.target, m.next, cands, true) else {
+    let Some((_, t, _, _)) = fly_ahead(&mut s, course, tick, m.target, m.next, cands, true, tune)
+    else {
         return false;
     };
     let press = Controls {
@@ -616,19 +806,19 @@ fn onward(a: &Ape, course: &Course, tick: u32, m: &Moment, cands: &[usize]) -> b
     let Some(held) = s.swinging() else {
         return false;
     };
-    let cands = ahead(course, &s, course.vines[held].at, t);
+    let cands = ahead(course, &s, course.vines[held].at, t, tune);
     let Some(&steer) = cands.first() else {
         return true;
     };
-    let next = after(course, &s, steer, t);
+    let next = after(course, &s, steer, t, tune);
     for (t, k) in (t + 1..).zip(0..ONWARD_TICKS) {
         if k % ONWARD_STEP == 0 {
             let mut f = s.clone();
-            if fly_ahead(&mut f, course, t, steer, next, &cands, true).is_some() {
+            if fly_ahead(&mut f, course, t, steer, next, &cands, true, tune).is_some() {
                 return true;
             }
         }
-        let c = swing_controls(&s, course, t, steer, false);
+        let c = swing_controls(&s, course, t, steer, false, tune);
         s.step(&c, course, t);
         if s.swinging().is_none() {
             return false;
@@ -667,6 +857,7 @@ fn near(course: &Course, a: &Ape, tick: u32) -> Vec<usize> {
 /// On the ground or the start platform: run at a vine that can be jumped
 /// to, and jump when a copy of the ape jumping now would grab one.
 fn on_ground(a: &Ape, course: &Course, tick: u32, brain: &mut Brain) -> Controls {
+    let tune = brain.difficulty.tuning();
     let prog = progress(course, a);
     let support = course.support(a.pos);
     let raised = support > ground(a.pos.x, a.pos.z) + int(3);
@@ -704,7 +895,7 @@ fn on_ground(a: &Ape, course: &Course, tick: u32, brain: &mut Brain) -> Controls
     };
     let to = course.anchor(t, tick).flat().sub(a.pos.flat());
     c.yaw = yaw_of(to);
-    brain.cands = ahead(course, a, prog - int(20), tick);
+    brain.cands = ahead(course, a, prog - int(20), tick, tune);
     if !brain.cands.contains(&t) {
         brain.cands.insert(0, t);
     }
@@ -715,9 +906,9 @@ fn on_ground(a: &Ape, course: &Course, tick: u32, brain: &mut Brain) -> Controls
     let mut j = a.clone();
     let jump = Controls { jump: true, ..c };
     j.step(&jump, course, tick);
-    let next = after(course, a, t, tick);
+    let next = after(course, a, t, tick, tune);
     brain.next = next;
-    if fly_ahead(&mut j, course, tick + 1, t, next, &brain.cands, false).is_some() {
+    if fly_ahead(&mut j, course, tick + 1, t, next, &brain.cands, false, tune).is_some() {
         c.jump = true;
     } else if !raised && to.len() < cm(40) {
         // right under it and still no: jump anyway
@@ -775,6 +966,9 @@ fn use_item(race: &Race, who: usize, c: &mut Controls) {
             }
         }
         Item::Stick => close < STICK_RANGE,
+        // an item added after this AI was written: it just uses it
+        #[allow(unreachable_patterns)]
+        _ => true,
     };
     c.item = fire;
 }
@@ -800,6 +994,19 @@ pub struct Trial {
 /// Runs a race of AI apes alone on `course` for at most `limit` race ticks,
 /// for tests and tuning: finish times and typical speeds.
 pub fn trial(course: Course, kinds: &[Kind], equal: bool, limit: u32) -> Vec<Trial> {
+    let levels = vec![Difficulty::default(); kinds.len()];
+    trial_at(course, kinds, &levels, equal, limit)
+}
+
+/// [`trial`] with each ape at its own difficulty (`levels[i]` for
+/// `kinds[i]`), each brain seeded from its index.
+pub fn trial_at(
+    course: Course,
+    kinds: &[Kind],
+    levels: &[Difficulty],
+    equal: bool,
+    limit: u32,
+) -> Vec<Trial> {
     let entries: Vec<Entry> = kinds
         .iter()
         .map(|&kind| Entry {
@@ -809,7 +1016,9 @@ pub fn trial(course: Course, kinds: &[Kind], equal: bool, limit: u32) -> Vec<Tri
         })
         .collect();
     let mut race = Race::new(course, &entries, equal, 7);
-    let mut brains = vec![Brain::new(); kinds.len()];
+    let mut brains: Vec<Brain> = (0..kinds.len())
+        .map(|i| Brain::new(levels[i], 0xA9E5 + i as u64))
+        .collect();
     let mut out: Vec<Trial> = kinds
         .iter()
         .map(|&kind| Trial {
