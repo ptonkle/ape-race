@@ -95,7 +95,7 @@ fn steering_turns_the_swing_and_adds_no_speed_when_fast() {
         let mut ape = hanging(&c, 0);
         ape.phys.drag = 0;
         // fast, past the drive's fade: steering can only turn
-        ape.vel = v3(0, 0, DRIVE_FADE_SPEED + int(2));
+        ape.vel = v3(0, 0, ape.phys.drive_fade + int(2));
         let mut fastest = 0;
         for t in 0..60 {
             let ctl = Controls { side, ..held() };
@@ -140,6 +140,27 @@ fn holding_w_from_a_dead_hang_swings_forward_and_never_back() {
         turned |= back.vel.z > 0;
     }
     assert!(turned);
+}
+
+#[test]
+fn every_ape_starts_from_a_standstill_alike() {
+    // TRIAGE row 10: restarting is never harder for one kind of ape
+    let c = one_vine();
+    let start = |kind: Kind| {
+        let a = c.vines[0].anchor;
+        let rope = int(12);
+        let mut ape = Ape::new(kind, false, a.sub(v3(0, rope, 0)), 0);
+        ape.mode = Mode::Swinging { vine: 0, rope };
+        let ctl = Controls { fwd: 1, ..held() };
+        for t in 0..30 {
+            ape.step(&ctl, &c, t);
+        }
+        ape.speed()
+    };
+    let lemur = start(Kind::Lemur);
+    for k in Kind::ALL {
+        assert!((start(k) - lemur).abs() < ONE / 2, "{k:?}");
+    }
 }
 
 #[test]

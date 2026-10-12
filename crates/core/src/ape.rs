@@ -223,14 +223,12 @@ impl Ape {
         self.happened.push(Happening::Release);
     }
 
-    /// The swing's drive now: full at rest, fading to nothing at Drive
-    /// Fade Speed (TRIAGE row 8).
+    /// The swing's drive now: full at rest (the same for every ape),
+    /// fading to nothing at the ape's drive fade speed (TRIAGE rows 8, 10).
     fn drive_now(&self) -> i32 {
-        let speed = self.vel.len().min(DRIVE_FADE_SPEED);
-        mul(
-            self.phys.pump,
-            fx::div(DRIVE_FADE_SPEED - speed, DRIVE_FADE_SPEED),
-        )
+        let fade = self.phys.drive_fade.max(ONE);
+        let speed = self.vel.len().min(fade);
+        mul(self.phys.pump, fx::div(fade - speed, fade))
     }
 
     fn drag(&mut self) {
