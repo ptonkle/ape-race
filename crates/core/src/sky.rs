@@ -20,7 +20,7 @@ const CYCLE: [Rgb; 5] = [
 const STEP_M: i32 = int(25);
 /// km/h over the redline at which the sky is fully changed: it builds
 /// with the exact speed all the way up (TRIAGE row 15, a try).
-const RAMP_KMH: i32 = 60;
+const RAMP_KMH: i32 = 30;
 
 /// How changed the sky is, 0..=ONE, from a speed in Q16 m/s: zero at the
 /// redline, eased in (smoothstep) to full at the redline + `RAMP_KMH`.
@@ -67,10 +67,10 @@ mod tests {
         assert_eq!(colours(sky, fog, fast, 77), (sky, fog));
         assert_eq!(trip(int(85) * 10 / 36), 0);
         // past the redline (90 km/h, a person's best) it builds with the
-        // exact speed, full 60 km/h above
+        // exact speed, full 30 km/h above (TRIAGE row 17)
         let at = |kmh: i32| trip(int(kmh) * 10 / 36);
-        assert!(at(100) > 0 && at(100) < at(120) && at(120) < at(140) && at(140) < ONE);
-        assert_eq!(at(155), ONE);
+        assert!(at(95) > 0 && at(95) < at(105) && at(105) < at(115) && at(115) < ONE);
+        assert_eq!(at(121), ONE);
         let (s, _) = colours(sky, fog, int(60), 0);
         assert_ne!(s, sky);
     }
