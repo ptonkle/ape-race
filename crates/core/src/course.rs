@@ -625,7 +625,13 @@ mod tests {
             assert!(here.len() >= 2, "{} m: {} vines", from / ONE, here.len());
             let lo = here.iter().map(|v| side(v)).min().unwrap();
             let hi = here.iter().map(|v| side(v)).max().unwrap();
-            assert!(hi - lo >= int(6), "{} m: lanes {} to {}", from / ONE, lo / ONE, hi / ONE);
+            assert!(
+                hi - lo >= int(6),
+                "{} m: lanes {} to {}",
+                from / ONE,
+                lo / ONE,
+                hi / ONE
+            );
             let low = c.vines.iter().any(|v| {
                 (v.at - from).abs() < int(40)
                     && v.anchor.y - v.length - ground(v.anchor.x, v.anchor.z) < int(4)
