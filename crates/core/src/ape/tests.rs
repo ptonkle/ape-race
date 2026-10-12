@@ -296,11 +296,29 @@ fn a_grab_keeps_most_of_the_speed() {
     let before = ape.speed();
     ape.step(&held(), &c, 0);
     assert!(ape.swinging().is_some());
-    assert!(
-        ape.speed() >= mul(before, GRAB_KEEP) - ONE / 2,
-        "{before} -> {}",
-        ape.speed()
+    // moving across the rope: it keeps (nearly) all of it
+    assert!(ape.speed() >= before - ONE, "{before} -> {}", ape.speed());
+}
+
+#[test]
+fn a_mistimed_grab_costs_speed() {
+    // TRIAGE row 23: flying straight up toward the anchor, most of the speed
+    // is along the rope, and Grab Keep keeps only half of that part
+    let c = one_vine();
+    let a = c.vines[0].anchor;
+    let mut ape = Ape::new(
+        Kind::Chimpanzee,
+        true,
+        v3(a.x + int(2), a.y - int(8), a.z),
+        0,
     );
+    ape.mode = Mode::Flying;
+    ape.vel = v3(0, int(20), int(2));
+    let before = ape.speed();
+    ape.step(&held(), &c, 0);
+    assert!(ape.swinging().is_some());
+    assert!(ape.speed() < before * 7 / 10, "{before} -> {}", ape.speed());
+    assert!(ape.speed() > before * 4 / 10, "{before} -> {}", ape.speed());
 }
 
 #[test]

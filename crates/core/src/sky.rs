@@ -17,15 +17,17 @@ const CYCLE: [Rgb; 5] = [
 ];
 /// Metres travelled per colour: the colours turn with the ground covered,
 /// so they spin faster the faster the ape goes (TRIAGE row 15, a try).
-const STEP_M: i32 = int(25);
+const STEP_M: i32 = int(60);
 /// km/h over the redline at which the sky is fully changed: it builds
 /// with the exact speed all the way up (TRIAGE row 15, a try).
-const RAMP_KMH: i32 = 25;
+const RAMP_KMH: i32 = 40;
+/// The colours start here (TRIAGE row 22: a wider, gentler ramp).
+const FROM_KMH: i32 = 70;
 
 /// How changed the sky is, 0..=ONE, from a speed in Q16 m/s: zero at the
 /// redline, eased in (smoothstep) to full at the redline + `RAMP_KMH`.
 pub fn trip(speed: i32) -> i32 {
-    let over = speedo::kmh(speed) - speedo::REDLINE_KMH;
+    let over = speedo::kmh(speed) - FROM_KMH;
     if over <= 0 {
         return 0;
     }
@@ -80,19 +82,19 @@ mod tests {
         // a good ordinary pace (65 km/h across the ground) leaves it alone
         let fast = int(65) * 10 / 36;
         assert_eq!(colours(sky, fog, fast, 77), (sky, fog));
-        assert_eq!(trip(int(72) * 10 / 36), 0);
-        // past the redline (75 km/h across the ground) it builds with the
-        // exact speed, full 25 km/h above (TRIAGE rows 17 and 19)
+        assert_eq!(trip(int(69) * 10 / 36), 0);
+        // from 70 km/h across the ground it builds gently with the speed,
+        // full at 110 (TRIAGE rows 17, 19 and 22)
         let at = |kmh: i32| trip(int(kmh) * 10 / 36);
-        assert!(at(80) > 0 && at(80) < at(88) && at(88) < at(96) && at(96) < ONE);
-        assert_eq!(at(101), ONE);
+        assert!(at(75) > 0 && at(75) < at(90) && at(90) < at(105) && at(105) < ONE);
+        assert_eq!(at(111), ONE);
         let (s, _) = colours(sky, fog, int(60), 0);
         assert_ne!(s, sky);
     }
 
     #[test]
     fn the_jungle_changes_with_the_sky() {
-        assert_eq!(world(int(20), 0).0, 0);
+        assert_eq!(world(int(19), 0).0, 0);
         assert_eq!(world(int(40), 0).0, ONE);
         let (_, [ground, wood, leaves]) = world(int(40), 0);
         let (sky, _) = colours(rgb(1, 1, 1), rgb(1, 1, 1), int(40), 0);
