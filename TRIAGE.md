@@ -7,6 +7,7 @@ One row per concrete change. Say what you did, what you expected, and what happe
 | # | What I did | Expected | What happened | Change wanted | Status |
 | --- | --- | --- | --- | --- | --- |
 | 1 | Played the first deploy (2026-10-11). | Several vines to choose from; a fall can be recovered. | Vines were far too sparse: about one path forward and one vine you could reach, and that jump was tight, worse after falling to the ground. | Denser vines and easier grabs. | done: stations every 13–19 m (was 24–38), two or three vines across each station in left/middle/right lanes, a low vine every other station (was every third), Reach +0.4 m on every ape, jump 10 m/s (was 9). Test `every_stretch_offers_more_than_one_way_on`. |
+| 2 | Played the chimpanzee (middle Air Control). | Steer the flight onto the next vine. | Too hard to reliably reach the next vine; and the hand kept reaching for left click to grab, since Space is jump. | More air control; grab on the left mouse button. | done: Air Control 8–16 m/s² (was 4–9; the chimp 12, was 6.5). Grab is the left button (held), Space jumps from the ground only, items are E or right click. Tests `space_jumps_but_never_grabs`, `a_jump_under_a_low_vine_then_a_grab_takes_it`, `a_grab_press_on_the_ground_takes_a_vine_in_reach`; rule 6: Space made to grab too → `space_jumps_but_never_grabs` failed at tests.rs:322. |
 
 ## Future ideas (the person's todos, for a later session)
 

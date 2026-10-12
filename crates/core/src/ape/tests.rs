@@ -278,9 +278,9 @@ fn landing_and_running() {
 }
 
 #[test]
-fn a_jump_under_a_low_vine_grabs_it() {
-    // a vine whose bottom is 3 m above the ground
-    let c = Course::test_line(&[(int(50), int(13), int(10))]);
+fn a_jump_under_a_low_vine_then_a_grab_takes_it() {
+    // a vine whose bottom is 4.5 m above the ground: out of reach standing
+    let c = Course::test_line(&[(int(50), int(14), cm(950))]);
     let a = c.vines[0].anchor;
     let gy = ground(a.x, a.z);
     let mut ape = Ape::new(
@@ -291,27 +291,72 @@ fn a_jump_under_a_low_vine_grabs_it() {
     );
     ape.step(&Controls::default(), &c, 0);
     assert_eq!(ape.mode, Mode::Grounded);
+    assert!(
+        ape.vine_in_reach(&c, 1).is_none(),
+        "in reach from the ground"
+    );
+    // Space jumps; the left button, pressed near the top, grabs
+    let jump = Controls {
+        jump: true,
+        ..Controls::default()
+    };
+    ape.step(&jump, &c, 1);
+    assert!(ape.happened.contains(&Happening::Jump));
+    let mut t = 2;
+    while ape.vel.y > int(2) {
+        ape.step(&jump, &c, t);
+        t += 1;
+    }
     let mut grabbed = false;
-    for t in 1..120 {
-        ape.step(&held(), &c, t);
+    for k in 0..20 {
+        ape.step(&held(), &c, t + k);
         grabbed |= ape.swinging().is_some();
     }
     assert!(grabbed);
-    // a jump never counts as a Missed Grab
-    assert_eq!(ape.cooldown, 0);
 }
 
 #[test]
-fn a_jump_with_no_vine_is_not_a_missed_grab() {
-    let c = one_vine();
-    let p = c.point(int(150));
-    let gy = ground(p.x, p.z);
-    let mut ape = Ape::new(Kind::Chimpanzee, true, v3(p.x, gy + BODY_DROP, p.z), 0);
+fn space_jumps_but_never_grabs() {
+    let c = Course::test_line(&[(int(50), int(13), int(10))]);
+    let a = c.vines[0].anchor;
+    let gy = ground(a.x, a.z);
+    let mut ape = Ape::new(
+        Kind::Chimpanzee,
+        true,
+        v3(a.x, gy + BODY_DROP, a.z - cm(50)),
+        0,
+    );
+    let jump = Controls {
+        jump: true,
+        ..Controls::default()
+    };
     for t in 0..120 {
-        ape.step(&held(), &c, t);
+        ape.step(&jump, &c, t);
+        assert!(ape.swinging().is_none());
     }
+    // a jump is not a Missed Grab
     assert_eq!(ape.cooldown, 0);
-    assert!(ape.swinging().is_none());
+    // and Space in the air does nothing
+    let mut flier = passing(&c, int(1));
+    flier.step(&jump, &c, 0);
+    assert_eq!(flier.mode, Mode::Flying);
+    assert!(flier.swinging().is_none());
+}
+
+#[test]
+fn a_grab_press_on_the_ground_takes_a_vine_in_reach() {
+    let c = Course::test_line(&[(int(50), int(13), int(10))]);
+    let a = c.vines[0].anchor;
+    let gy = ground(a.x, a.z);
+    let mut ape = Ape::new(
+        Kind::Chimpanzee,
+        true,
+        v3(a.x, gy + BODY_DROP, a.z - cm(50)),
+        0,
+    );
+    ape.step(&Controls::default(), &c, 0);
+    ape.step(&held(), &c, 1);
+    assert!(ape.swinging().is_some());
 }
 
 #[test]

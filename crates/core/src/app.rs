@@ -30,6 +30,9 @@ const MAX_CATCH_UP: u32 = 12;
 /// `1_000_000` accumulated (the clock is kept in µs × ticks per second).
 const TICK_COST: i64 = 1_000_000;
 
+/// The left mouse button, held as if it were a key.
+const GRAB_BUTTON: &str = "Mouse0";
+
 /// The person's settings, kept in browser storage as this JSON.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default)]
@@ -206,9 +209,18 @@ impl App {
         }
     }
 
+    /// The left button is grab (held, like a key); the right button uses
+    /// the item (TRIAGE row 2).
     pub fn mouse_button(&mut self, button: i32, down: bool) {
-        if button == 0 && down && self.pointer_locked {
-            self.item_pressed = true;
+        match button {
+            0 if down && self.screen == Screen::Race => {
+                self.keys.insert(GRAB_BUTTON.to_string());
+            }
+            0 => {
+                self.keys.remove(GRAB_BUTTON);
+            }
+            2 if down && self.screen == Screen::Race => self.item_pressed = true,
+            _ => {}
         }
     }
 
@@ -250,7 +262,8 @@ impl App {
         Controls {
             fwd,
             side,
-            grab: self.held(&["Space"]),
+            grab: self.held(&[GRAB_BUTTON]),
+            jump: self.held(&["Space"]),
             item: std::mem::take(&mut self.item_pressed),
             yaw,
             pitch,
@@ -664,7 +677,7 @@ impl App {
     }
 
     fn controls_panel(&self) -> Value {
-        let rows: Vec<Value> = ["swing", "grab", "item", "look", "pause"]
+        let rows: Vec<Value> = ["swing", "grab", "jump", "item", "look", "pause"]
             .iter()
             .map(|k| {
                 json!([

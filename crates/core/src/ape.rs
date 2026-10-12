@@ -16,8 +16,11 @@ pub struct Controls {
     pub fwd: i32,
     /// D minus A: 1, 0 or -1
     pub side: i32,
-    /// Space is held
+    /// grab is held (the left mouse button)
     pub grab: bool,
+    /// jump is held (Space)
+    #[serde(default)]
+    pub jump: bool,
     /// the item key went down this tick
     pub item: bool,
     /// the camera's heading: WASD are relative to it
@@ -58,14 +61,14 @@ pub struct Ape {
     pub mode: Mode,
     /// ticks left in a Grab Window
     pub window: i32,
-    /// the window came from a jump, so it ends without a Missed Grab
-    pub window_jump: bool,
     /// ticks left in a Grab Cooldown
     pub cooldown: i32,
     /// ticks left Stunned
     pub stun: i32,
-    /// Space was held last tick
+    /// grab was held last tick
     held: bool,
+    /// jump was held last tick
+    jump_held: bool,
     /// the vine let go of last, and how many ticks ago
     last_vine: Option<(usize, i32)>,
     /// the nearest centreline sample, kept as a search hint
@@ -84,7 +87,7 @@ impl Ape {
             vel: V3::ZERO,
             mode: Mode::Grounded,
             window: 0,
-            window_jump: false,
+            jump_held: false,
             cooldown: 0,
             stun: 0,
             held: false,
@@ -168,24 +171,24 @@ impl Ape {
             }
         }
 
-        // a fresh press opens a Grab Window; on the ground it is a jump
+        // Space jumps from the ground (TRIAGE row 2: grabbing has its own
+        // button, the left mouse button)
+        let jumped = c.jump && !self.jump_held;
+        self.jump_held = c.jump;
+        if jumped && !stunned && self.mode == Mode::Grounded {
+            self.vel.y = JUMP_SPEED;
+            self.mode = Mode::Flying;
+            self.happened.push(Happening::Jump);
+        }
+
+        // a fresh press of grab opens a Grab Window
         if pressed && !stunned && self.cooldown == 0 && self.swinging().is_none() {
-            if self.mode == Mode::Grounded {
-                self.vel.y = JUMP_SPEED;
-                self.mode = Mode::Flying;
-                self.window = JUMP_WINDOW;
-                self.window_jump = true;
-                self.happened.push(Happening::Jump);
-            } else {
-                self.window = GRAB_WINDOW;
-                self.window_jump = false;
-            }
+            self.window = GRAB_WINDOW;
         }
 
         // the Grab Window: grab a vine in reach, or run out into a miss
         if self.window > 0 {
-            let jump_over = self.window_jump && (self.vel.y <= 0 || self.mode == Mode::Grounded);
-            if !c.grab || stunned || jump_over {
+            if !c.grab || stunned {
                 self.close_window();
             } else if let Some(v) = self.vine_in_reach(course, tick) {
                 self.grab(v, course, tick);
@@ -212,12 +215,9 @@ impl Ape {
     }
 
     fn close_window(&mut self) {
-        if !self.window_jump {
-            self.cooldown = GRAB_COOLDOWN;
-            self.happened.push(Happening::Miss);
-        }
+        self.cooldown = GRAB_COOLDOWN;
+        self.happened.push(Happening::Miss);
         self.window = 0;
-        self.window_jump = false;
     }
 
     fn grab(&mut self, vine: usize, course: &Course, tick: u32) {
@@ -240,7 +240,6 @@ impl Ape {
         }
         self.mode = Mode::Swinging { vine, rope };
         self.window = 0;
-        self.window_jump = false;
         self.happened.push(Happening::Grab);
     }
 

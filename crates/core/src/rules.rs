@@ -36,8 +36,6 @@ pub const PUMP_FROM_REST: i32 = int(2);
 pub const GRAB_WINDOW: i32 = secs_to_ticks(15);
 /// After a Missed Grab, how long before Space can grab again (Grab Cooldown).
 pub const GRAB_COOLDOWN: i32 = secs_to_ticks(45);
-/// A jump's grab window lasts at most this long (it ends at the top).
-pub const JUMP_WINDOW: i32 = secs_to_ticks(60);
 
 /// A jump from the ground, straight up.
 pub const JUMP_SPEED: i32 = int(10);
@@ -89,8 +87,9 @@ impl Stats {
             drag: 500 - s(self.top_speed) * 40,
             // 1.8 to 2.6 m from the hands (TRIAGE row 1: grabs were too tight)
             reach: cm(180) + s(self.reach) * cm(20),
-            // 4 to 9 m/s² of steering in the air
-            air: int(4) + s(self.air_control) * cm(125),
+            // 8 to 16 m/s² of steering in the air (TRIAGE row 2: the middle
+            // ape could not reliably reach the next vine at 6.5)
+            air: int(8) + s(self.air_control) * int(2),
             // a hit takes 130% to 70% of its usual effect
             hit_scale: ONE * 13 / 10 - s(self.weight) * (ONE * 15 / 100),
             // and the heavy run slower: 9 to 7 m/s
