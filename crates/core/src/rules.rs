@@ -50,6 +50,9 @@ pub const GROUND_FRICTION: i32 = int(7);
 /// A landing rolls this share of the speed it hits the ground with on into
 /// speed along the ground (TRIAGE T5).
 pub const LANDING_ROLL: i32 = ONE * 3 / 10;
+/// A hop out of a slide faster than Run Speed keeps this share of the speed
+/// above Run Speed (TRIAGE row 25).
+pub const HOP_KEEP: i32 = ONE * 4 / 10;
 /// Sliding fast on the ground, WASD turn the slide this hard (no faster).
 pub const SLIDE_STEER: i32 = int(14);
 /// A bounce mushroom's cap: its top above the ground, and its radius.
