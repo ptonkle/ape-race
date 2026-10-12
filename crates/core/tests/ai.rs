@@ -124,28 +124,51 @@ fn difficulty_report_over_course_seeds() {
     }
 }
 
-/// The difficulties (TRIAGE T14) are ordered and spaced: over three layouts
+/// The jungle and seven more layouts of it.
+fn layouts() -> Vec<Course> {
+    (0..8u64)
+        .map(|k| {
+            if k == 0 {
+                Course::jungle()
+            } else {
+                Course::jungle_seeded(0x0A9E_2ACE_0001 + k * 7919)
+            }
+        })
+        .collect()
+}
+
+/// The difficulties (TRIAGE T14) are ordered and spaced: over eight layouts
 /// (one Chimpanzee, Equal Stats), each easier level's mean finish is at
-/// least `GAP` slower than the next harder's, and every race finishes
-/// inside the limit.
+/// least `GAP` slower than the next harder's, and every race at every level
+/// finishes inside the limit (150 s). One thread per level.
 #[test]
 fn difficulties_are_ordered_and_spaced() {
     const GAP: f64 = 6.0;
-    let courses = [
-        Course::jungle(),
-        Course::jungle_seeded(0x0A9E_2ACE_0001 + 7919),
-        Course::jungle_seeded(0x0A9E_2ACE_0001 + 2 * 7919),
-    ];
+    let runs: Vec<_> = Difficulty::ALL
+        .into_iter()
+        .map(|level| {
+            std::thread::spawn(move || {
+                layouts()
+                    .into_iter()
+                    .enumerate()
+                    .map(|(k, course)| {
+                        let t = trial_at(course, &[Kind::Chimpanzee], &[level], true, LIMIT);
+                        let f = t[0].finish.unwrap_or_else(|| {
+                            panic!(
+                                "{} finishes layout {k} (at {} m)",
+                                level.key(),
+                                t[0].progress / ONE
+                            )
+                        });
+                        secs(f)
+                    })
+                    .collect::<Vec<f64>>()
+            })
+        })
+        .collect();
     let mut means = Vec::new();
-    for level in Difficulty::ALL {
-        let mut row = Vec::new();
-        for course in &courses {
-            let t = trial_at(course.clone(), &[Kind::Chimpanzee], &[level], true, LIMIT);
-            let f = t[0].finish.unwrap_or_else(|| {
-                panic!("{} finishes (at {} m)", level.key(), t[0].progress / ONE)
-            });
-            row.push(secs(f));
-        }
+    for (level, run) in Difficulty::ALL.into_iter().zip(runs) {
+        let row = run.join().expect("every race finishes");
         let mean = row.iter().sum::<f64>() / row.len() as f64;
         println!("{:<10} {row:.1?} mean {mean:.1} s", level.key());
         means.push(mean);

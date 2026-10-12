@@ -74,6 +74,8 @@ const DEAD_END: i64 = 60 * ONE as i64;
 const SPEED_WORTH: i64 = 1;
 const WAIT_COST: i64 = 20;
 const ROPE_WORTH: i64 = 3;
+/// An ape on the ground with no vine this far ahead runs for the finish.
+const LAST_GAP: i32 = int(10);
 /// This close to the finish, an ape on the ground runs for it.
 const FINISH_RUN: i32 = int(40);
 /// In the air it aims short of the target vine, back along the next leg, by
@@ -140,10 +142,10 @@ impl Difficulty {
         match self {
             Difficulty::Sloth => Tuning {
                 ideal_hop: int(22),
-                hesitate: 16,
-                jitter: 16,
-                noise: int(6),
-                drive: 2,
+                hesitate: 14,
+                jitter: 14,
+                noise: int(5),
+                drive: 3,
                 item_wait: 6 * second,
             },
             Difficulty::Monkey => Tuning {
@@ -151,15 +153,15 @@ impl Difficulty {
                 hesitate: 12,
                 jitter: 12,
                 noise: int(4),
-                drive: 3,
+                drive: 4,
                 item_wait: 3 * second,
             },
             Difficulty::Ape => Tuning {
                 ideal_hop: int(26),
-                hesitate: 6,
-                jitter: 6,
-                noise: int(3),
-                drive: 5,
+                hesitate: 2,
+                jitter: 2,
+                noise: int(2),
+                drive: 6,
                 item_wait: second,
             },
             Difficulty::KingKong => Tuning {
@@ -196,6 +198,11 @@ struct Tuning {
 const DUTY: u32 = 8;
 /// After this long on one vine any AI drives its swing in full.
 const STRUGGLE: u32 = 2 * TICKS_PER_SECOND as u32;
+/// An AI that has made no new progress along the course for this long is
+/// stuck (a vine with no way on, the ground, a mushroom, ...): it drives at
+/// its best for [`RESCUE`], then goes back to its own level.
+const STUCK: u32 = 3 * TICKS_PER_SECOND as u32;
+const RESCUE: u32 = 4 * TICKS_PER_SECOND as u32;
 
 /// What an AI remembers between ticks.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -208,6 +215,13 @@ pub struct Brain {
     ready: u32,
     /// when it grabbed the vine it holds
     grabbed: u32,
+    /// its furthest progress and when it got there, and the tick its
+    /// rescue (driving at its best) ends
+    best_prog: i32,
+    best_at: u32,
+    rescue_until: u32,
+    /// For tuning: how often it was rescued.
+    pub rescues: u32,
     /// the tick it got the item it holds
     item_since: Option<u32>,
     /// the vine it is heading for
@@ -281,6 +295,10 @@ impl Brain {
             dice: Dice(seed),
             ready: 0,
             grabbed: 0,
+            best_prog: i32::MIN,
+            best_at: 0,
+            rescue_until: 0,
+            rescues: 0,
             item_since: None,
             target: None,
             next: None,
@@ -299,6 +317,31 @@ impl Brain {
     }
 }
 
+impl Brain {
+    /// Its handicaps this tick: its level's, or none while rescued.
+    fn tune(&self, tick: u32) -> Tuning {
+        if tick < self.rescue_until {
+            Difficulty::KingKong.tuning()
+        } else {
+            self.difficulty.tuning()
+        }
+    }
+
+    /// Watches for being stuck, and starts a rescue.
+    fn watch(&mut self, tick: u32, progress: i32) {
+        if progress > self.best_prog {
+            self.best_prog = progress;
+            self.best_at = tick;
+        } else if tick >= self.best_at + STUCK && tick >= self.rescue_until {
+            // (its plan stays: planning afresh would restart the give-up
+            // clock on a vine with no way on)
+            self.rescue_until = tick + RESCUE;
+            self.best_at = tick;
+            self.rescues += 1;
+        }
+    }
+}
+
 /// The AI at its best ([`Difficulty::KingKong`]).
 impl Default for Brain {
     fn default() -> Brain {
@@ -309,8 +352,11 @@ impl Default for Brain {
 /// This tick's controls for AI ape `who`. Call it just before `Race::step`.
 pub fn think(race: &Race, who: usize, brain: &mut Brain) -> Controls {
     let tick = race.tick + 1;
-    let tune = brain.difficulty.tuning();
     let r = &race.racers[who];
+    if race.running() && r.finish.is_none() && brain.difficulty != Difficulty::KingKong {
+        brain.watch(tick, r.progress);
+    }
+    let tune = brain.tune(tick);
     let ape = &r.ape;
     let course = &race.course;
     if let Some(e) = brain.expect {
@@ -640,7 +686,7 @@ fn score(course: &Course, now: u32, (v, at_tick, speed, rope): (usize, u32, i32,
 }
 
 fn on_vine(a: &Ape, course: &Course, tick: u32, vine: usize, brain: &mut Brain) -> Controls {
-    let mut tune = brain.difficulty.tuning();
+    let mut tune = brain.tune(tick);
     let fresh = a.happened.contains(&Happening::Grab);
     if fresh && brain.avoid != Some(vine) {
         brain.avoid = None;
@@ -869,7 +915,7 @@ fn near(course: &Course, a: &Ape, tick: u32) -> Vec<usize> {
 /// On the ground or the start platform: run at a vine that can be jumped
 /// to, and jump when a copy of the ape jumping now would grab one.
 fn on_ground(a: &Ape, course: &Course, tick: u32, brain: &mut Brain) -> Controls {
-    let tune = brain.difficulty.tuning();
+    let tune = brain.tune(tick);
     let prog = progress(course, a);
     let support = course.support(a.pos);
     let raised = support > ground(a.pos.x, a.pos.z) + int(3);
@@ -892,10 +938,12 @@ fn on_ground(a: &Ape, course: &Course, tick: u32, brain: &mut Brain) -> Controls
             best = Some((cost, i));
         }
     }
-    // near the finish there is nothing left to climb: run for the line
+    // near the finish there is nothing left to climb, and past the last
+    // vine climbing back is no use: run for the line
+    let last = course.vines.iter().map(|v| v.at).max().unwrap_or(0);
     let target = best
         .map(|(_, i)| i)
-        .filter(|_| prog < course.length - FINISH_RUN);
+        .filter(|_| prog < course.length - FINISH_RUN && prog + LAST_GAP < last);
     brain.target = target;
     let mut c = Controls {
         fwd: 1,
