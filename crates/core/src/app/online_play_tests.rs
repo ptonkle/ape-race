@@ -140,7 +140,7 @@ fn an_invite_link_carries_the_room_and_opening_it_joins() {
     let code = h.online.room.clone();
     let ui = h.ui();
     let link = format!("https://example.test/ape-race/#room={code}");
-    assert!(ui.contains(&link), "the lobby shows {link}");
+    assert!(ui.contains(&link), "the lobby's Copy Link copies {link}");
     assert!(ui.contains("online.copy_link"));
     // a browser opened from it goes straight to that room
     let mut j = app("j");

@@ -347,8 +347,9 @@ impl App {
             .link_copied_ms
             .is_some_and(|t| self.now_ms - t < COPIED_MS);
         json!({
-            "type": "copy", "id": "online.copy_link", "label": self.t("online.invite_link"),
-            "value": self.invite_link(), "copy": self.invite_link(),
+            // just the button: the link itself is not shown (TRIAGE row 27)
+            "type": "copy", "id": "online.copy_link", "label": "", "bare": true,
+            "value": "", "copy": self.invite_link(),
             "text": self.t(if copied { "online.copied" } else { "online.copy_link" }),
             "disabled": self.online.room.is_empty() || self.online.page_url.is_empty(),
         })
