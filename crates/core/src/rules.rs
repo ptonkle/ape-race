@@ -40,7 +40,7 @@ pub const GRAB_COOLDOWN: i32 = secs_to_ticks(45);
 pub const JUMP_WINDOW: i32 = secs_to_ticks(60);
 
 /// A jump from the ground, straight up.
-pub const JUMP_SPEED: i32 = int(9);
+pub const JUMP_SPEED: i32 = int(10);
 /// Above Run Speed the ground takes this much speed a second.
 pub const GROUND_FRICTION: i32 = int(28);
 /// How fast WASD bring the ape to its running velocity on the ground.
@@ -87,10 +87,10 @@ impl Stats {
             pump: int(8) + s(self.pump) * cm(125),
             // drag, in hundred-thousandths per metre: 0.0050 to 0.0034
             drag: 500 - s(self.top_speed) * 40,
-            // 2.2 to 3.4 m from the hands
-            reach: cm(220) + s(self.reach) * cm(30),
+            // 1.8 to 2.6 m from the hands (TRIAGE row 1: grabs were too tight)
+            reach: cm(180) + s(self.reach) * cm(20),
             // 4 to 9 m/s² of steering in the air
-            air: int(9) + s(self.air_control) * cm(200),
+            air: int(4) + s(self.air_control) * cm(125),
             // a hit takes 130% to 70% of its usual effect
             hit_scale: ONE * 13 / 10 - s(self.weight) * (ONE * 15 / 100),
             // and the heavy run slower: 9 to 7 m/s
@@ -201,12 +201,16 @@ pub const BANANA_LIFE: i32 = secs_to_ticks(250);
 /// A Banana hit: speed kept, and how long the ape is Stunned.
 pub const BANANA_KEEP: i32 = ONE * 60 / 100;
 pub const BANANA_STUN: i32 = secs_to_ticks(70);
+/// A Banana leaves this much above the camera's aim, so it arcs.
+pub const BANANA_LOB: i32 = crate::fx::deg(6);
 
 /// A Stick swing reaches this far, takes this share of speed and knocks the
 /// ape off its vine.
 pub const STICK_RANGE: i32 = cm(350);
 pub const STICK_KEEP: i32 = ONE * 70 / 100;
 pub const STICK_STUN: i32 = secs_to_ticks(45);
+/// A Stick hit shoves the ape away from the swinger this fast.
+pub const STICK_PUSH: i32 = int(5);
 
 /// The Hook reaches the nearest ape ahead within this distance.
 pub const HOOK_RANGE: i32 = int(60);
@@ -216,6 +220,9 @@ pub const HOOK_PULL: i32 = int(12);
 pub const HOOK_STUN: i32 = secs_to_ticks(50);
 /// The user gains this much speed toward the hooked ape.
 pub const HOOK_GAIN: i32 = int(8);
+/// The Hook flies this fast, for at most this long.
+pub const HOOK_SPEED: i32 = int(80);
+pub const HOOK_LIFE: i32 = secs_to_ticks(100);
 
 /// The Speed Boost: this much speed along the current velocity.
 pub const BOOST_GAIN: i32 = int(14);

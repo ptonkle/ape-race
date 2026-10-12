@@ -13,14 +13,35 @@ if [ "$HAVE" != "$PIN" ]; then
   exit 1
 fi
 
-cargo build --release --target wasm32-unknown-unknown -p tool_shim
+# Paths baked into the module (for panic messages) must not reveal the
+# builder's home folder: it becomes "~" in the published file.
+RUSTFLAGS="${RUSTFLAGS:-} --remap-path-prefix=$HOME=~" \
+  cargo build --release --target wasm32-unknown-unknown -p tool_shim
 
 rm -rf dist
 mkdir -p dist/pkg dist/data
 wasm-bindgen --target web --no-typescript --out-dir dist/pkg \
   target/wasm32-unknown-unknown/release/tool_shim.wasm
-cp web/* dist/
-cp data/* dist/data/
+find web -maxdepth 1 -type f -exec cp {} dist/ \;
+cp -r data/. dist/data/
+
+# Third-party code for online play (PLAN P13): the Trystero bundle is not a
+# crate and no lockfile pins it, so web/vendor/SHA256SUMS does. A file that
+# was edited, replaced or added without a new pin fails the build.
+mkdir -p dist/vendor
+(cd web/vendor && sha256sum --check --strict --quiet SHA256SUMS) || {
+  echo "web/vendor/ does not match web/vendor/SHA256SUMS; do not edit vendored files." >&2
+  exit 1
+}
+for f in web/vendor/*; do
+  name=$(basename "$f")
+  if [ "$name" != SHA256SUMS ] && ! grep -q "  $name\$" web/vendor/SHA256SUMS; then
+    echo "web/vendor/$name is not pinned in web/vendor/SHA256SUMS." >&2
+    exit 1
+  fi
+done
+cp web/vendor/* dist/vendor/
+(cd dist/vendor && sha256sum --check --strict --quiet SHA256SUMS)
 
 echo "Built dist/:"
 find dist -type f | sort

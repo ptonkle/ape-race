@@ -22,8 +22,10 @@ pub const fn rgb(r: i32, g: i32, b: i32) -> Rgb {
 /// Values per instance: three rows (column x, y, z of each axis, then the
 /// translation), then r, g, b and glow.
 pub const INSTANCE_VALUES: usize = 16;
-/// Values per draw: buffer, mesh, byte offset, count.
-pub const DRAW_VALUES: usize = 4;
+/// Values per draw: buffer, mesh, byte offset, instance count, then the
+/// first vertex and the vertex count of the mesh to draw (0 and 0: all of
+/// it; the terrain is drawn a chunk at a time).
+pub const DRAW_VALUES: usize = 6;
 pub const BYTES_PER_VALUE: usize = 4;
 pub const STATIC_BUFFER: u32 = 0;
 pub const DYNAMIC_BUFFER: u32 = 1;
@@ -64,6 +66,13 @@ impl Batch {
     /// The instance values, and one draw per mesh that has any.
     pub fn finish(self, buffer: u32) -> (Vec<i32>, Vec<u32>) {
         let mut values = Vec::new();
+        let draws = self.finish_into(buffer, &mut values);
+        (values, draws)
+    }
+
+    /// Appends the instance values to `values` and returns the draws, whose
+    /// offsets count from the start of `values`.
+    pub fn finish_into(self, buffer: u32, values: &mut Vec<i32>) -> Vec<u32> {
         let mut draws = Vec::new();
         for m in Mesh::ALL {
             let v = &self.lists[m as usize];
@@ -75,10 +84,12 @@ impl Batch {
                 m as u32,
                 (values.len() * BYTES_PER_VALUE) as u32,
                 (v.len() / INSTANCE_VALUES) as u32,
+                0,
+                0,
             ]);
             values.extend_from_slice(v);
         }
-        (values, draws)
+        draws
     }
 }
 
@@ -195,7 +206,20 @@ mod tests {
         // cube first (mesh 0), two of them, then the sphere after them
         assert_eq!(
             draws,
-            vec![1, 0, 0, 2, 1, 1, (2 * INSTANCE_VALUES * 4) as u32, 1]
+            vec![
+                1,
+                0,
+                0,
+                2,
+                0,
+                0,
+                1,
+                1,
+                (2 * INSTANCE_VALUES * 4) as u32,
+                1,
+                0,
+                0
+            ]
         );
     }
 

@@ -52,6 +52,8 @@ const COVER: u32 = TICKS_PER_SECOND as u32 / 2;
 /// Vines this far ahead are candidates.
 const LOOK: i32 = int(70);
 const MAX_CANDS: usize = 6;
+/// The hop it likes best, metres.
+const IDEAL_HOP: i32 = int(28);
 /// After this long on one vine with no way on, it lets go forward.
 const GIVE_UP: u32 = 7 * TICKS_PER_SECOND as u32;
 /// Before letting go, it checks the landing has a way on: a second of
@@ -60,6 +62,11 @@ const GIVE_UP: u32 = 7 * TICKS_PER_SECOND as u32;
 const ONWARD_TICKS: u32 = TICKS_PER_SECOND as u32;
 const ONWARD_STEP: u32 = 6;
 const DEAD_END: i64 = 60 * ONE as i64;
+/// Scoring a landing: metres along per m/s kept, per second waited, per
+/// metre of rope.
+const SPEED_WORTH: i64 = 1;
+const WAIT_COST: i64 = 20;
+const ROPE_WORTH: i64 = 3;
 /// This close to the finish, an ape on the ground runs for it.
 const FINISH_RUN: i32 = int(40);
 /// In the air it aims short of the target vine, back along the next leg, by
@@ -201,10 +208,29 @@ fn progress(course: &Course, a: &Ape) -> i32 {
 /// Vines ahead of `from` (metres along), the good ones first: those well
 /// ahead and not low, nearest first, then the rest.
 fn ahead(course: &Course, a: &Ape, from: i32, tick: u32) -> Vec<usize> {
+    let v = a.vel.flat();
+    let dir = if v.len() > int(5) {
+        v.norm()
+    } else {
+        course.heading_at(from)
+    };
+    ahead_from(course, a.swinging(), from, a.pos, dir, tick)
+}
+
+/// Vines ahead of `from`, as [`ahead`], seen from `origin` heading `dir`:
+/// the good ones in order of how well they lie for a long hop on that line.
+fn ahead_from(
+    course: &Course,
+    held: Option<usize>,
+    from: i32,
+    origin: V3,
+    dir: V3,
+    tick: u32,
+) -> Vec<usize> {
     let mut good = Vec::new();
     let mut rest = Vec::new();
     for (i, v) in course.vines.iter().enumerate() {
-        if v.at <= from || v.at > from + LOOK || Some(i) == a.swinging() {
+        if v.at <= from || v.at > from + LOOK || Some(i) == held {
             continue;
         }
         let an = course.anchor(i, tick);
@@ -215,7 +241,14 @@ fn ahead(course: &Course, a: &Ape, from: i32, tick: u32) -> Vec<usize> {
             rest.push(i);
         }
     }
-    good.sort_by_key(|&i| course.vines[i].at);
+    // off the line costs three times as much as a hop longer or shorter
+    // than the ideal
+    good.sort_by_key(|&i| {
+        let d = course.anchor(i, tick).flat().sub(origin.flat());
+        let along = d.dot(dir);
+        let lat = d.sub(dir.scale(along)).len();
+        lat as i64 * 3 + (along - IDEAL_HOP).abs() as i64
+    });
     rest.sort_by_key(|&i| course.vines[i].at);
     good.extend(rest);
     good.truncate(MAX_CANDS);
@@ -224,7 +257,14 @@ fn ahead(course: &Course, a: &Ape, from: i32, tick: u32) -> Vec<usize> {
 
 /// The vine to make for after `target`.
 fn after(course: &Course, a: &Ape, target: usize, tick: u32) -> Option<usize> {
-    ahead(course, a, course.vines[target].at, tick)
+    let at = course.anchor(target, tick);
+    let dir = at.flat().sub(a.pos.flat());
+    let dir = if dir.len() > int(2) {
+        dir.norm()
+    } else {
+        course.heading_at(course.vines[target].at)
+    };
+    ahead_from(course, Some(target), course.vines[target].at, at, dir, tick)
         .first()
         .copied()
 }
@@ -238,9 +278,16 @@ fn vine_dist(course: &Course, i: usize, tick: u32, p: V3) -> i32 {
 }
 
 /// The first candidate well within reach, if any.
-fn in_reach(a: &Ape, course: &Course, tick: u32, cands: &[usize], margin: i32) -> Option<usize> {
+fn in_reach(
+    a: &Ape,
+    course: &Course,
+    tick: u32,
+    cands: &[usize],
+    margin: i32,
+    min_at: i32,
+) -> Option<usize> {
     let reach = a.phys.reach - margin;
-    for &i in cands {
+    for &i in cands.iter().filter(|&&i| course.vines[i].at >= min_at) {
         let an = course.anchor(i, tick);
         if (a.pos.x - an.x).abs() > reach || (a.pos.z - an.z).abs() > reach {
             continue;
@@ -308,7 +355,8 @@ fn flight_controls(
     cands: &[usize],
     last_grab: bool,
 ) -> Controls {
-    let grab = !last_grab && in_reach(a, course, tick, cands, GRAB_MARGIN).is_some();
+    let grab = !last_grab
+        && in_reach(a, course, tick, cands, GRAB_MARGIN, aim_at(course, target)).is_some();
     let mut c = Controls {
         grab,
         ..Controls::default()
@@ -365,7 +413,7 @@ fn fly_ahead(
             return Some((FINISH, tick, a.vel.flat().len(), int(12)));
         }
         if a.swinging().is_none() {
-            if let Some(v) = in_reach(a, course, tick, cands, MARGIN) {
+            if let Some(v) = in_reach(a, course, tick, cands, MARGIN, aim_at(course, target)) {
                 if !last_grab {
                     let rope = a.pos.dist(course.anchor(v, tick));
                     // the speed that will carry on toward the vine after
@@ -403,7 +451,7 @@ fn score(course: &Course, now: u32, (v, at_tick, speed, rope): (usize, u32, i32,
     // a metre along is worth a metre per second of speed kept toward the
     // vine after, and a second of waiting costs 20 m; a longer rope makes a
     // bigger swing
-    at + speed as i64 - wait * 20 + rope.min(int(12)) as i64 * 3
+    at + speed as i64 * SPEED_WORTH - wait * WAIT_COST + rope.min(int(12)) as i64 * ROPE_WORTH
 }
 
 fn on_vine(a: &Ape, course: &Course, tick: u32, vine: usize, brain: &mut Brain) -> Controls {
@@ -893,4 +941,10 @@ pub fn debug_release(
         }
     }
     (cands, next, out)
+}
+
+/// In a flight aimed at `target` it grabs that vine or one beyond, not one
+/// it passes on the way (a dense stretch would catch it at every station).
+fn aim_at(course: &Course, target: usize) -> i32 {
+    course.vines.get(target).map_or(i32::MIN, |v| v.at - int(2))
 }
