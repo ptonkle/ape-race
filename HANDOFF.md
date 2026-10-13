@@ -22,6 +22,7 @@ A fresh session starts from this file, not from memory.
 
 ## What passed
 
+- Home-page tiles branch (H1–H5), 2026-10-12: `cargo test --workspace` 241 core, 4 AI (5 ignored), 13 boundary, 16 online; `cargo clippy --workspace --all-targets -D warnings` clean; `BUILDER_ENGINES=chromium ./scripts/check.sh` BUILDER CHECK PASSED (Chromium only). `scripts/tiles.py` made the 15 Jungle tiles (`img/ape-race/race-01…15.webp`, 35–73 KB); `pages.sh` now regenerates them (about two minutes; `TILES=0` skips).
 - T37 Floor is Lava branch (merged with main at e478e46), 2026-10-12: `cargo test --workspace` 239 core, 4 AI (5 ignored reports; `lava_report` run, SECOND-ORDER V6), 13 boundary, 16 online; `cargo fmt`, `clippy -D warnings` clean; `BUILDER_ENGINES=chromium ./scripts/check.sh` BUILDER CHECK PASSED; `BUILDER_ENGINES=chromium ./scripts/check-online.sh` ONLINE CHECK PASSED (Chromium only).
 - Group K branch (T48, T45, T43, T32, T29, merged with main at 060aecc), 2026-10-12: `BUILDER_ENGINES=chromium ./scripts/check.sh` BUILDER CHECK PASSED; `BUILDER_ENGINES=chromium ./scripts/check-online.sh` ONLINE CHECK PASSED (Chromium only); `cargo test --workspace` 223 core, 8 AI (4 ignored reports run too), 13 boundary, 15 online.
 

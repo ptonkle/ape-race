@@ -50,7 +50,8 @@ cargo test --workspace      # the core, boundary and online tests
 python3 scripts/serve.py    # http://127.0.0.1:8000/
 ./scripts/check.sh          # everything, before a deploy
 ./scripts/check-online.sh   # WebRTC between tabs (pasted codes, no relay)
-./scripts/pages.sh          # assemble the site copy and thumbnail in ../ptonkle.github.io
+./scripts/pages.sh          # assemble the site copy, thumbnail and tiles in ../ptonkle.github.io (TILES=0: no new tiles)
+.venv/bin/python scripts/tiles.py OUT_DIR [--map jungle] [--try SPEC ...]   # the home page's action shots, race-NN.webp
 .venv/bin/python scripts/shot.py out.png [--query lineup] [--click id ...] [--hold KeyW,Space:1.5 ...]
 ```
 

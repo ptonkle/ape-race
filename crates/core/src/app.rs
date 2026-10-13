@@ -28,6 +28,7 @@ pub use online_play::OnlinePlay;
 mod menu_dock;
 #[cfg(test)]
 mod setup_tests;
+mod tile;
 
 /// Ticks of physics a frame may catch up at most (a stalled tab does not
 /// fast-forward the race).
@@ -204,6 +205,9 @@ pub struct Play {
     pub replay: Option<Playback>,
     /// the best Time Trial, raced again beside the player
     pub ghost: Option<Ghost>,
+    /// a home-page tile (`tile.rs`): held still, no menus; `true` keeps
+    /// the HUD
+    pub still: Option<bool>,
 }
 
 pub struct App {
@@ -690,6 +694,7 @@ impl App {
                 }
             }
             "screen.lineup" => self.go(Screen::Lineup),
+            "screen.tile" => self.tile(value),
             "setup.ape" => {
                 if let Some(k) = Kind::from_key(value) {
                     self.settings.kind = k;
@@ -862,6 +867,7 @@ impl App {
             pan: None,
             replay: None,
             ghost: None,
+            still: None,
         });
     }
 
@@ -901,6 +907,10 @@ impl App {
     }
 
     fn tick(&mut self) {
+        if self.play.as_ref().is_some_and(|p| p.still.is_some()) {
+            // a tile: every frame the same, animations too
+            return;
+        }
         self.ticks = self.ticks.wrapping_add(1);
         let Some(mut p) = self.play.take() else {
             return;
@@ -1174,9 +1184,15 @@ impl App {
             Screen::Lobby => self.lobby_panels(),
             Screen::Replays => self.replays_panels(),
         };
-        v["panels"] = Value::Array(panels);
-        if self.screen == Screen::Race {
+        let still = self.play.as_ref().and_then(|p| p.still);
+        v["panels"] = Value::Array(if still.is_some() { Vec::new() } else { panels });
+        if self.screen == Screen::Race && still != Some(false) {
             v["hud"] = self.hud();
+        }
+        if still == Some(true) {
+            // a tile's HUD: the race's, without the replay's bar and hint
+            v["hud"]["replay"] = Value::Null;
+            v["hud"]["hint"] = json!("");
         }
         self.online_ui(&mut v);
         self.dock_ui(&mut v);
