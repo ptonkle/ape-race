@@ -108,13 +108,23 @@ impl App {
     pub(super) fn online_act(&mut self, id: &str, value: &str) {
         let now = self.now_ms;
         match id {
-            "online.name" => {
+            // the Online screen's field, and the lobby's (TRIAGE T35)
+            "online.name" | "lobby.name" => {
                 self.settings.name = value
                     .chars()
                     .filter(|c| !c.is_control())
                     .take(online::MAX_NAME_CHARS)
                     .collect();
                 self.save = true;
+                let name = self.player_name();
+                if let Some(o) = &mut self.online.session {
+                    let _ = o.set_name(&name, now);
+                }
+            }
+            "lobby.screech" => {
+                if let Some(o) = &mut self.online.session {
+                    let _ = o.screech(now);
+                }
             }
             "online.room" => {
                 self.online.room = value
@@ -272,6 +282,9 @@ impl App {
             return;
         };
         o.update(now);
+        for _ in 0..o.take_screeches() {
+            self.sounds.push(crate::sound::SCREECH.to_string());
+        }
         if let Some(start) = o.take_race_start() {
             let mut race = Race::new(
                 self.course.clone(),
@@ -455,6 +468,8 @@ impl App {
             .collect();
         let stats = self.settings.kind.race_stats(view.equal_stats);
         let mut mine = vec![
+            json!({"type": "field", "id": "lobby.name", "label": self.t("online.name"),
+                   "value": self.settings.name, "placeholder": self.t("online.default_name")}),
             json!({ "type": "picker", "id": "lobby.ape", "label": self.t("setup.ape"),
                     "value": self.settings.kind.key(), "options": kinds,
                     "text": ape(self.settings.kind) }),
@@ -487,6 +502,10 @@ impl App {
             ready["disabled"] = json!(view.status != Status::Lobby);
             mine.push(ready);
         }
+        // the screech: anyone, any time in the lobby (TRIAGE T44)
+        let mut screech = self.quiet_button("lobby.screech");
+        screech["disabled"] = json!(view.status != Status::Lobby);
+        mine.push(screech);
         mine.push(self.button("lobby.leave"));
         let mut out = vec![
             json!({ "kind": "setup", "heading": self.t("online.lobby"), "items": seats }),

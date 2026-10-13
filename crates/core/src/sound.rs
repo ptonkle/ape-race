@@ -412,6 +412,78 @@ pub fn wind_gain(speed: i32) -> i32 {
     fx::mul(fx::mul(t, t), 3 * ONE - 2 * t).clamp(0, ONE)
 }
 
+// ---- the lobby screech (TRIAGE T44) ----
+
+/// The lobby screech's sound key (`App::sound`).
+pub const SCREECH: &str = "screech";
+
+/// The lobby's chimp screech at `volume` percent, as a WAV file: a
+/// placeholder, synthesised (two rising hoots, then three shrieks with a
+/// raspy edge) until the person's own recording arrives.
+///
+/// **Swapping in the real file** (see SECOND-ORDER L4): convert it to 16-bit
+/// mono PCM at 22 050 Hz (`ffmpeg -i in.mp3 -ac 1 -ar 22050 -sample_fmt s16
+/// crates/core/src/screech.wav`), then make this function's body
+/// `scaled_wav(include_bytes!("screech.wav"), volume)`: the core keeps the
+/// bytes in the wasm, Volume still applies, and nothing else changes.
+pub fn screech(volume: u8) -> Vec<u8> {
+    use Env::*;
+    use Wave::*;
+    let ns = [
+        // hoo-hoo, rising
+        n((420, 620), 0, 150, 60, Triangle, Swell),
+        n((520, 760), 190, 150, 60, Triangle, Swell),
+        // three shrieks, each sweeping up and falling off, with rasp
+        n((900, 1700), 400, 210, 55, Square, Flat),
+        n((0, 0), 400, 210, 25, Noise(150), Flat),
+        n((1000, 1850), 650, 210, 55, Square, Flat),
+        n((0, 0), 650, 210, 25, Noise(150), Flat),
+        n((1100, 2000), 900, 320, 55, Square, Perc),
+        n((0, 0), 900, 320, 25, Noise(150), Perc),
+    ];
+    let end_ms = ns.iter().map(|n| n.at_ms + n.ms).max().unwrap_or(0) + 15;
+    let mut mix = vec![0i64; ms_to_samples(end_ms)];
+    let mut dice = Dice(0x5C2E_EC40);
+    for note in &ns {
+        let start = ms_to_samples(note.at_ms);
+        let count = ms_to_samples(note.ms);
+        for (i, v) in wave(note, count, &mut dice).into_iter().enumerate() {
+            if let Some(m) = mix.get_mut(start + i) {
+                *m += v * envelope(note.contour, i, count) / 1024 * note.loud as i64 / 100;
+            }
+        }
+    }
+    wav_file(&to_pcm(&mix, volume))
+}
+
+/// A supplied 16-bit mono WAV at `volume` percent: its samples scaled as
+/// the synthesised cues are (full scale is `MASTER` at 100%), in a fresh
+/// header at `SAMPLE_RATE`. For the screech once its file arrives. A file
+/// with no `data` chunk gives silence.
+pub fn scaled_wav(file: &[u8], volume: u8) -> Vec<u8> {
+    // walk the RIFF chunks after "RIFF", size, "WAVE" to the "data" chunk
+    let mut at = 12;
+    let mut data: &[u8] = &[];
+    while let Some(head) = file.get(at..at + 8) {
+        let len = u32::from_le_bytes([head[4], head[5], head[6], head[7]]) as usize;
+        let body = file
+            .get(at + 8..(at + 8 + len).min(file.len()))
+            .unwrap_or(&[]);
+        if &head[0..4] == b"data" {
+            data = body;
+            break;
+        }
+        at += 8 + len + len % 2;
+    }
+    let mix: Vec<i64> = data
+        .as_chunks::<2>()
+        .0
+        .iter()
+        .map(|b| i16::from_le_bytes(*b) as i64 * ONE as i64 / i16::MAX as i64)
+        .collect();
+    wav_file(&to_pcm(&mix, volume))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -24,6 +24,9 @@ use crate::trial;
 
 mod online_play;
 pub use online_play::OnlinePlay;
+mod menu_dock;
+#[cfg(test)]
+mod setup_tests;
 
 /// Ticks of physics a frame may catch up at most (a stalled tab does not
 /// fast-forward the race).
@@ -99,7 +102,9 @@ impl Settings {
         let mut s: Settings = serde_json::from_str(text).unwrap_or_default();
         s.volume = s.volume.min(100);
         s.sensitivity = s.sensitivity.clamp(1, 10);
-        s.ai_count = s.ai_count.min(3);
+        // a race has one to three AI opponents (TRIAGE T26: Time Trial is
+        // the solo run); a saved 0 reads as 1
+        s.ai_count = s.ai_count.clamp(1, 3);
         // Speed Colours is a secret until unlocked (TRIAGE row 26), even for
         // settings saved while it was on by default
         s.speed_colours &= s.colours_unlocked;
@@ -601,7 +606,7 @@ impl App {
             }
             "setup.opponents" => {
                 if let Ok(n) = value.parse::<u8>() {
-                    self.settings.ai_count = n.min(3);
+                    self.settings.ai_count = n.clamp(1, 3);
                     self.save = true;
                 }
             }
@@ -662,7 +667,8 @@ impl App {
         let opponents = if self.trial {
             0
         } else {
-            self.settings.ai_count
+            // the lobby may have set 0 (online, people race people)
+            self.settings.ai_count.max(1)
         };
         for _ in 0..opponents {
             let k = pool.remove(d.below(pool.len() as u32) as usize);
@@ -870,7 +876,8 @@ impl App {
                 None => self.flyover(),
             },
             Stage::Flyover => self.flyover(),
-            Stage::Showcase => models::showcase_camera(),
+            // framed beside the docked menus (TRIAGE T47)
+            Stage::Showcase => self.framed(models::showcase_camera()),
             Stage::Lineup => models::lineup_camera(self.aspect()),
         }
     }
@@ -979,6 +986,7 @@ impl App {
             v["hud"] = self.hud();
         }
         self.online_ui(&mut v);
+        self.dock_ui(&mut v);
         if !self.sounds.is_empty() {
             v["sounds"] = json!(std::mem::take(&mut self.sounds));
         }
@@ -1054,7 +1062,8 @@ impl App {
             .iter()
             .map(|k| json!({ "value": k.key(), "text": self.t(&format!("ape.{}", k.key())) }))
             .collect();
-        let opponents: Vec<Value> = (0..=3)
+        // one to three: Time Trial is the solo run (TRIAGE T26)
+        let opponents: Vec<Value> = (1..=3)
             .map(|n| json!({ "value": n.to_string(), "text": n.to_string() }))
             .collect();
         let stats = self.settings.kind.race_stats(self.settings.equal_stats);
@@ -1072,7 +1081,7 @@ impl App {
             );
         } else {
             items.push(json!({ "type": "select", "id": "setup.opponents", "label": self.t("setup.opponents"),
-              "value": self.settings.ai_count.to_string(), "options": opponents }));
+              "value": self.settings.ai_count.max(1).to_string(), "options": opponents }));
             let levels: Vec<Value> = crate::ai::Difficulty::ALL
                 .iter()
                 .map(|d| json!({ "value": d.key(), "text": self.t(&format!("ai.{}", d.key())) }))
@@ -1454,6 +1463,9 @@ impl App {
         if key == "wind" {
             return sound::wind(self.settings.volume);
         }
+        if key == sound::SCREECH {
+            return sound::screech(self.settings.volume);
+        }
         match Cue::from_key(key) {
             Some(c) => sound::wav(c, self.settings.volume),
             None => Vec::new(),
@@ -1797,7 +1809,7 @@ mod tests {
         let mut a = app();
         a.settings.best = Some(120 * 100);
         a.act("menu.race", "");
-        a.act("setup.opponents", "0");
+        a.act("setup.opponents", "1");
         a.act("menu.start", "");
         let p = a.play.as_mut().unwrap();
         p.race.phase = Phase::Running;

@@ -1,6 +1,6 @@
 # Ape Race
 
-A 3D jungle racing game in the browser. Swing from vine to vine, let go at the right moment, and carry your momentum to the finish. Race up to three AI apes, or up to four players online.
+A 3D jungle racing game in the browser. Swing from vine to vine, let go at the right moment, and carry your momentum to the finish. Race one to three AI apes, or up to four players online.
 
 The design is in [`BRIEF.md`](BRIEF.md) and the build decisions in [`PLAN.md`](PLAN.md). Future ideas wait in [`TRIAGE.md`](TRIAGE.md).
 
@@ -15,7 +15,7 @@ The design is in [`BRIEF.md`](BRIEF.md) and the build decisions in [`PLAN.md`](P
 | The ground | A landing slides on and keeps some of its speed. Red **mushrooms** bounce you back up. Fall and you run (slowly). **Space** jumps; click to grab a low vine from the jump. Low vines hang every few stations. |
 | Items | Fly through a crate to take an item (one at a time). **Right click** or **E** uses it. **Banana:** thrown where you look; a hit stuns and slows. **Stick:** whacks any ape next to you off its vine. **Hook:** pulls back the nearest ape ahead and pulls you forward. **Speed Boost:** a burst along your motion. |
 | Apes | Orangutan, Gorilla, Chimpanzee, Gibbon, Proboscis Monkey, Lemur. Five stats: Swing Power, Top Speed, Reach, Air Control, Weight. Every ape's stats add up to the same total. **Equal Stats** gives every ape the average. |
-| Online | **Online → Host** gives a room code to share; others **Join** with it. Everyone picks an ape and readies up; the host adds AI apes and starts. |
+| Online | **Online → Host** gives a room code to share; others **Join** with it. Everyone picks an ape, can change their name, and readies up; **Screech!** plays a chimp screech for everyone in the lobby. The host adds AI apes and starts. |
 | Best time | Your fastest finish is kept on this device and shown in the HUD and results. |
 | Time Trial | Race alone (crates give only the Speed Boost) for Bronze, Silver and Gold target times; the Author time shows once you earn Gold. Your best Time Trial races beside you as a pale-blue ghost. |
 | Replays | **Watch Replay** on the results (or the pause menu) replays the race: play, pause, ½×/1×/2×, chase, orbit or trackside cameras, and a seek bar. Your fastest run per course and mode and your last 10 others are kept on this device under **Replays**. |
@@ -32,7 +32,7 @@ The design is in [`BRIEF.md`](BRIEF.md) and the build decisions in [`PLAN.md`](P
 | Pause | Esc (online, Esc shows the menu but the race goes on) |
 | Quick restart | R twice quickly (offline races and Time Trials) |
 
-Settings: Volume, Mouse Sensitivity, Invert Mouse Y, Camera Follows (the camera swings back behind you when the mouse rests). They are kept in browser storage.
+Settings: Volume, Mouse Sensitivity, Invert Mouse Y, Camera Follows (the camera swings back behind you when the mouse rests), and JOJO MODE once you find the secret. They are kept in browser storage.
 
 ## Build, test and serve
 

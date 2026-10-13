@@ -23,7 +23,7 @@
 //! Ready mark. It rebroadcasts the roster every second, since lobby messages
 //! may be lost. A **joiner** repeats its Hello until seated (or refused: a
 //! full lobby, a race under way, or another [`PROTOCOL`]), and repeats an
-//! ape choice or a Ready mark until the roster shows it. Everyone pings
+//! ape choice, a new name or a Ready mark until the roster shows it. Everyone pings
 //! everyone every half second; the round trips appear in the lobby view.
 //!
 //! The host's Start is repeated to each joiner until it is acknowledged. Every
@@ -50,7 +50,9 @@
 //!    [`Online::take_outbox`]: `to: None` → `online.broadcast(text)`,
 //!    `to: Some(peer)` → `online.send(peer, text)`.
 //! 4. **Lobby screen:** draw [`Online::lobby`]. Buttons call
-//!    [`Online::set_kind`], [`Online::set_ready`], and on the host
+//!    [`Online::set_kind`], [`Online::set_name`], [`Online::set_ready`],
+//!    [`Online::screech`] (anyone; then play the screech once for each
+//!    [`Online::take_screeches`] counts), and on the host
 //!    [`Online::set_ai_count`], [`Online::set_equal_stats`] and
 //!    [`Online::start`]`(seed, now_ms)` (refused unless every joined human is
 //!    Ready and there are at least two apes).
@@ -91,8 +93,9 @@ use crate::race::{Driver, Entry, Item, Race, Summon};
 use crate::rules::{Kind, TICKS_PER_SECOND};
 
 /// The protocol version. A joiner with another one is refused. 2: the Vine
-/// item's summoned vines (TRIAGE T12) and the Item `vine`.
-pub const PROTOCOL: u32 = 2;
+/// item's summoned vines (TRIAGE T12) and the Item `vine`. 3: renaming in
+/// the lobby (`Name`, TRIAGE T35) and the lobby screech (`Screech`, T44).
+pub const PROTOCOL: u32 = 3;
 /// The most apes in a race, humans and AI together.
 pub const MAX_APES: usize = 4;
 /// The most AI apes the host may add.
@@ -349,6 +352,12 @@ enum Msg {
     Ready {
         ready: bool,
     },
+    /// A joiner's new name (TRIAGE T35, PROTOCOL 3).
+    Name {
+        name: String,
+    },
+    /// Someone in the lobby screeched (TRIAGE T44, PROTOCOL 3): play it.
+    Screech,
     Leave,
     Dissolve,
     Ping {
@@ -505,6 +514,10 @@ pub struct Online {
     last_pick_ms: i64,
     wanted_ready: Option<bool>,
     last_ready_ms: i64,
+    wanted_name: Option<String>,
+    last_name_ms: i64,
+    /// Screeches heard (and made) in the lobby, still to play.
+    screeches: u32,
     race: Option<RaceState>,
     /// Host: its own start, held until the joiners have theirs.
     host_start_at: Option<i64>,
@@ -534,6 +547,9 @@ impl Online {
             last_pick_ms: now_ms,
             wanted_ready: None,
             last_ready_ms: now_ms,
+            wanted_name: None,
+            last_name_ms: now_ms,
+            screeches: 0,
             race: None,
             host_start_at: None,
             start: None,
@@ -754,6 +770,12 @@ impl Online {
             } if self.is_host => self.on_hello(&peer, proto, id, &name, kind, now_ms),
             Msg::Pick { kind } if self.is_host => self.on_pick(&peer, kind, now_ms),
             Msg::Ready { ready } if self.is_host => self.on_ready(&peer, ready, now_ms),
+            Msg::Name { name } if self.is_host => self.on_name(&peer, &name, now_ms),
+            Msg::Screech => {
+                if self.in_lobby() {
+                    self.screeches += 1;
+                }
+            }
             Msg::Leave => {
                 let client = self.peers.get(&peer).and_then(|p| p.id.clone());
                 if let Some(client) = client {
@@ -945,6 +967,20 @@ impl Online {
         }
     }
 
+    fn on_name(&mut self, peer: &PeerId, name: &str, now_ms: i64) {
+        if !self.in_lobby() {
+            return;
+        }
+        let name = clean_name(name);
+        match self.seat_of_peer(peer) {
+            Some(i) if i != 0 && !name.is_empty() && self.humans[i].name != name => {
+                self.humans[i].name = name;
+                self.roster_changed(now_ms);
+            }
+            _ => {}
+        }
+    }
+
     fn on_roster(&mut self, round: u32, humans: Vec<Human>, ai: usize, equal: bool) {
         if round < self.round {
             return;
@@ -1048,6 +1084,50 @@ impl Online {
             }
         }
         Ok(())
+    }
+
+    /// Renames this browser's player (TRIAGE T35). A joiner's new name is
+    /// repeated until the roster shows it; an empty name is refused as no
+    /// change (the app gives its default name instead).
+    pub fn set_name(&mut self, name: &str, now_ms: i64) -> Result<(), OnlineError> {
+        if !matches!(self.status, Status::Lobby | Status::Joining) {
+            return Err(OnlineError::NotInLobby);
+        }
+        let name = clean_name(name);
+        if name.is_empty() || name == self.name {
+            return Ok(());
+        }
+        self.name = name.clone();
+        if self.is_host {
+            self.humans[0].name = name;
+            self.roster_changed(now_ms);
+            return Ok(());
+        }
+        self.wanted_name = Some(name.clone());
+        self.last_name_ms = now_ms;
+        if let Some(host) = self.host_peer.clone() {
+            if self.status == Status::Lobby {
+                self.send(&host, &Msg::Name { name });
+            }
+        }
+        Ok(())
+    }
+
+    /// A chimp screech for everyone in the lobby, this browser too (TRIAGE
+    /// T44): anyone may, as often as they like. It is sent once; a lost one
+    /// is not repeated.
+    pub fn screech(&mut self, _now_ms: i64) -> Result<(), OnlineError> {
+        if !self.in_lobby() {
+            return Err(OnlineError::NotInLobby);
+        }
+        self.broadcast(&Msg::Screech);
+        self.screeches += 1;
+        Ok(())
+    }
+
+    /// How many screeches to play now (and forgets them).
+    pub fn take_screeches(&mut self) -> u32 {
+        std::mem::take(&mut self.screeches)
     }
 
     /// Joiner: presses Ready Up (or undoes it). Repeated until the roster
@@ -1336,6 +1416,14 @@ impl Online {
                 } else if now_ms - self.last_pick_ms >= RETRY_MS {
                     self.last_pick_ms = now_ms;
                     self.send(host, &Msg::Pick { kind });
+                }
+            }
+            if let (Some(name), Some(me)) = (self.wanted_name.clone(), &mine) {
+                if me.name == name {
+                    self.wanted_name = None;
+                } else if now_ms - self.last_name_ms >= RETRY_MS {
+                    self.last_name_ms = now_ms;
+                    self.send(host, &Msg::Name { name });
                 }
             }
             if let (Some(ready), Some(me)) = (self.wanted_ready, &mine) {
