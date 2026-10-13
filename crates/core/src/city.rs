@@ -15,8 +15,8 @@
 
 use crate::course::{ground, Course, Mushroom};
 use crate::fx::{self, cm, int};
-use crate::rules::{BODY_DROP, BODY_RADIUS, LADDER_EVERY, SWIM_SINK};
 use crate::geom::{right_of, v3, yaw_of, V3};
+use crate::rules::{BODY_DROP, BODY_RADIUS, LADDER_EVERY, SWIM_SINK};
 
 /// Everything the City has beyond the shared course data.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]

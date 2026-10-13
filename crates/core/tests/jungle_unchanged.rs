@@ -37,7 +37,14 @@ fn jungle_race_hash() -> u64 {
         let c: Vec<_> = (0..4).map(|i| think(&race, i, &mut brains[i])).collect();
         race.step(&c);
         for r in &race.racers {
-            for v in [r.ape.pos.x, r.ape.pos.y, r.ape.pos.z, r.ape.vel.x, r.ape.vel.y, r.ape.vel.z] {
+            for v in [
+                r.ape.pos.x,
+                r.ape.pos.y,
+                r.ape.pos.z,
+                r.ape.vel.x,
+                r.ape.vel.y,
+                r.ape.vel.z,
+            ] {
                 mix(&mut h, v as i64);
             }
         }

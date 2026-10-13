@@ -31,6 +31,9 @@ fn report(name: &str, c: &Course) {
 
 fn main() {
     report("jungle", &Course::jungle());
-    report("city", &tool_core::map::Map::City.course());
-    report("city (hand-filled demo)", &tool_core::cityscape::demo());
+    let city = tool_core::map::Map::City.course();
+    report("city", &city);
+    for (part, n) in tool_core::cityscape::parts(&city) {
+        println!("  {part}: {n}");
+    }
 }

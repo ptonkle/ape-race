@@ -207,7 +207,11 @@ pub fn city_seeded(seed: u64) -> Course {
         }
         let h = c.heading_at(si);
         let r = right_of(h);
-        let skip = if station == 0 { 3 } else { dice.below(3) as i32 };
+        let skip = if station == 0 {
+            3
+        } else {
+            dice.below(3) as i32
+        };
         let mut here = Vec::new();
         let mut lanes = Vec::new();
         for lane in 0..3 {
@@ -469,13 +473,25 @@ fn streets(c: &Course, straights: &[Straight], corners: &[Corner]) -> Vec<Street
         .map(|k| {
             let st = straights[k];
             let from = if k == 0 { c.path[0] } else { corners[k - 1].p };
-            let to = if k == n - 1 { c.path[last] } else { corners[k].p };
+            let to = if k == n - 1 {
+                c.path[last]
+            } else {
+                corners[k].p
+            };
             Street {
                 from: from.flat(),
                 dir: st.dir,
                 len: to.sub(from).dot(st.dir),
-                tan0: if k == 0 { 0 } else { tan_half(corners[k - 1].turn) },
-                tan1: if k == n - 1 { 0 } else { tan_half(corners[k].turn) },
+                tan0: if k == 0 {
+                    0
+                } else {
+                    tan_half(corners[k - 1].turn)
+                },
+                tan1: if k == n - 1 {
+                    0
+                } else {
+                    tan_half(corners[k].turn)
+                },
                 ext0: if k == 0 { int(7) } else { 0 },
                 ext1: if k == n - 1 { OUTRO } else { 0 },
             }
@@ -533,7 +549,9 @@ fn start(c: &mut Course) {
     let edge = START_LEN;
     for k in -3..=3 {
         let at = edge + cm(150);
-        let base = c.point(at).add(right_of(c.heading_at(at)).scale(int(3) * k));
+        let base = c
+            .point(at)
+            .add(right_of(c.heading_at(at)).scale(int(3) * k));
         c.vines.push(Vine {
             anchor: v3(base.x, START_HEIGHT + int(30), base.z),
             length: int(29),
@@ -582,31 +600,11 @@ fn pick(s: i32, river: &River, dice: &mut Dice) -> (u8, i32, i32, i32) {
         }
     };
     let (len, depth, h) = match st {
-        TOWER => (
-            dice.range(30, 44),
-            dice.range(28, 40),
-            dice.range(90, 190),
-        ),
-        OFFICE => (
-            dice.range(24, 40),
-            dice.range(22, 32),
-            dice.range(40, 80),
-        ),
-        MIDRISE => (
-            dice.range(18, 30),
-            dice.range(18, 26),
-            dice.range(20, 36),
-        ),
-        WAREHOUSE => (
-            dice.range(24, 40),
-            dice.range(20, 30),
-            dice.range(10, 18),
-        ),
-        _ => (
-            dice.range(14, 24),
-            dice.range(14, 18),
-            dice.range(12, 17),
-        ),
+        TOWER => (dice.range(30, 44), dice.range(28, 40), dice.range(90, 190)),
+        OFFICE => (dice.range(24, 40), dice.range(22, 32), dice.range(40, 80)),
+        MIDRISE => (dice.range(18, 30), dice.range(18, 26), dice.range(20, 36)),
+        WAREHOUSE => (dice.range(24, 40), dice.range(20, 30), dice.range(10, 18)),
+        _ => (dice.range(14, 24), dice.range(14, 18), dice.range(12, 17)),
     };
     (st, int(len), int(depth), int(h))
 }
@@ -630,12 +628,15 @@ fn blocks(
     let in_river = |p: V3| {
         let d = p.flat().sub(ro.flat());
         let a = d.dot(rh);
-        a > -int(25) && a < river.to - river.from + int(25) && d.dot(right_of(rh)).abs() < RIVER_REACH
+        a > -int(25)
+            && a < river.to - river.from + int(25)
+            && d.dot(right_of(rh)).abs() < RIVER_REACH
     };
     let fits = |b: &Block, out: &[Block]| {
         let o = Obb::of(b);
         let corners = [(-1, -1), (-1, 1), (1, -1), (1, 1)].map(|(i, j)| {
-            o.c.add(o.u.scale(o.hl * i)).add(right_of(o.u).scale(o.hw * j))
+            o.c.add(o.u.scale(o.hl * i))
+                .add(right_of(o.u).scale(o.hw * j))
         });
         !walls.iter().any(|w| w.overlaps(&o, cm(5)))
             && !out.iter().any(|q| Obb::of(q).overlaps(&o, cm(5)))
@@ -645,7 +646,9 @@ fn blocks(
     // the building sites on the 90° corners' insides, where the cranes stand
     for k in corners.iter().filter(|k| k.turn.abs() == 90) {
         let inner = k.p.add(k.din.scale(-hw)).add(k.inward().scale(hw));
-        let centre = inner.add(k.din.scale(-int(15))).add(k.inward().scale(int(15)));
+        let centre = inner
+            .add(k.din.scale(-int(15)))
+            .add(k.inward().scale(int(15)));
         out.push(Block {
             centre: v3(centre.x, ground(centre.x, centre.z), centre.z),
             fwd: k.din,
@@ -668,7 +671,9 @@ fn blocks(
     // the plaza's end: a grand terminal across it
     let last = c.streets.len() - 1;
     let end_st = c.streets[last];
-    let term = end_st.from.add(end_st.dir.scale(end_st.len + OUTRO + int(14)));
+    let term = end_st
+        .from
+        .add(end_st.dir.scale(end_st.len + OUTRO + int(14)));
     out.push(Block {
         centre: v3(term.x, ground(term.x, term.z), term.z),
         fwd: end_st.dir,
@@ -818,7 +823,11 @@ fn hangers(c: &Course, blocks: &[Block], hangs: &[(usize, Hang)], dice: &mut Dic
             }
             Hang::Wire | Hang::Street => {
                 let tall = behind(-1).min(behind(1)) >= a.y + int(3);
-                let side = if a.flat().sub(on_line).dot(r) >= 0 { 1 } else { -1 };
+                let side = if a.flat().sub(on_line).dot(r) >= 0 {
+                    1
+                } else {
+                    -1
+                };
                 if tall || matches!(hang, Hang::Wire) {
                     (HangerKind::Wire, facade(-1, a.y), facade(1, a.y))
                 } else if a.y - ground(a.x, a.z) <= int(30) {

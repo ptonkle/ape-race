@@ -1248,6 +1248,7 @@ pub fn dynamic(f: &Frame) -> (Batch, Batch) {
     // what the City's vines hang from, where it moves
     if let Some(city) = &c.city {
         crate::cityscape::hangers_dynamic(&mut b, c, city, eye, f.tick, tick);
+        crate::cityscape::cars_dynamic(&mut b, c, city, eye, tick);
     }
     for (k, r) in race.racers.iter().enumerate() {
         // Floor is Lava (TRIAGE T37): the jaguar, and the ape until the bite
@@ -1496,15 +1497,7 @@ fn catch_up_look(
 
 /// A vine from its anchor: straight down and swaying a little; or, when
 /// held, taut from the anchor to the hands with the rest dangling below.
-fn vine(
-    b: &mut Batch,
-    a: V3,
-    length: i32,
-    hands: Option<V3>,
-    look: VineLook,
-    t: u32,
-    leafy: bool,
-) {
+fn vine(b: &mut Batch, a: V3, length: i32, hands: Option<V3>, look: VineLook, t: u32, leafy: bool) {
     let VineLook {
         colour,
         glow,
@@ -1745,11 +1738,20 @@ pub fn flyover_dynamic(c: &Course, tick: u32, vivid: bool, eye: V3) -> (Batch, B
     for i in 0..c.vines.len() {
         let a = c.anchor(i, tick);
         let t = tick + i as u32 * 37;
-        vine(&mut b, a, c.vines[i].length, None, look, t, map == Map::Jungle);
+        vine(
+            &mut b,
+            a,
+            c.vines[i].length,
+            None,
+            look,
+            t,
+            map == Map::Jungle,
+        );
     }
     // the City's helicopters and crane hooks, near the flyover's eye
     if let Some(city) = &c.city {
         crate::cityscape::hangers_dynamic(&mut rest, c, city, eye, tick, tick);
+        crate::cityscape::cars_dynamic(&mut rest, c, city, eye, tick);
     }
     (b, rest)
 }

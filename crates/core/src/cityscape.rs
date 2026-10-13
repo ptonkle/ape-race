@@ -11,7 +11,7 @@
 //! The scene (`scene.rs`) calls in here for a course with a `CityLayout`;
 //! the Jungle's drawing does not change.
 
-use crate::city::{Block, Bridge, CarKind, CityLayout, Hanger, HangerKind, River};
+use crate::city::{Block, Bridge, Car, CityLayout, Hanger, HangerKind, River, CABLES};
 use crate::course::{ground, Course, OUTRO, STEP};
 use crate::fx::{self, cm, deg, int, mul, sin, ONE};
 use crate::geom::{right_of, v3, yaw_of, Affine, V3};
@@ -49,7 +49,6 @@ const STEEL: Rgb = rgb(56, 62, 70);
 const CABLE: Rgb = rgb(70, 74, 82);
 const POLE: Rgb = rgb(44, 58, 52);
 const LAMP: Rgb = rgb(255, 214, 140);
-const POOL: Rgb = rgb(88, 78, 70);
 const CRANE: Rgb = rgb(236, 176, 30);
 const CONCRETE: Rgb = rgb(140, 138, 134);
 const RED_LIGHT: Rgb = rgb(255, 40, 30);
@@ -87,13 +86,35 @@ const AWNINGS: [Rgb; 4] = [
     rgb(160, 110, 40),
 ];
 
-/// The looks a `Block.style` picks (style modulo `STYLES`).
-pub const BROWNSTONE: u8 = 0;
-pub const GLASS: u8 = 1;
-pub const DECO: u8 = 2;
-pub const LOFT: u8 = 3;
-pub const TIMES: u8 = 4;
-pub const STYLES: u8 = 5;
+/// The looks the scene gives buildings, from their `Block.style`
+/// (`city::style`): brownstones, brick mid-rises and lofts, art deco
+/// stone offices, glass towers, riverside warehouses, a building site's
+/// hoarding, and the grand terminal closing the plaza.
+const BROWNSTONE: u8 = 0;
+const GLASS: u8 = 1;
+const DECO: u8 = 2;
+const LOFT: u8 = 3;
+const WAREHOUSE: u8 = 4;
+const HOARDING: u8 = 5;
+const TERMINAL: u8 = 6;
+
+fn look_of(style: u8) -> u8 {
+    use crate::city::style as s;
+    match style {
+        s::BROWNSTONE => BROWNSTONE,
+        s::OFFICE => DECO,
+        s::TOWER => GLASS,
+        s::WAREHOUSE => WAREHOUSE,
+        s::HOARDING => HOARDING,
+        s::TERMINAL => TERMINAL,
+        _ => LOFT,
+    }
+}
+
+/// The Times Square stretch: buildings this far along the course (Midtown,
+/// the second street) wear billboards up their lower floors.
+const TIMES_FROM: i32 = int(296);
+const TIMES_TO: i32 = int(512);
 
 // ---- the output: shapes sorted into the course's chunks ----
 
@@ -143,34 +164,65 @@ fn seed_of(a: usize, b: usize) -> u64 {
 
 /// The City's scenery and ground, chunked like the Jungle's.
 pub fn scenery(c: &Course, city: &CityLayout) -> Scenery {
+    build(c, city).0
+}
+
+/// How many scenery shapes each part of the City takes (for
+/// `examples/scenery_cost.rs`).
+pub fn parts(c: &Course) -> Vec<(&'static str, usize)> {
+    match &c.city {
+        Some(city) => build(c, city).1,
+        None => Vec::new(),
+    }
+}
+
+fn build(c: &Course, city: &CityLayout) -> (Scenery, Vec<(&'static str, usize)>) {
     let n = scene::chunk_count(c);
     let mut s = Sink {
         c,
         n,
         batches: (0..n).map(|_| Batch::new()).collect(),
     };
+    let mut parts = Vec::new();
+    let mut done = 0;
+    let mut tally = |s: &Sink, name: &'static str| {
+        let now: usize = s.batches.iter().map(|b| b.count()).sum();
+        parts.push((name, now - done));
+        done = now;
+    };
     for (k, bl) in city.blocks.iter().enumerate() {
         building(&mut s, bl, k);
     }
+    tally(&s, "buildings");
+    // the parked cars (the moving ones are drawn each frame, `cars_dynamic`)
     for (k, car) in city.cars.iter().enumerate() {
-        let height = c
-            .mushrooms
-            .get(car.bouncer)
-            .map(|m| m.top.y - ground(m.top.x, m.top.z));
+        if car.drive.is_some() {
+            continue;
+        }
         let at = on_ground(car.at);
-        let f = vehicles::frame(at, car.yaw, car_scale(car.kind, height));
-        vehicles::car(s.at(at), car.kind, &f, k);
+        vehicles::car(s.at(at), car.kind, &car_frame(c, car, at, car.yaw), k);
     }
+    for boat in &city.boats {
+        let top = c.mushrooms.get(boat.bouncer).map(|m| m.top.y - boat.at.y);
+        let scale = match top {
+            Some(h) if h > 0 => fx::div(h, vehicles::boat_top(boat.kind)).clamp(ONE / 3, ONE * 2),
+            _ => ONE,
+        };
+        vehicles::boat(s.at(boat.at), boat.kind, boat.at, boat.yaw, scale);
+    }
+    tally(&s, "cars and boats");
     let frame = RiverFrame::of(c, city.river);
     if let Some(r) = city.river {
         river(&mut s, c, &frame, r, city.bridge.as_ref());
     }
     if let Some(br) = &city.bridge {
-        bridge(&mut s, br, city.river);
+        bridge(&mut s, c, br, city.river);
     }
+    tally(&s, "river and bridge");
     for (k, h) in city.hangers.iter().enumerate() {
         hanger(&mut s, c, h, k);
     }
+    tally(&s, "hangers");
     for pl in &c.platforms {
         let on_bridge = city
             .bridge
@@ -187,18 +239,40 @@ pub fn scenery(c: &Course, city: &CityLayout) -> Scenery {
         }
     }
     streets(&mut s, c, city);
+    tally(&s, "streets");
     skyline(&mut s, c, city, &frame);
+    tally(&s, "skyline");
     finish_gantry(&mut s.batches[n - 2], c);
     plaza(&mut s.batches[n - 1], c);
+    tally(&s, "finish and plaza");
     let (terrain, ranges) = terrain(c, &frame, n);
-    scene::assemble(c, s.batches, terrain, ranges)
+    (scene::assemble(c, s.batches, terrain, ranges), parts)
 }
 
-/// A car is drawn so its roof is the top of its bouncer.
-fn car_scale(kind: CarKind, height: Option<i32>) -> i32 {
-    match height {
-        Some(h) if h > 0 => fx::div(h, vehicles::roof(kind)).clamp(ONE * 4 / 5, ONE * 3),
+/// A car's frame standing at `at` facing `yaw`, sized so its roof is the
+/// top of its bouncer.
+fn car_frame(c: &Course, car: &Car, at: V3, yaw: i32) -> Affine {
+    let height = c.mushrooms.get(car.bouncer).map(|m| m.top.y - car.at.y);
+    let scale = match height {
+        Some(h) if h > 0 => fx::div(h, vehicles::roof(car.kind)).clamp(ONE * 4 / 5, ONE * 3),
         _ => ONE,
+    };
+    vehicles::frame(at, yaw, scale)
+}
+
+/// The cabs and buses driving along the streets, where `Course::car_at`
+/// puts them this tick (the same function their bouncers follow), near
+/// the eye.
+pub fn cars_dynamic(b: &mut Batch, c: &Course, city: &CityLayout, eye: V3, tick: u32) {
+    for (k, car) in city.cars.iter().enumerate() {
+        if car.drive.is_none() {
+            continue;
+        }
+        let (at, yaw) = c.car_at(k, tick);
+        if at.flat().sub(eye.flat()).len() > int(200) {
+            continue;
+        }
+        vehicles::car(b, car.kind, &car_frame(c, car, at, yaw), k);
     }
 }
 
@@ -506,34 +580,32 @@ fn on_deck(br: &Bridge, p: V3) -> bool {
     along > -int(2) && along < len + int(2) && q.dot(right_of(fwd)).abs() < br.half_width + int(2)
 }
 
-/// The deck's top at `t` (0..=ONE) of the way along.
-fn deck_at(br: &Bridge, t: i32) -> V3 {
-    br.start.lerp(br.end, t)
-}
-
-/// A Brooklyn-Bridge-style suspension bridge: a steel deck on deep
-/// girders, granite towers with a pointed Gothic arch over the way, two
-/// main cables slung over the towers with suspenders down to the deck,
-/// diagonal stays fanning from the tower tops, and lamps along the rails.
-fn bridge(s: &mut Sink, br: &Bridge, river: Option<River>) {
-    let d = br.end.sub(br.start);
-    let len = d.flat().len();
+/// A Brooklyn-Bridge-style suspension bridge (`city::Bridge` and its
+/// cables): a steel deck on deep girders with outriggers out to the outer
+/// cables, rails and lamps, ladders down to the water; granite towers
+/// with a tall pointed Gothic arch, their legs outside the corridor; the
+/// four main cables slung over them (`Bridge::cable`), suspenders down to
+/// the deck (sparser over the way, and clear of the vines), and the
+/// diagonal stays fanning from the tower tops along the outer cables.
+fn bridge(s: &mut Sink, c: &Course, br: &Bridge, river: Option<River>) {
+    let run = br.end.sub(br.start).flat();
+    let len = run.len();
     if len < int(4) {
         return;
     }
-    let fwd = d.flat().norm();
+    let fwd = run.norm();
     let right = right_of(fwd);
-    let along = d.norm();
     let w = br.half_width;
-    let water = river.map_or(br.start.y - int(10), |r| r.level);
-    // the deck in 20 m pieces (each in its own chunk), its girders and
-    // cross beams, the rails with their posts, and the lamps
+    let water = river.map_or(br.start.y - int(4), |r| r.level);
+    let outer = CABLES[CABLES.len() - 1].abs();
+    let deck = |t: i32, x: i32| br.start.add(fwd.scale(t)).add(right.scale(x));
+    // the deck in 20 m pieces, each in its own chunk
     let pieces = (len / int(20)).max(1);
     for k in 0..pieces {
-        let a = deck_at(br, ONE * k / pieces);
-        let b = deck_at(br, ONE * (k + 1) / pieces);
-        let mid = a.lerp(b, ONE / 2);
-        let l = b.sub(a).len();
+        let t0 = len * k / pieces;
+        let t1 = len * (k + 1) / pieces;
+        let mid = deck((t0 + t1) / 2, 0);
+        let l = t1 - t0;
         let out = s.at(mid);
         out.push(
             Mesh::Cube,
@@ -541,12 +613,12 @@ fn bridge(s: &mut Sink, br: &Bridge, river: Option<River>) {
                 mid.sub(up(cm(40))),
                 right,
                 V3::UP,
-                along,
+                fwd,
                 w * 2,
                 cm(80),
                 l + cm(4),
             ),
-            rgb(70, 66, 64),
+            rgb(66, 62, 62),
             0,
         );
         for side in [-1, 1] {
@@ -554,10 +626,10 @@ fn bridge(s: &mut Sink, br: &Bridge, river: Option<River>) {
             out.push(
                 Mesh::Cube,
                 &panel(
-                    edge.sub(up(int(2))),
+                    edge.sub(up(cm(150))),
                     right,
                     V3::UP,
-                    along,
+                    fwd,
                     cm(80),
                     int(3),
                     l + cm(4),
@@ -568,50 +640,57 @@ fn bridge(s: &mut Sink, br: &Bridge, river: Option<River>) {
             let rail = edge.add(up(cm(110))).sub(right.scale(side * cm(30)));
             out.push(
                 Mesh::Cube,
-                &panel(rail, right, V3::UP, along, cm(12), cm(12), l),
+                &panel(rail, right, V3::UP, fwd, cm(12), cm(12), l),
                 STEEL,
                 0,
             );
-            let post = a.add(right.scale(side * (w - cm(30))));
+            let post = deck(t0, side * (w - cm(30)));
             out.push(
                 Mesh::Cube,
                 &rod(post, post.add(up(cm(110))), cm(14)),
                 STEEL,
                 0,
             );
-            if k % 2 == 0 {
-                let lamp = post.add(up(int(4)));
-                out.push(Mesh::Hex, &rod(post, lamp, cm(18)), POLE, 0);
-                out.push(
-                    Mesh::Bevel,
-                    &placed(lamp, 0, v3(cm(50), cm(60), cm(50))),
-                    LAMP,
-                    ONE,
-                );
-            }
+            // the lamp posts, lit
+            let lamp = post.add(up(int(5)));
+            out.push(Mesh::Hex, &rod(post, lamp, cm(20)), POLE, 0);
+            out.push(
+                Mesh::Bevel,
+                &placed(lamp, 0, v3(cm(50), cm(70), cm(50))),
+                LAMP,
+                ONE,
+            );
+            // the outer girder the outer cables' suspenders hold
+            let rim = mid.add(right.scale(side * outer)).sub(up(cm(90)));
+            out.push(
+                Mesh::Cube,
+                &panel(rim, right, V3::UP, fwd, cm(50), cm(70), l + cm(4)),
+                STEEL,
+                0,
+            );
         }
+        // a cross beam under the deck out to the outer girders
         out.push(
             Mesh::Cube,
             &panel(
-                mid.sub(up(int(2))),
+                mid.sub(up(cm(120))),
                 right,
                 V3::UP,
-                along,
-                w * 2,
-                cm(60),
+                fwd,
+                outer * 2,
+                cm(50),
                 cm(60),
             ),
             STEEL,
             0,
         );
-        // the dashed line down the middle
         out.push(
             Mesh::Cube,
             &panel(
                 mid.add(up(cm(2))),
                 right,
                 V3::UP,
-                along,
+                fwd,
                 cm(16),
                 cm(2),
                 int(3),
@@ -620,116 +699,136 @@ fn bridge(s: &mut Sink, br: &Bridge, river: Option<River>) {
             ONE / 6,
         );
     }
-    // where the deck meets the land, a stone abutment under each end
-    for (end, dir) in [(br.start, along.neg()), (br.end, along)] {
-        let g = ground(end.x, end.z).min(water);
-        let foot = end.add(dir.flat().scale(int(3)));
-        let h = end.y - g;
-        if h > cm(50) {
-            s.at(end).push(
+    // the ladders down to the water
+    for l in br.ladders() {
+        let inward = br
+            .start
+            .flat()
+            .add(fwd.scale(l.flat().sub(br.start.flat()).dot(fwd)))
+            .sub(l.flat())
+            .norm();
+        let foot = l.sub(inward.scale(cm(30)));
+        let low = water - int(1);
+        let out = s.at(l);
+        let across = right_of(inward);
+        for x in [-cm(30), cm(30)] {
+            let a = foot.add(across.scale(x));
+            out.push(
                 Mesh::Cube,
-                &panel(
-                    v3(foot.x, g + h / 2 - cm(40), foot.z),
-                    right,
-                    V3::UP,
-                    fwd,
-                    w * 2 + int(4),
-                    h,
-                    int(6),
+                &rod(v3(a.x, low, a.z), a.add(up(cm(100))), cm(8)),
+                STEEL,
+                0,
+            );
+        }
+        let mut y = low + cm(30);
+        while y < l.y {
+            let a = v3(foot.x, y, foot.z);
+            out.push(
+                Mesh::Cube,
+                &rod(
+                    a.sub(across.scale(cm(30))),
+                    a.add(across.scale(cm(30))),
+                    cm(6),
+                ),
+                STEEL,
+                0,
+            );
+            y += cm(60);
+        }
+    }
+    // the towers
+    for t in &br.towers {
+        tower(s, *t, fwd, right, c.half_width, br.tower_height, water);
+    }
+    // the main cables, their suspenders and the stays
+    let vines: Vec<V3> = c.vines.iter().map(|v| v.anchor).collect();
+    let clear = |p: V3| vines.iter().all(|a| a.flat().sub(p.flat()).len() > int(4));
+    let towers: Vec<i32> = br
+        .towers
+        .iter()
+        .map(|t| t.flat().sub(br.start.flat()).dot(fwd))
+        .collect();
+    for (k, &x) in CABLES.iter().enumerate() {
+        let is_outer = x.abs() == outer;
+        let step = int(5);
+        let mut t = 0;
+        while t < len {
+            let t1 = (t + step).min(len);
+            let (a, b) = (br.cable(k, t), br.cable(k, t1));
+            let out = s.at(a);
+            out.push(
+                Mesh::Cyl,
+                &rod(a, b, if is_outer { cm(60) } else { cm(50) }),
+                CABLE,
+                0,
+            );
+            let every = if is_outer { int(5) } else { int(15) };
+            if t % every == 0 && t > 0 {
+                let foot = if is_outer {
+                    deck(t, x).sub(up(cm(60)))
+                } else {
+                    deck(t, x)
+                };
+                if a.y > foot.y + int(2) && clear(a) {
+                    out.push(Mesh::Cube, &rod(foot, a, cm(8)), CABLE, 0);
+                }
+            }
+            t = t1;
+        }
+        // where each cable comes down at the deck's ends: an anchor block
+        for end in [0, len] {
+            let p = br.cable(k, end);
+            let foot = deck(end, x);
+            s.at(foot).push(
+                Mesh::Bevel,
+                &placed(
+                    foot.add(up(cm(50))),
+                    yaw_of(fwd),
+                    v3(cm(150), cm(100), cm(200)),
                 ),
                 STONE,
                 0,
             );
+            s.at(foot)
+                .push(Mesh::Cyl, &rod(foot.add(up(cm(90))), p, cm(50)), CABLE, 0);
         }
-    }
-    // the towers
-    let h = br.tower_height;
-    for t in &br.towers {
-        tower(s, *t, fwd, right, w, h, water);
-    }
-    // the main cables: up from anchorages at the deck's ends over the tower
-    // tops, sagging between them; suspenders down to the deck
-    let mut towers: Vec<(i32, V3)> = br
-        .towers
-        .iter()
-        .map(|t| (t.flat().sub(br.start.flat()).dot(fwd), *t))
-        .collect();
-    towers.sort_by_key(|t| t.0);
-    let mut knots: Vec<(i32, i32)> = vec![(0, br.start.y + int(2))];
-    for (a, t) in &towers {
-        knots.push((*a, t.y + h - int(2)));
-    }
-    knots.push((len, br.end.y + int(2)));
-    let low = int(3);
-    let height_at = |a: i32| -> i32 {
-        for k in knots.windows(2) {
-            let ((a0, y0), (a1, y1)) = (k[0], k[1]);
-            if a >= a0 && a <= a1 && a1 > a0 {
-                let t = fx::div(a - a0, a1 - a0);
-                let straight = fx::lerp(y0, y1, t);
-                // between two towers it sags to a few metres over the deck;
-                // to the anchorages it runs nearly straight
-                let deck = fx::lerp(br.start.y, br.end.y, fx::div(a, len));
-                let sag = if k[0] != knots[0] && k[1] != knots[knots.len() - 1] {
-                    let mid = (y0.min(y1) - (deck + low)).max(0);
-                    mul(mul(4 * t, ONE - t), mid)
-                } else {
-                    mul(mul(4 * t, ONE - t), int(2))
-                };
-                return straight - sag;
-            }
-        }
-        br.start.y
-    };
-    for side in [-1, 1] {
-        let off = right.scale(side * (w + cm(40)));
-        let point = |a: i32| {
-            let p = br.start.add(fwd.scale(a)).add(off);
-            v3(p.x, height_at(a), p.z)
-        };
-        let step = int(5);
-        let mut a = 0;
-        while a < len {
-            let b = (a + step).min(len);
-            let (pa, pb) = (point(a), point(b));
-            let out = s.at(pa);
-            out.push(Mesh::Cyl, &rod(pa, pb, cm(60)), CABLE, 0);
-            let deck = deck_at(br, fx::div(a, len)).add(off);
-            if pa.y > deck.y + int(2) {
-                out.push(Mesh::Cube, &rod(deck, pa, cm(10)), CABLE, 0);
-            }
-            a = b;
-        }
-        // the stays, fanning down from each tower's top both ways
-        for (_, t) in &towers {
-            let top = t.add(off).add(up(h - int(3)));
-            for dir in [-1, 1] {
-                for k in 1..=5 {
-                    let foot = t.add(off).add(fwd.scale(dir * int(8) * k));
-                    s.at(foot)
-                        .push(Mesh::Cube, &rod(top, foot, cm(8)), CABLE, 0);
+        // the stays fan from the tower tops along the outer cables
+        if is_outer {
+            for &at in &towers {
+                let top = br.cable(k, at);
+                for dir in [-1, 1] {
+                    for j in 1..=5 {
+                        let to = at + dir * int(7) * j;
+                        if to <= 0 || to >= len {
+                            continue;
+                        }
+                        let foot = deck(to, x).sub(up(cm(60)));
+                        s.at(foot)
+                            .push(Mesh::Cube, &rod(top, foot, cm(8)), CABLE, 0);
+                    }
                 }
             }
         }
     }
 }
 
-/// One of the bridge's granite towers, its feet in the water, standing
-/// `h` over the deck at `foot`: a pier each side of the way, a pointed
-/// arch over it, a solid top with a cornice, lit from below at dusk.
-fn tower(s: &mut Sink, foot: V3, fwd: V3, right: V3, w: i32, h: i32, water: i32) {
+/// One of the bridge's granite towers, standing `h` over the deck at
+/// `foot` (its middle on the deck), its feet in the water: a leg each side
+/// outside the corridor (`half` metres out), a tall pointed arch between
+/// them, a solid top over it with a cornice and pinnacles, washed by
+/// floodlights at dusk.
+fn tower(s: &mut Sink, foot: V3, fwd: V3, right: V3, half: i32, h: i32, water: i32) {
     let out = s.at(foot);
-    let pier_w = int(7);
+    let leg = int(7);
     let depth = int(10);
-    let inner = w + int(1);
+    let inner = half + int(1);
     let lit = ONE / 6;
     let bottom = water - int(2);
-    let arch_side = foot.y + mul(h, ONE * 46 / 100);
-    let arch_top = foot.y + mul(h, ONE * 64 / 100);
+    let arch_side = foot.y + mul(h, ONE * 72 / 100);
+    let arch_top = foot.y + mul(h, ONE * 90 / 100);
     let top = foot.y + h;
     for side in [-1, 1] {
-        let x = side * (inner + pier_w / 2);
-        let p = foot.add(right.scale(x));
+        let p = foot.add(right.scale(side * (inner + leg / 2)));
         out.push(
             Mesh::Cube,
             &panel(
@@ -737,14 +836,32 @@ fn tower(s: &mut Sink, foot: V3, fwd: V3, right: V3, w: i32, h: i32, water: i32)
                 right,
                 V3::UP,
                 fwd,
-                pier_w,
+                leg,
                 top - bottom,
                 depth,
             ),
             GRANITE,
             lit,
         );
-        // the arch's shoulder: a wedge from the pier up to the point
+        // a tall dark lancet window up each leg's face, both ways
+        for face in [-1, 1] {
+            let q = p.add(fwd.scale(face * (depth / 2 + cm(4))));
+            out.push(
+                Mesh::Cube,
+                &panel(
+                    v3(q.x, foot.y + h / 2, q.z),
+                    right,
+                    V3::UP,
+                    fwd,
+                    cm(140),
+                    h * 2 / 5,
+                    cm(10),
+                ),
+                shade(GRANITE, 55),
+                0,
+            );
+        }
+        // the arch's shoulder: a wedge from the leg in to the point
         let corner = foot.add(right.scale(side * inner / 2));
         let wedge = panel(
             v3(corner.x, (arch_side + arch_top) / 2, corner.z),
@@ -756,9 +873,14 @@ fn tower(s: &mut Sink, foot: V3, fwd: V3, right: V3, w: i32, h: i32, water: i32)
             inner,
         );
         out.push(Mesh::Wedge, &wedge, shade(GRANITE, 94), lit);
+        out.push(
+            Mesh::Pyramid,
+            &placed(p.add(up(h + int(2))), 0, v3(int(3), int(4), int(3))),
+            shade(GRANITE, 90),
+            lit,
+        );
     }
-    // the solid top over the arch, a cornice, and a pinnacle each corner
-    let span = (inner + pier_w) * 2;
+    let span = (inner + leg) * 2;
     out.push(
         Mesh::Cube,
         &panel(
@@ -787,18 +909,7 @@ fn tower(s: &mut Sink, foot: V3, fwd: V3, right: V3, w: i32, h: i32, water: i32)
         shade(GRANITE, 86),
         lit,
     );
-    for side in [-1, 1] {
-        let p = foot
-            .add(right.scale(side * (inner + pier_w / 2)))
-            .add(up(h + int(2)));
-        out.push(
-            Mesh::Pyramid,
-            &placed(p, 0, v3(int(3), int(3), int(3))),
-            shade(GRANITE, 90),
-            lit,
-        );
-    }
-    // the pier's foot in the water
+    // the pier the legs stand on, in the water
     out.push(
         Mesh::Cube,
         &panel(
@@ -846,6 +957,8 @@ struct Windows {
     mullion: i32,
     /// percent of windows lit
     lit: u32,
+    /// how many windows in a run lit (or dark) together, fewest and most
+    runs: (i32, i32),
     /// the frame between the windows
     frame: Rgb,
     glass: Rgb,
@@ -860,6 +973,7 @@ fn windows(style: u8, body: Rgb) -> Windows {
             mullion: cm(110),
             lit: 60,
             frame: shade(body, 92),
+            runs: (2, 5),
             glass: DARK_GLASS,
         },
         GLASS => Windows {
@@ -869,6 +983,7 @@ fn windows(style: u8, body: Rgb) -> Windows {
             mullion: cm(22),
             lit: 50,
             frame: rgb(96, 104, 116),
+            runs: (3, 7),
             glass: rgb(56, 78, 112),
         },
         DECO => Windows {
@@ -878,6 +993,17 @@ fn windows(style: u8, body: Rgb) -> Windows {
             mullion: cm(120),
             lit: 55,
             frame: shade(body, 104),
+            runs: (2, 5),
+            glass: DARK_GLASS,
+        },
+        WAREHOUSE => Windows {
+            floor: cm(460),
+            bay: cm(420),
+            tall: 50,
+            mullion: cm(160),
+            lit: 30,
+            frame: shade(body, 90),
+            runs: (2, 5),
             glass: DARK_GLASS,
         },
         _ => Windows {
@@ -887,6 +1013,7 @@ fn windows(style: u8, body: Rgb) -> Windows {
             mullion: cm(70),
             lit: 55,
             frame: shade(body, 88),
+            runs: (2, 5),
             glass: DARK_GLASS,
         },
     }
@@ -898,7 +1025,8 @@ fn body_colour(style: u8, seed: u64) -> Rgb {
         BROWNSTONE => [rgb(120, 72, 56), rgb(104, 64, 52), rgb(134, 88, 66)][k],
         GLASS => [rgb(44, 60, 86), rgb(56, 72, 96), rgb(38, 52, 74)][k],
         DECO => [rgb(178, 162, 136), rgb(160, 146, 124), rgb(190, 174, 148)][k],
-        TIMES => [rgb(52, 50, 62), rgb(44, 44, 52), rgb(60, 56, 66)][k],
+        WAREHOUSE => [rgb(110, 58, 46), rgb(96, 70, 56), rgb(124, 66, 50)][k],
+        TERMINAL => [rgb(176, 160, 132), rgb(170, 154, 128), rgb(182, 166, 138)][k],
         _ => [rgb(140, 64, 50), rgb(120, 58, 46), rgb(152, 82, 60)][k],
     }
 }
@@ -907,7 +1035,7 @@ fn body_colour(style: u8, seed: u64) -> Rgb {
 /// at dusk on the sides that face the course, and its roof's dressing.
 fn building(s: &mut Sink, bl: &Block, idx: usize) {
     let c = s.c;
-    let style = bl.style % STYLES;
+    let style = look_of(bl.style);
     let seed = seed_of(idx, 0xB10C);
     let fwd = bl.fwd.flat().norm();
     let right = right_of(fwd);
@@ -921,11 +1049,31 @@ fn building(s: &mut Sink, bl: &Block, idx: usize) {
     let lowest = corners.iter().copied().min().unwrap_or(0);
     let base = lowest - cm(150);
     let gy = ground(centre.x, centre.z);
-    let near = c.path[nearest(c, centre)];
+    let i = nearest(c, centre);
+    let near = c.path[i];
     let toward = near.flat().sub(centre.flat()).norm();
+    let at = i as i32 * STEP;
+    let times = at > TIMES_FROM && at < TIMES_TO;
     let body = body_colour(style, seed);
     let win = windows(style, body);
     let out = s.at(centre);
+    if style == HOARDING {
+        hoarding(
+            out,
+            centre,
+            fwd,
+            right,
+            bl.half_len,
+            bl.half_width,
+            bl.height.max(int(3)),
+            seed,
+        );
+        return;
+    }
+    if style == TERMINAL {
+        terminal(out, bl, toward, body);
+        return;
+    }
     // the sidewalk round it: a slab tilted to the ground under it
     sidewalk(
         out,
@@ -1014,8 +1162,8 @@ fn building(s: &mut Sink, bl: &Block, idx: usize) {
             };
             let fseed = seed_of(idx, k * 8 + t);
             let ground_floor = t == 0;
-            if style == TIMES && ground_floor {
-                let top = (gy + mul(h, ONE * 7 / 10)).min(gy + int(48));
+            if times && ground_floor && to - gy > int(16) {
+                let top = (gy + mul(h, ONE * 7 / 10)).min(gy + int(44));
                 billboards(out, &face, gy + int(5), top, fseed, detail);
                 facade(out, &face, top + int(1), to, &win, detail, fseed, false);
             } else {
@@ -1035,6 +1183,222 @@ fn building(s: &mut Sink, bl: &Block, idx: usize) {
     let hl = bl.half_len * pct / 100;
     let hw = bl.half_width * pct / 100;
     roof(out, style, centre, fwd, right, top, hl, hw, h, seed);
+}
+
+/// A building site's hoarding round its block: painted plywood walls
+/// pasted with lit posters, the dug-out lot inside with stacked steel.
+fn hoarding(b: &mut Batch, centre: V3, fwd: V3, right: V3, hl: i32, hw: i32, h: i32, seed: u64) {
+    let gy = ground(centre.x, centre.z);
+    let ply = [rgb(40, 70, 120), rgb(36, 90, 70), rgb(120, 110, 96)][pick(seed, 3) as usize];
+    b.push(
+        Mesh::Cube,
+        &panel(
+            v3(centre.x, gy - cm(20), centre.z),
+            right,
+            V3::UP,
+            fwd,
+            hw * 2,
+            cm(40),
+            hl * 2,
+        ),
+        rgb(86, 70, 54),
+        0,
+    );
+    let mut d = fx::Dice(seed ^ 0x40A2);
+    for (out, across, half, depth) in [
+        (fwd, right, hw, hl),
+        (fwd.neg(), right.neg(), hw, hl),
+        (right, fwd.neg(), hl, hw),
+        (right.neg(), fwd, hl, hw),
+    ] {
+        let mid = centre.add(out.scale(depth));
+        b.push(
+            Mesh::Cube,
+            &panel(
+                v3(mid.x, gy + h / 2 - cm(20), mid.z),
+                across,
+                V3::UP,
+                out,
+                half * 2,
+                h + cm(40),
+                cm(20),
+            ),
+            ply,
+            0,
+        );
+        // posters along it, lit
+        let mut x = -half + int(2);
+        while x + int(3) < half {
+            let p = mid.add(across.scale(x + cm(140))).add(out.scale(cm(12)));
+            b.push(
+                Mesh::Cube,
+                &panel(
+                    v3(p.x, gy + h / 2, p.z),
+                    across,
+                    V3::UP,
+                    out,
+                    cm(220),
+                    h * 3 / 5,
+                    cm(4),
+                ),
+                BILLBOARDS[d.below(BILLBOARDS.len() as u32) as usize],
+                ONE * 2 / 5,
+            );
+            x += int(d.range(4, 8));
+        }
+    }
+    for k in 0..3 {
+        let p = centre
+            .add(fwd.scale(-hl / 2 + k * hl / 3))
+            .add(right.scale(hw / 3));
+        b.push(
+            Mesh::Cube,
+            &panel(
+                v3(p.x, gy + cm(40) + k * cm(10), p.z),
+                right,
+                V3::UP,
+                fwd,
+                int(8),
+                cm(40),
+                cm(60),
+            ),
+            rgb(150, 60, 40),
+            0,
+        );
+    }
+}
+
+/// The grand terminal closing the plaza (a Grand-Central-like front): a
+/// stone body, columns across its front, three tall lit arched windows, a
+/// cornice and a lit clock; lit windows in rows along its wings.
+fn terminal(b: &mut Batch, bl: &Block, toward: V3, body: Rgb) {
+    let fwd = bl.fwd.flat().norm();
+    let right = right_of(fwd);
+    let centre = bl.centre;
+    let gy = ground(centre.x, centre.z);
+    let h = bl.height.max(int(20));
+    b.push(
+        Mesh::Cube,
+        &panel(
+            v3(centre.x, gy + h / 2 - int(1), centre.z),
+            right,
+            V3::UP,
+            fwd,
+            bl.half_width * 2,
+            h + int(2),
+            bl.half_len * 2,
+        ),
+        body,
+        0,
+    );
+    // the side facing the plaza
+    let faces = [
+        (fwd, right, bl.half_width, bl.half_len),
+        (fwd.neg(), right.neg(), bl.half_width, bl.half_len),
+        (right, fwd.neg(), bl.half_len, bl.half_width),
+        (right.neg(), fwd, bl.half_len, bl.half_width),
+    ];
+    let (out, across, half, depth) = faces
+        .into_iter()
+        .max_by_key(|f| f.0.dot(toward))
+        .unwrap_or(faces[0]);
+    let front = centre.add(out.scale(depth));
+    let at = |x: i32, y: i32, o: i32| {
+        v3(front.x, gy + y, front.z)
+            .add(across.scale(x))
+            .add(out.scale(o))
+    };
+    let span = half.min(int(36));
+    for k in -1..=1 {
+        let x = k * span * 2 / 3;
+        let w = span / 3;
+        let hh = h * 11 / 20;
+        b.push(
+            Mesh::Cube,
+            &panel(
+                at(x, int(2) + hh / 2, cm(10)),
+                across,
+                V3::UP,
+                out,
+                w,
+                hh,
+                cm(20),
+            ),
+            LIT[0],
+            ONE * 3 / 4,
+        );
+        b.push(
+            Mesh::Pyramid,
+            &panel(
+                at(x, int(2) + hh + w / 4, cm(10)),
+                across,
+                V3::UP,
+                out,
+                w,
+                w / 2,
+                cm(20),
+            ),
+            LIT[0],
+            ONE * 3 / 4,
+        );
+    }
+    for k in 0..8 {
+        let x = -span + k * span * 2 / 7;
+        b.push(
+            Mesh::Hex,
+            &rod(at(x, 0, cm(140)), at(x, h * 3 / 4, cm(140)), cm(170)),
+            shade(body, 108),
+            0,
+        );
+    }
+    b.push(
+        Mesh::Cube,
+        &panel(
+            at(0, h * 3 / 4 + cm(80), cm(120)),
+            across,
+            V3::UP,
+            out,
+            span * 2 + int(3),
+            cm(160),
+            int(3),
+        ),
+        shade(body, 86),
+        0,
+    );
+    b.push(
+        Mesh::Hex,
+        &Affine {
+            c0: across.scale(int(6)),
+            c1: out.scale(cm(30)),
+            c2: V3::UP.scale(int(6)),
+            t: at(0, h * 3 / 4 + int(5), cm(40)),
+        },
+        rgb(255, 240, 200),
+        ONE * 3 / 4,
+    );
+    // its wings, windows lit in rows
+    for side in [-1, 1] {
+        for row in 0..3 {
+            b.push(
+                Mesh::Cube,
+                &panel(
+                    at(
+                        side * (span + (half - span) / 2),
+                        int(5) + row * int(6),
+                        cm(5),
+                    ),
+                    across,
+                    V3::UP,
+                    out,
+                    (half - span).max(int(4)) - int(4),
+                    cm(220),
+                    cm(10),
+                ),
+                LIT[(row as usize + 1) % 4],
+                ONE * 3 / 4,
+            );
+        }
+    }
 }
 
 /// A sidewalk slab round a building, tilted to follow the ground's hills.
@@ -1083,13 +1447,13 @@ fn facade(
             .add(face.out.scale(out))
             .add(up(y - face.mid.y))
     };
-    let step = if detail == Detail::Full { 1 } else { 2 };
+    let step = if detail == Detail::Full { 1 } else { 3 };
     let mut f = first;
     while f < floors {
         let y = from + f * win.floor + win.floor / 2 + cm(10);
         let mut k = 0;
         while k < bays {
-            let run = (dice.range(1, 4)).min(bays - k);
+            let run = (dice.range(win.runs.0, win.runs.1)).min(bays - k);
             let lit = dice.below(100) < win.lit;
             let colour = if lit {
                 LIT[dice.below(4) as usize]
@@ -1331,7 +1695,7 @@ fn roof(
     seed: u64,
 ) {
     let c = v3(centre.x, top, centre.z);
-    if style == BROWNSTONE || style == LOFT {
+    if style == BROWNSTONE || style == LOFT || style == WAREHOUSE {
         b.push(
             Mesh::Cube,
             &panel(
@@ -1348,7 +1712,7 @@ fn roof(
         );
     }
     let tank = match style {
-        BROWNSTONE | LOFT => pick(seed ^ 1, 100) < 60,
+        BROWNSTONE | LOFT | WAREHOUSE => pick(seed ^ 1, 100) < 60,
         DECO => h < int(60) && pick(seed ^ 1, 100) < 35,
         _ => false,
     };
@@ -1358,7 +1722,7 @@ fn roof(
             .add(right.scale(if seed % 2 == 0 { hw / 3 } else { -hw / 3 }));
         water_tower(b, c.add(off), seed);
     }
-    if style == GLASS || style == TIMES {
+    if style == GLASS {
         let n = 1 + pick(seed ^ 5, 2) as i32;
         for k in 0..n {
             let p = c
@@ -1542,7 +1906,7 @@ fn crane(b: &mut Batch, foot: V3, tip: V3) {
     }
     let mut y = foot.y;
     let mut k = 0;
-    while y + int(4) <= top.y {
+    while y + int(6) <= top.y {
         for f in 0..4 {
             let a = corners[f];
             let e = corners[(f + 1) % 4];
@@ -1551,14 +1915,14 @@ fn crane(b: &mut Batch, foot: V3, tip: V3) {
                 Mesh::Cube,
                 &rod(
                     v3(foot.x, y, foot.z).add(p),
-                    v3(foot.x, y + int(4), foot.z).add(q),
+                    v3(foot.x, y + int(6), foot.z).add(q),
                     cm(10),
                 ),
                 CRANE,
                 0,
             );
         }
-        y += int(4);
+        y += int(6);
         k += 1;
     }
     // the cab, the jib (two lower chords and a top chord, braced) and the
@@ -1683,20 +2047,13 @@ fn gantry(b: &mut Batch, foot: V3, end: V3, k: usize) {
     };
     let side = right_of(along);
     if k % 2 == 0 {
-        // the lamp head at the arm's end, and its pool of light below
+        // the lamp head at the arm's end
         let head = end.sub(along.scale(cm(100))).sub(up(cm(30)));
         b.push(
             Mesh::Bevel,
             &panel(head, side, V3::UP, along, cm(90), cm(30), cm(170)),
             LAMP,
             ONE,
-        );
-        let g = on_ground(head);
-        b.push(
-            Mesh::Cyl,
-            &placed(g.add(up(cm(4))), 0, v3(int(7), cm(2), int(7))),
-            POOL,
-            ONE / 5,
         );
     } else {
         // two signals along the arm, one lit red, one green
@@ -1891,12 +2248,6 @@ fn streets(s: &mut Sink, c: &Course, city: &CityLayout) {
                 LAMP,
                 ONE,
             );
-            out.push(
-                Mesh::Cyl,
-                &placed(on_ground(head).add(up(cm(4))), 0, v3(int(8), cm(2), int(8))),
-                POOL,
-                ONE / 5,
-            );
         }
         at += int(34);
         k += 1;
@@ -1993,7 +2344,7 @@ fn skyline(s: &mut Sink, c: &Course, city: &CityLayout, f: &RiverFrame) {
         z0 = z0.min(p.z);
         z1 = z1.max(p.z);
     }
-    let gap = int(62);
+    let gap = int(78);
     let m = int(240);
     let target = landmark_target(c);
     let mut spots: Vec<(V3, i32, u64)> = Vec::new();
@@ -2082,7 +2433,7 @@ fn far_tower(b: &mut Batch, at: V3, toward: V3, h: i32, seed: u64) {
     ] {
         let mid = at.add(face_out.scale(if face_out == fwd { hl } else { hw }));
         let mut y = gy + int(8);
-        let step = if face_out == fwd { cm(760) } else { cm(1520) };
+        let step = if face_out == fwd { cm(760) } else { cm(2280) };
         while y < gy + h - int(4) {
             let lit = d.below(100) < 55;
             let colour = if lit {
@@ -2293,7 +2644,7 @@ fn finish_gantry(b: &mut Batch, c: &Course) {
 
 /// The plaza past the finish (where a finished ape coasts to a stop):
 /// strings of lights across it, the podium, a fountain, a fruit cart piled
-/// with bananas, and a grand station front closing it off.
+/// with bananas (the terminal closing it off is a block, `terminal`).
 fn plaza(b: &mut Batch, c: &Course) {
     let last = c.path.len() - 1;
     let fwd = c.heading[last];
@@ -2424,92 +2775,6 @@ fn plaza(b: &mut Batch, c: &Course) {
             ONE / 6,
         );
     }
-    // the station front at the plaza's end: columns, three tall lit arched
-    // windows, a clock and a cornice
-    let end = OUTRO + int(6);
-    let front = at(end, 0);
-    let width = int(110);
-    b.push(
-        Mesh::Cube,
-        &placed(
-            front.add(up(int(15))).add(fwd.scale(int(8))),
-            yaw,
-            v3(width, int(34), int(16)),
-        ),
-        rgb(170, 154, 128),
-        0,
-    );
-    for k in -1..=1 {
-        let p = front.add(right.scale(k * int(18))).add(up(int(14)));
-        b.push(
-            Mesh::Cube,
-            &placed(p.sub(fwd.scale(cm(20))), yaw, v3(int(12), int(20), cm(30))),
-            LIT[0],
-            ONE * 3 / 4,
-        );
-        b.push(
-            Mesh::Cone,
-            &placed(
-                p.add(up(int(12))).sub(fwd.scale(cm(20))),
-                yaw,
-                v3(int(12), int(4), cm(30)),
-            ),
-            LIT[0],
-            ONE * 3 / 4,
-        );
-    }
-    for k in 0..8 {
-        let x = -int(32) + k * int(64) / 7;
-        let p = front.add(right.scale(x)).sub(fwd.scale(cm(80)));
-        b.push(
-            Mesh::Hex,
-            &rod(p, p.add(up(int(26))), cm(160)),
-            rgb(186, 170, 142),
-            0,
-        );
-    }
-    b.push(
-        Mesh::Cube,
-        &placed(
-            front.add(up(int(27))).sub(fwd.scale(cm(60))),
-            yaw,
-            v3(int(72), int(2), int(3)),
-        ),
-        rgb(150, 136, 112),
-        0,
-    );
-    let clock = front.add(up(int(30))).sub(fwd.scale(int(1)));
-    b.push(
-        Mesh::Hex,
-        &Affine::translate(clock)
-            .then(&Affine::rot_y(yaw))
-            .then(&Affine::rot_x(deg(90)))
-            .then(&Affine::scale(v3(int(5), cm(30), int(5)))),
-        rgb(255, 240, 200),
-        ONE * 3 / 4,
-    );
-    // its wings, lower, lit windows in rows
-    for s in [-1, 1] {
-        let p = front.add(right.scale(s * int(80))).add(fwd.scale(int(8)));
-        b.push(
-            Mesh::Cube,
-            &placed(p.add(up(int(10))), yaw, v3(int(50), int(24), int(16))),
-            rgb(150, 138, 118),
-            0,
-        );
-        for row in 0..3 {
-            b.push(
-                Mesh::Cube,
-                &placed(
-                    p.add(up(int(5 + row * 6))).sub(fwd.scale(int(8) + cm(5))),
-                    yaw,
-                    v3(int(44), cm(220), cm(10)),
-                ),
-                LIT[(row as usize + 1) % 4],
-                ONE * 3 / 4,
-            );
-        }
-    }
 }
 
 // ---- the vines as wires ----
@@ -2578,141 +2843,6 @@ pub fn preview(c: &Course) -> (V3, i32, Camera) {
             fov: deg(34),
         },
     )
-}
-
-// ---- a hand-filled City for looking at the drawing ----
-
-/// A hand-filled City layout over the stand-in course (group Y's preview,
-/// `?map=citydemo`, until the course agent's real layout lands): blocks
-/// down both sides, a Times Square stretch, a river and its bridge, cars
-/// for the mushrooms, and something for every vine to hang from.
-pub fn demo() -> Course {
-    let mut c = crate::city::city();
-    c.props.clear();
-    let hw = c.half_width;
-    let river = River {
-        from: int(820),
-        to: int(900),
-        level: -int(3),
-    };
-    let mut l = CityLayout::default();
-    let mut at = int(10);
-    let mut k = 0usize;
-    while at < c.length + OUTRO - int(20) {
-        let fwd = c.heading_at(at);
-        let right = right_of(fwd);
-        let seed = seed_of(k, 0xDE40);
-        let hl = int(10 + pick(seed, 8) as i32);
-        if at + hl > river.from - int(6) && at - hl < river.to + int(6) {
-            at += int(8);
-            continue;
-        }
-        if at > c.length - int(10) && at < c.length + int(130) {
-            at += int(10);
-            continue;
-        }
-        for side in [-1, 1] {
-            let s2 = seed ^ (side as u64 + 3);
-            let hwid = int(10 + pick(s2, 8) as i32);
-            let centre = c.point(at).add(right.scale(side * (hw + int(3) + hwid)));
-            let pts = samples(&c);
-            if distance(&pts, centre) < hw + hwid {
-                continue;
-            }
-            let style = if at > int(300) && at < int(460) {
-                TIMES
-            } else {
-                pick(s2 ^ 9, 4) as u8
-            };
-            let height = match style {
-                BROWNSTONE => int(14 + pick(s2, 8) as i32),
-                GLASS => int(50 + pick(s2, 70) as i32),
-                DECO => int(40 + pick(s2, 90) as i32),
-                TIMES => int(40 + pick(s2, 30) as i32),
-                _ => int(20 + pick(s2, 25) as i32),
-            };
-            l.blocks.push(Block {
-                centre: on_ground(centre),
-                fwd,
-                half_len: hl - int(1),
-                half_width: hwid,
-                height,
-                style,
-            });
-        }
-        at += hl * 2 + int(pick(seed ^ 5, 3) as i32 * 6);
-        k += 1;
-    }
-    for (i, m) in c.mushrooms.iter().enumerate() {
-        let kind = [
-            CarKind::Cab,
-            CarKind::Sedan,
-            CarKind::Cab,
-            CarKind::Van,
-            CarKind::Bus,
-        ][i % 5];
-        let s = c.nearest_anywhere(m.top) as i32 * STEP;
-        l.cars.push(crate::city::Car {
-            at: on_ground(m.top),
-            yaw: yaw_of(c.heading_at(s)) + if i % 2 == 0 { 0 } else { deg(180) },
-            kind,
-            bouncer: i,
-        });
-    }
-    let p0 = c.point(river.from - int(10));
-    let p1 = c.point(river.to + int(10));
-    let deck = |p: V3| v3(p.x, ground(p.x, p.z) + cm(20), p.z);
-    let (d0, d1) = (deck(p0), deck(p1));
-    l.bridge = Some(Bridge {
-        start: d0,
-        end: d1,
-        half_width: hw,
-        towers: vec![d0.lerp(d1, ONE / 5), d0.lerp(d1, ONE * 4 / 5)],
-        tower_height: int(44),
-    });
-    l.river = Some(river);
-    for (i, v) in c.vines.iter().enumerate() {
-        let a = v.anchor;
-        let s = v.at;
-        let right = right_of(c.heading_at(s));
-        let side = if a.flat().sub(c.point(s)).dot(right) > 0 {
-            1
-        } else {
-            -1
-        };
-        let edge = on_ground(c.point(s).add(right.scale(side * (hw - int(1)))));
-        let kind = if s > river.from && s < river.to {
-            HangerKind::BridgeCable
-        } else {
-            [
-                HangerKind::Wire,
-                HangerKind::StreetLight,
-                HangerKind::Crane,
-                HangerKind::Helicopter,
-                HangerKind::Wire,
-            ][i % 5]
-        };
-        let (from, to) = match kind {
-            HangerKind::Helicopter => (a.add(up(int(4))), a.add(up(int(4)))),
-            HangerKind::Crane => (on_ground(edge.add(right.scale(side * int(12)))), a),
-            HangerKind::StreetLight => (edge, a),
-            HangerKind::Wire => {
-                let y = a.y + int(1);
-                let l = c.point(s).add(right.scale(-(hw + int(2))));
-                let r = c.point(s).add(right.scale(hw + int(2)));
-                (v3(l.x, y, l.z), v3(r.x, y, r.z))
-            }
-            HangerKind::BridgeCable => (a.add(up(cm(60))), a),
-        };
-        l.hangers.push(Hanger {
-            vine: i,
-            kind,
-            from,
-            to,
-        });
-    }
-    c.city = Some(Box::new(l));
-    c
 }
 
 #[cfg(test)]

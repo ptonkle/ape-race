@@ -629,15 +629,10 @@ impl App {
     }
 
     /// A look at another map before the map selector (group Y's test hook,
-    /// `?map=city` on the page; `citydemo` is a hand-filled City layout).
+    /// `?map=city` on the page).
     fn preview_map(&mut self, key: &str) {
-        let course = if key == "citydemo" {
-            crate::cityscape::demo()
-        } else {
-            match crate::map::Map::from_key(key) {
-                Some(m) => m.course(),
-                None => return,
-            }
+        let Some(course) = crate::map::Map::from_key(key).map(|m| m.course()) else {
+            return;
         };
         self.jungle = scene::scenery(&course);
         self.course = course;

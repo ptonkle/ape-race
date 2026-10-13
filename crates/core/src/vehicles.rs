@@ -5,7 +5,7 @@
 //! helicopter about its rotor's hub), then turned and scaled into place.
 //! Nothing here keeps state: the rotors and the bobbing come from the tick.
 
-use crate::city::CarKind;
+use crate::city::{BoatKind, CarKind};
 use crate::fx::{cm, deg, int, mul, sin, ONE};
 use crate::geom::{v3, Affine, V3};
 use crate::mesh::Mesh;
@@ -430,36 +430,37 @@ pub fn hover(tick: u32, k: usize) -> i32 {
     mul(sin(tick as i32 * 160 + k as i32 * 13_000), cm(30))
 }
 
-/// The boats on the river.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum BoatLook {
-    Tug,
-    Ferry,
-    Motorboat,
-}
-
 const HULL_RED: Rgb = rgb(150, 40, 34);
 const HULL_DARK: Rgb = rgb(30, 34, 40);
 const FERRY_ORANGE: Rgb = rgb(240, 120, 30);
 const DECK_WHITE: Rgb = rgb(230, 230, 222);
+const RUST: Rgb = rgb(110, 60, 40);
+const CONTAINERS: [Rgb; 3] = [rgb(40, 90, 150), rgb(170, 50, 40), rgb(60, 120, 70)];
 
-/// A boat floating at `at` (on the water), facing `yaw`, `scale` times
-/// life size (Q16); it rolls a little with the tick.
-pub fn boat(b: &mut Batch, look: BoatLook, at: V3, yaw: i32, scale: i32, tick: u32) {
-    let roll = mul(sin(tick as i32 * 120 + at.x), deg(2));
-    let f = Affine::translate(at)
-        .then(&Affine::rot_y(yaw))
-        .then(&Affine::rot_z(roll))
-        .then(&Affine::scale(v3(scale, scale, scale)));
-    match look {
-        BoatLook::Tug => {
-            // a black and red hull with its bow, a white wheelhouse, a stack
+/// How high each boat's top stands over the water, life size (the roof
+/// of a tug's wheelhouse or a ferry's cabin, a barge's cargo): what a
+/// swimmer bounces off.
+pub fn boat_top(kind: BoatKind) -> i32 {
+    match kind {
+        BoatKind::Tug => cm(400),
+        BoatKind::Ferry => cm(390),
+        BoatKind::Barge => cm(260),
+    }
+}
+
+/// A boat floating at `at` (its middle at the waterline), facing `yaw`,
+/// `scale` times life size (Q16): a red and black tugboat, an orange
+/// ferry with its cabin lit, or a rusty barge stacked with containers.
+pub fn boat(b: &mut Batch, kind: BoatKind, at: V3, yaw: i32, scale: i32) {
+    let f = frame(at, yaw, scale);
+    match kind {
+        BoatKind::Tug => {
             part(
                 b,
                 &f,
                 Mesh::Bevel,
-                v3(0, cm(40), 0),
-                v3(int(6), cm(220), int(16)),
+                v3(0, cm(20), 0),
+                v3(int(5), cm(180), int(14)),
                 HULL_DARK,
                 0,
             );
@@ -467,160 +468,27 @@ pub fn boat(b: &mut Batch, look: BoatLook, at: V3, yaw: i32, scale: i32, tick: u
                 b,
                 &f,
                 Mesh::Bevel,
-                v3(0, cm(160), 0),
-                v3(cm(620), cm(40), cm(1620)),
+                v3(0, cm(120), 0),
+                v3(cm(520), cm(40), cm(1420)),
                 HULL_RED,
-                0,
-            );
-            part(
-                b,
-                &f,
-                Mesh::Bevel,
-                v3(0, cm(300), -cm(100)),
-                v3(int(4), int(3), int(6)),
-                DECK_WHITE,
-                0,
-            );
-            part(
-                b,
-                &f,
-                Mesh::Bevel,
-                v3(0, cm(500), cm(30)),
-                v3(cm(340), cm(160), int(3)),
-                DECK_WHITE,
-                0,
-            );
-            part(
-                b,
-                &f,
-                Mesh::Cube,
-                v3(0, cm(500), cm(160)),
-                v3(cm(300), cm(70), cm(10)),
-                INTERIOR,
-                ONE * 3 / 5,
-            );
-            part(
-                b,
-                &f,
-                Mesh::Hex,
-                v3(0, cm(620), -cm(260)),
-                v3(cm(120), int(3), cm(120)),
-                HULL_RED,
-                0,
-            );
-            part(
-                b,
-                &f,
-                Mesh::Hex,
-                v3(0, cm(780), -cm(260)),
-                v3(cm(130), cm(40), cm(130)),
-                HULL_DARK,
-                0,
-            );
-            // the fenders round the bow
-            part(
-                b,
-                &f,
-                Mesh::Ico,
-                v3(0, cm(120), cm(820)),
-                v3(int(3), cm(120), cm(120)),
-                HULL_DARK,
-                0,
-            );
-            part(
-                b,
-                &f,
-                Mesh::Octa,
-                v3(0, cm(700), cm(20)),
-                v3(cm(24), cm(24), cm(24)),
-                TAILLIGHT,
-                ONE,
-            );
-        }
-        BoatLook::Ferry => {
-            // the orange Staten Island ferry: a long hull, two lit decks
-            part(
-                b,
-                &f,
-                Mesh::Bevel,
-                v3(0, cm(60), 0),
-                v3(int(16), int(3), int(60)),
-                FERRY_ORANGE,
-                0,
-            );
-            part(
-                b,
-                &f,
-                Mesh::Bevel,
-                v3(0, cm(320), 0),
-                v3(int(14), cm(260), int(54)),
-                FERRY_ORANGE,
-                0,
-            );
-            part(
-                b,
-                &f,
-                Mesh::Cube,
-                v3(0, cm(330), 0),
-                v3(cm(1410), cm(120), int(50)),
-                INTERIOR,
-                ONE * 3 / 5,
-            );
-            part(
-                b,
-                &f,
-                Mesh::Bevel,
-                v3(0, cm(560), 0),
-                v3(int(12), cm(220), int(40)),
-                DECK_WHITE,
-                0,
-            );
-            part(
-                b,
-                &f,
-                Mesh::Cube,
-                v3(0, cm(570), 0),
-                v3(cm(1210), cm(100), int(36)),
-                INTERIOR,
-                ONE * 3 / 5,
-            );
-            for z in [int(16), -int(16)] {
-                part(
-                    b,
-                    &f,
-                    Mesh::Bevel,
-                    v3(0, cm(760), z),
-                    v3(int(6), int(2), int(6)),
-                    DECK_WHITE,
-                    0,
-                );
-                part(
-                    b,
-                    &f,
-                    Mesh::Hex,
-                    v3(0, cm(900), z),
-                    v3(cm(140), int(2), cm(140)),
-                    HULL_DARK,
-                    0,
-                );
-            }
-        }
-        BoatLook::Motorboat => {
-            part(
-                b,
-                &f,
-                Mesh::Bevel,
-                v3(0, cm(50), 0),
-                v3(cm(260), cm(90), cm(760)),
-                DECK_WHITE,
                 0,
             );
             part(
                 b,
                 &f,
                 Mesh::Wedge,
-                v3(0, cm(50), cm(470)),
-                v3(cm(250), cm(90), cm(200)),
+                v3(0, cm(70), cm(780)),
+                v3(cm(480), cm(120), cm(160)),
+                HULL_DARK,
+                0,
+            );
+            // the wheelhouse, its lit windows, the stack and the fenders
+            part(
+                b,
+                &f,
+                Mesh::Bevel,
+                v3(0, cm(290), -cm(40)),
+                v3(int(4), cm(220), int(6)),
                 DECK_WHITE,
                 0,
             );
@@ -628,26 +496,153 @@ pub fn boat(b: &mut Batch, look: BoatLook, at: V3, yaw: i32, scale: i32, tick: u
                 b,
                 &f,
                 Mesh::Cube,
+                v3(0, cm(320), cm(262)),
+                v3(cm(340), cm(70), cm(8)),
+                INTERIOR,
+                ONE * 3 / 5,
+            );
+            part(
+                b,
+                &f,
+                Mesh::Hex,
+                v3(0, cm(460), -cm(260)),
+                v3(cm(110), int(2), cm(110)),
+                HULL_RED,
+                0,
+            );
+            part(
+                b,
+                &f,
+                Mesh::Hex,
+                v3(0, cm(570), -cm(260)),
+                v3(cm(120), cm(30), cm(120)),
+                HULL_DARK,
+                0,
+            );
+            for z in [int(4), -int(4)] {
+                for x in [cm(270), -cm(270)] {
+                    part(
+                        b,
+                        &f,
+                        Mesh::Ico,
+                        v3(x, cm(90), z),
+                        v3(cm(60), cm(90), cm(90)),
+                        TYRE,
+                        0,
+                    );
+                }
+            }
+            part(
+                b,
+                &f,
+                Mesh::Octa,
+                v3(0, cm(420), 0),
+                v3(cm(24), cm(24), cm(24)),
+                TAILLIGHT,
+                ONE,
+            );
+        }
+        BoatKind::Ferry => {
+            part(
+                b,
+                &f,
+                Mesh::Bevel,
                 v3(0, cm(30), 0),
-                v3(cm(264), cm(18), cm(764)),
-                BUS_BLUE,
+                v3(int(6), cm(180), int(17)),
+                FERRY_ORANGE,
+                0,
+            );
+            part(
+                b,
+                &f,
+                Mesh::Wedge,
+                v3(0, cm(40), cm(920)),
+                v3(cm(580), cm(160), cm(160)),
+                FERRY_ORANGE,
+                0,
+            );
+            part(
+                b,
+                &f,
+                Mesh::Bevel,
+                v3(0, cm(270), -cm(60)),
+                v3(cm(520), cm(230), int(12)),
+                DECK_WHITE,
                 0,
             );
             part(
                 b,
                 &f,
                 Mesh::Cube,
-                v3(0, cm(130), cm(120)),
-                v3(cm(200), cm(60), cm(8)),
-                GLASS,
-                ONE / 6,
+                v3(0, cm(280), -cm(60)),
+                v3(cm(530), cm(90), cm(1140)),
+                INTERIOR,
+                ONE * 3 / 5,
+            );
+            part(
+                b,
+                &f,
+                Mesh::Bevel,
+                v3(0, cm(385), cm(400)),
+                v3(cm(300), cm(20), cm(300)),
+                DECK_WHITE,
+                0,
+            );
+            part(
+                b,
+                &f,
+                Mesh::Cube,
+                v3(0, cm(120), 0),
+                v3(cm(608), cm(30), cm(1710)),
+                BUS_WHITE,
+                0,
             );
             part(
                 b,
                 &f,
                 Mesh::Octa,
-                v3(0, cm(180), -cm(360)),
-                v3(cm(20), cm(20), cm(20)),
+                v3(0, cm(420), cm(400)),
+                v3(cm(24), cm(24), cm(24)),
+                rgb(60, 255, 120),
+                ONE,
+            );
+        }
+        BoatKind::Barge => {
+            part(
+                b,
+                &f,
+                Mesh::Bevel,
+                v3(0, cm(20), 0),
+                v3(int(6), cm(200), int(14)),
+                RUST,
+                0,
+            );
+            part(
+                b,
+                &f,
+                Mesh::Cube,
+                v3(0, cm(122), 0),
+                v3(cm(580), cm(6), cm(1380)),
+                shade(RUST, 70),
+                0,
+            );
+            for (k, z) in [-cm(420), 0, cm(420)].into_iter().enumerate() {
+                part(
+                    b,
+                    &f,
+                    Mesh::Cube,
+                    v3(0, cm(190), z),
+                    v3(cm(480), cm(140), cm(400)),
+                    CONTAINERS[k % CONTAINERS.len()],
+                    0,
+                );
+            }
+            part(
+                b,
+                &f,
+                Mesh::Octa,
+                v3(0, cm(290), cm(660)),
+                v3(cm(24), cm(24), cm(24)),
                 HEADLIGHT,
                 ONE,
             );
