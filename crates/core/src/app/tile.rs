@@ -111,11 +111,11 @@ impl App {
     /// there (no ticks, no menus).
     pub(super) fn tile(&mut self, spec: &str) {
         let t = Tile::parse(spec);
-        if Map::of(&self.course) != t.map {
-            self.course = t.map.course();
-            self.jungle = crate::scene::scenery(&self.course);
-            self.scene_version += 1;
-        }
+        self.settings.map = t.map;
+        self.ensure_course(t.map);
+        let Some(course) = self.course_of(t.map).cloned() else {
+            return;
+        };
         let entries: Vec<Entry> = t
             .kinds()
             .into_iter()
@@ -126,7 +126,7 @@ impl App {
             })
             .collect();
         let focus = t.focus.min(entries.len() - 1);
-        let mut race = Race::new(self.course.clone(), &entries, false, t.seed);
+        let mut race = Race::new(course, &entries, false, t.seed);
         race.ai_level = t.level;
         race.lava = t.lava;
         self.begin(race, focus);
