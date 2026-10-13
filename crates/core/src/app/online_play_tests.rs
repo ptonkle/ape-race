@@ -342,3 +342,45 @@ fn the_hosts_map_shows_in_every_lobby_and_the_race_runs_on_it() {
     }
     assert_eq!(p.apps[1].settings.map, Map::Jungle);
 }
+
+#[test]
+fn floor_is_lava_online_the_jaguar_eats_on_every_browser() {
+    // TRIAGE T37: the host's checkbox reaches the joiner (shown in its
+    // lobby, and in its race); an ape eaten in its owner's browser is
+    // eaten in the other's, where it was, and the results say so
+    let mut p = Pair::lobby();
+    assert!(
+        p.apps[0].ui().contains("lobby.lava"),
+        "the host's lobby has the box"
+    );
+    p.apps[0].act("lobby.lava", "on");
+    p.run(1500);
+    let shown = p.apps[1].ui();
+    assert!(!shown.contains("lobby.lava"), "only the host sets it");
+    assert!(shown.contains("Floor is Lava"));
+    assert!(p.apps[1].online.session.as_ref().unwrap().lobby().lava);
+    p.race();
+    for a in &p.apps {
+        assert!(a.play.as_ref().unwrap().race.lava);
+    }
+    // the host runs off the start platform onto the floor
+    p.apps[0].key("KeyW", true);
+    p.run(12000);
+    let host = p.apps[0].play.as_ref().unwrap().race.racers[0].eaten;
+    let seen = p.apps[1].play.as_ref().unwrap().race.racers[0].eaten;
+    let (host, seen) = (host.expect("eaten at home"), seen.expect("and here"));
+    assert_eq!(seen.at, host.at, "where its owner said");
+    assert_eq!(seen.from, host.from, "the same jaguar");
+    let ui: Value = serde_json::from_str(&p.apps[0].ui()).unwrap();
+    assert!(
+        ui["panels"].to_string().contains("Eaten"),
+        "{}",
+        ui["panels"]
+    );
+    let rows = p.apps[1].online.session.as_ref().unwrap().results();
+    let host_row = rows.iter().find(|r| r.index == 0).unwrap();
+    assert!(
+        matches!(host_row.fin, crate::online::Fin::Eaten(..)),
+        "{rows:?}"
+    );
+}

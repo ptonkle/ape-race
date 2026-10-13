@@ -97,8 +97,10 @@ use crate::rules::{Kind, TICKS_PER_SECOND};
 /// The protocol version. A joiner with another one is refused. 2: the Vine
 /// item's summoned vines (TRIAGE T12) and the Item `vine`. 3: renaming in
 /// the lobby (`Name`, TRIAGE T35) and the lobby screech (`Screech`, T44).
-/// 4: the map (the City, 2026-10-12) in `Roster` and `Start`.
-pub const PROTOCOL: u32 = 4;
+/// 4: Floor is Lava (TRIAGE T37): `lava` in the Roster and the Start, the
+/// `Eaten` message and `Fin::Eaten`.
+/// 5: the map (the City, 2026-10-12) in `Roster` and `Start`.
+pub const PROTOCOL: u32 = 5;
 /// The most apes in a race, humans and AI together.
 pub const MAX_APES: usize = 4;
 /// The most AI apes the host may add.
@@ -258,6 +260,10 @@ pub enum Fin {
     Done(u32),
     /// Did not finish: its player left.
     Dnf,
+    /// Eaten by the jaguar (Floor is Lava, TRIAGE T37), this far along the
+    /// course (metres, Q16), here (its hands): the host's results carry the
+    /// place, so a browser that lost the `Eaten` message eats it there too.
+    Eaten(i32, V3),
 }
 
 /// Everything needed to build this browser's `Race`.
@@ -273,6 +279,8 @@ pub struct RaceStart {
     pub items: ItemSet,
     /// the map the race runs on, the host's choice
     pub map: Map,
+    /// Floor is Lava (TRIAGE T37), the host's choice
+    pub lava: bool,
 }
 
 /// An item hit for this browser to apply to an ape it owns.
@@ -318,6 +326,8 @@ pub struct LobbyView {
     pub equal_stats: bool,
     /// The map, the host's choice.
     pub map: Map,
+    /// Floor is Lava (TRIAGE T37)
+    pub lava: bool,
     /// This browser's Ready mark, as last asked for.
     pub ready: bool,
     /// The host may press Start.
@@ -354,9 +364,12 @@ enum Msg {
         humans: Vec<Human>,
         ai: usize,
         equal: bool,
-        /// the host's map (PROTOCOL 4)
+        /// the host's map (PROTOCOL 5)
         #[serde(default)]
         map: Map,
+        /// Floor is Lava (TRIAGE T37, PROTOCOL 4)
+        #[serde(default)]
+        lava: bool,
     },
     Pick {
         kind: Kind,
@@ -388,9 +401,12 @@ enum Msg {
         /// the host's item set (TRIAGE T42); a host without it allows all
         #[serde(default)]
         items: ItemSet,
-        /// the host's map (PROTOCOL 4)
+        /// the host's map (PROTOCOL 5)
         #[serde(default)]
         map: Map,
+        /// Floor is Lava (TRIAGE T37, PROTOCOL 4)
+        #[serde(default)]
+        lava: bool,
     },
     Started {
         round: u32,
@@ -416,6 +432,14 @@ enum Msg {
         r: u32,
         i: usize,
         clock: u32,
+    },
+    /// An ape the sender owns was eaten by the jaguar (TRIAGE T37,
+    /// PROTOCOL 4): where (its hands) and how far along the course.
+    Eaten {
+        r: u32,
+        i: usize,
+        p: V3,
+        s: i32,
     },
     /// A vine summoned by an ape the sender owns (TRIAGE T12, PROTOCOL 2).
     Vine {
@@ -503,6 +527,11 @@ struct RaceState {
     host_gone: bool,
     /// Remote finishes already given to the local `Race`.
     applied: BTreeSet<usize>,
+    /// Eaten apes heard of (including this browser's): where, how far
+    /// (TRIAGE T37).
+    eats_heard: BTreeMap<usize, (V3, i32)>,
+    /// This browser's eaten apes, sent until the host's results show them.
+    eats_reported: BTreeMap<usize, (V3, i32)>,
     /// Summoned vines of this browser's apes already sent: (by, serial).
     vines_sent: BTreeSet<(usize, u32)>,
     /// Summoned vines from other browsers, for the next `sync_race`.
@@ -523,6 +552,8 @@ pub struct Online {
     humans: Vec<Human>,
     ai_count: usize,
     equal_stats: bool,
+    /// Floor is Lava (TRIAGE T37): set by the host, in the roster
+    lava: bool,
     /// the items crates may give (TRIAGE T42): set by the host, sent with
     /// the start
     items: ItemSet,
@@ -561,6 +592,7 @@ impl Online {
             humans: Vec::new(),
             ai_count: 0,
             equal_stats: false,
+            lava: false,
             items: ItemSet::ALL,
             map: Map::default(),
             peers: BTreeMap::new(),
@@ -663,6 +695,7 @@ impl Online {
             ai: self.ai_count,
             equal: self.equal_stats,
             map: self.map,
+            lava: self.lava,
         }
     }
 
@@ -826,7 +859,8 @@ impl Online {
                 ai,
                 equal,
                 map,
-            } if from_host => self.on_roster(round, humans, ai, equal, map),
+                lava,
+            } if from_host => self.on_roster(round, humans, ai, equal, map, lava),
             Msg::Dissolve if from_host => {
                 if matches!(self.status, Status::Joining | Status::Lobby) {
                     self.status = Status::Dissolved;
@@ -840,6 +874,7 @@ impl Online {
                 equal,
                 items,
                 map,
+                lava,
             } if from_host => {
                 let waiting = matches!(self.status, Status::Lobby | Status::Joining);
                 if waiting && humans.iter().any(|h| h.id == self.client_id) && round >= self.round {
@@ -849,6 +884,7 @@ impl Online {
                     self.equal_stats = equal;
                     self.items = items.clean();
                     self.map = map;
+                    self.lava = lava;
                     self.begin_race(seed, now_ms);
                 }
                 if self.race.as_ref().is_some_and(|r| r.round == round) {
@@ -878,6 +914,7 @@ impl Online {
                 }
             }
             Msg::Finish { r, i, clock } => self.on_finish(r, i, clock, now_ms),
+            Msg::Eaten { r, i, p, s } => self.on_eaten(r, i, p, s, now_ms),
             Msg::Vine { r, s } => {
                 let mine = self.owns(s.by);
                 if let Some(race) = &mut self.race {
@@ -898,6 +935,15 @@ impl Online {
                             .collect();
                         for i in shown {
                             race.reported.remove(&i);
+                        }
+                        let eaten: Vec<usize> = race
+                            .eats_reported
+                            .keys()
+                            .copied()
+                            .filter(|i| matches!(race.fin[*i], Fin::Eaten(..)))
+                            .collect();
+                        for i in eaten {
+                            race.eats_reported.remove(&i);
                         }
                     }
                 }
@@ -1012,7 +1058,15 @@ impl Online {
         }
     }
 
-    fn on_roster(&mut self, round: u32, humans: Vec<Human>, ai: usize, equal: bool, map: Map) {
+    fn on_roster(
+        &mut self,
+        round: u32,
+        humans: Vec<Human>,
+        ai: usize,
+        equal: bool,
+        map: Map,
+        lava: bool,
+    ) {
         if round < self.round {
             return;
         }
@@ -1032,6 +1086,7 @@ impl Online {
         self.ai_count = ai;
         self.equal_stats = equal;
         self.map = map;
+        self.lava = lava;
         let seated = self.humans.iter().any(|h| h.id == self.client_id);
         self.status = if seated {
             Status::Lobby
@@ -1088,6 +1143,21 @@ impl Online {
             self.send_results(now_ms);
         } else if is_host {
             // a repeat: the joiner has not seen the results yet
+            self.send_results(now_ms);
+        }
+    }
+
+    fn on_eaten(&mut self, r: u32, i: usize, p: V3, s: i32, now_ms: i64) {
+        let is_host = self.is_host;
+        let Some(race) = &mut self.race else { return };
+        if race.round != r || i >= race.fin.len() {
+            return;
+        }
+        race.eats_heard.entry(i).or_insert((p, s));
+        if is_host {
+            if race.fin[i] == Fin::Racing {
+                race.fin[i] = Fin::Eaten(s, p);
+            }
             self.send_results(now_ms);
         }
     }
@@ -1194,6 +1264,15 @@ impl Online {
     pub fn set_ai_count(&mut self, count: usize, now_ms: i64) -> Result<(), OnlineError> {
         self.host_lobby()?;
         self.ai_count = count.min(self.max_ai());
+        self.clear_ready();
+        self.roster_changed(now_ms);
+        Ok(())
+    }
+
+    /// Host: Floor is Lava on or off (TRIAGE T37). Clears every Ready mark.
+    pub fn set_lava(&mut self, lava: bool, now_ms: i64) -> Result<(), OnlineError> {
+        self.host_lobby()?;
+        self.lava = lava;
         self.clear_ready();
         self.roster_changed(now_ms);
         Ok(())
@@ -1322,6 +1401,7 @@ impl Online {
             round: self.round,
             items: self.items,
             map: self.map,
+            lava: self.lava,
         };
         self.race = Some(RaceState {
             round: self.round,
@@ -1342,6 +1422,8 @@ impl Online {
             gone: BTreeSet::new(),
             host_gone: false,
             applied: BTreeSet::new(),
+            eats_heard: BTreeMap::new(),
+            eats_reported: BTreeMap::new(),
             vines_sent: BTreeSet::new(),
             vines_in: Vec::new(),
         });
@@ -1362,6 +1444,7 @@ impl Online {
             equal: self.equal_stats,
             items: self.items,
             map: self.map,
+            lava: self.lava,
         };
         let to: Vec<PeerId> = race.unacked.iter().cloned().collect();
         for peer in to {
@@ -1498,17 +1581,24 @@ impl Online {
         let resend: Vec<Msg> = match &mut self.race {
             Some(race)
                 if !race.host_gone
-                    && !race.reported.is_empty()
+                    && !(race.reported.is_empty() && race.eats_reported.is_empty())
                     && now_ms - race.last_finish_ms >= RETRY_MS =>
             {
                 race.last_finish_ms = now_ms;
+                let r = race.round;
                 race.reported
                     .iter()
                     .map(|(i, clock)| Msg::Finish {
-                        r: race.round,
+                        r,
                         i: *i,
                         clock: *clock,
                     })
+                    .chain(race.eats_reported.iter().map(|(i, (p, s))| Msg::Eaten {
+                        r,
+                        i: *i,
+                        p: *p,
+                        s: *s,
+                    }))
                     .collect()
             }
             _ => Vec::new(),
@@ -1572,6 +1662,7 @@ impl Online {
             max_ai: self.max_ai(),
             equal_stats: self.equal_stats,
             map: self.map,
+            lava: self.lava,
             ready,
             can_start: self.is_host && self.in_lobby() && self.all_ready() && self.apes() >= 2,
         }
@@ -1741,6 +1832,39 @@ impl Online {
         }
     }
 
+    /// Reports that ape `index` (one this browser owns) was eaten by the
+    /// jaguar at `at`, `progress` along the course (TRIAGE T37). As a
+    /// finish: the host records it; a joiner repeats it until the results
+    /// show it. Every browser hears it, and its race eats the ape too.
+    pub fn report_eaten(&mut self, index: usize, at: V3, progress: i32, now_ms: i64) {
+        if !self.owns(index) {
+            return;
+        }
+        let is_host = self.is_host;
+        let Some(race) = &mut self.race else { return };
+        if race.eats_heard.contains_key(&index) {
+            return;
+        }
+        race.eats_heard.insert(index, (at, progress));
+        let msg = Msg::Eaten {
+            r: race.round,
+            i: index,
+            p: at,
+            s: progress,
+        };
+        if is_host {
+            if race.fin[index] == Fin::Racing {
+                race.fin[index] = Fin::Eaten(progress, at);
+            }
+            self.broadcast(&msg);
+            self.send_results(now_ms);
+        } else {
+            race.eats_reported.insert(index, (at, progress));
+            race.last_finish_ms = now_ms;
+            self.broadcast(&msg);
+        }
+    }
+
     fn send_results(&mut self, now_ms: i64) {
         let Some(race) = &mut self.race else { return };
         race.last_results_ms = now_ms;
@@ -1784,6 +1908,9 @@ impl Online {
                 if let Some(clock) = race.racers[i].finish {
                     self.report_finish(i, clock, now_ms);
                 }
+                if let Some(e) = race.racers[i].eaten {
+                    self.report_eaten(i, e.at, race.racers[i].progress, now_ms);
+                }
             }
         }
         for a in self.remote_states(now_ms) {
@@ -1792,14 +1919,23 @@ impl Online {
         let fin = self.final_fin();
         let Some(state) = &mut self.race else { return };
         for (i, f) in fin.iter().enumerate() {
-            if let Fin::Done(clock) = f {
-                let remote = race
-                    .racers
-                    .get(i)
-                    .is_some_and(|r| r.driver == Driver::Remote);
-                if remote && state.applied.insert(i) && race.racers[i].finish.is_none() {
-                    race.remote_finish(i, *clock);
+            let remote = race
+                .racers
+                .get(i)
+                .is_some_and(|r| r.driver == Driver::Remote);
+            if !remote {
+                continue;
+            }
+            match f {
+                Fin::Done(clock) => {
+                    if state.applied.insert(i) && race.racers[i].finish.is_none() {
+                        race.remote_finish(i, *clock);
+                    }
                 }
+                // the jaguar comes for it here too (TRIAGE T37), where its
+                // owner said it was eaten
+                Fin::Eaten(_, at) if state.applied.insert(i) => race.remote_eaten(i, *at),
+                _ => {}
             }
         }
     }
@@ -1815,6 +1951,8 @@ impl Online {
             if *f == Fin::Racing {
                 if let Some(clock) = race.heard.get(&i) {
                     *f = Fin::Done(*clock);
+                } else if let Some((p, s)) = race.eats_heard.get(&i) {
+                    *f = Fin::Eaten(*s, *p);
                 } else if race.gone.contains(&i) {
                     *f = Fin::Dnf;
                 }
@@ -1824,16 +1962,18 @@ impl Online {
     }
 
     /// The results in place order: finishers by clock (ties by index), then
-    /// apes still racing, then DNFs.
+    /// apes still racing, then those the jaguar ate (the furthest first),
+    /// then DNFs.
     pub fn results(&self) -> Vec<ResultRow> {
         let Some(race) = &self.race else {
             return Vec::new();
         };
         let fin = self.final_fin();
         let rank = |i: &usize| match fin[*i] {
-            Fin::Done(c) => (0, c),
+            Fin::Done(c) => (0, c as i64),
             Fin::Racing => (1, 0),
-            Fin::Dnf => (2, 0),
+            Fin::Eaten(s, _) => (2, -(s as i64)),
+            Fin::Dnf => (3, 0),
         };
         let mut order: Vec<usize> = (0..fin.len()).collect();
         order.sort_by_key(|i| (rank(i), *i));

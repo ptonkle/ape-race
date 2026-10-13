@@ -354,7 +354,7 @@ impl Default for Brain {
 pub fn think(race: &Race, who: usize, brain: &mut Brain) -> Controls {
     let tick = race.tick + 1;
     let r = &race.racers[who];
-    if race.running() && r.finish.is_none() && brain.difficulty != Difficulty::KingKong {
+    if race.running() && !r.out() && brain.difficulty != Difficulty::KingKong {
         brain.watch(tick, r.progress);
     }
     let tune = brain.tune(tick);
@@ -370,7 +370,7 @@ pub fn think(race: &Race, who: usize, brain: &mut Brain) -> Controls {
             brain.expect = None;
         }
     }
-    let mut c = if !race.running() || r.finish.is_some() {
+    let mut c = if !race.running() || r.out() {
         Controls {
             yaw: course.start_yaw,
             ..Controls::default()
@@ -417,7 +417,7 @@ pub fn think(race: &Race, who: usize, brain: &mut Brain) -> Controls {
         }
     };
     if race.running()
-        && r.finish.is_none()
+        && !r.out()
         && r.item.is_some()
         && ape.swinging().is_none()
         && tick >= since + tune.item_wait
@@ -993,7 +993,7 @@ fn use_item(race: &Race, who: usize, c: &mut Controls) {
     let mut ahead: Option<(i32, usize)> = None;
     let mut close = i32::MAX;
     for (i, r) in race.racers.iter().enumerate() {
-        if i == who || r.finish.is_some() {
+        if i == who || r.out() {
             continue;
         }
         let d = r.ape.pos.dist(a.pos);
@@ -1058,6 +1058,8 @@ pub struct Trial {
     pub ground_ticks: u32,
     /// bananas held at the end (TRIAGE T43)
     pub bananas: u32,
+    /// Floor is Lava (TRIAGE T37): the race clock when the jaguar ate it
+    pub eaten: Option<u32>,
 }
 
 /// Runs a race of AI apes alone on `course` for at most `limit` race ticks,
@@ -1083,6 +1085,27 @@ pub fn trial_at(
         equal,
         limit,
         crate::items::ItemSet::ALL,
+        false,
+    )
+}
+
+/// [`trial_at`] with Floor is Lava on (TRIAGE T37): for measuring how
+/// often the AI touches the ground and is eaten.
+pub fn lava_trial(
+    course: Course,
+    kinds: &[Kind],
+    levels: &[Difficulty],
+    equal: bool,
+    limit: u32,
+) -> Vec<Trial> {
+    trial_with(
+        course,
+        kinds,
+        levels,
+        equal,
+        limit,
+        crate::items::ItemSet::ALL,
+        true,
     )
 }
 
@@ -1097,6 +1120,7 @@ pub fn time_trial(course: Course, kind: Kind, equal: bool, limit: u32) -> Trial 
         equal,
         limit,
         boost,
+        false,
     )[0]
 }
 
@@ -1107,6 +1131,7 @@ fn trial_with(
     equal: bool,
     limit: u32,
     items: crate::items::ItemSet,
+    lava: bool,
 ) -> Vec<Trial> {
     let entries: Vec<Entry> = kinds
         .iter()
@@ -1118,6 +1143,7 @@ fn trial_with(
         .collect();
     let mut race = Race::new(course, &entries, equal, 7);
     race.items = items;
+    race.lava = lava;
     let mut brains: Vec<Brain> = (0..kinds.len())
         .map(|i| Brain::new(levels[i], 0xA9E5 + i as u64))
         .collect();
@@ -1133,6 +1159,7 @@ fn trial_with(
             landings: 0,
             ground_ticks: 0,
             bananas: 0,
+            eaten: None,
         })
         .collect();
     let mut sum = vec![0i64; kinds.len()];
@@ -1145,7 +1172,10 @@ fn trial_with(
             continue;
         }
         for (i, r) in race.racers.iter().enumerate() {
-            if r.finish.is_some() {
+            if r.out() {
+                if r.finish.is_none() && out[i].eaten.is_none() {
+                    out[i].eaten = Some(race.clock);
+                }
                 continue;
             }
             let s = r.ape.speed();
@@ -1169,6 +1199,9 @@ fn trial_with(
         t.finish = r.finish;
         t.progress = r.progress;
         t.bananas = r.ape.bananas;
+        if r.finish.is_none() && r.eaten.is_some() && t.eaten.is_none() {
+            t.eaten = Some(race.clock);
+        }
         let ticks = r.finish.unwrap_or(race.clock).max(1);
         t.mean_speed = (sum[i] / ticks as i64) as i32;
     }

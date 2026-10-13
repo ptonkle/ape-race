@@ -38,10 +38,12 @@ pub enum Cue {
     Bounce,
     Banana,
     Catchup,
+    /// Floor is Lava (TRIAGE T37): the jaguar's roar as it leaps
+    Roar,
 }
 
 impl Cue {
-    pub const ALL: [Cue; 16] = [
+    pub const ALL: [Cue; 17] = [
         Cue::Grab,
         Cue::Release,
         Cue::Miss,
@@ -58,6 +60,7 @@ impl Cue {
         Cue::Bounce,
         Cue::Banana,
         Cue::Catchup,
+        Cue::Roar,
     ];
 
     pub fn key(self) -> &'static str {
@@ -78,6 +81,7 @@ impl Cue {
             Cue::Bounce => "bounce",
             Cue::Banana => "banana",
             Cue::Catchup => "catchup",
+            Cue::Roar => "roar",
         }
     }
 
@@ -210,6 +214,14 @@ fn notes(cue: Cue) -> Vec<Note> {
             n((1200, 1200), 0, 28, 20, Sine, Perc),
         ],
         Cue::Bounce | Cue::Banana | Cue::Catchup => reward_notes(cue),
+        // A big cat's roar: a snarl, then a rough buzz falling under a
+        // swell of breath.
+        Cue::Roar => vec![
+            n((420, 160), 0, 90, 15, Sine, Perc),
+            n((190, 92), 0, 540, 30, Square, Swell),
+            n((250, 118), 20, 500, 20, Triangle, Swell),
+            n(AIR, 0, 560, 35, Noise(40), Swell),
+        ],
     }
 }
 
