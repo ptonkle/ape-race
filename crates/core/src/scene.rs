@@ -31,6 +31,7 @@ const LEAF: [Rgb; 4] = [
 ];
 const VINE: Rgb = rgb(150, 210, 70);
 const VINE_REACH: Rgb = rgb(255, 236, 90);
+const VINE_USED: Rgb = rgb(240, 84, 72);
 const VINE_LEAF: Rgb = rgb(90, 170, 60);
 const FLOWERS: [Rgb; 4] = [
     rgb(240, 90, 120),
@@ -1106,12 +1107,7 @@ pub fn dynamic(f: &Frame) -> Batch {
         if a.flat().sub(eye.flat()).len() > int(230) {
             continue;
         }
-        let colour = if Some(i) == reach { VINE_REACH } else { VINE };
-        let glow = if Some(i) == reach {
-            ONE * 7 / 10
-        } else {
-            ONE / 5
-        };
+        let (colour, glow) = vine_look(race, f.local, i, Some(i) == reach);
         match f.chains.get(i) {
             Some(chain) => chain_vine(&mut b, chain, held[i], colour, glow, f.tick + i as u32 * 37),
             None => vine(
@@ -1158,6 +1154,19 @@ pub fn dynamic(f: &Frame) -> Batch {
     crate::items::draw(&mut b, race);
     speed_lines(&mut b, f);
     b
+}
+
+/// A vine's colour and glow: yellow in reach; a catch-up vine (TRIAGE T45:
+/// an opponent swung on it, the viewer has not) a glowing coral red, apart
+/// from the in-reach yellow and the item vines' flowers; else green.
+fn vine_look(race: &Race, viewer: Option<usize>, i: usize, in_reach: bool) -> (Rgb, i32) {
+    if in_reach {
+        (VINE_REACH, ONE * 7 / 10)
+    } else if viewer.is_some_and(|v| race.catch_up_vine(v, i)) {
+        (VINE_USED, ONE * 9 / 20)
+    } else {
+        (VINE, ONE / 5)
+    }
 }
 
 /// A vine from its anchor: straight down and swaying a little; or, when

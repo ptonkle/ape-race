@@ -1681,7 +1681,8 @@ fn cue_for(e: &Event, local: usize) -> Option<Cue> {
             Happening::Jump => Cue::Jump,
             Happening::Land => Cue::Land,
             Happening::Knocked => Cue::Hit,
-            Happening::Bounce => Cue::Bounce,
+            // its sound comes with the reward
+            Happening::Bounce => return None,
             Happening::Wall => return None,
         }),
         Event::Countdown { .. } => Some(Cue::Beep),
@@ -1693,6 +1694,10 @@ fn cue_for(e: &Event, local: usize) -> Option<Cue> {
         }),
         Event::Hit { who, by, .. } if who == local || by == local => Some(Cue::Hit),
         Event::Finish { who, .. } if who == local => Some(Cue::Finish),
+        Event::Reward { who, what } if who == local => Some(match what {
+            crate::race::Reward::Mushroom => Cue::Bounce,
+            crate::race::Reward::Catchup => Cue::Catchup,
+        }),
         _ => None,
     }
 }

@@ -66,6 +66,13 @@ pub const MUSHROOM_BOUNCE: i32 = int(22);
 /// A bounce is a reward too (TRIAGE T48): it adds this much speed forward,
 /// along the ape's heading on the ground.
 pub const MUSHROOM_PUSH: i32 = int(6);
+/// A vine an opponent swung on first gives this much speed, forward and
+/// level, when its catcher lets go of it, once per vine (TRIAGE T45: a
+/// catch-up for whoever is behind), but never past `CATCHUP_TOP`: a chain
+/// of them behind a leader would otherwise add up without end. (On the
+/// grab, the same speed set fast apes whirling round the anchor.)
+pub const CATCHUP_GAIN: i32 = int(4);
+pub const CATCHUP_TOP: i32 = int(40);
 /// How fast WASD bring the ape to its running velocity on the ground.
 pub const RUN_ACCEL: i32 = int(40);
 

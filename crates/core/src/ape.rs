@@ -75,6 +75,10 @@ pub struct Ape {
     /// where the ape faces, for drawing
     pub yaw: i32,
     pub happened: Vec<Happening>,
+    /// speed the next let-go adds along the motion (TRIAGE T45: a catch-up
+    /// vine's boost, set by the race on the grab; kept in the ape so the
+    /// AI's copies plan with it)
+    pub release_bonus: i32,
 }
 
 impl Ape {
@@ -92,6 +96,7 @@ impl Ape {
             hint: 0,
             yaw,
             happened: Vec::new(),
+            release_bonus: 0,
         }
     }
 
@@ -241,6 +246,15 @@ impl Ape {
         if self.vel.y > self.vel.len() / 6 {
             self.vel = self.vel.add(self.vel.norm().scale(RELEASE_BOOST));
         }
+        // a catch-up vine's boost, never past Catch-up Top (TRIAGE T45):
+        // forward, level, so it carries the ape on rather than up over the
+        // next vines
+        let flat = self.vel.flat();
+        let gain = self.release_bonus.min(CATCHUP_TOP - self.vel.len());
+        if gain > 0 && flat.len() > ONE {
+            self.vel = self.vel.add(flat.norm().scale(gain));
+        }
+        self.release_bonus = 0;
         self.mode = Mode::Flying;
         self.last_vine = Some((vine, 0));
         self.happened.push(Happening::Release);
@@ -438,6 +452,7 @@ impl Ape {
             self.mode = Mode::Flying;
             self.last_vine = Some((vine, 0));
         }
+        self.release_bonus = 0;
         self.happened.push(Happening::Knocked);
     }
 }
