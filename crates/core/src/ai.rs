@@ -402,6 +402,16 @@ pub fn think(race: &Race, who: usize, brain: &mut Brain) -> Controls {
                     brain.last_grab,
                 )
             }
+            Mode::Grounded if ape.swimming(course) || ape.climb.is_some() => {
+                // in the City's river: no keys, so it swims for the nearest
+                // way out (a bank, a ladder, a boat) and climbs out
+                brain.plan = None;
+                brain.cands.clear();
+                Controls {
+                    yaw: ape.yaw,
+                    ..Controls::default()
+                }
+            }
             Mode::Grounded => {
                 brain.plan = None;
                 on_ground(ape, course, tick, brain)

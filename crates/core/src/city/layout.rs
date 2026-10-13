@@ -785,6 +785,22 @@ enum Hang {
     Cable,
 }
 
+/// The street a point is in: one whose own length (not a corner's mitre)
+/// it is beside, else the nearest.
+fn street_of(c: &Course, p: V3) -> Street {
+    let at = |st: &Street| p.flat().sub(st.from).dot(st.dir);
+    c.streets
+        .iter()
+        .copied()
+        .min_by_key(|st| {
+            let a = at(st);
+            let side = p.flat().sub(st.from).dot(right_of(st.dir)).abs();
+            let off = (-a).max(a - st.len).max(0);
+            off as i64 * 4 + side as i64
+        })
+        .unwrap_or(c.streets[0])
+}
+
 /// How tall the building just behind the wall at `p` is (0: none).
 fn height_at(blocks: &[Block], p: V3) -> i32 {
     blocks
@@ -801,10 +817,9 @@ fn hangers(c: &Course, blocks: &[Block], hangs: &[(usize, Hang)], dice: &mut Dic
     for &(i, hang) in hangs {
         let v = c.vines[i];
         let a = v.anchor;
-        let k = c.nearest_anywhere(a);
-        let h = c.heading[k];
-        let r = right_of(h);
-        let on_line = c.path[k].add(h.scale(a.flat().sub(c.path[k]).dot(h)));
+        let st = street_of(c, a);
+        let r = right_of(st.dir);
+        let on_line = st.from.add(st.dir.scale(a.flat().sub(st.from).dot(st.dir)));
         let facade = |side: i32, y: i32| {
             let p = on_line.add(r.scale(side * hw));
             v3(p.x, y, p.z)
@@ -831,7 +846,8 @@ fn hangers(c: &Course, blocks: &[Block], hangs: &[(usize, Hang)], dice: &mut Dic
                     (HangerKind::Wire, facade(-1, a.y), facade(1, a.y))
                 } else if a.y - ground(a.x, a.z) <= int(30) {
                     // a tall lamp mast at the kerb, its arm out over the street
-                    let foot = facade(side, 0);
+                    let p = on_line.add(r.scale(side * (hw - cm(50))));
+                    let foot = v3(p.x, 0, p.z);
                     (
                         HangerKind::StreetLight,
                         v3(foot.x, ground(foot.x, foot.z), foot.z),

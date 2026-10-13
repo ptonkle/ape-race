@@ -393,4 +393,6 @@ pub mod style {
 }
 
 mod layout;
+#[cfg(test)]
+mod tests;
 pub use layout::{boat_size, car_size, city, city_seeded, DECK_HALF};
