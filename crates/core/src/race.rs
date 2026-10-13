@@ -196,8 +196,9 @@ pub struct Race {
     pub crates: Vec<i32>,
     /// for each crate: the vine it hangs on (TRIAGE T9)
     pub crate_vines: Vec<usize>,
-    /// only Speed Boosts come out of crates (Time Trials, TRIAGE T13)
-    pub boost_only: bool,
+    /// the items crates may give (TRIAGE T42; a Time Trial: only the
+    /// Speed Boost, T13)
+    pub items: crate::items::ItemSet,
     /// summoned vines still standing
     pub summons: Vec<Summon>,
     /// the course's own vines: summoned ones come after
@@ -257,7 +258,7 @@ impl Race {
             clock: 0,
             crates,
             crate_vines,
-            boost_only: false,
+            items: crate::items::ItemSet::ALL,
             summons: Vec::new(),
             summon_count: vec![0; n],
             used: Vec::new(),

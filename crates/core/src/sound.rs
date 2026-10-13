@@ -451,6 +451,328 @@ pub fn wind_gain(speed: i32) -> i32 {
     fx::mul(fx::mul(t, t), 3 * ONE - 2 * t).clamp(0, ONE)
 }
 
+// ---- the lobby screech (TRIAGE T44) ----
+
+/// The lobby screech's sound key (`App::sound`).
+pub const SCREECH: &str = "screech";
+
+/// The lobby's chimp screech at `volume` percent, as a WAV file: a
+/// placeholder, synthesised (two rising hoots, then three shrieks with a
+/// raspy edge) until the person's own recording arrives.
+///
+/// **Swapping in the real file** (see SECOND-ORDER L4): convert it to 16-bit
+/// mono PCM at 22 050 Hz (`ffmpeg -i in.mp3 -ac 1 -ar 22050 -sample_fmt s16
+/// crates/core/src/screech.wav`), then make this function's body
+/// `scaled_wav(include_bytes!("screech.wav"), volume)`: the core keeps the
+/// bytes in the wasm, Volume still applies, and nothing else changes.
+pub fn screech(volume: u8) -> Vec<u8> {
+    use Env::*;
+    use Wave::*;
+    let ns = [
+        // hoo-hoo, rising
+        n((420, 620), 0, 150, 60, Triangle, Swell),
+        n((520, 760), 190, 150, 60, Triangle, Swell),
+        // three shrieks, each sweeping up and falling off, with rasp
+        n((900, 1700), 400, 210, 55, Square, Flat),
+        n((0, 0), 400, 210, 25, Noise(150), Flat),
+        n((1000, 1850), 650, 210, 55, Square, Flat),
+        n((0, 0), 650, 210, 25, Noise(150), Flat),
+        n((1100, 2000), 900, 320, 55, Square, Perc),
+        n((0, 0), 900, 320, 25, Noise(150), Perc),
+    ];
+    let end_ms = ns.iter().map(|n| n.at_ms + n.ms).max().unwrap_or(0) + 15;
+    let mut mix = vec![0i64; ms_to_samples(end_ms)];
+    let mut dice = Dice(0x5C2E_EC40);
+    for note in &ns {
+        let start = ms_to_samples(note.at_ms);
+        let count = ms_to_samples(note.ms);
+        for (i, v) in wave(note, count, &mut dice).into_iter().enumerate() {
+            if let Some(m) = mix.get_mut(start + i) {
+                *m += v * envelope(note.contour, i, count) / 1024 * note.loud as i64 / 100;
+            }
+        }
+    }
+    wav_file(&to_pcm(&mix, volume))
+}
+
+/// A supplied 16-bit mono WAV at `volume` percent: its samples scaled as
+/// the synthesised cues are (full scale is `MASTER` at 100%), in a fresh
+/// header at `SAMPLE_RATE`. For the screech once its file arrives. A file
+/// with no `data` chunk gives silence.
+pub fn scaled_wav(file: &[u8], volume: u8) -> Vec<u8> {
+    // walk the RIFF chunks after "RIFF", size, "WAVE" to the "data" chunk
+    let mut at = 12;
+    let mut data: &[u8] = &[];
+    while let Some(head) = file.get(at..at + 8) {
+        let len = u32::from_le_bytes([head[4], head[5], head[6], head[7]]) as usize;
+        let body = file
+            .get(at + 8..(at + 8 + len).min(file.len()))
+            .unwrap_or(&[]);
+        if &head[0..4] == b"data" {
+            data = body;
+            break;
+        }
+        at += 8 + len + len % 2;
+    }
+    let mix: Vec<i64> = data
+        .as_chunks::<2>()
+        .0
+        .iter()
+        .map(|b| i16::from_le_bytes(*b) as i64 * ONE as i64 / i16::MAX as i64)
+        .collect();
+    wav_file(&to_pcm(&mix, volume))
+}
+
+// ---- ape voices: the hype call-outs (TRIAGE T22) ----
+//
+// A tiny formant voice: a sawtooth "throat" at the syllable's pitch, with a
+// little vibrato and breath, through three resonators (the vowel's
+// formants) in a row. Hoots are "oo", the climax opens to "ah"; a second
+// voice a fifth below joins the top call, so it sounds like a troop.
+
+/// A vowel's three formants, Hz.
+#[derive(Debug, Clone, Copy)]
+struct Vowel(u32, u32, u32);
+
+const OO: Vowel = Vowel(320, 800, 2300);
+const OH: Vowel = Vowel(480, 900, 2400);
+const AH: Vowel = Vowel(760, 1250, 2550);
+const EE: Vowel = Vowel(330, 2100, 2900);
+
+/// The formants' bandwidths, Hz.
+const BANDS: [u32; 3] = [90, 120, 180];
+
+/// One voiced syllable: pitch from `hz0` to `hz1`, the vowel from `from`
+/// to `to`, start and length in ms, loudness in percent (the whole call is
+/// normalised afterwards), and a growl (percent of amplitude wobble).
+#[derive(Debug, Clone, Copy)]
+struct Syllable {
+    at_ms: u32,
+    ms: u32,
+    hz0: u32,
+    hz1: u32,
+    from: Vowel,
+    to: Vowel,
+    loud: i32,
+    growl: i32,
+}
+
+const fn syl(at_ms: u32, ms: u32, hz: (u32, u32), from: Vowel, to: Vowel, loud: i32) -> Syllable {
+    Syllable {
+        at_ms,
+        ms,
+        hz0: hz.0,
+        hz1: hz.1,
+        from,
+        to,
+        loud,
+        growl: 0,
+    }
+}
+
+/// The hype levels' calls: 1 "hoo-HOO", 2 "hoo-hoo-WAH", 3 a pant-hoot
+/// climax "hoo-hoo-hoo-WAAH-HAH" with a troop joining in.
+fn voice_syllables(level: u8) -> Vec<Syllable> {
+    match level {
+        1 => vec![
+            syl(0, 140, (300, 360), OO, OO, 70),
+            syl(170, 220, (380, 470), OO, OH, 90),
+        ],
+        2 => vec![
+            syl(0, 110, (330, 390), OO, OO, 70),
+            syl(130, 110, (400, 470), OO, OO, 80),
+            syl(260, 260, (480, 620), OO, AH, 95),
+        ],
+        _ => {
+            let mut v = vec![
+                syl(0, 80, (360, 430), OO, OO, 60),
+                syl(100, 80, (440, 520), OO, OO, 70),
+                syl(200, 80, (520, 610), OO, OO, 80),
+                Syllable {
+                    growl: 25,
+                    ..syl(300, 260, (650, 980), OO, AH, 100)
+                },
+                Syllable {
+                    growl: 30,
+                    ..syl(580, 170, (960, 820), AH, EE, 90)
+                },
+            ];
+            // the troop: the last two a fifth below, a little late
+            v.push(Syllable {
+                growl: 20,
+                ..syl(320, 250, (430, 650), OO, AH, 55)
+            });
+            v.push(Syllable {
+                growl: 20,
+                ..syl(600, 160, (640, 550), AH, OH, 50)
+            });
+            v
+        }
+    }
+}
+
+/// Coefficients in 1/2^20.
+const Q20: i64 = 1 << 20;
+
+/// A syllable's envelope at sample `i` of `count`, in 1/1024: 12 ms in,
+/// held, then a quadratic fall over the last 45%.
+fn voice_envelope(i: usize, count: usize) -> i64 {
+    let count = count.max(1) as i64;
+    let i = i as i64;
+    let attack = (SAMPLE_RATE as i64 * 12 / 1000).max(1);
+    let fall = (count * 45 / 100).max(1);
+    if i < attack {
+        i * 1024 / attack
+    } else if i + fall > count {
+        let rem = count - i;
+        rem * rem * 1024 / (fall * fall)
+    } else {
+        1024
+    }
+}
+
+/// One syllable as Q16 samples, normalised to a peak of ONE.
+fn syllable(s: &Syllable, dice: &mut Dice) -> Vec<i64> {
+    let count = ms_to_samples(s.ms);
+    let span = count.max(1) as i64;
+    let lerp = |a: u32, b: u32, i: usize| a as i64 + (b as i64 - a as i64) * i as i64 / span;
+    // the throat: a sawtooth with 5.5 Hz vibrato of 3%, and some breath
+    let mut buf = Vec::with_capacity(count);
+    let mut phase: u32 = 0;
+    for i in 0..count {
+        let vib = fx::sin((i as i64 * 11 * fx::TURN as i64 / 2 / SAMPLE_RATE as i64) as i32) as i64;
+        let hz = lerp(s.hz0, s.hz1, i) * (ONE as i64 + vib * 3 / 100) / ONE as i64;
+        phase = phase.wrapping_add(((hz << 32) / SAMPLE_RATE as i64) as u32);
+        let a = (phase >> 16) as i64;
+        let saw = a * 2 - ONE as i64;
+        buf.push(saw + white(dice) / 12);
+    }
+    // the vowel: three resonators in a row, each gliding from `from` to `to`
+    let from = [s.from.0, s.from.1, s.from.2];
+    let to = [s.to.0, s.to.1, s.to.2];
+    for k in 0..3 {
+        // r ≈ 1 - π·bandwidth / rate
+        let r = Q20 - BANDS[k] as i64 * 355 * Q20 / 113 / SAMPLE_RATE as i64;
+        let c = -(r * r / Q20);
+        let (mut y1, mut y2) = (0i64, 0i64);
+        for (i, x) in buf.iter_mut().enumerate() {
+            let f = lerp(from[k], to[k], i);
+            let theta = (f * fx::TURN as i64 / SAMPLE_RATE as i64) as i32;
+            let b = 2 * r * (fx::cos(theta) as i64 * (Q20 / ONE as i64)) / Q20;
+            let a = Q20 - b - c;
+            let y = (a * *x + b * y1 + c * y2) / Q20;
+            y2 = y1;
+            y1 = y;
+            *x = y;
+        }
+        normalise(&mut buf);
+    }
+    for (i, x) in buf.iter_mut().enumerate() {
+        // a growl: the loudness wobbling at 32 Hz
+        let wob = fx::sin((i as i64 * 32 * fx::TURN as i64 / SAMPLE_RATE as i64) as i32) as i64;
+        let g = ONE as i64 - s.growl as i64 * (ONE as i64 - wob) / 200;
+        *x = *x * g / ONE as i64 * voice_envelope(i, count) / 1024;
+    }
+    buf
+}
+
+/// The peak of a call-out, percent of full scale.
+const VOICE_LOUD: i64 = 90;
+
+/// The 16-bit samples of hype level `level`'s call-out (1 to 3) at `volume`
+/// percent.
+pub fn voice_samples(level: u8, volume: u8) -> Vec<i16> {
+    let ss = voice_syllables(level.clamp(1, 3));
+    let end_ms = ss.iter().map(|s| s.at_ms + s.ms).max().unwrap_or(0) + 15;
+    let mut mix = vec![0i64; ms_to_samples(end_ms)];
+    let mut dice = Dice(0x00A9_E5A1 + level as u64);
+    for s in &ss {
+        let start = ms_to_samples(s.at_ms);
+        for (i, v) in syllable(s, &mut dice).into_iter().enumerate() {
+            if let Some(m) = mix.get_mut(start + i) {
+                *m += v * s.loud as i64 / 100;
+            }
+        }
+    }
+    normalise(&mut mix);
+    for m in mix.iter_mut() {
+        *m = *m * VOICE_LOUD / 100;
+    }
+    to_pcm(&mix, volume)
+}
+
+/// Hype level `level`'s call-out as a complete WAV file.
+pub fn voice(level: u8, volume: u8) -> Vec<u8> {
+    wav_file(&voice_samples(level, volume))
+}
+
+/// The level of a call-out's sound key (`hype1` to `hype3`, as
+/// `hype::voice_key` names them).
+pub fn voice_level(key: &str) -> Option<u8> {
+    match key {
+        "hype1" => Some(1),
+        "hype2" => Some(2),
+        "hype3" => Some(3),
+        _ => None,
+    }
+}
+
+#[cfg(test)]
+mod voice_tests {
+    use super::*;
+
+    fn peak(s: &[i16]) -> i32 {
+        s.iter().map(|v| (*v as i32).abs()).max().unwrap_or(0)
+    }
+
+    #[test]
+    fn each_hype_level_has_its_own_short_call_at_a_safe_level() {
+        let calls: Vec<Vec<i16>> = (1..=3).map(|l| voice_samples(l, 100)).collect();
+        for (k, c) in calls.iter().enumerate() {
+            let ms = c.len() * 1000 / SAMPLE_RATE as usize;
+            assert!((250..=800).contains(&ms), "level {}: {ms} ms", k + 1);
+            let p = peak(c);
+            assert!(
+                p > 8_000 && p < i16::MAX as i32,
+                "level {}: peak {p}",
+                k + 1
+            );
+            let quiet = peak(&voice_samples(k as u8 + 1, DEFAULT_VOLUME));
+            assert!(quiet <= i16::MAX as i32 / 5, "level {}: {quiet}", k + 1);
+            assert!(voice_samples(k as u8 + 1, 0).iter().all(|s| *s == 0));
+            check(&voice(k as u8 + 1, 70), k + 1);
+        }
+        assert_ne!(calls[0], calls[1]);
+        assert_ne!(calls[1], calls[2]);
+        // the top call is the longest
+        assert!(calls[2].len() > calls[1].len() && calls[1].len() > calls[0].len());
+        for l in 1..=3u8 {
+            assert_eq!(voice_level(&format!("hype{l}")), Some(l));
+        }
+        assert_eq!(voice_level("grab"), None);
+    }
+
+    fn check(w: &[u8], level: usize) {
+        assert_eq!(&w[0..4], b"RIFF", "level {level}");
+        let data_len = u32::from_le_bytes([w[40], w[41], w[42], w[43]]) as usize;
+        assert_eq!(w.len(), 44 + data_len, "level {level}");
+    }
+
+    #[test]
+    fn a_call_is_voiced_not_noise() {
+        // a voice repeats at its pitch: neighbouring samples are close, far
+        // more than noise's would be
+        let s = voice_samples(2, 100);
+        let rough: i64 = s
+            .windows(2)
+            .map(|w| (w[0] as i64 - w[1] as i64).abs())
+            .sum::<i64>()
+            / s.len() as i64;
+        let level: i64 = s.iter().map(|v| (*v as i64).abs()).sum::<i64>() / s.len() as i64;
+        assert!(rough * 3 < level, "step {rough} vs level {level}");
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

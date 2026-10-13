@@ -8,6 +8,8 @@ request is aborted and counted as a failure. For each engine it:
 
 - A opens Online and hosts by code; B joins with A's invite code; A accepts
   B's reply code;
+- B renames itself in the lobby and A sees it; B screeches and both tabs
+  play it;
 - B presses Ready Up; A's Start comes on and A presses it;
 - both tabs reach the race screen;
 - with W held on both, each tab sees a remote ape leave its start
@@ -122,6 +124,26 @@ def run_engine(p, engine, origin):
         return finish()
     seats = a.page.locator(".panel.setup table.cells tr").count() - 1
     check(seats >= 2, f"A's lobby lists both players (and its AI apes): {seats} seats")
+    # TRIAGE T35: B renames itself in the lobby, and A's seats show it
+    b.fill("lobby.name", "Banana Bob")
+    try:
+        a.page.wait_for_function(
+            "() => [...document.querySelectorAll('table.cells td')].some(td => td.textContent === 'Banana Bob')",
+            timeout=WAIT_MS,
+        )
+        renamed = True
+    except Exception:
+        renamed = False
+    check(renamed, "B's new name reaches A's lobby")
+    # TRIAGE T44: B's screech plays on A (and on B)
+    b.click("lobby.screech")
+    try:
+        for t in tabs:
+            t.page.wait_for_selector("body[data-sound='screech']", timeout=WAIT_MS)
+        screeched = True
+    except Exception:
+        screeched = False
+    check(screeched, "B's screech plays on both tabs")
     b.click("lobby.ready")
     ok = a.enabled("lobby.start")
     check(ok, "A's Start comes on once B is Ready")

@@ -3,7 +3,9 @@
 //! effects. Flat colours, with the vines kept bright and clear of
 //! clutter (brief section 10: decorations must not hide what an ape grabs).
 
-use crate::course::{crown_scale, ground, rise, Course, Mushroom, Prop, TreeKind, OUTRO, STEP};
+use crate::course::{
+    crown_scale, ground, rise, Course, Mushroom, Prop, TreeKind, GROW, OUTRO, STEP,
+};
 use crate::fx::{self, cm, deg, int, mul, sin, ONE};
 use crate::geom::{right_of, v3, Affine, V3};
 use crate::mesh::{Mesh, VERTEX_VALUES};
@@ -35,6 +37,19 @@ const VINE_USED: Rgb = rgb(240, 84, 72);
 const BANANA_YELLOW: Rgb = rgb(255, 216, 40);
 const BANANA_STALK: Rgb = rgb(92, 62, 30);
 const VINE_LEAF: Rgb = rgb(90, 170, 60);
+/// The colourblind mode's vines (TRIAGE T33): a vivid green, brighter than
+/// anything in the muted world, and in reach near white, thicker and
+/// pulsing (brightness and shape, not green to yellow).
+const VINE_VIVID: Rgb = rgb(110, 255, 70);
+const VINE_REACH_VIVID: Rgb = rgb(255, 255, 240);
+const VINE_WIDTH: i32 = cm(20);
+const VINE_WIDTH_VIVID: i32 = cm(30);
+/// An item vine's flowers (TRIAGE T46): violet petals round a white heart,
+/// apart from the in-reach yellow and from red; told apart by shape (five
+/// petals) and count (three up the vine) too, for the colourblind mode.
+const PETAL: Rgb = rgb(160, 96, 255);
+const HEART: Rgb = rgb(255, 252, 236);
+const BUD: Rgb = rgb(96, 120, 80);
 const FLOWERS: [Rgb; 4] = [
     rgb(240, 90, 120),
     rgb(250, 200, 60),
@@ -562,29 +577,26 @@ fn emergent(b: &mut Batch, at: V3, radius: i32, height: i32, s: u8) {
         );
     }
     let top = at.add(v3(0, height, 0));
+    let g = |m: i32| mul(int(m), GROW);
     b.push(
         Mesh::Blob,
-        &placed(top, radius * 5, v3(int(24), int(6), int(24))),
+        &placed(top, radius * 5, v3(g(24), g(6), g(24))),
         EMERGENT,
         0,
     );
     for j in 0..4 {
         let a = j * deg(90) + deg(45) + radius;
-        let p = around(top, a, int(10), -ONE);
+        let p = around(top, a, g(10), -GROW);
         b.push(
             Mesh::Blob,
-            &placed(p, a, v3(int(12), int(5), int(12))),
+            &placed(p, a, v3(g(12), g(5), g(12))),
             shade(EMERGENT, 82 + j * 7),
             0,
         );
         if j % 2 == 0 {
             b.push(
                 Mesh::Cyl,
-                &rod(
-                    top.sub(v3(0, int(8), 0)),
-                    around(top, a, int(8), -int(2)),
-                    r,
-                ),
+                &rod(top.sub(v3(0, g(8), 0)), around(top, a, g(8), -g(2)), r),
                 bark,
                 0,
             );
@@ -644,9 +656,10 @@ fn fig(b: &mut Batch, at: V3, radius: i32, height: i32, s: u8) {
     }
     let top = at.add(v3(0, height, 0));
     let leaf = shade(FIG_LEAF, 92 + s as i32 * 5);
+    let g = |m: i32| mul(int(m), GROW);
     b.push(
         Mesh::Blob,
-        &placed(top, radius * 3, v3(int(15), int(8), int(15))),
+        &placed(top, radius * 3, v3(g(15), g(8), g(15))),
         leaf,
         0,
     );
@@ -654,11 +667,7 @@ fn fig(b: &mut Batch, at: V3, radius: i32, height: i32, s: u8) {
         let a = j * deg(120) + radius * 2;
         b.push(
             Mesh::Blob,
-            &placed(
-                around(top, a, int(6), -int(2)),
-                a,
-                v3(int(10), int(5), int(10)),
-            ),
+            &placed(around(top, a, g(6), -g(2)), a, v3(g(10), g(5), g(10))),
             shade(leaf, 86 + j * 6),
             0,
         );
@@ -1080,10 +1089,50 @@ pub struct Frame<'a> {
     pub tick: u32,
     /// the vines' bending chains, one per vine (empty: draw them straight)
     pub chains: &'a [crate::vinesim::Chain],
+    /// the colourblind mode (TRIAGE T33): vivid vines, in reach near white
+    pub vivid: bool,
 }
 
-/// Everything that moves.
-pub fn dynamic(f: &Frame) -> Batch {
+/// How a vine is drawn: its colour, glow and width.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct VineLook {
+    pub colour: Rgb,
+    pub glow: i32,
+    pub width: i32,
+}
+
+/// The look of a vine, in reach of the local ape or not, in the ordinary
+/// or the colourblind (`vivid`) colours. In reach, a vivid vine is near
+/// white, thicker, and its width pulses.
+pub fn vine_look(in_reach: bool, vivid: bool, tick: u32) -> VineLook {
+    match (vivid, in_reach) {
+        (false, false) => VineLook {
+            colour: VINE,
+            glow: ONE / 5,
+            width: VINE_WIDTH,
+        },
+        (false, true) => VineLook {
+            colour: VINE_REACH,
+            glow: ONE * 7 / 10,
+            width: VINE_WIDTH,
+        },
+        (true, false) => VineLook {
+            colour: VINE_VIVID,
+            glow: ONE / 2,
+            width: VINE_WIDTH_VIVID,
+        },
+        (true, true) => VineLook {
+            colour: VINE_REACH_VIVID,
+            glow: ONE,
+            width: VINE_WIDTH_VIVID * 3 / 2 + mul(sin(tick as i32 * 600).abs(), cm(14)),
+        },
+    }
+}
+
+/// Everything that moves: the vines and their flowers (drawn as
+/// `render::VINES`), and the rest.
+pub fn dynamic(f: &Frame) -> (Batch, Batch) {
+    let mut vines = Batch::new();
     let mut b = Batch::new();
     let race = f.race;
     let c = &race.course;
@@ -1109,46 +1158,34 @@ pub fn dynamic(f: &Frame) -> Batch {
         if a.flat().sub(eye.flat()).len() > int(230) {
             continue;
         }
-        let (colour, glow) = vine_look(race, f.local, i, Some(i) == reach);
+        let look = vine_look(Some(i) == reach, f.vivid, f.tick);
+        let look = catch_up_look(race, f.local, i, Some(i) == reach, look);
         match f.chains.get(i) {
-            Some(chain) => chain_vine(&mut b, chain, held[i], colour, glow, f.tick + i as u32 * 37),
+            Some(chain) => chain_vine(&mut vines, chain, held[i], look, f.tick + i as u32 * 37),
             None => vine(
-                &mut b,
+                &mut vines,
                 a,
                 c.vines[i].length,
                 held[i],
-                colour,
-                glow,
+                look,
                 f.tick + i as u32 * 37,
             ),
         }
     }
+    item_flowers(&mut vines, f, &held);
     for (k, r) in race.racers.iter().enumerate() {
         let at = f.apes[k];
-        let rope = r.ape.swinging().map(|v| c.anchor(v, tick).sub(at).norm());
-        let pose = Pose {
-            hands: at,
-            yaw: r.ape.yaw,
-            rope,
-            vel: r.ape.vel,
-            grounded: r.ape.mode == crate::ape::Mode::Grounded,
-            stunned: r.ape.stun > 0,
-            tick: f.tick + k as u32 * 53,
-            scale: 100,
-        };
+        let pose = racer_pose(race, k, at, f.tick + k as u32 * 53);
         models::draw(&mut b, r.ape.kind, &pose);
-        // a soft shadow on the ground, so height reads
+        // a soft shadow on the ground, so height reads (as big as the
+        // drawn ape)
         let support = c.support(at);
         let feet = at.y - BODY_DROP;
         let high = (feet - support).clamp(0, int(30));
-        let size = cm(110) - high * 2 / 60;
+        let size = (cm(110) - high * 2 / 60).max(cm(60)) * RACE_SCALE / 100;
         b.push(
             Mesh::Cyl,
-            &placed(
-                v3(at.x, support + cm(4), at.z),
-                0,
-                v3(size.max(cm(60)), cm(2), size.max(cm(60))),
-            ),
+            &placed(v3(at.x, support + cm(4), at.z), 0, v3(size, cm(2), size)),
             SHADOW,
             0,
         );
@@ -1156,7 +1193,119 @@ pub fn dynamic(f: &Frame) -> Batch {
     course_bananas(&mut b, race, f.local, eye, f.tick);
     crate::items::draw(&mut b, race);
     speed_lines(&mut b, f);
-    b
+    (vines, b)
+}
+
+/// Where along an item vine its flowers sit, from the anchor (TRIAGE T46,
+/// T28): on its upper and middle part, where a swinging ape looks, not at
+/// its end.
+const FLOWER_AT: [i32; 3] = [ONE * 3 / 10, ONE / 2, ONE * 7 / 10];
+
+/// The points of vine `i` as drawn: its chain, or a straight line down.
+fn vine_points(f: &Frame, i: usize, hands: Option<V3>) -> Vec<V3> {
+    let c = &f.race.course;
+    let a = c.anchor(i, f.race.tick);
+    match (f.chains.get(i), hands) {
+        (Some(chain), _) => chain.pts.to_vec(),
+        (None, Some(h)) => vec![a, h],
+        (None, None) => vec![a, a.sub(v3(0, c.vines[i].length, 0))],
+    }
+}
+
+/// The point `t` (0..=ONE) of the way along a polyline, by length.
+fn along(pts: &[V3], t: i32) -> V3 {
+    let total: i32 = pts.windows(2).map(|w| w[1].sub(w[0]).len()).sum();
+    let mut left = mul(total, t);
+    for w in pts.windows(2) {
+        let l = w[1].sub(w[0]).len();
+        if left <= l && l > 0 {
+            return w[0].lerp(w[1], fx::div(left, l));
+        }
+        left -= l;
+    }
+    pts[pts.len() - 1]
+}
+
+/// The flowers on each item vine (TRIAGE T46: catching it gives the item,
+/// so the flowers mark it). While its item is taken, closed buds.
+fn item_flowers(b: &mut Batch, f: &Frame, held: &[Option<V3>]) {
+    let race = f.race;
+    let right = right_of(f.cam.fwd);
+    let up = right.cross(f.cam.fwd).norm();
+    // no item allowed (TRIAGE T42): no flowers
+    if race.items.is_empty() {
+        return;
+    }
+    for (k, &i) in race.crate_vines.iter().enumerate() {
+        let a = race.course.anchor(i, race.tick);
+        if a.flat().sub(f.cam.eye.flat()).len() > int(230) {
+            continue;
+        }
+        let open = race.crates.get(k).copied().unwrap_or(0) == 0;
+        let pts = vine_points(f, i, held.get(i).copied().flatten());
+        for (j, t) in FLOWER_AT.into_iter().enumerate() {
+            // beside the vine, on alternate sides as the camera sees it
+            let side = if j % 2 == 0 { cm(40) } else { -cm(40) };
+            let at = along(&pts, t).add(right.scale(side));
+            let spin = f.tick as i32 * 30 + (k * 3 + j) as i32 * 4000;
+            if open {
+                flower(b, at, right, up, spin);
+            } else {
+                b.push(
+                    Mesh::Sphere,
+                    &placed(at, 0, v3(cm(30), cm(40), cm(30))),
+                    BUD,
+                    0,
+                );
+            }
+        }
+    }
+}
+
+/// An open flower facing the camera: five petals round a heart.
+pub fn flower(b: &mut Batch, at: V3, right: V3, up: V3, spin: i32) {
+    let face = up.cross(right).norm();
+    for p in 0..5 {
+        let a = spin + p * fx::TURN / 5;
+        let out = right.scale(fx::cos(a)).add(up.scale(fx::sin(a)));
+        let across = face.cross(out).norm();
+        let petal = Affine {
+            c0: across.scale(cm(42)),
+            c1: out.scale(cm(70)),
+            c2: face.scale(cm(12)),
+            t: at.add(out.scale(cm(42))),
+        };
+        b.push(Mesh::Blob, &petal, PETAL, ONE / 2);
+    }
+    b.push(
+        Mesh::Sphere,
+        &placed(at.add(face.scale(cm(6))), 0, v3(cm(36), cm(36), cm(36))),
+        HEART,
+        ONE * 3 / 4,
+    );
+}
+
+/// How big the racers are drawn, percent of life size (TRIAGE T40: twice,
+/// so opponents are easier to see). Only the drawing grows: the physics
+/// (reach, hit ranges, `BODY_DROP`) keeps its sizes.
+pub const RACE_SCALE: i32 = 200;
+
+/// Racer `k`'s pose this frame, drawn at `at` (its hands) at `RACE_SCALE`.
+/// A grounded ape is drawn about its feet, so it still stands on the floor.
+pub fn racer_pose(race: &Race, k: usize, at: V3, tick: u32) -> Pose {
+    let a = &race.racers[k].ape;
+    Pose {
+        hands: at,
+        yaw: a.yaw,
+        rope: a
+            .swinging()
+            .map(|v| race.course.anchor(v, race.tick).sub(at).norm()),
+        vel: a.vel,
+        grounded: a.mode == crate::ape::Mode::Grounded,
+        stunned: a.stun > 0,
+        tick,
+        scale: RACE_SCALE,
+    }
 }
 
 /// The course's bananas (TRIAGE T43) the viewer has not taken, near the
@@ -1201,23 +1350,35 @@ fn pickup_banana(b: &mut Batch, at: V3, spin: i32) {
     b.push(Mesh::Cyl, &rod(points[4], tip, cm(8)), BANANA_STALK, 0);
 }
 
-/// A vine's colour and glow: yellow in reach; a catch-up vine (TRIAGE T45:
-/// an opponent swung on it, the viewer has not) a glowing coral red, apart
-/// from the in-reach yellow and the item vines' flowers; else green.
-fn vine_look(race: &Race, viewer: Option<usize>, i: usize, in_reach: bool) -> (Rgb, i32) {
-    if in_reach {
-        (VINE_REACH, ONE * 7 / 10)
-    } else if viewer.is_some_and(|v| race.catch_up_vine(v, i)) {
-        (VINE_USED, ONE * 9 / 20)
+/// A catch-up vine (TRIAGE T45: an opponent swung on it, the viewer has
+/// not) glows coral red, apart from the in-reach yellow (which wins) and
+/// the item vines' flowers; any other vine keeps its look.
+fn catch_up_look(
+    race: &Race,
+    viewer: Option<usize>,
+    i: usize,
+    in_reach: bool,
+    look: VineLook,
+) -> VineLook {
+    if !in_reach && viewer.is_some_and(|v| race.catch_up_vine(v, i)) {
+        VineLook {
+            colour: VINE_USED,
+            glow: look.glow.max(ONE * 9 / 20),
+            ..look
+        }
     } else {
-        (VINE, ONE / 5)
+        look
     }
 }
 
 /// A vine from its anchor: straight down and swaying a little; or, when
 /// held, taut from the anchor to the hands with the rest dangling below.
-fn vine(b: &mut Batch, a: V3, length: i32, hands: Option<V3>, colour: Rgb, glow: i32, t: u32) {
-    let width = cm(20);
+fn vine(b: &mut Batch, a: V3, length: i32, hands: Option<V3>, look: VineLook, t: u32) {
+    let VineLook {
+        colour,
+        glow,
+        width,
+    } = look;
     match hands {
         Some(h) => {
             let rope = h.sub(a).len().min(length);
@@ -1238,9 +1399,10 @@ fn vine(b: &mut Batch, a: V3, length: i32, hands: Option<V3>, colour: Rgb, glow:
             b.push(Mesh::Cyl, &rod(a, mid, width), colour, glow);
             b.push(Mesh::Cyl, &rod(mid, bottom, width), colour, glow);
             // a knot at the bottom to grab
+            let knot = width + cm(14);
             b.push(
                 Mesh::Sphere,
-                &placed(bottom, 0, v3(cm(34), cm(34), cm(34))),
+                &placed(bottom, 0, v3(knot, knot, knot)),
                 colour,
                 glow,
             );
@@ -1255,11 +1417,14 @@ fn chain_vine(
     b: &mut Batch,
     chain: &crate::vinesim::Chain,
     hands: Option<V3>,
-    colour: Rgb,
-    glow: i32,
+    look: VineLook,
     t: u32,
 ) {
-    let width = cm(20);
+    let VineLook {
+        colour,
+        glow,
+        width,
+    } = look;
     let mut pts = chain.pts;
     if let Some(h) = hands {
         let k = (1..pts.len())
@@ -1281,7 +1446,11 @@ fn chain_vine(
     if hands.is_none() {
         b.push(
             Mesh::Sphere,
-            &placed(bottom, 0, v3(cm(34), cm(34), cm(34))),
+            &placed(
+                bottom,
+                0,
+                v3(width + cm(14), width + cm(14), width + cm(14)),
+            ),
             colour,
             glow,
         );
@@ -1405,9 +1574,11 @@ fn stage_batch() -> Batch {
     b
 }
 
-/// What moves behind the title: the vines, swaying.
-pub fn flyover_dynamic(c: &Course, tick: u32) -> Batch {
+/// What moves behind the title: the vines, swaying (drawn as
+/// `render::VINES`).
+pub fn flyover_dynamic(c: &Course, tick: u32, vivid: bool) -> Batch {
     let mut b = Batch::new();
+    let look = vine_look(false, vivid, tick);
     for i in 0..c.vines.len() {
         let a = c.anchor(i, tick);
         vine(
@@ -1415,8 +1586,7 @@ pub fn flyover_dynamic(c: &Course, tick: u32) -> Batch {
             a,
             c.vines[i].length,
             None,
-            VINE,
-            ONE / 5,
+            look,
             tick + i as u32 * 37,
         );
     }
@@ -1426,6 +1596,162 @@ pub fn flyover_dynamic(c: &Course, tick: u32) -> Batch {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn one_racer(kind: crate::rules::Kind) -> Race {
+        let e = crate::race::Entry {
+            name: "P".into(),
+            kind,
+            driver: crate::race::Driver::Local,
+        };
+        Race::new(Course::jungle(), &[e], false, 1)
+    }
+
+    /// The lowest and highest instance centres in a batch (y).
+    fn heights(b: Batch) -> (i32, i32) {
+        let (v, _) = b.finish(crate::render::DYNAMIC_BUFFER);
+        let ys = v.chunks(crate::render::INSTANCE_VALUES).map(|i| i[7]);
+        (ys.clone().min().unwrap(), ys.max().unwrap())
+    }
+
+    #[test]
+    fn racers_are_drawn_twice_life_size_and_stand_on_the_ground() {
+        // TRIAGE T40
+        for kind in crate::rules::Kind::ALL {
+            let mut race = one_racer(kind);
+            let a = &mut race.racers[0].ape;
+            a.mode = crate::ape::Mode::Grounded;
+            let floor = race.course.support(a.pos);
+            a.pos.y = floor + BODY_DROP;
+            let at = race.racers[0].ape.pos;
+            let pose = racer_pose(&race, 0, at, 40);
+            let mut big = Batch::new();
+            models::draw(&mut big, kind, &pose);
+            let mut life = Batch::new();
+            models::draw(&mut life, kind, &Pose { scale: 100, ..pose });
+            let (lo, hi) = heights(big);
+            let (lo1, hi1) = heights(life);
+            assert!(
+                (hi - lo) * 10 >= (hi1 - lo1) * 18,
+                "{kind:?}: {} vs {} cm tall",
+                (hi - lo) * 100 / ONE,
+                (hi1 - lo1) * 100 / ONE
+            );
+            // the feet stay on the floor, not sunk into it
+            assert!(
+                lo >= floor - cm(2),
+                "{kind:?}: sunk {} cm",
+                (floor - lo) * 100 / ONE
+            );
+            assert!(lo <= floor + cm(30), "{kind:?}: floating");
+        }
+    }
+
+    /// The vines batch for a frame looking at `at` from 20 m back.
+    fn vines_seen(race: &Race, at: V3, vivid: bool) -> Batch {
+        let eye = at.add(v3(0, 0, -int(20)));
+        let cam = Camera {
+            eye,
+            fwd: at.sub(eye).norm(),
+            fov: deg(70),
+        };
+        let apes: Vec<V3> = race.racers.iter().map(|r| r.ape.pos).collect();
+        dynamic(&Frame {
+            race,
+            cam: &cam,
+            apes: &apes,
+            local: Some(0),
+            tick: 10,
+            chains: &[],
+            vivid,
+        })
+        .0
+    }
+
+    /// The centres of the instances of `mesh` coloured `colour`.
+    fn coloured(b: Batch, mesh: Mesh, colour: Rgb) -> Vec<V3> {
+        let mut out = Vec::new();
+        let (v, draws) = b.finish(crate::render::DYNAMIC_BUFFER);
+        for d in draws.chunks(crate::render::DRAW_VALUES) {
+            if d[1] != mesh as u32 {
+                continue;
+            }
+            let first = d[2] as usize / crate::render::BYTES_PER_VALUE;
+            for i in v[first..first + d[3] as usize * crate::render::INSTANCE_VALUES]
+                .chunks(crate::render::INSTANCE_VALUES)
+            {
+                if [i[12], i[13], i[14]] == colour {
+                    out.push(v3(i[3], i[7], i[11]));
+                }
+            }
+        }
+        out
+    }
+
+    #[test]
+    fn item_vines_carry_flowers_up_their_middle() {
+        // TRIAGE T46 (and T28): no crate at the vine's end; three flowers
+        // of five petals on its upper and middle part, buds while taken
+        let mut race = one_racer(crate::rules::Kind::Chimpanzee);
+        let k = 0;
+        let v = race.crate_vines[k];
+        let a = race.course.anchor(v, race.tick);
+        let len = race.course.vines[v].length;
+        let mid = a.sub(v3(0, len / 2, 0));
+        let petals = coloured(vines_seen(&race, mid, false), Mesh::Blob, PETAL);
+        let near: Vec<&V3> = petals
+            .iter()
+            .filter(|p| p.flat().sub(a.flat()).len() < int(3))
+            .collect();
+        assert_eq!(near.len(), 15, "five petals on each of three flowers");
+        for p in near {
+            let down = a.y - p.y;
+            assert!(
+                down > len / 5 && down < len * 4 / 5,
+                "a petal {} m down a {} m vine",
+                down / ONE,
+                len / ONE
+            );
+        }
+        // taken: closed buds, no petals, until the item comes back
+        race.crates[k] = 5;
+        let b = vines_seen(&race, mid, false);
+        let petals = coloured(b.clone(), Mesh::Blob, PETAL);
+        assert!(petals.iter().all(|p| p.flat().sub(a.flat()).len() > int(3)));
+        let buds = coloured(b, Mesh::Sphere, BUD);
+        assert_eq!(
+            buds.iter()
+                .filter(|p| p.flat().sub(a.flat()).len() < int(3))
+                .count(),
+            3
+        );
+        // no item allowed in this race (TRIAGE T42): no flowers or buds
+        race.items = crate::items::ItemSet::NONE;
+        let b = vines_seen(&race, mid, false);
+        let marks =
+            coloured(b.clone(), Mesh::Blob, PETAL).len() + coloured(b, Mesh::Sphere, BUD).len();
+        assert_eq!(marks, 0, "flowers drawn with no items allowed");
+    }
+
+    #[test]
+    fn colourblind_vines_change_by_brightness_and_width_not_hue() {
+        // TRIAGE T33
+        let plain = vine_look(false, false, 0);
+        let vivid = vine_look(false, true, 0);
+        let reach = vine_look(true, true, 0);
+        let luma = |c: Rgb| (c[0] * 30 + c[1] * 59 + c[2] * 11) / 100;
+        assert!(vivid.width > plain.width && reach.width > vivid.width);
+        assert!(luma(reach.colour) > luma(vivid.colour) + ONE / 5);
+        // near white: no channel far from the others
+        let spread = reach.colour.iter().max().unwrap() - reach.colour.iter().min().unwrap();
+        assert!(spread < ONE / 10);
+        // and it pulses
+        assert_ne!(
+            vine_look(true, true, 3).width,
+            vine_look(true, true, 40).width
+        );
+        // the ordinary mode keeps its green and yellow
+        assert_eq!(vine_look(true, false, 0).colour, VINE_REACH);
+    }
 
     #[test]
     fn the_terrain_is_whole_upward_triangles() {
@@ -1451,7 +1777,7 @@ mod tests {
         let c = Course::jungle();
         let s = scenery(&c);
         let n = s.values.len() / crate::render::INSTANCE_VALUES;
-        assert!(n > 1000 && n < 20_000, "{n}");
+        assert!(n > 1000 && n < 30_000, "{n}");
         // one chunk per 100 m, and the clearing past the finish
         assert_eq!(s.chunks.len(), c.path.len().div_ceil(CHUNK) + 1);
         // every terrain vertex is drawn by exactly one chunk

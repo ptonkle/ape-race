@@ -9,8 +9,9 @@ use serde_json::{json, Value};
 
 use crate::ai::Brain;
 use crate::ape::{Controls, Happening};
-use crate::camera::Chase;
+use crate::camera::{self, Chase, Pan};
 use crate::course::Course;
+use crate::focus::{self, Focus};
 use crate::fx::{self, deg, int, ONE};
 use crate::geom::{v3, V3};
 use crate::models;
@@ -24,6 +25,9 @@ use crate::trial;
 
 mod online_play;
 pub use online_play::OnlinePlay;
+mod menu_dock;
+#[cfg(test)]
+mod setup_tests;
 
 /// Ticks of physics a frame may catch up at most (a stalled tab does not
 /// fast-forward the race).
@@ -41,6 +45,12 @@ const DOUBLE_TAP: u32 = rules::TICKS_PER_SECOND as u32 * 2 / 5;
 /// A finished run is kept in the replay library this long after the finish
 /// (or on leaving, whichever comes first), so the coasting is in it too.
 const KEEP_AFTER_FINISH: u32 = rules::TICKS_PER_SECOND as u32 * 3;
+/// After that, a kept run is brought up to date this often while the
+/// rest race on (TRIAGE T34), and once more on leaving.
+const KEEP_AGAIN: u32 = rules::TICKS_PER_SECOND as u32 * 10;
+/// The followed ape has been out of the race (finished) this long when the
+/// camera pans to one still racing (TRIAGE T34).
+const SPECTATE_AFTER: u32 = rules::TICKS_PER_SECOND as u32 * 2;
 
 /// Clicks on the title that unlock Speed Colours (TRIAGE row 26).
 const TITLE_CLICKS: u32 = 10;
@@ -71,6 +81,10 @@ pub struct Settings {
     pub trial_best: Option<u32>,
     /// race the best Time Trial's ghost
     pub ghost: bool,
+    /// the items crates may give in a race (TRIAGE T42)
+    pub items: crate::items::ItemSet,
+    /// the colourblind mode (TRIAGE T33): the world muted, the vines vivid
+    pub colourblind: bool,
 }
 
 impl Default for Settings {
@@ -90,6 +104,8 @@ impl Default for Settings {
             best: None,
             trial_best: None,
             ghost: true,
+            items: crate::items::ItemSet::ALL,
+            colourblind: false,
         }
     }
 }
@@ -99,7 +115,10 @@ impl Settings {
         let mut s: Settings = serde_json::from_str(text).unwrap_or_default();
         s.volume = s.volume.min(100);
         s.sensitivity = s.sensitivity.clamp(1, 10);
-        s.ai_count = s.ai_count.min(3);
+        // a race has one to three AI opponents (TRIAGE T26: Time Trial is
+        // the solo run); a saved 0 reads as 1
+        s.ai_count = s.ai_count.clamp(1, 3);
+        s.items = s.items.clean();
         // Speed Colours is a secret until unlocked (TRIAGE row 26), even for
         // settings saved while it was on by default
         s.speed_colours &= s.colours_unlocked;
@@ -156,6 +175,9 @@ pub struct Play {
     /// the same, smoothed over about a second, for the speed colours
     /// (TRIAGE row 22: they followed each swing's rise and fall)
     pub colour_speed: i32,
+    /// the hype call-outs and their flash (TRIAGE T22): live racing only,
+    /// not stepped in a replay
+    pub hype: crate::hype::Hype,
     /// the local finish beat the saved best
     new_best: bool,
     /// each vine drawn as a bending chain (TRIAGE row 12)
@@ -164,8 +186,14 @@ pub struct Play {
     pub trial: bool,
     /// what the local player does each tick, for the replay (offline only)
     pub record: Option<Recording>,
-    /// the recording has gone into the library
-    kept: bool,
+    /// the recording has gone into the library, under this serial
+    kept: Option<u32>,
+    /// the racer the camera follows (TRIAGE T24, T34)
+    pub focus: Focus,
+    /// ticks the followed racer has been out of the race
+    out_for: u32,
+    /// the camera gliding to a new racer
+    pan: Option<Pan>,
     /// watching a recording instead of racing (TRIAGE T15)
     pub replay: Option<Playback>,
     /// the best Time Trial, raced again beside the player
@@ -285,6 +313,14 @@ impl App {
             if code == "Space" && !self.keys.contains(code) {
                 if let Some(pb) = self.play.as_mut().and_then(|p| p.replay.as_mut()) {
                     pb.playing = !pb.playing;
+                }
+            }
+            // the racer followed in a replay or while spectating
+            if self.screen == Screen::Race && !self.keys.contains(code) {
+                match code {
+                    "KeyD" | "ArrowRight" => self.switch_focus(true),
+                    "KeyA" | "ArrowLeft" => self.switch_focus(false),
+                    _ => {}
                 }
             }
             self.keys.insert(code.to_string());
@@ -416,18 +452,86 @@ impl App {
         }
     }
 
-    /// Puts a finished offline run into the replay library (once).
+    /// Puts a finished run into the replay library, or brings the one kept
+    /// up to date (the race goes on being recorded while the rest finish).
     fn keep_recording(&mut self, p: &mut Play) {
-        if p.kept || p.online || p.replay.is_some() {
+        if p.replay.is_some() {
             return;
         }
         let finish = p.race.racers[p.local].finish;
         if let (Some(rec), Some(_)) = (&p.record, finish) {
             let mut rec = rec.clone();
             rec.finish = finish;
-            self.library.add(rec);
-            self.save_replays = true;
-            p.kept = true;
+            match p.kept {
+                Some(serial) => {
+                    rec.serial = serial;
+                    self.save_replays |= self.library.refresh(&rec);
+                }
+                None => {
+                    p.kept = Some(self.library.serial_of_next());
+                    self.library.add(rec);
+                    self.save_replays = true;
+                }
+            }
+        }
+    }
+
+    /// Follows the next or previous racer (`next`): in a replay any of
+    /// them, live only once the local ape is out of the race, and then
+    /// those still racing (TRIAGE T24, T34).
+    fn switch_focus(&mut self, next: bool) {
+        let alpha = self.alpha;
+        let Some(p) = &mut self.play else {
+            return;
+        };
+        let live = p.replay.is_none();
+        if live && focus::racing(&p.race.racers[p.local]) {
+            return;
+        }
+        let from = play_camera(p, alpha);
+        let moved = if next {
+            p.focus.next(&p.race, live)
+        } else {
+            p.focus.prev(&p.race, live)
+        };
+        if moved {
+            refocus(p, from, camera::PAN_QUICK);
+        }
+    }
+
+    /// A drag across the 3D view while not captured, in pixels: in a
+    /// replay it steers the orbit camera, switching to it (TRIAGE T23).
+    pub fn drag(&mut self, dx: i32, dy: i32) {
+        let alpha = self.alpha;
+        let Some(p) = &mut self.play else {
+            return;
+        };
+        let Some(view) = p.replay.as_ref().map(|pb| pb.view) else {
+            return;
+        };
+        if view != replay::View::Orbit {
+            // start from the view as it is
+            let cam = play_camera(p, alpha);
+            let at = p.race.racers[p.focus.racer].ape.pos;
+            if let Some(pb) = &mut p.replay {
+                pb.orbit.yaw = crate::geom::yaw_of(cam.fwd);
+                pb.orbit.pitch = crate::geom::pitch_of(cam.fwd);
+                pb.orbit.dist = at.dist(cam.eye);
+                pb.view = replay::View::Orbit;
+            }
+        }
+        if let Some(pb) = &mut p.replay {
+            pb.orbit.drag(dx, dy);
+        }
+    }
+
+    /// The mouse wheel over the 3D view: in a replay's orbit, zoom (only
+    /// its direction counts, so pixel and line wheels agree).
+    pub fn wheel(&mut self, dy: i32) {
+        if let Some(pb) = self.play.as_mut().and_then(|p| p.replay.as_mut()) {
+            if pb.view == replay::View::Orbit {
+                pb.orbit.zoom(dy.signum());
+            }
         }
     }
 
@@ -541,7 +645,7 @@ impl App {
                 // the race just run: watch it, then come back to its results
                 if let Some(mut p) = self.play.take() {
                     self.keep_recording(&mut p);
-                    let rec = p.record.clone().filter(|_| !p.online);
+                    let rec = p.record.clone();
                     let exit = self.screen;
                     self.stash = Some(p);
                     if !rec.is_some_and(|r| self.watch(r, exit)) {
@@ -562,6 +666,8 @@ impl App {
                 }
             }
             "replay.exit" => self.leave_replay(),
+            "focus.next" => self.switch_focus(true),
+            "focus.prev" => self.switch_focus(false),
             _ if id.starts_with("replay.") => self.replay_act(id, value),
             "setup.ghost" => {
                 self.settings.ghost = value == "on";
@@ -601,7 +707,7 @@ impl App {
             }
             "setup.opponents" => {
                 if let Ok(n) = value.parse::<u8>() {
-                    self.settings.ai_count = n.min(3);
+                    self.settings.ai_count = n.clamp(1, 3);
                     self.save = true;
                 }
             }
@@ -609,6 +715,7 @@ impl App {
                 self.settings.equal_stats = value == "on";
                 self.save = true;
             }
+            _ if id.starts_with("setup.item.") => self.tick_item(id, value),
             "settings.volume" => {
                 if let Ok(v) = value.parse::<u8>() {
                     self.settings.volume = v.min(100);
@@ -639,6 +746,10 @@ impl App {
                 self.settings.speed_colours = value == "on";
                 self.save = true;
             }
+            "settings.colourblind" => {
+                self.settings.colourblind = value == "on";
+                self.save = true;
+            }
             "settings.auto_camera" => {
                 self.settings.auto_camera = value == "on";
                 self.save = true;
@@ -662,7 +773,8 @@ impl App {
         let opponents = if self.trial {
             0
         } else {
-            self.settings.ai_count
+            // the lobby may have set 0 (online, people race people)
+            self.settings.ai_count.max(1)
         };
         for _ in 0..opponents {
             let k = pool.remove(d.below(pool.len() as u32) as usize);
@@ -678,8 +790,13 @@ impl App {
             self.settings.equal_stats,
             d.next(),
         );
-        // a Time Trial: crates give only the Speed Boost (TRIAGE T13)
-        race.boost_only = self.trial;
+        // a Time Trial: crates give only the Speed Boost (TRIAGE T13);
+        // otherwise the items ticked on the setup (T42)
+        race.items = if self.trial {
+            crate::items::ItemSet::only(crate::race::Item::Boost)
+        } else {
+            self.settings.items
+        };
         race.ai_level = self.settings.ai_level;
         let record = Recording::of(&race, 0, self.mode());
         // (after `begin`, which keeps the run being left: it may be the best)
@@ -720,11 +837,15 @@ impl App {
             since_finish: None,
             hype_speed: 0,
             colour_speed: 0,
+            hype: crate::hype::Hype::default(),
             new_best: false,
             chains: Vec::new(),
             trial: false,
             record: None,
-            kept: false,
+            kept: None,
+            focus: Focus::on(local),
+            out_for: 0,
+            pan: None,
             replay: None,
             ghost: None,
         });
@@ -771,9 +892,16 @@ impl App {
             return;
         };
         if p.replay.is_some() {
-            replay_tick(&mut p);
+            for cue in replay_tick(&mut p) {
+                self.sounds.push(cue.key().to_string());
+            }
         } else if !p.paused || p.online {
             self.step_race(&mut p);
+        }
+        if let Some(pan) = &mut p.pan {
+            if !pan.tick() {
+                p.pan = None;
+            }
         }
         self.play = Some(p);
     }
@@ -781,9 +909,12 @@ impl App {
     fn step_race(&mut self, p: &mut Play) {
         p.prev = p.race.racers.iter().map(|r| r.ape.pos).collect();
         let mine = self.controls(p.chase.yaw, p.chase.pitch);
+        // an online race is recorded as a track of every ape (TRIAGE T24)
+        if p.online && p.record.is_none() && p.race.tick == 0 {
+            p.record = Some(Recording::online(&p.race, p.local));
+        }
         if let Some(rec) = &mut p.record {
-            if rec.controls.len() == p.race.tick as usize && rec.controls.len() < replay::MOST_TICKS
-            {
+            if rec.track.is_none() && rec.controls.len() == p.race.tick as usize && rec.has_room() {
                 rec.controls.push(mine);
             }
         }
@@ -791,19 +922,27 @@ impl App {
         if let Some(g) = &mut p.ghost {
             g.step();
         }
-        let flat = p.race.racers[p.local].ape.vel.len_xz();
-        p.hype_speed += (flat - p.hype_speed) / 30;
-        p.colour_speed += (flat - p.colour_speed) / 120;
         if p.online {
             self.online_step(p);
         }
+        if let Some(track) = p.record.as_mut().and_then(|r| r.track.as_mut()) {
+            track.record(&p.race);
+        }
+        follow_speed(p);
+        self.hype_tick(p);
         step_chains(p);
+        // the camera follows the focused ape; on another's, by itself
+        let spectating = p.focus.racer != p.local;
+        let f = &p.race.racers[p.focus.racer];
+        let ahead = ahead_of(&p.race.course, f.ape.hint);
+        p.chase.follow(
+            f.ape.pos,
+            f.ape.vel,
+            ahead,
+            self.settings.auto_camera || spectating,
+        );
+        spectate(p, self.alpha);
         let me = &p.race.racers[p.local];
-        // the course's way forward, a little ahead of the ape
-        let c = &p.race.course;
-        let ahead = c.heading[(me.ape.hint + 8).min(c.heading.len() - 1)];
-        p.chase
-            .follow(me.ape.pos, me.ape.vel, ahead, self.settings.auto_camera);
         if let Some(t) = me.finish {
             if p.since_finish.is_none() {
                 // a personal best is kept with the settings, one per mode
@@ -820,14 +959,30 @@ impl App {
             }
             let since = p.since_finish.map(|t| t + 1).unwrap_or(0);
             p.since_finish = Some(since);
-            if since == KEEP_AFTER_FINISH {
+            if since == KEEP_AFTER_FINISH
+                || (since > KEEP_AFTER_FINISH && since.is_multiple_of(KEEP_AGAIN))
+            {
                 self.keep_recording(p);
             }
         }
+        // the sounds of the ape being watched
         for e in p.race.events.clone() {
-            if let Some(cue) = cue_for(&e, p.local) {
+            if let Some(cue) = cue_for(&e, p.focus.racer) {
                 self.sounds.push(cue.key().to_string());
             }
+        }
+    }
+
+    /// The hype call-outs (TRIAGE T22): crossing a hype level upward calls
+    /// it out in an ape voice (`hype::Hype` keeps it from repeating); not
+    /// once the local ape has finished.
+    fn hype_tick(&mut self, p: &mut Play) {
+        if p.race.racers[p.local].finish.is_some() {
+            return;
+        }
+        let kmh = crate::speedo::kmh(p.hype_speed);
+        if let Some(level) = p.hype.step(kmh) {
+            self.sounds.push(crate::hype::voice_key(level));
         }
     }
 
@@ -863,14 +1018,18 @@ impl App {
     fn camera(&self) -> Camera {
         match self.stage {
             Stage::Race => match &self.play {
-                Some(p) => match p.replay.as_ref().map(|pb| pb.view) {
-                    None | Some(replay::View::Chase) => p.chase.camera(self.alpha),
-                    Some(v) => replay_camera(p, v, self.alpha),
-                },
+                Some(p) => {
+                    let cam = play_camera(p, self.alpha);
+                    match &p.pan {
+                        Some(pan) => pan.blend(cam, self.alpha),
+                        None => cam,
+                    }
+                }
                 None => self.flyover(),
             },
             Stage::Flyover => self.flyover(),
-            Stage::Showcase => models::showcase_camera(),
+            // framed beside the docked menus (TRIAGE T47)
+            Stage::Showcase => self.framed(models::showcase_camera()),
             Stage::Lineup => models::lineup_camera(self.aspect()),
         }
     }
@@ -906,10 +1065,28 @@ impl App {
             (_, Stage::Flyover) if self.celebrate => (int(60), (self.ticks as i32) * (ONE / 2)),
             _ => (0, 0),
         };
-        let colours = crate::sky::colours(scene::SKY, scene::FOG, speed, metres);
+        let vivid = self.settings.colourblind;
+        // the colourblind mode mutes the sky and the fog as well (TRIAGE T33)
+        let (sky, fog) = if vivid {
+            (
+                crate::sky::grey(scene::SKY, crate::sky::MUTE),
+                crate::sky::grey(scene::FOG, crate::sky::MUTE),
+            )
+        } else {
+            (scene::SKY, scene::FOG)
+        };
+        let colours = crate::sky::colours(sky, fog, speed, metres);
         let world = crate::sky::world(speed, metres);
-        let view = render::view_values(&cam, self.aspect(), scene::fog_range(), colours, world);
-        let batch = match self.stage {
+        let mute = if vivid { ONE } else { 0 };
+        let view = render::view_values(
+            &cam,
+            self.aspect(),
+            scene::fog_range(),
+            colours,
+            world,
+            mute,
+        );
+        let (vines, batch) = match self.stage {
             Stage::Race => match &self.play {
                 Some(p) => {
                     let apes: Vec<V3> = p
@@ -923,27 +1100,32 @@ impl App {
                         race: &p.race,
                         cam: &cam,
                         apes: &apes,
-                        local: Some(p.local),
+                        local: Some(p.focus.racer),
                         tick: self.ticks,
                         chains: &p.chains,
+                        vivid,
                     })
                 }
-                None => Batch::new(),
+                None => (Batch::new(), Batch::new()),
             },
-            Stage::Flyover => scene::flyover_dynamic(&self.course, self.ticks),
+            Stage::Flyover => (
+                scene::flyover_dynamic(&self.course, self.ticks, vivid),
+                Batch::new(),
+            ),
             Stage::Showcase => {
                 let mut b = Batch::new();
                 models::showcase(&mut b, self.settings.kind, self.ticks);
-                b
+                (Batch::new(), b)
             }
             Stage::Lineup => {
                 let mut b = Batch::new();
                 models::lineup(&mut b, self.ticks);
-                b
+                (Batch::new(), b)
             }
         };
         let mut draws = self.scenery().draws_near(cam.eye);
         let mut values = Vec::new();
+        draws.extend(vines.finish_as(render::DYNAMIC_BUFFER, Some(render::VINES), &mut values));
         draws.extend(batch.finish_into(render::DYNAMIC_BUFFER, &mut values));
         if let (Stage::Race, Some(p)) = (self.stage, &self.play) {
             draws.extend(ghost_draws(p, self.alpha, self.ticks, &mut values));
@@ -962,7 +1144,11 @@ impl App {
             "speedo_face": crate::speedo::face(),
             "speedo_needle": crate::speedo::banana(),
             "want_pointer": self.screen == Screen::Race
-                && self.play.as_ref().map(|p| !p.paused && p.replay.is_none()).unwrap_or(false),
+                && self
+                    .play
+                    .as_ref()
+                    .map(|p| !p.paused && p.replay.is_none() && p.focus.racer == p.local)
+                    .unwrap_or(false),
         });
         let panels = match self.screen {
             Screen::Title => self.title_panels(),
@@ -979,6 +1165,7 @@ impl App {
             v["hud"] = self.hud();
         }
         self.online_ui(&mut v);
+        self.dock_ui(&mut v);
         if !self.sounds.is_empty() {
             v["sounds"] = json!(std::mem::take(&mut self.sounds));
         }
@@ -993,12 +1180,17 @@ impl App {
         v.to_string()
     }
 
-    /// The wind's loudness, 0..=100, from the local ape's speed.
+    /// The wind's loudness, 0..=100, from the followed ape's smoothed
+    /// horizontal speed, as the speedometer reads it; quiet while a replay
+    /// is paused, over or seeking (TRIAGE T30: it read the raw speed, a
+    /// swing's fall included, and held on when a replay stopped).
     fn wind_gain(&self) -> i32 {
         match &self.play {
             Some(p) if !p.paused && self.screen == Screen::Race => {
-                let speed = p.race.racers[p.local].ape.speed();
-                fx::mul(sound::wind_gain(speed), int(100)) / ONE
+                if p.replay.as_ref().is_some_and(|pb| pb.hushed(p.race.tick)) {
+                    return 0;
+                }
+                fx::mul(sound::wind_gain(p.hype_speed), int(100)) / ONE
             }
             _ => 0,
         }
@@ -1054,7 +1246,8 @@ impl App {
             .iter()
             .map(|k| json!({ "value": k.key(), "text": self.t(&format!("ape.{}", k.key())) }))
             .collect();
-        let opponents: Vec<Value> = (0..=3)
+        // one to three: Time Trial is the solo run (TRIAGE T26)
+        let opponents: Vec<Value> = (1..=3)
             .map(|n| json!({ "value": n.to_string(), "text": n.to_string() }))
             .collect();
         let stats = self.settings.kind.race_stats(self.settings.equal_stats);
@@ -1072,7 +1265,7 @@ impl App {
             );
         } else {
             items.push(json!({ "type": "select", "id": "setup.opponents", "label": self.t("setup.opponents"),
-              "value": self.settings.ai_count.to_string(), "options": opponents }));
+              "value": self.settings.ai_count.max(1).to_string(), "options": opponents }));
             let levels: Vec<Value> = crate::ai::Difficulty::ALL
                 .iter()
                 .map(|d| json!({ "value": d.key(), "text": self.t(&format!("ai.{}", d.key())) }))
@@ -1086,6 +1279,9 @@ impl App {
             json!({ "type": "toggle", "id": "setup.equal", "label": self.t("setup.equal"),
           "value": self.settings.equal_stats }),
         );
+        if !self.trial {
+            items.extend(self.item_toggles());
+        }
         items.push(self.button("menu.start"));
         if self.best_replay().is_some() {
             items.push(self.quiet_button("replay.best"));
@@ -1099,7 +1295,38 @@ impl App {
         vec![json!({ "kind": "setup", "heading": self.t(heading), "items": items })]
     }
 
-    fn quiet_button(&self, id: &str) -> Value {
+    /// The race setup's item checkboxes (TRIAGE T42): one per item, ticked
+    /// when crates may give it, and a note when none is. Online, the host's
+    /// go out with the start.
+    pub(crate) fn item_toggles(&self) -> Vec<Value> {
+        let options: Vec<Value> = crate::race::Item::ALL
+            .iter()
+            .map(|item| {
+                json!({ "id": format!("setup.item.{}", item.key()),
+                  "text": self.t(&format!("item.{}", item.key())),
+                  "value": self.settings.items.has(*item) })
+            })
+            .collect();
+        let note = if self.settings.items.is_empty() {
+            self.t("setup.no_items")
+        } else {
+            String::new()
+        };
+        vec![
+            json!({ "type": "checks", "label": self.t("setup.items"), "options": options, "note": note }),
+        ]
+    }
+
+    /// An item checkbox changed (`setup.item.<key>`).
+    pub(crate) fn tick_item(&mut self, id: &str, value: &str) {
+        let key = id.trim_start_matches("setup.item.");
+        if let Some(item) = crate::race::Item::ALL.into_iter().find(|i| i.key() == key) {
+            self.settings.items = self.settings.items.with(item, value == "on");
+            self.save = true;
+        }
+    }
+
+    pub(crate) fn quiet_button(&self, id: &str) -> Value {
         json!({ "type": "button", "id": id, "text": self.t(id), "quiet": true })
     }
 
@@ -1173,6 +1400,8 @@ impl App {
                   "value": self.settings.invert_y },
                 { "type": "toggle", "id": "settings.auto_camera", "label": self.t("settings.auto_camera"),
                   "value": self.settings.auto_camera },
+                { "type": "toggle", "id": "settings.colourblind", "label": self.t("settings.colourblind"),
+                  "value": self.settings.colourblind },
             ]}),
         ];
         // Speed Colours shows once unlocked (TRIAGE row 26)
@@ -1230,18 +1459,40 @@ impl App {
                     ]}),
                 );
             } else {
+                // while others race on, a smaller panel at the side, with
+                // the racer followed (TRIAGE T34)
+                let racing = Focus::leader_racing(&p.race).is_some();
+                let mut items = vec![self.results_table(p)];
+                if racing {
+                    items.push(self.focus_picker(p));
+                } else {
+                    items.push(self.best_row(p));
+                }
+                items.extend([
+                    self.button("menu.rematch"),
+                    self.quiet_button("menu.replay"),
+                    self.button("menu.main"),
+                ]);
+                let kind = if racing { "spectate" } else { "overlay" };
                 out.push(
-                    json!({ "kind": "overlay", "heading": self.t("results.heading"), "items": [
-                        self.results_table(p),
-                        self.best_row(p),
-                        self.button("menu.rematch"),
-                        self.quiet_button("menu.replay"),
-                        self.button("menu.main"),
-                    ]}),
+                    json!({ "kind": kind, "heading": self.t("results.heading"), "items": items }),
                 );
             }
         }
         out
+    }
+
+    /// The racer the camera follows, with buttons either side to switch
+    /// (A/D or the arrow keys do the same).
+    pub(crate) fn focus_picker(&self, p: &Play) -> Value {
+        let name = p
+            .race
+            .racers
+            .get(p.focus.racer)
+            .map(|r| r.name.clone())
+            .unwrap_or_default();
+        json!({ "type": "picker", "id": "focus",
+                "text": format!("{} {}", self.t("focus.watching"), name) })
     }
 
     /// The replay viewer's controls; the seek bar is in the HUD.
@@ -1265,6 +1516,7 @@ impl App {
               "value": pb.speed.key(), "options": speeds },
             { "type": "select", "id": "replay.camera", "label": self.t("replay.camera"),
               "value": pb.view.key(), "options": views },
+            self.focus_picker(p),
             { "type": "button", "id": "replay.exit", "text": self.t("replay.exit"), "quiet": true },
         ]})
     }
@@ -1329,6 +1581,8 @@ impl App {
                 _ => String::new(),
             },
         };
+        // place, time and item are the followed ape's (TRIAGE T24, T34)
+        let me = &race.racers[p.focus.racer];
         let shown_clock = me.finish.unwrap_or(race.clock);
         let item = me
             .item
@@ -1346,6 +1600,10 @@ impl App {
                 "hype": crate::speedo::hype(crate::speedo::kmh(p.hype_speed)),
                 "amount": decimal(&crate::speedo::amount_text(crate::speedo::kmh(p.hype_speed))),
                 "shout": self.t(&format!("hud.hype{}", crate::speedo::hype(crate::speedo::kmh(p.hype_speed)))),
+                // the splash of a call-out (TRIAGE T22): the screen's flash,
+                // 0 to 1, and the level whose shout pops while it shows
+                "flash": decimal(&p.hype.flash_text()),
+                "burst": p.hype.burst(),
             },
             "item": [self.t("hud.item"), item],
             // the course's bananas taken (TRIAGE T43)
@@ -1354,8 +1612,12 @@ impl App {
             // the held item as a picture (TRIAGE T19)
             "item_icon": me.item.map(crate::items::icon_svg).unwrap_or_default(),
             "big": big,
-            "flash": self.reward_flash(me, race.tick),
-            "hint": if p.replay.is_some() || self.pointer_locked {
+            "reward": self.reward_flash(me, race.tick),
+            "hint": if p.replay.is_some() {
+                self.t("hud.replay")
+            } else if p.focus.racer != p.local {
+                self.t("hud.spectate")
+            } else if self.pointer_locked {
                 String::new()
             } else {
                 self.t("hud.click")
@@ -1441,7 +1703,15 @@ impl App {
             .enumerate()
             .map(|(i, r)| {
                 let (x, y) = to(r.ape.pos);
-                json!({ "x": x, "y": y, "me": i == p.local, "colour": colour_of(r.ape.kind) })
+                let me = i == p.local;
+                let mut dot = json!({ "x": x, "y": y, "me": me, "colour": colour_of(r.ape.kind) });
+                // the colourblind mode tells the apes apart by shape too
+                // (TRIAGE T33)
+                if self.settings.colourblind {
+                    let size = if me { MINIMAP_ME_DOT } else { MINIMAP_DOT };
+                    dot["shape"] = json!(minimap_shape(r.ape.kind, x, y, size * 5 / 4));
+                }
+                dot
             })
             .collect();
         let mut apes = apes;
@@ -1455,7 +1725,7 @@ impl App {
         let (fx_, fy) = to(*c.path.last().unwrap_or(&V3::ZERO));
         json!({
             "size": 1000, "stride": 2, "line": line, "apes": apes, "finish": [fx_, fy],
-            "dot": 24, "me_dot": 36, "width": 22, "ring_width": 8,
+            "dot": MINIMAP_DOT, "me_dot": MINIMAP_ME_DOT, "width": 22, "ring_width": 8,
             "track": "rgba(240, 230, 190, 0.75)", "finish_colour": "#ffffff",
             "ring": "rgba(0, 0, 0, 0.6)", "me_ring": "#ffe066",
             "circle": decimal("6.2832"),
@@ -1465,6 +1735,12 @@ impl App {
     pub fn sound(&self, key: &str) -> Vec<u8> {
         if key == "wind" {
             return sound::wind(self.settings.volume);
+        }
+        if key == sound::SCREECH {
+            return sound::screech(self.settings.volume);
+        }
+        if let Some(level) = sound::voice_level(key) {
+            return sound::voice(level, self.settings.volume);
         }
         match Cue::from_key(key) {
             Some(c) => sound::wav(c, self.settings.volume),
@@ -1478,47 +1754,110 @@ fn restore(p: &mut Play, save: replay::SavePoint) {
     replay::put_back(save, &mut p.race, &mut p.brains);
     p.prev = p.race.racers.iter().map(|r| r.ape.pos).collect();
     p.since_finish = None;
-    let me = &p.race.racers[p.local];
-    p.chase = Chase::new(me.ape.pos, p.chase.yaw);
+    let f = &p.race.racers[p.focus.racer];
+    p.chase = Chase::new(f.ape.pos, p.chase.yaw);
+}
+
+/// The course's way forward a little ahead of centreline sample `hint`.
+fn ahead_of(c: &Course, hint: usize) -> V3 {
+    c.heading[(hint + 8).min(c.heading.len() - 1)]
+}
+
+/// The followed ape's horizontal speed, smoothed: the speedometer, the
+/// colours and the wind follow it (TRIAGE rows 19 and 22, T30).
+fn follow_speed(p: &mut Play) {
+    let flat = p.race.racers[p.focus.racer].ape.vel.len_xz();
+    p.hype_speed += (flat - p.hype_speed) / 30;
+    p.colour_speed += (flat - p.colour_speed) / 120;
+}
+
+/// The camera moves to the focused racer, gliding from `from`.
+fn refocus(p: &mut Play, from: Camera, ticks: u32) {
+    let f = &p.race.racers[p.focus.racer];
+    p.chase = Chase::new(f.ape.pos, p.chase.yaw);
+    p.prev[p.focus.racer] = f.ape.pos;
+    p.out_for = 0;
+    p.pan = Some(Pan::new(from, ticks));
+}
+
+/// Live, after a tick: once the followed ape has been out of the race for
+/// [`SPECTATE_AFTER`], the camera pans to the leading ape still racing
+/// (TRIAGE T34).
+fn spectate(p: &mut Play, alpha: i32) {
+    if focus::racing(&p.race.racers[p.focus.racer]) {
+        p.out_for = 0;
+        return;
+    }
+    p.out_for = p.out_for.saturating_add(1);
+    if p.out_for < SPECTATE_AFTER {
+        return;
+    }
+    let from = play_camera(p, alpha);
+    if p.focus.follow_racing(&p.race) {
+        refocus(p, from, camera::PAN_TICKS);
+    }
+}
+
+/// The race camera as it is, before any pan.
+fn play_camera(p: &Play, alpha: i32) -> Camera {
+    match p.replay.as_ref().map(|pb| pb.view) {
+        None | Some(replay::View::Chase) => p.chase.camera(alpha),
+        Some(v) => replay_camera(p, v, alpha),
+    }
 }
 
 /// One page tick of a replay: as many race ticks as the speed (or a seek)
-/// wants, the player's recorded camera with them.
-fn replay_tick(p: &mut Play) {
+/// wants, the player's recorded camera with them when it follows the
+/// player. Returns the sounds of the followed ape, none while seeking.
+fn replay_tick(p: &mut Play) -> Vec<Cue> {
     let Some(mut pb) = p.replay.take() else {
-        return;
+        return Vec::new();
     };
     let n = pb.due(p.race.tick);
+    let seeking = pb.seek.is_some();
+    let mut cues = Vec::new();
     for _ in 0..n {
         pb.keep(&mut p.race, &p.brains);
         let c = pb.rec.at(p.race.tick);
         p.prev = p.race.racers.iter().map(|r| r.ape.pos).collect();
-        replay::drive(&mut p.race, &mut p.brains, p.local, c);
-        let flat = p.race.racers[p.local].ape.vel.len_xz();
-        p.hype_speed += (flat - p.hype_speed) / 30;
-        p.colour_speed += (flat - p.colour_speed) / 120;
-        let me = &p.race.racers[p.local];
-        let course = &p.race.course;
-        let ahead = course.heading[(me.ape.hint + 8).min(course.heading.len() - 1)];
-        p.chase.yaw = c.yaw;
-        p.chase.pitch = c.pitch;
-        p.chase.follow(me.ape.pos, me.ape.vel, ahead, false);
-        if me.finish.is_some() {
+        pb.rec.play(&mut p.race, &mut p.brains);
+        pb.orbit.tick();
+        follow_speed(p);
+        let f = &p.race.racers[p.focus.racer];
+        let ahead = ahead_of(&p.race.course, f.ape.hint);
+        // the player's own camera when it follows the player; else by itself
+        let own = p.focus.racer == p.local && pb.rec.track.is_none();
+        if own {
+            p.chase.yaw = c.yaw;
+            p.chase.pitch = c.pitch;
+        }
+        p.chase.follow(f.ape.pos, f.ape.vel, ahead, !own);
+        if p.race.racers[p.local].finish.is_some() {
             p.since_finish = Some(p.since_finish.map(|t| t + 1).unwrap_or(0));
+        }
+        if !seeking {
+            cues.extend(
+                p.race
+                    .events
+                    .iter()
+                    .filter_map(|e| cue_for(e, p.focus.racer)),
+            );
         }
     }
     p.replay = Some(pb);
     if n > 0 {
         step_chains(p);
     }
+    cues
 }
 
-/// The orbit and trackside replay cameras.
+/// The orbit and trackside replay cameras, on the followed ape.
 fn replay_camera(p: &Play, view: replay::View, alpha: i32) -> Camera {
-    let me = &p.race.racers[p.local];
+    let i = p.focus.racer;
+    let me = &p.race.racers[i];
     let at = p
         .prev
-        .get(p.local)
+        .get(i)
         .copied()
         .unwrap_or(me.ape.pos)
         .lerp(me.ape.pos, alpha);
@@ -1547,19 +1886,37 @@ fn replay_camera(p: &Play, view: replay::View, alpha: i32) -> Camera {
                 fov,
             }
         }
-        _ => {
-            let a = (p.race.tick as i32).wrapping_mul(deg(1) / 4);
-            let look = crate::geom::facing(a, -deg(18));
-            let eye = at.sub(look.scale(int(7)));
-            let floor = crate::course::ground(eye.x, eye.z) + int(1);
-            let eye = v3(eye.x, eye.y.max(floor), eye.z);
-            Camera {
-                eye,
-                fwd: at.sub(eye).norm(),
-                fov: deg(65),
-            }
-        }
+        _ => match &p.replay {
+            Some(pb) => pb.orbit.camera(at),
+            None => camera::Orbit::default().camera(at),
+        },
     }
+}
+
+/// The minimap's dots' radii, in its 0–1000 box.
+const MINIMAP_DOT: i32 = 24;
+const MINIMAP_ME_DOT: i32 = 36;
+
+/// A kind's minimap marker in the colourblind mode (TRIAGE T33), as the
+/// corners of a polygon round (`x`, `y`) of radius `r`: a triangle, a
+/// square, a pentagon, a hexagon, a diamond or a star, one per kind.
+fn minimap_shape(kind: crate::rules::Kind, x: i32, y: i32, r: i32) -> Vec<i32> {
+    // (corners, turn of the first corner, inner radius percent for a star)
+    let (n, turn, inner) = match kind.index() {
+        0 => (3, 0, 100),
+        1 => (4, fx::TURN / 8, 100),
+        2 => (5, 0, 100),
+        3 => (6, 0, 100),
+        4 => (4, 0, 70),
+        _ => (10, 0, 50),
+    };
+    (0..n)
+        .flat_map(|k| {
+            let a = turn + k * fx::TURN / n;
+            let rr = if k % 2 == 1 { r * inner / 100 } else { r };
+            [x + fx::sin(a) * rr / ONE, y - fx::cos(a) * rr / ONE]
+        })
+        .collect()
 }
 
 /// The ghost ape, drawn into `values` tinted and glowing (the renderer
@@ -1571,19 +1928,7 @@ fn ghost_draws(p: &Play, alpha: i32, ticks: u32, values: &mut Vec<i32>) -> Vec<u
     let r = &g.race.racers[0];
     let at = g.prev.lerp(r.ape.pos, alpha);
     let mut b = Batch::new();
-    let pose = models::Pose {
-        hands: at,
-        yaw: r.ape.yaw,
-        rope: r
-            .ape
-            .swinging()
-            .map(|v| g.race.course.anchor(v, g.race.tick).sub(at).norm()),
-        vel: r.ape.vel,
-        grounded: r.ape.mode == crate::ape::Mode::Grounded,
-        stunned: r.ape.stun > 0,
-        tick: ticks,
-        scale: 100,
-    };
+    let pose = scene::racer_pose(&g.race, 0, at, ticks);
     models::draw(&mut b, r.ape.kind, &pose);
     let start = values.len();
     let draws = b.finish_into(render::DYNAMIC_BUFFER, values);
@@ -1616,7 +1961,7 @@ fn step_chains(p: &mut Play) {
             Some(_) => {}
         }
     }
-    let me = p.race.racers[p.local].ape.pos;
+    let me = p.race.racers[p.focus.racer].ape.pos;
     for i in 0..c.vines.len() {
         let a = c.anchor(i, p.race.tick);
         if a.flat().sub(me.flat()).len() > int(170) {
@@ -1704,6 +2049,12 @@ fn cue_for(e: &Event, local: usize) -> Option<Cue> {
         _ => None,
     }
 }
+
+#[cfg(test)]
+#[path = "app/items_hype_tests.rs"]
+mod items_hype_tests;
+#[cfg(test)]
+mod spectate_tests;
 
 #[cfg(test)]
 mod tests {
@@ -1819,7 +2170,7 @@ mod tests {
         let mut a = app();
         a.settings.best = Some(120 * 100);
         a.act("menu.race", "");
-        a.act("setup.opponents", "0");
+        a.act("setup.opponents", "1");
         a.act("menu.start", "");
         let p = a.play.as_mut().unwrap();
         p.race.phase = Phase::Running;
@@ -1928,6 +2279,60 @@ mod tests {
     }
 
     #[test]
+    fn the_colourblind_mode_mutes_the_world_and_keeps_the_vines_vivid() {
+        // TRIAGE T33: a setting, kept; the frame tells the shader to mute
+        // and marks the vines' draws so they stay vivid
+        let mut a = app();
+        let vine_draws = |a: &App| {
+            let (view, _, draws) = a.frame();
+            let marked = draws
+                .chunks(render::DRAW_VALUES)
+                .filter(|d| d[6] == render::VINES)
+                .count();
+            (view[37], marked)
+        };
+        let (mute, marked) = vine_draws(&a);
+        assert_eq!(mute, 0);
+        assert!(marked > 0, "the title's vines are drawn as vines");
+        a.act("settings.colourblind", "on");
+        assert!(a.settings.colourblind);
+        let ui: Value = serde_json::from_str(&a.ui()).unwrap();
+        assert!(ui["save"]
+            .as_str()
+            .unwrap()
+            .contains("\"colourblind\":true"));
+        assert_eq!(vine_draws(&a).0, ONE);
+        a.act("menu.race", "");
+        a.act("menu.start", "");
+        let (mute, marked) = vine_draws(&a);
+        assert_eq!(mute, ONE);
+        assert!(marked > 0);
+        // the minimap's apes are told apart by shape, each kind its own
+        let ui: Value = serde_json::from_str(&a.ui()).unwrap();
+        let apes = ui["hud"]["minimap"]["apes"].as_array().unwrap();
+        let corners: Vec<usize> = apes
+            .iter()
+            .map(|d| d["shape"].as_array().map_or(0, |s| s.len()))
+            .collect();
+        assert!(corners.iter().all(|n| *n >= 6), "{corners:?}");
+        let shapes: Vec<Vec<i32>> = crate::rules::Kind::ALL
+            .iter()
+            .map(|k| minimap_shape(*k, 0, 0, 30))
+            .collect();
+        for (i, s) in shapes.iter().enumerate() {
+            assert!(!shapes[..i].contains(s), "kind {i} shares a shape");
+        }
+        // the sky is greyer
+        let (view, _, _) = a.frame();
+        let sky = &view[24..27];
+        assert!(sky[1] - sky[0] < (scene::SKY[1] - scene::SKY[0]) / 2);
+        // and the setting shows on the settings screen
+        a.act("menu.quit", "");
+        a.screen = Screen::Settings;
+        assert!(a.ui().contains("settings.colourblind"));
+    }
+
+    #[test]
     fn every_screen_has_a_view_model_and_a_frame() {
         let mut a = app();
         for id in [
@@ -1941,7 +2346,7 @@ mod tests {
             let ui: Value = serde_json::from_str(&a.ui()).unwrap();
             assert!(ui["screen"].is_string());
             let (view, _, _) = a.frame();
-            assert_eq!(view.len(), 37);
+            assert_eq!(view.len(), 38);
             let (statics, _, _) = a.static_scene();
             assert!(!statics.is_empty());
         }
@@ -1980,7 +2385,7 @@ mod tests {
         a.act("menu.start", "");
         let p = a.play.as_mut().unwrap();
         assert_eq!(p.race.racers.len(), 1);
-        assert!(p.race.boost_only && p.trial);
+        assert!(p.race.items == crate::items::ItemSet::only(crate::race::Item::Boost) && p.trial);
         p.race.phase = Phase::Running;
         p.race.clock = 120 * 95;
         p.race.racers[0].finish = Some(120 * 95);
@@ -2106,7 +2511,7 @@ mod tests {
         // the cameras all give a view
         for v in ["orbit", "trackside", "chase"] {
             a.act("replay.camera", v);
-            assert_eq!(a.frame().0.len(), 37);
+            assert_eq!(a.frame().0.len(), 38);
         }
         // leaving goes back to the race it came from
         a.act("replay.exit", "");

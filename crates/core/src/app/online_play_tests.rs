@@ -153,3 +153,162 @@ fn an_invite_link_carries_the_room_and_opening_it_joins() {
     k.act("flag.room_link", "!!");
     assert_eq!(k.screen, Screen::Title);
 }
+
+/// Every sound the app names in its next view.
+fn sounds(a: &mut App) -> Vec<String> {
+    let ui: Value = serde_json::from_str(&a.ui()).unwrap();
+    ui["sounds"]
+        .as_array()
+        .map(|s| s.iter().map(|k| k.as_str().unwrap().to_string()).collect())
+        .unwrap_or_default()
+}
+
+#[test]
+fn the_lobby_offers_a_name_field_and_a_rename_reaches_the_other_app() {
+    // TRIAGE T35: an invite link lands straight in the lobby, so the
+    // lobby has the name field too
+    let mut p = Pair::lobby();
+    for a in &mut p.apps {
+        assert!(a.ui().contains("\"id\":\"lobby.name\""));
+    }
+    p.apps[1].act("lobby.name", "Bonobo Bob");
+    p.apps[0].act("lobby.name", "Queen");
+    p.run(500);
+    for (k, a) in p.apps.iter().enumerate() {
+        let seats = a.online.session.as_ref().unwrap().lobby().seats;
+        let names: Vec<String> = seats.into_iter().map(|s| s.name).collect();
+        assert_eq!(names[..2], ["Queen", "Bonobo Bob"], "app {k}");
+    }
+    assert_eq!(p.apps[1].settings.name, "Bonobo Bob", "kept for next time");
+    // clearing the field gives the default name
+    p.apps[1].act("lobby.name", "");
+    p.run(500);
+    let seats = p.apps[0].online.session.as_ref().unwrap().lobby().seats;
+    assert_eq!(seats[1].name, p.apps[0].t("online.default_name"));
+}
+
+#[test]
+fn the_screech_button_plays_on_both_apps() {
+    let mut p = Pair::lobby();
+    for a in &mut p.apps {
+        sounds(a);
+    }
+    p.apps[1].act("lobby.screech", "");
+    p.run(100);
+    for (k, a) in p.apps.iter_mut().enumerate() {
+        let s = sounds(a);
+        assert_eq!(
+            s.iter().filter(|k| *k == "screech").count(),
+            1,
+            "app {k}: {s:?}"
+        );
+    }
+    let wav = p.apps[0].sound("screech");
+    assert_eq!(&wav[0..4], b"RIFF");
+    assert!(
+        wav.len() > 22_050,
+        "about a second and a quarter of screech"
+    );
+}
+
+#[test]
+fn a_supplied_screech_file_plays_at_the_players_volume() {
+    // the swap-in path for the person's recording (SECOND-ORDER L4)
+    use crate::sound::{scaled_wav, MASTER};
+    let peak = |w: &[u8]| {
+        w[44..]
+            .as_chunks::<2>()
+            .0
+            .iter()
+            .map(|b| (i16::from_le_bytes(*b) as i64).abs())
+            .max()
+            .unwrap()
+    };
+    // a file plays scaled as the synthesised cues are: full scale is MASTER
+    // at 100%, half that at 50%
+    let mut file = crate::sound::screech(100);
+    let loud: Vec<u8> = file[44..]
+        .as_chunks::<2>()
+        .0
+        .iter()
+        .flat_map(|b| {
+            let s = i16::from_le_bytes(*b) as i64 * i16::MAX as i64 / MASTER;
+            (s.clamp(-32767, 32767) as i16).to_le_bytes()
+        })
+        .collect();
+    file.truncate(44);
+    file.extend(loud);
+    let want = peak(&file) * MASTER / i16::MAX as i64;
+    let full = peak(&scaled_wav(&file, 100));
+    let half = peak(&scaled_wav(&file, 50));
+    assert!((full - want).abs() < MASTER / 50, "{full} for {want}");
+    assert!(
+        (half - want / 2).abs() < MASTER / 50,
+        "{half} for {}",
+        want / 2
+    );
+    assert_eq!(
+        scaled_wav(b"RIFF....WAVEjunk", 100).len(),
+        44,
+        "no data: silence"
+    );
+}
+
+#[test]
+fn the_hosts_item_choice_reaches_the_joiner_with_the_start() {
+    // TRIAGE T42: the host's lobby has the item boxes; the joiner's race
+    // gets the host's set, whatever its own settings say
+    let mut p = Pair::lobby();
+    let ui = p.apps[0].ui();
+    assert!(
+        ui.contains("setup.item.vine"),
+        "the host's lobby has the boxes"
+    );
+    p.apps[0].act("setup.item.vine", "off");
+    p.apps[0].act("setup.item.stick", "off");
+    p.race();
+    let host = p.apps[0].play.as_ref().unwrap().race.items;
+    let joiner = p.apps[1].play.as_ref().unwrap().race.items;
+    assert!(!host.has(crate::race::Item::Vine) && !host.has(crate::race::Item::Stick));
+    assert!(host.has(crate::race::Item::Banana));
+    assert_eq!(joiner, host);
+    assert!(p.apps[1].settings.items.has(crate::race::Item::Vine));
+}
+
+#[test]
+fn an_online_race_is_recorded_as_a_track_and_replays() {
+    // TRIAGE T24: every ape's place, kept and watched like any replay
+    let mut p = Pair::lobby();
+    p.race();
+    p.apps[0].key("KeyW", true);
+    p.run(6000);
+    let j = &mut p.apps[1];
+    let play = j.play.as_ref().unwrap();
+    let rec = play.record.as_ref().unwrap();
+    let track = rec.track.as_ref().expect("an online race keeps a track");
+    assert_eq!(rec.mode, crate::replay::Mode::Online);
+    assert!(rec.length() + crate::replay::TRACK_EVERY > play.race.tick);
+    let seen = play.race.racers[0].ape.pos;
+    assert!(track.samples.len() > 100);
+    // watch it: the host's ape (remote here) goes where it went
+    j.act("menu.replay", "");
+    let rp = j.play.as_ref().unwrap();
+    assert!(rp.replay.is_some() && !rp.online);
+    let start = rp.race.racers[0].ape.pos;
+    let length = rp.replay.as_ref().unwrap().length();
+    for _ in 0..length + 10 {
+        j.tick();
+    }
+    let rp = j.play.as_ref().unwrap();
+    assert_ne!(rp.race.racers[0].ape.pos, start);
+    assert!(rp.race.racers[0].ape.pos.dist(seen) < crate::fx::int(3));
+    // leaving goes back to the online race; a finished one is kept
+    j.act("replay.exit", "");
+    let back = j.play.as_mut().unwrap();
+    assert!(back.online);
+    back.race.racers[1].finish = Some(back.race.clock);
+    j.act("menu.main", "");
+    let listed = j.library.listing();
+    assert_eq!(listed.len(), 1);
+    assert_eq!(listed[0].0.mode, crate::replay::Mode::Online);
+}

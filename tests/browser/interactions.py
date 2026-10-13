@@ -72,6 +72,14 @@ def run(page, check, engine):
     )
     check(pips == [3, 3, 3, 3, 3], f"Equal Stats shows the average ape {pips}")
     page.click("[id='setup.equal']")
+    # TRIAGE T42: a checkbox per item, all ticked at first; one unticks
+    boxes = page.evaluate("() => [...document.querySelectorAll('.checks input')].map(b => b.checked)")
+    check(boxes == [True] * 5, f"five item checkboxes, all ticked {boxes}")
+    page.click("[id='setup.item.banana']")
+    page.wait_for_timeout(100)
+    check(not page.is_checked("[id='setup.item.banana']"), "the Banana box unticks")
+    page.click("[id='setup.item.banana']")
+    page.wait_for_timeout(100)
     page.select_option("[id='setup.opponents']", "2")
     check(canvas_drawn(page), "the chosen ape is drawn on the setup screen")
 
@@ -130,14 +138,14 @@ def run(page, check, engine):
     page.wait_for_selector("body[data-ready='true']", timeout=20000)
     page.click("[id='menu.settings']")
     check("35%" in text(page, "#menus"), "the volume is kept after a reload")
-    check(STRINGS["settings.speed_colours"] not in text(page, "#menus"), "Speed Colours is a secret at first")
+    check(STRINGS["settings.speed_colours"] not in text(page, "#menus"), "JOJO MODE (speed colours) is a secret at first")
     page.click("[id='menu.back']")
 
-    # The secret (TRIAGE row 26): ten clicks on the title unlock Speed Colours
+    # The secret (TRIAGE row 26): ten clicks on the title unlock JOJO MODE (the speed colours, T36)
     for _ in range(10):
         page.click("[id='title.click']")
     page.click("[id='menu.settings']")
-    check(STRINGS["settings.speed_colours"] in text(page, "#menus"), "ten clicks on the title unlock Speed Colours in Settings")
+    check(STRINGS["settings.speed_colours"] in text(page, "#menus"), "ten clicks on the title unlock JOJO MODE in Settings")
     page.click("[id='menu.back']")
 
     # Time Trial (TRIAGE T1, T13): solo, the medal targets, Bronze 1:45.00

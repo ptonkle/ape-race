@@ -54,6 +54,20 @@ impl Session {
         }
     }
 
+    /// A drag over the 3D view while the pointer is free (TRIAGE T23).
+    pub fn drag(&mut self, dx: i32, dy: i32) {
+        if let Ok(a) = &mut self.app {
+            a.drag(dx, dy);
+        }
+    }
+
+    /// The mouse wheel over the 3D view.
+    pub fn wheel(&mut self, dy: i32) {
+        if let Ok(a) = &mut self.app {
+            a.wheel(dy);
+        }
+    }
+
     pub fn pointer_lock(&mut self, locked: bool) {
         if let Ok(a) = &mut self.app {
             a.pointer_lock(locked);

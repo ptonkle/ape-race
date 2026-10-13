@@ -55,7 +55,27 @@ html, body {
 
 .menus > * { pointer-events: auto; }
 
-body[data-screen="setup"] .menus { justify-content: flex-start; padding-left: 4vw; }
+/* Beside the previewed ape (Race Setup, Lobby: TRIAGE T47). The core picks
+   the dock and its size from the view, and frames the ape in the open part. */
+body[data-dock="side"] .menus {
+  right: auto;
+  width: var(--dock-w);
+  padding: 1.5rem;
+  align-content: flex-start;
+  justify-content: flex-start;
+  overflow-y: auto;
+}
+body[data-dock="below"] .menus {
+  flex-direction: column;
+  flex-wrap: nowrap;
+  align-items: center;
+  align-content: center;
+  justify-content: flex-start;
+  padding: var(--dock-top) 1rem 1rem;
+  overflow-y: auto;
+}
+body[data-dock="side"] .menus .panel,
+body[data-dock="below"] .menus .panel { width: 25rem; max-width: 100%; min-width: 0; }
 body[data-screen="race"] .menus { background: rgba(10, 24, 12, 0.35); }
 body[data-screen="race"] .menus:empty { background: none; }
 body[data-screen="lineup"] .menus { display: none; }
@@ -170,6 +190,15 @@ table.cells tr.me td { color: var(--banana); font-weight: 800; }
 .toggle { display: flex; align-items: center; justify-content: space-between; margin: 0.5rem 0; gap: 1rem; }
 .toggle span { color: var(--muted); }
 .toggle input { width: 1.2rem; height: 1.2rem; accent-color: var(--leaf); }
+/* the items crates may give (TRIAGE T42). The boxes make the host's lobby
+   taller: panels that do not fit scroll rather than run off the screen */
+.menus { overflow-y: auto; align-content: safe center; }
+.checks { margin: 0.5rem 0; }
+.checks-label, .checks-note { color: var(--muted); }
+.checks-row { display: flex; flex-wrap: wrap; gap: 0.3rem 0.9rem; margin-top: 0.3rem; }
+.check { display: flex; align-items: center; gap: 0.3rem; font-size: 0.9rem; }
+.check input { width: 1.1rem; height: 1.1rem; accent-color: var(--leaf); }
+.checks-note { display: block; font-size: 0.85rem; margin-top: 0.3rem; }
 
 /* ---- the race HUD ---- */
 
@@ -331,6 +360,24 @@ table.cells tr.me td { color: var(--banana); font-weight: 800; }
 @keyframes shake { from { transform: translate(-1.5px, 1px) rotate(-0.6deg); } to { transform: translate(1.5px, -1px) rotate(0.6deg); } }
 @keyframes pulse { from { transform: translateX(-50%) rotate(-6deg) scale(1); } to { transform: translateX(-50%) rotate(-3deg) scale(1.15); } }
 
+/* a hype call-out's splash (TRIAGE T22): the core gives the flash's
+   strength (opacity) and the level; the shout pops big while it shows */
+.hype-flash {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0;
+  background: radial-gradient(ellipse at 50% 85%, rgba(255, 236, 140, 0) 30%, rgba(255, 200, 60, 0.55) 75%, rgba(255, 140, 30, 0.8) 100%);
+}
+.hype-flash.burst-3 {
+  background: radial-gradient(ellipse at 50% 85%, rgba(255, 250, 220, 0.35) 0%, rgba(255, 170, 40, 0.5) 55%, rgba(255, 70, 30, 0.85) 100%);
+}
+.speedo:not([data-burst="0"]) .shout {
+  animation: none;
+  transform: translateX(-50%) rotate(-6deg) scale(calc(1 + 0.9 * var(--flash, 0)));
+  text-shadow: 0 3px 0 #6b4a18, 0 0 calc(12px + 30px * var(--flash, 0)) rgba(255, 200, 60, 1);
+}
+
 /* the setup panel keeps one width whatever the ape's name (TRIAGE T2) */
 .panel.setup { width: 25rem; }
 .picker .name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -388,6 +435,36 @@ body[data-screen="race"] .menus:has(.panel.replay) {
 .replay-bar[hidden] { display: none; }
 .panel.replay h2 { margin: 0 0.4rem 0 0; }
 
+/* ---- spectating after the finish (TRIAGE T34) and the followed racer
+   in a replay (T24) ---- */
+
+body[data-screen="race"] .menus:has(.panel.spectate) {
+  background: none;
+  justify-content: flex-end;
+  align-content: center;
+  padding: 5.5rem 1rem 16rem;
+}
+.panel.spectate {
+  min-width: 0;
+  width: min(24rem, 92vw);
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  padding: 0.8rem 1rem;
+  font-size: 0.9rem;
+}
+.panel.spectate h2 { font-size: 1.3rem; margin: 0; }
+.panel.spectate .button { font-size: 1rem; padding: 0.4rem 0.9rem; margin-top: 0; }
+.panel.spectate .picker,
+.panel.replay .picker { margin: 0; }
+.panel.spectate .picker .name,
+.panel.replay .picker .name { font-size: 1.05rem; }
+.panel.replay .picker { min-width: 15rem; }
+.panel.spectate .picker button,
+.panel.replay .picker button { width: 2rem; height: 2rem; font-size: 1.1rem; }
+/* the replay's hint sits above its bar */
+body:has(#replay-bar:not([hidden])) .hint { bottom: auto; top: 5.5rem; }
+
 /* group K: a course reward's name (mushroom push, catch-up vine), shown
    briefly by the core above the middle */
-.hint.flash { bottom: auto; top: 22%; color: var(--banana); font-weight: 800; }
+.hint.reward { bottom: auto; top: 22%; color: var(--banana); font-weight: 800; }

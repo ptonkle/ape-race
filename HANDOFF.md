@@ -42,7 +42,9 @@ The Builder template became a 3D vine-swinging racer. The work was split across 
 
 ## The todo batch (2026-10-12)
 
-TRIAGE Future ideas T1–T21 were built by five parallel agents (Art F, World W, Items J, Modes Q, AI D) and the integrator, merged and deployed: Time Trial with medals and a hidden Author time, R R quick restart, replays with save points and a ghost (best per map plus the 10 latest, in browser storage), four AI difficulties, faceted apes, the new jungle, mushrooms and softer landings, crates on vines, a homing banana, a longer stick with its range shown, a Vine item, item icons, a banana tab icon, speed colours (sky, ground, wood and leaves each their own colour, from smoothed horizontal speed; Settings → Speed Colours), and hype levels set from a person's speeds. `check.sh` and `check-online.sh` passed in three engines before the World merge; chromium after it.
+TRIAGE Future ideas T1–T21 were built by five parallel agents (Art F, World W, Items J, Modes Q, AI D) and the integrator, merged and deployed: Time Trial with medals and a hidden Author time, R R quick restart, replays with save points and a ghost (best per map plus the 10 latest, in browser storage), four AI difficulties, faceted apes, the new jungle, mushrooms and softer landings, crates on vines, a homing banana, a longer stick with its range shown, a Vine item, item icons, a banana tab icon, speed colours (sky, ground, wood and leaves each their own colour, from smoothed horizontal speed; Settings → JOJO MODE, renamed from Speed Colours in T36), and hype levels set from a person's speeds. `check.sh` and `check-online.sh` passed in three engines before the World merge; chromium after it.
+
+Group L (lobby, online and setup UI, 2026-10-12): T26 (1–3 AI opponents), T35 (rename in the lobby), T36 (JOJO MODE), T44 (lobby screech, placeholder sound: SECOND-ORDER L4 for the real file), T47 (menus docked beside the preview ape, core-framed). PROTOCOL is 3. `check.sh` passed in Chromium; `check-online.sh` result in the L-group commit message and report.
 
 ## What remains
 

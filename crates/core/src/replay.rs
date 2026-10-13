@@ -4,9 +4,11 @@
 //! player's `Controls` each tick give the same race, AI apes and items
 //! included (`ai::think` reads only the race and its brain). So a
 //! [`Recording`] is the race's setup plus one `Controls` per tick, and
-//! watching it is building the race again and stepping it. Online races are
-//! not recorded: remote apes are moved by messages, not by anything this
-//! browser could re-run.
+//! watching it is building the race again and stepping it. Online races
+//! cannot be re-run that way (remote apes are moved by messages), so an
+//! online recording is a [`Track`] instead: every ape's place, sampled
+//! [`TRACK_EVERY`] ticks apart, and played back as if every ape were remote
+//! (TRIAGE T24).
 //!
 //! The [`Library`] is what browser storage keeps: the fastest finished run
 //! per course and mode (kept until beaten) and the [`RECENT`] latest others.
@@ -19,9 +21,12 @@
 use serde::{Deserialize, Serialize};
 
 use crate::ai::{self, Brain};
-use crate::ape::Controls;
+use crate::ape::{Controls, Mode as ApeMode};
 use crate::course::Course;
-use crate::race::{Driver, Entry, Race};
+use crate::fx::{int, mul, wrap, ONE};
+use crate::geom::V3;
+use crate::items::ItemSet;
+use crate::race::{Driver, Entry, Item, Phase, Race, Summon};
 use crate::rules::TICKS_PER_SECOND;
 
 /// The recording format; recordings of another format are dropped.
@@ -35,12 +40,22 @@ pub const MOST_TICKS: usize = 600 * TICKS_PER_SECOND as usize;
 /// Ticks a seek may run per tick of the page clock (seeking past what has
 /// been played runs the race forward this fast).
 pub const SEEK_PER_TICK: usize = 40;
+/// An online recording samples every ape this many ticks apart (30 a
+/// second) and draws the ticks between by blending.
+pub const TRACK_EVERY: u32 = 4;
+/// Online recordings kept among the recent ones (they are larger).
+pub const ONLINE_KEPT: usize = 3;
+/// Places are kept to 1/1024 m and headings to 1/4096 turn in a track.
+const TRACK_POS_SHIFT: u32 = 6;
+const TRACK_YAW_SHIFT: u32 = 4;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Mode {
     Race,
     Trial,
+    /// an online race, kept as a [`Track`]
+    Online,
 }
 
 impl Mode {
@@ -48,6 +63,7 @@ impl Mode {
         match self {
             Mode::Race => "race",
             Mode::Trial => "trial",
+            Mode::Online => "online",
         }
     }
 }
@@ -62,7 +78,8 @@ pub struct Recording {
     pub local: usize,
     pub equal_stats: bool,
     pub seed: u64,
-    pub boost_only: bool,
+    /// the items its crates gave (TRIAGE T42)
+    pub items: ItemSet,
     /// the AI's difficulty (its brains are rebuilt from it)
     pub ai_level: crate::ai::Difficulty,
     /// the local ape's controls, one per race tick from the first
@@ -71,6 +88,8 @@ pub struct Recording {
     pub finish: Option<u32>,
     /// order of keeping: higher is newer
     pub serial: u32,
+    /// an online race: every ape's place instead of the controls
+    pub track: Option<Track>,
 }
 
 impl Recording {
@@ -92,12 +111,23 @@ impl Recording {
             local,
             equal_stats: race.equal_stats,
             seed: race.dice.0,
-            boost_only: race.boost_only,
+            items: race.items,
             ai_level: race.ai_level,
             controls: Vec::new(),
             finish: None,
             serial: 0,
+            track: None,
         }
+    }
+
+    /// Starts recording an online race (`race` must not have stepped yet):
+    /// a track of every ape, its first sample the start.
+    pub fn online(race: &Race, local: usize) -> Recording {
+        let mut r = Recording::of(race, local, Mode::Online);
+        let mut t = Track::default();
+        t.sample(race);
+        r.track = Some(t);
+        r
     }
 
     /// Whether it was made on this course as it is now.
@@ -105,12 +135,42 @@ impl Recording {
         self.course == course.name && self.layout == fingerprint(course)
     }
 
-    /// The race at its first tick, as it was set up.
+    /// The race at its first tick, as it was set up. A track's apes are all
+    /// remote: the track moves them.
     pub fn race(&self, course: &Course) -> Race {
         let mut r = Race::new(course.clone(), &self.entries, self.equal_stats, self.seed);
-        r.boost_only = self.boost_only;
+        r.items = self.items;
         r.ai_level = self.ai_level;
+        if self.track.is_some() {
+            for racer in &mut r.racers {
+                racer.driver = Driver::Remote;
+            }
+        }
         r
+    }
+
+    /// The ticks it covers.
+    pub fn length(&self) -> u32 {
+        match &self.track {
+            Some(t) => t.ticks(),
+            None => self.controls.len() as u32,
+        }
+    }
+
+    /// Whether more can be recorded (the 10-minute cap).
+    pub fn has_room(&self) -> bool {
+        (self.length() as usize) < MOST_TICKS
+    }
+
+    /// One tick of watching it: the recorded controls, or the track.
+    pub fn play(&self, race: &mut Race, brains: &mut [Brain]) {
+        match &self.track {
+            Some(t) => t.step(race),
+            None => {
+                let c = self.at(race.tick);
+                drive(race, brains, self.local, c);
+            }
+        }
     }
 
     /// The controls for the race's next tick (none left: hands off).
@@ -238,8 +298,8 @@ pub fn pack(controls: &[Controls]) -> String {
     out
 }
 
-/// The controls back from [`pack`]; `None` when the text is not one.
-pub fn unpack(text: &str) -> Option<Vec<Controls>> {
+/// The numbers in a text of [`put`]s; `None` when it is not one.
+fn numbers(text: &str) -> Option<Vec<u32>> {
     let mut nums = Vec::new();
     let mut v: u32 = 0;
     let mut shift = 0;
@@ -257,7 +317,16 @@ pub fn unpack(text: &str) -> Option<Vec<Controls>> {
             shift += 5;
         }
     }
-    if shift != 0 || nums.len() % 4 != 0 {
+    if shift != 0 {
+        return None;
+    }
+    Some(nums)
+}
+
+/// The controls back from [`pack`]; `None` when the text is not one.
+pub fn unpack(text: &str) -> Option<Vec<Controls>> {
+    let nums = numbers(text)?;
+    if nums.len() % 4 != 0 {
         return None;
     }
     let mut out = Vec::new();
@@ -284,6 +353,250 @@ pub fn unpack(text: &str) -> Option<Vec<Controls>> {
     Some(out)
 }
 
+// ---- online races: a track of every ape ----
+
+/// One ape in one sample of a [`Track`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Spot {
+    pub pos: V3,
+    pub yaw: i32,
+    pub mode: ApeMode,
+    pub stunned: bool,
+}
+
+impl Spot {
+    /// The ape as a track keeps it (to the track's precision).
+    fn of(ape: &crate::ape::Ape) -> Spot {
+        let q = |v: i32| (v >> TRACK_POS_SHIFT) << TRACK_POS_SHIFT;
+        Spot {
+            pos: V3 {
+                x: q(ape.pos.x),
+                y: q(ape.pos.y),
+                z: q(ape.pos.z),
+            },
+            yaw: (ape.yaw >> TRACK_YAW_SHIFT) << TRACK_YAW_SHIFT,
+            mode: match ape.mode {
+                ApeMode::Swinging { vine, rope } => ApeMode::Swinging {
+                    vine,
+                    rope: q(rope),
+                },
+                m => m,
+            },
+            stunned: ape.stun > 0,
+        }
+    }
+}
+
+/// An online race as it was seen here (TRIAGE T24): every ape's place
+/// [`TRACK_EVERY`] ticks apart, and the vines summoned in it.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct Track {
+    /// `samples[k][i]`: ape `i` at tick `k * TRACK_EVERY`
+    pub samples: Vec<Vec<Spot>>,
+    /// each summoned vine and the tick it stood at
+    pub summons: Vec<(u32, Summon)>,
+}
+
+/// One ape's last values while packing or unpacking a track: its mode,
+/// place, last step and heading (the place and heading in track units).
+type Last = (ApeMode, [i32; 3], [i32; 3], i32);
+
+impl Track {
+    /// The ticks it covers.
+    pub fn ticks(&self) -> u32 {
+        self.samples.len().saturating_sub(1) as u32 * TRACK_EVERY
+    }
+
+    fn sample(&mut self, race: &Race) {
+        self.samples
+            .push(race.racers.iter().map(|r| Spot::of(&r.ape)).collect());
+    }
+
+    /// After each tick of the live race: a sample when one falls due, and
+    /// any vine summoned since the last.
+    pub fn record(&mut self, race: &Race) {
+        if race.tick.is_multiple_of(TRACK_EVERY)
+            && race.tick / TRACK_EVERY == self.samples.len() as u32
+            && (self.ticks() as usize) < MOST_TICKS
+        {
+            self.sample(race);
+        }
+        for s in &race.summons {
+            let known = self
+                .summons
+                .iter()
+                .any(|(_, o)| o.by == s.by && o.serial == s.serial);
+            if !known {
+                self.summons.push((race.tick, *s));
+            }
+        }
+    }
+
+    /// Ape `i` at `tick`, blended between its samples: place, velocity,
+    /// mode, heading and whether it is stunned.
+    pub fn at(&self, tick: u32, i: usize) -> Option<(V3, V3, ApeMode, i32, bool)> {
+        let k = (tick / TRACK_EVERY) as usize;
+        let a = *self.samples.get(k)?.get(i)?;
+        let b = self
+            .samples
+            .get(k + 1)
+            .and_then(|s| s.get(i))
+            .copied()
+            .unwrap_or(a);
+        let t = (tick % TRACK_EVERY) as i32 * ONE / TRACK_EVERY as i32;
+        let vel = b
+            .pos
+            .sub(a.pos)
+            .scale(int(TICKS_PER_SECOND / TRACK_EVERY as i32));
+        let yaw = a.yaw + mul(wrap(b.yaw - a.yaw), t);
+        Some((a.pos.lerp(b.pos, t), vel, a.mode, yaw, a.stunned))
+    }
+
+    /// One tick of watching: the race steps (the clock, crates, thrown
+    /// things), the summoned vines stand, and every ape is put where the
+    /// track has it.
+    pub fn step(&self, race: &mut Race) {
+        race.step(&[]);
+        // with every ape remote the race would call itself done at Go;
+        // here it is done when every ape has finished
+        if race.phase == Phase::Done && race.racers.iter().any(|r| r.finish.is_none()) {
+            race.phase = Phase::Running;
+        }
+        for (t, s) in &self.summons {
+            if *t == race.tick {
+                race.place_vine(*s);
+            }
+        }
+        for i in 0..race.racers.len() {
+            if let Some((pos, vel, mode, yaw, stunned)) = self.at(race.tick, i) {
+                race.set_remote(i, pos, vel, mode, yaw);
+                race.racers[i].ape.stun = stunned as i32;
+            }
+        }
+    }
+
+    /// The track as text: per sample, per ape, a mode code (and a new
+    /// vine), the second differences of its place and the change of
+    /// heading; then `.` and the summoned vines.
+    pub fn pack(&self, apes: usize) -> String {
+        let mut out = String::new();
+        let mut last: Vec<Last> = vec![(ApeMode::Grounded, [0; 3], [0; 3], 0); apes];
+        for sample in &self.samples {
+            for (spot, (mode, q, d, yaw)) in sample.iter().zip(last.iter_mut()) {
+                let code = if spot.mode == *mode {
+                    0
+                } else {
+                    match spot.mode {
+                        ApeMode::Flying => 1,
+                        ApeMode::Grounded => 2,
+                        ApeMode::Swinging { .. } => 3,
+                    }
+                };
+                put(&mut out, code * 2 + spot.stunned as u32);
+                if let (3, ApeMode::Swinging { vine, rope }) = (code, spot.mode) {
+                    put(&mut out, vine as u32);
+                    put(&mut out, zig(rope >> TRACK_POS_SHIFT));
+                }
+                *mode = spot.mode;
+                let now = [spot.pos.x, spot.pos.y, spot.pos.z].map(|v| v >> TRACK_POS_SHIFT);
+                for a in 0..3 {
+                    let step = now[a].wrapping_sub(q[a]);
+                    put(&mut out, zig(step.wrapping_sub(d[a])));
+                    d[a] = step;
+                    q[a] = now[a];
+                }
+                let y = spot.yaw >> TRACK_YAW_SHIFT;
+                put(&mut out, zig(y.wrapping_sub(*yaw)));
+                *yaw = y;
+            }
+        }
+        out.push('.');
+        for (t, s) in &self.summons {
+            for v in [
+                *t,
+                s.slot as u32,
+                s.by as u32,
+                s.serial,
+                zig(s.anchor.x),
+                zig(s.anchor.y),
+                zig(s.anchor.z),
+                zig(s.length),
+                zig(s.life),
+            ] {
+                put(&mut out, v);
+            }
+        }
+        out
+    }
+
+    /// The track back from [`Track::pack`]; `None` when it is not one.
+    pub fn unpack(text: &str, apes: usize) -> Option<Track> {
+        let (body, vines) = text.split_once('.')?;
+        let mut it = numbers(body)?.into_iter().peekable();
+        let mut track = Track::default();
+        let mut last: Vec<Last> = vec![(ApeMode::Grounded, [0; 3], [0; 3], 0); apes];
+        while it.peek().is_some() {
+            if apes == 0 || track.samples.len() > MOST_TICKS / TRACK_EVERY as usize {
+                return None;
+            }
+            let mut sample = Vec::with_capacity(apes);
+            for (mode, q, d, yaw) in last.iter_mut() {
+                let code = it.next()?;
+                *mode = match code / 2 {
+                    0 => *mode,
+                    1 => ApeMode::Flying,
+                    2 => ApeMode::Grounded,
+                    3 => ApeMode::Swinging {
+                        vine: it.next()? as usize,
+                        rope: unzig(it.next()?) << TRACK_POS_SHIFT,
+                    },
+                    _ => return None,
+                };
+                let mut pos = [0i32; 3];
+                for a in 0..3 {
+                    d[a] = d[a].wrapping_add(unzig(it.next()?));
+                    q[a] = q[a].wrapping_add(d[a]);
+                    pos[a] = q[a] << TRACK_POS_SHIFT;
+                }
+                *yaw = yaw.wrapping_add(unzig(it.next()?));
+                sample.push(Spot {
+                    pos: V3 {
+                        x: pos[0],
+                        y: pos[1],
+                        z: pos[2],
+                    },
+                    yaw: *yaw << TRACK_YAW_SHIFT,
+                    mode: *mode,
+                    stunned: code % 2 == 1,
+                });
+            }
+            track.samples.push(sample);
+        }
+        let v = numbers(vines)?;
+        if v.len() % 9 != 0 {
+            return None;
+        }
+        for q in v.chunks(9) {
+            track.summons.push((
+                q[0],
+                Summon {
+                    slot: q[1] as usize,
+                    by: q[2] as usize,
+                    serial: q[3],
+                    anchor: V3 {
+                        x: unzig(q[4]),
+                        y: unzig(q[5]),
+                        z: unzig(q[6]),
+                    },
+                    length: unzig(q[7]),
+                    life: unzig(q[8]),
+                },
+            ));
+        }
+        Some(track)
+    }
+}
+
 /// A recording as browser storage keeps it.
 #[derive(Serialize, Deserialize)]
 struct Stored {
@@ -294,12 +607,20 @@ struct Stored {
     local: usize,
     equal_stats: bool,
     seed: u64,
+    /// recordings from before TRIAGE T42 carry only this: a Time Trial
+    #[serde(default)]
     boost_only: bool,
+    /// the race's item set (TRIAGE T42); missing in older recordings
+    #[serde(default)]
+    items: Option<ItemSet>,
     #[serde(default)]
     ai_level: crate::ai::Difficulty,
     finish: Option<u32>,
     serial: u32,
     controls: String,
+    /// an online recording's packed track
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    track: Option<String>,
 }
 
 impl Stored {
@@ -312,11 +633,13 @@ impl Stored {
             local: r.local,
             equal_stats: r.equal_stats,
             seed: r.seed,
-            boost_only: r.boost_only,
+            boost_only: r.items == ItemSet::only(Item::Boost),
+            items: Some(r.items),
             ai_level: r.ai_level,
             finish: r.finish,
             serial: r.serial,
             controls: pack(&r.controls),
+            track: r.track.as_ref().map(|t| t.pack(r.entries.len())),
         }
     }
 
@@ -324,7 +647,15 @@ impl Stored {
         if self.local >= self.entries.len() || self.entries.len() > 4 {
             return None;
         }
+        let track = match &self.track {
+            Some(text) => Some(Track::unpack(text, self.entries.len())?),
+            None => None,
+        };
+        if (track.is_some()) != (self.mode == Mode::Online) {
+            return None;
+        }
         Some(Recording {
+            track,
             controls: unpack(&self.controls)?,
             course: self.course,
             layout: self.layout,
@@ -333,7 +664,11 @@ impl Stored {
             local: self.local,
             equal_stats: self.equal_stats,
             seed: self.seed,
-            boost_only: self.boost_only,
+            items: self.items.unwrap_or(if self.boost_only {
+                ItemSet::only(Item::Boost)
+            } else {
+                ItemSet::ALL
+            }),
             ai_level: self.ai_level,
             finish: self.finish,
             serial: self.serial,
@@ -371,9 +706,7 @@ impl Library {
             best: take(shelf.best),
             recent: take(shelf.recent),
         };
-        lib.recent.sort_by_key(|r| r.serial);
-        let extra = lib.recent.len().saturating_sub(RECENT);
-        lib.recent.drain(..extra);
+        lib.trim();
         lib
     }
 
@@ -409,6 +742,12 @@ impl Library {
             return;
         };
         rec.serial = self.next_serial();
+        if rec.mode == Mode::Online {
+            // never a best: kept among the recent, at most ONLINE_KEPT
+            self.recent.push(rec);
+            self.trim();
+            return;
+        }
         let old = self
             .best
             .iter()
@@ -423,9 +762,50 @@ impl Library {
             }
             None => self.best.push(rec),
         }
+        self.trim();
+    }
+
+    /// Oldest first, at most [`RECENT`], at most [`ONLINE_KEPT`] online.
+    fn trim(&mut self) {
         self.recent.sort_by_key(|r| r.serial);
+        let online = self
+            .recent
+            .iter()
+            .filter(|r| r.mode == Mode::Online)
+            .count();
+        let mut drop = online.saturating_sub(ONLINE_KEPT);
+        self.recent.retain(|r| {
+            let go = drop > 0 && r.mode == Mode::Online;
+            drop -= go as usize;
+            !go
+        });
         let extra = self.recent.len().saturating_sub(RECENT);
         self.recent.drain(..extra);
+    }
+
+    /// Puts the newer state of a recording already kept (the same serial)
+    /// in its place: a race goes on being recorded after the finish.
+    /// Returns whether it changed anything.
+    pub fn refresh(&mut self, rec: &Recording) -> bool {
+        let slot = self
+            .best
+            .iter_mut()
+            .chain(self.recent.iter_mut())
+            .find(|r| r.serial == rec.serial);
+        match slot {
+            Some(r) if rec.length() > r.length() => {
+                let finish = r.finish;
+                *r = rec.clone();
+                r.finish = finish;
+                true
+            }
+            _ => false,
+        }
+    }
+
+    /// The serial the next kept recording gets.
+    pub fn serial_of_next(&self) -> u32 {
+        self.next_serial()
     }
 
     /// Every kept recording, newest first, each with whether it is a best.
@@ -511,6 +891,8 @@ pub struct Playback {
     pub playing: bool,
     pub speed: Speed,
     pub view: View,
+    /// the steerable orbit camera (TRIAGE T23)
+    pub orbit: crate::camera::Orbit,
     /// a seek in progress: run forward to this tick
     pub seek: Option<u32>,
     /// half speed steps every other tick
@@ -527,6 +909,7 @@ impl Playback {
             playing: true,
             speed: Speed::One,
             view: View::Chase,
+            orbit: crate::camera::Orbit::default(),
             seek: None,
             odd: false,
             blank: Course::test_line(&[]),
@@ -535,7 +918,13 @@ impl Playback {
 
     /// The ticks the recording covers.
     pub fn length(&self) -> u32 {
-        self.rec.controls.len() as u32
+        self.rec.length()
+    }
+
+    /// Paused, at the end, or seeking: the time the sound should be quiet
+    /// (TRIAGE T30).
+    pub fn hushed(&self, tick: u32) -> bool {
+        !self.playing || self.seek.is_some() || tick >= self.length()
     }
 
     /// How many race ticks to run this page tick (0: hold the frame).
@@ -605,7 +994,7 @@ pub struct Ghost {
 
 impl Ghost {
     pub fn new(rec: &Recording, course: &Course) -> Option<Ghost> {
-        if !rec.fits(course) || rec.entries.len() != 1 {
+        if !rec.fits(course) || rec.entries.len() != 1 || rec.track.is_some() {
             return None;
         }
         let race = rec.race(course);
@@ -761,5 +1150,116 @@ mod tests {
         assert!(rec.fits(&Course::jungle()));
         assert!(!rec.fits(&Course::jungle_seeded(5)));
         assert!(Ghost::new(&rec, &Course::jungle_seeded(5)).is_none());
+    }
+
+    /// A race of `n` apes run live for `ticks`, recorded as a track (as an
+    /// online race is); the live race too.
+    fn tracked(n: usize, ticks: u32) -> (Race, Recording) {
+        let mut live = Race::new(Course::jungle(), &entries(n), false, 7);
+        let mut rec = Recording::online(&live, 0);
+        let mut brains = vec![Brain::default(); n];
+        for _ in 0..ticks {
+            let c = player(live.tick);
+            drive(&mut live, &mut brains, 0, c);
+            rec.track.as_mut().unwrap().record(&live);
+        }
+        (live, rec)
+    }
+
+    #[test]
+    fn a_track_packs_into_text_and_back_exactly() {
+        let (_, mut rec) = tracked(4, 3000);
+        let t = rec.track.as_mut().unwrap();
+        assert_eq!(t.ticks(), 3000);
+        t.summons.push((
+            700,
+            Summon {
+                slot: 400,
+                by: 2,
+                serial: 0,
+                anchor: crate::geom::v3(-5, 9_000_000, 77),
+                length: 1_500_000,
+                life: 900,
+            },
+        ));
+        let text = t.pack(4);
+        assert_eq!(Track::unpack(&text, 4).as_ref(), Some(&*t));
+        // some 6 letters an ape a sample: a 75 s race of four is ~55 KB
+        let per = text.len() / (t.samples.len() * 4);
+        assert!(per <= 9, "{per} letters an ape a sample");
+        assert_eq!(Track::unpack("AAA.", 4), None);
+        assert_eq!(Track::unpack(&text[..text.len() - 3], 4), None);
+        // through the library
+        rec.finish = Some(1);
+        let mut lib = Library::default();
+        lib.add(rec.clone());
+        let back = Library::parse(&lib.text());
+        assert_eq!(back.recent[0].track, rec.track);
+    }
+
+    #[test]
+    fn a_track_plays_back_where_the_apes_were() {
+        let (live, rec) = tracked(3, 2400);
+        let course = Course::jungle();
+        let mut again = rec.race(&course);
+        assert!(again.racers.iter().all(|r| r.driver == Driver::Remote));
+        let mut brains = Vec::new();
+        let mut clock_ran = false;
+        while again.tick < rec.length() {
+            rec.play(&mut again, &mut brains);
+            if again.tick == 1200 {
+                // a sample tick: exactly the place kept
+                for i in 0..3 {
+                    let s = rec.track.as_ref().unwrap().samples[300][i];
+                    assert_eq!(again.racers[i].ape.pos, s.pos, "ape {i}");
+                }
+            }
+            clock_ran |= again.clock > 0 && again.phase == Phase::Running;
+        }
+        assert!(clock_ran, "the race clock runs");
+        for i in 0..3 {
+            // to the track's precision (1/1024 m)
+            let d = again.racers[i].ape.pos.dist(live.racers[i].ape.pos);
+            assert!(d < 200, "ape {i} off by {d}");
+            assert_eq!(again.racers[i].ape.mode, live.racers[i].ape.mode);
+        }
+        assert!(again.racers[1].progress > crate::fx::int(50));
+        // between samples it blends, and moves
+        let t = rec.track.as_ref().unwrap();
+        let (a, va, ..) = t.at(1201, 1).unwrap();
+        let (b, ..) = t.at(1203, 1).unwrap();
+        assert_ne!(a, b);
+        assert_ne!(va, V3::ZERO);
+    }
+
+    #[test]
+    fn online_runs_are_kept_only_among_the_recent_and_few() {
+        let mut lib = Library::default();
+        lib.add(run(9000, Mode::Race));
+        for k in 0..5 {
+            let (_, mut rec) = tracked(2, 40);
+            rec.finish = Some(100 + k);
+            lib.add(rec);
+        }
+        assert!(
+            lib.best_of("jungle", Mode::Online).is_none(),
+            "never a best"
+        );
+        let online: Vec<Option<u32>> = lib
+            .recent
+            .iter()
+            .filter(|r| r.mode == Mode::Online)
+            .map(|r| r.finish)
+            .collect();
+        assert_eq!(online, vec![Some(102), Some(103), Some(104)]);
+        assert_eq!(lib.best.len(), 1);
+        // a kept one brought up to date keeps its serial and its finish
+        let mut newer = lib.recent[2].clone();
+        newer.finish = Some(1);
+        newer.track.as_mut().unwrap().samples.push(Vec::new());
+        assert!(lib.refresh(&newer));
+        assert_eq!(lib.recent[2].length(), newer.length());
+        assert_eq!(lib.recent[2].finish, Some(104));
+        assert!(!lib.refresh(&newer), "nothing new");
     }
 }

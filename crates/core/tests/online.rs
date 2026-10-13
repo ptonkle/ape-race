@@ -523,6 +523,51 @@ fn lost_lobby_messages_are_retried() {
     }
 }
 
+#[test]
+fn players_rename_themselves_in_the_lobby_even_when_messages_are_lost() {
+    let mut net = Net::lobby(3);
+    net.lb.loss_permille = 400;
+    // the first rename is lost for certain: it is repeated until seen
+    net.lb.drops.push((2, 0, "\"name\"".into()));
+    let now = net.now;
+    net.nodes[2]
+        .set_name("  Koko the Great Ape!!  ", now)
+        .unwrap();
+    net.nodes[0].set_name("Boss", now).unwrap();
+    net.run(5000);
+    for (i, node) in net.nodes.iter().enumerate() {
+        let names: Vec<String> = node.lobby().seats.into_iter().map(|s| s.name).collect();
+        assert_eq!(names, ["Boss", "Player 1", "Koko the Great A"], "node {i}");
+    }
+    // an empty name changes nothing
+    let now = net.now;
+    net.nodes[1].set_name("   ", now).unwrap();
+    net.run(2000);
+    assert_eq!(net.nodes[0].lobby().seats[1].name, "Player 1");
+}
+
+#[test]
+fn a_screech_plays_for_everyone_in_the_lobby_and_the_sender_too() {
+    let mut net = Net::lobby(3);
+    let now = net.now;
+    net.nodes[1].screech(now).unwrap();
+    net.nodes[1].screech(now).unwrap();
+    net.nodes[0].screech(now).unwrap();
+    net.run(500);
+    let heard: Vec<u32> = net.nodes.iter_mut().map(|n| n.take_screeches()).collect();
+    assert_eq!(heard, [3, 3, 3], "no cooldown, and nobody is left out");
+    assert_eq!(net.nodes[2].take_screeches(), 0, "each plays once");
+    // ready or not, everyone hears it
+    let now = net.now;
+    net.nodes[2].set_ready(true, now).unwrap();
+    net.run(500);
+    let now = net.now;
+    net.nodes[0].screech(now).unwrap();
+    net.run(500);
+    let heard: Vec<u32> = net.nodes.iter_mut().map(|n| n.take_screeches()).collect();
+    assert_eq!(heard, [1, 1, 1]);
+}
+
 // ---- the race --------------------------------------------------------------
 
 /// A lobby of `humans` with `ai` AI apes, started and running.

@@ -108,13 +108,23 @@ impl App {
     pub(super) fn online_act(&mut self, id: &str, value: &str) {
         let now = self.now_ms;
         match id {
-            "online.name" => {
+            // the Online screen's field, and the lobby's (TRIAGE T35)
+            "online.name" | "lobby.name" => {
                 self.settings.name = value
                     .chars()
                     .filter(|c| !c.is_control())
                     .take(online::MAX_NAME_CHARS)
                     .collect();
                 self.save = true;
+                let name = self.player_name();
+                if let Some(o) = &mut self.online.session {
+                    let _ = o.set_name(&name, now);
+                }
+            }
+            "lobby.screech" => {
+                if let Some(o) = &mut self.online.session {
+                    let _ = o.screech(now);
+                }
             }
             "online.room" => {
                 self.online.room = value
@@ -199,6 +209,7 @@ impl App {
             "lobby.start" => {
                 let seed = self.seed ^ (now as u64).rotate_left(29) ^ self.ticks as u64;
                 if let Some(o) = &mut self.online.session {
+                    o.set_items(self.settings.items);
                     let _ = o.start(seed, now);
                 }
             }
@@ -272,6 +283,9 @@ impl App {
             return;
         };
         o.update(now);
+        for _ in 0..o.take_screeches() {
+            self.sounds.push(crate::sound::SCREECH.to_string());
+        }
         if let Some(start) = o.take_race_start() {
             let mut race = Race::new(
                 self.course.clone(),
@@ -281,6 +295,8 @@ impl App {
             );
             // only the host runs the AI apes, at its own difficulty
             race.ai_level = self.settings.ai_level;
+            // the host's items (TRIAGE T42)
+            race.items = start.items;
             self.begin(race, start.local_index);
             if let Some(p) = &mut self.play {
                 p.online = true;
@@ -455,6 +471,8 @@ impl App {
             .collect();
         let stats = self.settings.kind.race_stats(view.equal_stats);
         let mut mine = vec![
+            json!({"type": "field", "id": "lobby.name", "label": self.t("online.name"),
+                   "value": self.settings.name, "placeholder": self.t("online.default_name")}),
             json!({ "type": "picker", "id": "lobby.ape", "label": self.t("setup.ape"),
                     "value": self.settings.kind.key(), "options": kinds,
                     "text": ape(self.settings.kind) }),
@@ -472,6 +490,7 @@ impl App {
                 json!({ "type": "toggle", "id": "lobby.equal", "label": self.t("setup.equal"),
                               "value": view.equal_stats }),
             );
+            mine.extend(self.item_toggles());
             let mut start = self.button("lobby.start");
             start["disabled"] = json!(!view.can_start);
             mine.push(start);
@@ -487,6 +506,10 @@ impl App {
             ready["disabled"] = json!(view.status != Status::Lobby);
             mine.push(ready);
         }
+        // the screech: anyone, any time in the lobby (TRIAGE T44)
+        let mut screech = self.quiet_button("lobby.screech");
+        screech["disabled"] = json!(view.status != Status::Lobby);
+        mine.push(screech);
         mine.push(self.button("lobby.leave"));
         let mut out = vec![
             json!({ "kind": "setup", "heading": self.t("online.lobby"), "items": seats }),
@@ -515,14 +538,28 @@ impl App {
         if !finished {
             return Vec::new();
         }
+        // spectating while others race (TRIAGE T34); the replay once all
+        // are in (TRIAGE T24: watching it stops this race's sending)
+        let done = self
+            .online
+            .session
+            .as_ref()
+            .is_some_and(|o| o.results_final());
         let mut items = vec![self.online_results()];
+        if !done {
+            items.push(self.focus_picker(p));
+        }
         if host {
             items.push(self.button("menu.rematch"));
         } else {
             items.push(json!({ "type": "list", "rows": [[self.t("online.status"), self.t("online.wait_rematch")]] }));
         }
+        if done {
+            items.push(self.quiet_button("menu.replay"));
+        }
         items.push(self.button("menu.main"));
-        vec![json!({ "kind": "overlay", "heading": self.t("results.heading"), "items": items })]
+        let kind = if done { "overlay" } else { "spectate" };
+        vec![json!({ "kind": kind, "heading": self.t("results.heading"), "items": items })]
     }
 
     fn online_results(&self) -> Value {
