@@ -141,6 +141,133 @@ impl Chase {
     }
 }
 
+/// The replay's orbit camera (TRIAGE T23): it circles the followed ape on
+/// its own until the person drags it; then it stays where it was put. The
+/// wheel zooms.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Orbit {
+    pub yaw: i32,
+    pub pitch: i32,
+    /// distance from the ape
+    pub dist: i32,
+    /// dragged by the person: no more circling on its own
+    pub steered: bool,
+}
+
+/// The orbit's limits and its pace when circling on its own.
+pub const ORBIT_NEAR: i32 = cm(250);
+pub const ORBIT_FAR: i32 = int(40);
+const ORBIT_REST: i32 = int(7);
+const ORBIT_PITCH_MIN: i32 = -deg(80);
+const ORBIT_PITCH_MAX: i32 = deg(30);
+const ORBIT_SPIN: i32 = deg(1) / 4;
+/// Angle per pixel dragged.
+const ORBIT_DRAG: i32 = deg(1) / 3;
+
+impl Default for Orbit {
+    fn default() -> Orbit {
+        Orbit {
+            yaw: 0,
+            pitch: -deg(18),
+            dist: ORBIT_REST,
+            steered: false,
+        }
+    }
+}
+
+impl Orbit {
+    /// One race tick of the replay: circling, unless steered.
+    pub fn tick(&mut self) {
+        if !self.steered {
+            self.yaw = fx::wrap(self.yaw + ORBIT_SPIN);
+        }
+    }
+
+    /// A drag across the view, in pixels: right turns the view round to
+    /// the right, up looks from lower down.
+    pub fn drag(&mut self, dx: i32, dy: i32) {
+        if dx == 0 && dy == 0 {
+            return;
+        }
+        self.steered = true;
+        self.yaw = fx::wrap(self.yaw - dx * ORBIT_DRAG);
+        self.pitch = (self.pitch - dy * ORBIT_DRAG).clamp(ORBIT_PITCH_MIN, ORBIT_PITCH_MAX);
+    }
+
+    /// The wheel: forward (negative) comes nearer, by a sixth a notch.
+    pub fn zoom(&mut self, notches: i32) {
+        let n = notches.clamp(-5, 5);
+        let mut d = self.dist;
+        for _ in 0..n.abs() {
+            d = if n < 0 { d - d / 6 } else { d + d / 5 };
+        }
+        self.dist = d.clamp(ORBIT_NEAR, ORBIT_FAR);
+    }
+
+    /// The camera looking at `at`, kept above the ground.
+    pub fn camera(&self, at: V3) -> Camera {
+        let look = facing(self.yaw, self.pitch);
+        let eye = at.sub(look.scale(self.dist));
+        let floor = ground(eye.x, eye.z) + int(1);
+        let eye = V3 {
+            y: eye.y.max(floor),
+            ..eye
+        };
+        Camera {
+            eye,
+            fwd: at.sub(eye).norm(),
+            fov: deg(65),
+        }
+    }
+}
+
+/// A smooth move from one view to another (TRIAGE T34): the camera glides
+/// from where it was to the new view over `total` ticks, easing in and out.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Pan {
+    pub from: Camera,
+    pub left: u32,
+    pub total: u32,
+}
+
+/// A pan to the next racer after a finish, and a quick one on a switch.
+pub const PAN_TICKS: u32 = crate::rules::TICKS_PER_SECOND as u32 * 6 / 5;
+pub const PAN_QUICK: u32 = crate::rules::TICKS_PER_SECOND as u32 / 2;
+
+impl Pan {
+    pub fn new(from: Camera, total: u32) -> Pan {
+        Pan {
+            from,
+            left: total.max(1),
+            total: total.max(1),
+        }
+    }
+
+    /// One tick; false once it is over.
+    pub fn tick(&mut self) -> bool {
+        self.left = self.left.saturating_sub(1);
+        self.left > 0
+    }
+
+    /// The view `alpha` (Q16) of the way through this tick, between the
+    /// start and `to`.
+    pub fn blend(&self, to: Camera, alpha: i32) -> Camera {
+        let done = int((self.total - self.left) as i32) + alpha;
+        let t = fx::div(done, int(self.total as i32)).clamp(0, ONE);
+        let s = mul(mul(t, t), 3 * ONE - 2 * t);
+        let fwd = self.from.fwd.lerp(to.fwd, s);
+        Camera {
+            eye: self.from.eye.lerp(to.eye, s),
+            fwd: if fwd.len() < ONE / 10 {
+                to.fwd
+            } else {
+                fwd.norm()
+            },
+            fov: fx::lerp(self.from.fov, to.fov, s),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -204,6 +331,69 @@ mod tests {
             c.follow(at, v3(int(20), 0, int(20)), v3(0, 0, ONE), true);
         }
         assert!(c.yaw > deg(10) && c.yaw < deg(20), "{}", c.yaw);
+    }
+
+    #[test]
+    fn the_orbit_circles_until_dragged_and_zooms_within_limits() {
+        let at = v3(0, int(20), 0);
+        let mut o = Orbit::default();
+        let y0 = o.yaw;
+        o.tick();
+        assert_ne!(o.yaw, y0, "circles on its own");
+        o.drag(30, 0);
+        let y1 = o.yaw;
+        for _ in 0..100 {
+            o.tick();
+        }
+        assert_eq!(o.yaw, y1, "steered: holds where it was put");
+        // dragging up and down is held to its limits
+        o.drag(0, -100_000);
+        assert_eq!(o.pitch, ORBIT_PITCH_MAX);
+        o.drag(0, 100_000);
+        assert_eq!(o.pitch, ORBIT_PITCH_MIN);
+        let near = o.dist;
+        o.zoom(-1);
+        assert!(o.dist < near);
+        for _ in 0..40 {
+            o.zoom(-1);
+        }
+        assert_eq!(o.dist, ORBIT_NEAR);
+        for _ in 0..40 {
+            o.zoom(1);
+        }
+        assert_eq!(o.dist, ORBIT_FAR);
+        // it looks at the ape from its distance
+        let o = Orbit::default();
+        let cam = o.camera(at);
+        assert!((cam.eye.dist(at) - o.dist).abs() < cm(5));
+        let (x, y) = cam.screen(ONE * 16 / 9, at).unwrap();
+        assert!((x - 50 * ONE).abs() < ONE && (y - 50 * ONE).abs() < ONE);
+    }
+
+    #[test]
+    fn a_pan_glides_from_the_old_view_to_the_new() {
+        let from = Camera {
+            eye: v3(0, int(10), 0),
+            fwd: v3(0, 0, ONE),
+            fov: deg(60),
+        };
+        let to = Camera {
+            eye: v3(int(100), int(10), 0),
+            fwd: v3(ONE, 0, 0),
+            fov: deg(80),
+        };
+        let mut pan = Pan::new(from, 10);
+        assert_eq!(pan.blend(to, 0).eye, from.eye, "starts where it was");
+        let mut xs = Vec::new();
+        while pan.tick() {
+            xs.push(pan.blend(to, 0).eye.x);
+        }
+        assert!(xs.windows(2).all(|w| w[0] < w[1]), "{xs:?}");
+        assert!(
+            xs[0] < int(10) && xs[8] > int(90),
+            "eases in and out: {xs:?}"
+        );
+        assert_eq!(pan.blend(to, 0), to, "ends on the new view");
     }
 
     #[test]

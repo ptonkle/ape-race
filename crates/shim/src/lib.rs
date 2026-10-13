@@ -59,6 +59,14 @@ impl Game {
         self.s.mouse_button(button, down)
     }
 
+    pub fn drag(&mut self, dx: f64, dy: f64) {
+        self.s.drag(dx as i32, dy as i32)
+    }
+
+    pub fn wheel(&mut self, dy: f64) {
+        self.s.wheel(dy as i32)
+    }
+
     pub fn pointer_lock(&mut self, locked: bool) {
         self.s.pointer_lock(locked)
     }

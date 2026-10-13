@@ -20,6 +20,7 @@ pub mod api;
 pub mod app;
 pub mod camera;
 pub mod course;
+pub mod focus;
 pub mod fx;
 pub mod geom;
 pub mod hype;

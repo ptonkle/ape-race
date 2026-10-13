@@ -274,3 +274,41 @@ fn the_hosts_item_choice_reaches_the_joiner_with_the_start() {
     assert_eq!(joiner, host);
     assert!(p.apps[1].settings.items.has(crate::race::Item::Vine));
 }
+
+#[test]
+fn an_online_race_is_recorded_as_a_track_and_replays() {
+    // TRIAGE T24: every ape's place, kept and watched like any replay
+    let mut p = Pair::lobby();
+    p.race();
+    p.apps[0].key("KeyW", true);
+    p.run(6000);
+    let j = &mut p.apps[1];
+    let play = j.play.as_ref().unwrap();
+    let rec = play.record.as_ref().unwrap();
+    let track = rec.track.as_ref().expect("an online race keeps a track");
+    assert_eq!(rec.mode, crate::replay::Mode::Online);
+    assert!(rec.length() + crate::replay::TRACK_EVERY > play.race.tick);
+    let seen = play.race.racers[0].ape.pos;
+    assert!(track.samples.len() > 100);
+    // watch it: the host's ape (remote here) goes where it went
+    j.act("menu.replay", "");
+    let rp = j.play.as_ref().unwrap();
+    assert!(rp.replay.is_some() && !rp.online);
+    let start = rp.race.racers[0].ape.pos;
+    let length = rp.replay.as_ref().unwrap().length();
+    for _ in 0..length + 10 {
+        j.tick();
+    }
+    let rp = j.play.as_ref().unwrap();
+    assert_ne!(rp.race.racers[0].ape.pos, start);
+    assert!(rp.race.racers[0].ape.pos.dist(seen) < crate::fx::int(3));
+    // leaving goes back to the online race; a finished one is kept
+    j.act("replay.exit", "");
+    let back = j.play.as_mut().unwrap();
+    assert!(back.online);
+    back.race.racers[1].finish = Some(back.race.clock);
+    j.act("menu.main", "");
+    let listed = j.library.listing();
+    assert_eq!(listed.len(), 1);
+    assert_eq!(listed[0].0.mode, crate::replay::Mode::Online);
+}
