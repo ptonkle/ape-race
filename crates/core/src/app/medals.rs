@@ -1,9 +1,7 @@
 //! The Time Trial's target times on each map (the City, 2026-10-12). The
 //! medal rules are `crate::trial`'s; this only picks a map's four times.
 //!
-//! The course agent is making medal times per map (`trial::medals(map)`).
-//! Until that lands every map races against the Jungle's, and
-//! [`of`] is the one place their change slots in.
+//! Each map's four times come from `trial::medals(map)`.
 
 use crate::map::Map;
 use crate::trial::{self, Medal};
@@ -13,8 +11,8 @@ use crate::trial::{self, Medal};
 pub(super) struct Targets([u32; 4]);
 
 /// A map's target times.
-pub(super) fn of(_map: Map) -> Targets {
-    Targets(trial::JUNGLE)
+pub(super) fn of(map: Map) -> Targets {
+    Targets(trial::medals(map))
 }
 
 impl Targets {
@@ -49,6 +47,17 @@ impl Targets {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn each_map_races_against_its_own_medal_times() {
+        for map in Map::ALL {
+            let t = of(map);
+            for m in Medal::ALL {
+                assert_eq!(t.target(m), trial::target_on(map, m), "{map:?} {m:?}");
+            }
+        }
+        assert_ne!(of(Map::City), of(Map::Jungle));
+    }
 
     #[test]
     fn the_jungles_targets_are_the_trials_and_follow_its_rules() {
