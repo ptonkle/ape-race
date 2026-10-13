@@ -1184,6 +1184,26 @@ pub fn vine_look(in_reach: bool, vivid: bool, tick: u32) -> VineLook {
     }
 }
 
+/// The look of a vine on a map: the Jungle's green vines, or the City's
+/// electric wires (dark cable glowing faintly cyan; vivid cyan in the
+/// colourblind mode). In reach, either map's vine takes the same yellow,
+/// or the same pulsing white in the colourblind mode.
+pub fn vine_look_on(map: Map, in_reach: bool, vivid: bool, tick: u32) -> VineLook {
+    let look = vine_look(in_reach, vivid, tick);
+    match (map, in_reach, vivid) {
+        (Map::City, false, false) => VineLook {
+            colour: crate::cityscape::WIRE,
+            glow: ONE * 3 / 10,
+            ..look
+        },
+        (Map::City, false, true) => VineLook {
+            colour: crate::cityscape::WIRE_VIVID,
+            ..look
+        },
+        _ => look,
+    }
+}
+
 /// Everything that moves: the vines and their flowers (drawn as
 /// `render::VINES`), and the rest.
 pub fn dynamic(f: &Frame) -> (Batch, Batch) {
@@ -1208,26 +1228,27 @@ pub fn dynamic(f: &Frame) -> (Batch, Batch) {
             held[v] = Some(f.apes[k]);
         }
     }
+    let map = Map::of(c);
+    // the City's wires carry no leaves
+    let leafy = map == Map::Jungle;
     for i in 0..c.vines.len() {
         let a = c.anchor(i, tick);
         if a.flat().sub(eye.flat()).len() > int(230) {
             continue;
         }
-        let look = vine_look(Some(i) == reach, f.vivid, f.tick);
+        let look = vine_look_on(map, Some(i) == reach, f.vivid, f.tick);
         let look = catch_up_look(race, f.local, i, Some(i) == reach, look);
+        let t = f.tick + i as u32 * 37;
         match f.chains.get(i) {
-            Some(chain) => chain_vine(&mut vines, chain, held[i], look, f.tick + i as u32 * 37),
-            None => vine(
-                &mut vines,
-                a,
-                c.vines[i].length,
-                held[i],
-                look,
-                f.tick + i as u32 * 37,
-            ),
+            Some(chain) => chain_vine(&mut vines, chain, held[i], look, t, leafy),
+            None => vine(&mut vines, a, c.vines[i].length, held[i], look, t, leafy),
         }
     }
     item_flowers(&mut vines, f, &held);
+    // what the City's vines hang from, where it moves
+    if let Some(city) = &c.city {
+        crate::cityscape::hangers_dynamic(&mut b, c, city, eye, f.tick, tick);
+    }
     for (k, r) in race.racers.iter().enumerate() {
         // Floor is Lava (TRIAGE T37): the jaguar, and the ape until the bite
         if let Some(e) = r.eaten {
@@ -1320,6 +1341,26 @@ fn item_flowers(b: &mut Batch, f: &Frame, held: &[Option<V3>]) {
         }
         let open = race.crates.get(k).copied().unwrap_or(0) == 0;
         let pts = vine_points(f, i, held.get(i).copied().flatten());
+        // on the City, sparks along the wire, and dull insulators while
+        // its item is taken
+        if Map::of(&race.course) == Map::City {
+            for (j, t) in FLOWER_AT.into_iter().enumerate() {
+                let side = if j % 2 == 0 { cm(30) } else { -cm(30) };
+                let at = along(&pts, t).add(right.scale(side));
+                if open {
+                    let spin = f.tick as i32 * 700 + (k * 3 + j) as i32 * 9000;
+                    crate::cityscape::spark(b, at, spin);
+                } else {
+                    b.push(
+                        Mesh::Hex,
+                        &placed(at, 0, v3(cm(36), cm(44), cm(36))),
+                        crate::cityscape::INSULATOR,
+                        0,
+                    );
+                }
+            }
+            continue;
+        }
         for (j, t) in FLOWER_AT.into_iter().enumerate() {
             // beside the vine, on alternate sides as the camera sees it
             let side = if j % 2 == 0 { cm(40) } else { -cm(40) };
@@ -1455,7 +1496,15 @@ fn catch_up_look(
 
 /// A vine from its anchor: straight down and swaying a little; or, when
 /// held, taut from the anchor to the hands with the rest dangling below.
-fn vine(b: &mut Batch, a: V3, length: i32, hands: Option<V3>, look: VineLook, t: u32) {
+fn vine(
+    b: &mut Batch,
+    a: V3,
+    length: i32,
+    hands: Option<V3>,
+    look: VineLook,
+    t: u32,
+    leafy: bool,
+) {
     let VineLook {
         colour,
         glow,
@@ -1470,7 +1519,9 @@ fn vine(b: &mut Batch, a: V3, length: i32, hands: Option<V3>, look: VineLook, t:
                 let end = h.sub(v3(0, rest, 0));
                 b.push(Mesh::Cyl, &rod(h, end, width), colour, glow);
             }
-            leaves(b, a, h, t);
+            if leafy {
+                leaves(b, a, h, t);
+            }
         }
         None => {
             // sway: the bottom drifts a little, in two directions
@@ -1488,7 +1539,9 @@ fn vine(b: &mut Batch, a: V3, length: i32, hands: Option<V3>, look: VineLook, t:
                 colour,
                 glow,
             );
-            leaves(b, a, bottom, t);
+            if leafy {
+                leaves(b, a, bottom, t);
+            }
         }
     }
 }
@@ -1501,6 +1554,7 @@ fn chain_vine(
     hands: Option<V3>,
     look: VineLook,
     t: u32,
+    leafy: bool,
 ) {
     let VineLook {
         colour,
@@ -1536,6 +1590,9 @@ fn chain_vine(
             colour,
             glow,
         );
+    }
+    if !leafy {
+        return;
     }
     for k in (1..pts.len() - 1).step_by(2) {
         let side = if k % 4 == 1 { cm(18) } else { -cm(18) };
@@ -1656,23 +1713,45 @@ fn stage_batch() -> Batch {
     b
 }
 
+/// The title's flyover: a slow glide down the course, starting `from`
+/// metres along. Over the City a little higher, to see over the cars.
+pub fn flyover_camera(c: &Course, ticks: u32, from: i32) -> Camera {
+    let lap = (c.length - int(100)).max(int(1)) as i64;
+    let s = ((ticks as i64 * int(6) as i64 / crate::rules::TICKS_PER_SECOND as i64 + from as i64)
+        % lap) as i32
+        + int(40);
+    let p = c.point(s);
+    let ahead = c.point(s + int(30));
+    let lift = match Map::of(c) {
+        Map::Jungle => int(14),
+        Map::City => int(18),
+    };
+    let eye = v3(p.x, ground(p.x, p.z) + lift, p.z);
+    let look = v3(ahead.x, eye.y - int(3), ahead.z);
+    Camera {
+        eye,
+        fwd: look.sub(eye).norm(),
+        fov: deg(70),
+    }
+}
+
 /// What moves behind the title: the vines, swaying (drawn as
 /// `render::VINES`).
-pub fn flyover_dynamic(c: &Course, tick: u32, vivid: bool) -> Batch {
+pub fn flyover_dynamic(c: &Course, tick: u32, vivid: bool, eye: V3) -> (Batch, Batch) {
     let mut b = Batch::new();
-    let look = vine_look(false, vivid, tick);
+    let mut rest = Batch::new();
+    let map = Map::of(c);
+    let look = vine_look_on(map, false, vivid, tick);
     for i in 0..c.vines.len() {
         let a = c.anchor(i, tick);
-        vine(
-            &mut b,
-            a,
-            c.vines[i].length,
-            None,
-            look,
-            tick + i as u32 * 37,
-        );
+        let t = tick + i as u32 * 37;
+        vine(&mut b, a, c.vines[i].length, None, look, t, map == Map::Jungle);
     }
-    b
+    // the City's helicopters and crane hooks, near the flyover's eye
+    if let Some(city) = &c.city {
+        crate::cityscape::hangers_dynamic(&mut rest, c, city, eye, tick, tick);
+    }
+    (b, rest)
 }
 
 #[cfg(test)]

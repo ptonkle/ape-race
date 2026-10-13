@@ -591,6 +591,8 @@ async function start() {
   // `?map=city`: a look at another map (a test hook until the map selector)
   const map = new URLSearchParams(location.search).get("map");
   if (map) game.act("flag.map", map);
+  const at = new URLSearchParams(location.search).get("at");
+  if (at) game.act("flag.fly_at", at);
   // This browser's id for online play, and `?codes`: the pasted-code path,
   // for the automated online check only.
   game.act("flag.client", crypto.randomUUID());

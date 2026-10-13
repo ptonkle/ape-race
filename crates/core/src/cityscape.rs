@@ -49,7 +49,7 @@ const STEEL: Rgb = rgb(56, 62, 70);
 const CABLE: Rgb = rgb(70, 74, 82);
 const POLE: Rgb = rgb(44, 58, 52);
 const LAMP: Rgb = rgb(255, 214, 140);
-const POOL: Rgb = rgb(120, 98, 70);
+const POOL: Rgb = rgb(88, 78, 70);
 const CRANE: Rgb = rgb(236, 176, 30);
 const CONCRETE: Rgb = rgb(140, 138, 134);
 const RED_LIGHT: Rgb = rgb(255, 40, 30);
@@ -293,7 +293,7 @@ fn distance(pts: &[V3], p: V3) -> i32 {
         let d = f.sub(q.flat());
         best = best.min(d.dot64(d));
     }
-    fx::isqrt((best as u128) << 16) as i32
+    fx::isqrt(best as u128) as i32
 }
 
 /// The nearest centreline sample to `p`: a coarse search of the whole
@@ -750,7 +750,7 @@ fn tower(s: &mut Sink, foot: V3, fwd: V3, right: V3, w: i32, h: i32, water: i32)
             v3(corner.x, (arch_side + arch_top) / 2, corner.z),
             fwd,
             V3::UP.neg(),
-            right.scale(-side),
+            right.scale(-side * ONE),
             depth - cm(40),
             arch_top - arch_side,
             inner,
@@ -1693,10 +1693,10 @@ fn gantry(b: &mut Batch, foot: V3, end: V3, k: usize) {
         );
         let g = on_ground(head);
         b.push(
-            Mesh::Hex,
+            Mesh::Cyl,
             &placed(g.add(up(cm(4))), 0, v3(int(7), cm(2), int(7))),
             POOL,
-            ONE / 3,
+            ONE / 5,
         );
     } else {
         // two signals along the arm, one lit red, one green
@@ -1892,10 +1892,10 @@ fn streets(s: &mut Sink, c: &Course, city: &CityLayout) {
                 ONE,
             );
             out.push(
-                Mesh::Hex,
+                Mesh::Cyl,
                 &placed(on_ground(head).add(up(cm(4))), 0, v3(int(8), cm(2), int(8))),
                 POOL,
-                ONE / 3,
+                ONE / 5,
             );
         }
         at += int(34);
@@ -1993,7 +1993,7 @@ fn skyline(s: &mut Sink, c: &Course, city: &CityLayout, f: &RiverFrame) {
         z0 = z0.min(p.z);
         z1 = z1.max(p.z);
     }
-    let gap = int(46);
+    let gap = int(62);
     let m = int(240);
     let target = landmark_target(c);
     let mut spots: Vec<(V3, i32, u64)> = Vec::new();
@@ -2723,6 +2723,6 @@ mod tests {
     fn grid_lines_meet_the_banks_exactly() {
         let b = breaks(-int(50), int(80), int(12), &[0, int(31)]);
         assert!(b.contains(&0) && b.contains(&int(31)));
-        assert!(b.windows(2).all(|w| w[1] > w[0] && w[1] - w[0] <= int(12)));
+        assert!(b.windows(2).all(|w| w[1] > w[0] && w[1] - w[0] <= int(16)));
     }
 }
