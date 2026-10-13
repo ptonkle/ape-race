@@ -2,7 +2,8 @@
 //! (T13), against target times in the Trackmania manner: Bronze, Silver,
 //! Gold, and a hidden Author time that shows once Gold is earned.
 //!
-//! The target times are the four constants below. Re-tune them whenever
+//! The target times are per map: the Jungle's four constants and the
+//! City's (`medals(map)`). Re-tune them whenever
 //! the course or the physics changes: run
 //! `cargo test --release -p tool_core --test ai -- --ignored --nocapture`
 //! and set the Author time to about the AI's time alone, the others in
@@ -10,6 +11,7 @@
 
 use serde::Serialize;
 
+use crate::map::Map;
 use crate::rules::TICKS_PER_SECOND;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize)]
@@ -53,32 +55,82 @@ pub const BRONZE: u32 = 10_000;
 /// The jungle's target times, in race ticks, slowest first.
 pub const JUNGLE: [u32; 4] = [secs(BRONZE), secs(SILVER), secs(GOLD), secs(AUTHOR)];
 
-/// The target of a medal, in race ticks.
-pub fn target(m: Medal) -> u32 {
-    JUNGLE[m as usize]
+/// The City's target times in hundredths of a second (2026-10-12, set as
+/// the Jungle's were: King Kong alone as a Time Trial runs finishes in
+/// 67.2–76.8 s by kind, Gibbon best; `city_time_trial_report` in
+/// `tests/city_ai.rs`, SECOND-ORDER C rows). Author: just under the best
+/// kind; then the Jungle's steps above it (7, 10, 15 s).
+pub const CITY_AUTHOR: u32 = 6_700;
+pub const CITY_GOLD: u32 = 7_400;
+pub const CITY_SILVER: u32 = 8_400;
+pub const CITY_BRONZE: u32 = 9_900;
+
+/// The City's target times, in race ticks, slowest first.
+pub const CITY: [u32; 4] = [
+    secs(CITY_BRONZE),
+    secs(CITY_SILVER),
+    secs(CITY_GOLD),
+    secs(CITY_AUTHOR),
+];
+
+/// A map's target times, in race ticks, slowest first (Bronze, Silver,
+/// Gold, Author).
+pub fn medals(map: Map) -> [u32; 4] {
+    match map {
+        Map::Jungle => JUNGLE,
+        Map::City => CITY,
+    }
 }
 
-/// The best medal a finish in `ticks` earns.
-pub fn earned(ticks: u32) -> Option<Medal> {
+/// The target of a medal on a map, in race ticks.
+pub fn target_on(map: Map, m: Medal) -> u32 {
+    medals(map)[m as usize]
+}
+
+/// The best medal a finish in `ticks` on a map earns.
+pub fn earned_on(map: Map, ticks: u32) -> Option<Medal> {
     Medal::ALL
         .iter()
         .rev()
         .copied()
-        .find(|m| ticks <= target(*m))
+        .find(|m| ticks <= target_on(map, *m))
 }
 
-/// Whether the Author time may be shown: only once a best has earned Gold.
-pub fn author_shown(best: Option<u32>) -> bool {
-    best.map(|b| b <= target(Medal::Gold)).unwrap_or(false)
+/// Whether a map's Author time may be shown: only once a best on it has
+/// earned Gold.
+pub fn author_shown_on(map: Map, best: Option<u32>) -> bool {
+    best.map(|b| b <= target_on(map, Medal::Gold))
+        .unwrap_or(false)
 }
 
-/// The next medal to aim for, given the best so far (None: Author earned).
-pub fn next_target(best: Option<u32>) -> Option<Medal> {
-    match best.and_then(earned) {
+/// The next medal to aim for on a map, given the best on it so far (None:
+/// Author earned).
+pub fn next_target_on(map: Map, best: Option<u32>) -> Option<Medal> {
+    match best.and_then(|b| earned_on(map, b)) {
         None => Some(Medal::Bronze),
         Some(Medal::Author) => None,
         Some(m) => Medal::ALL.get(m as usize + 1).copied(),
     }
+}
+
+/// The Jungle's: [`target_on`] for the Jungle.
+pub fn target(m: Medal) -> u32 {
+    target_on(Map::Jungle, m)
+}
+
+/// The Jungle's: [`earned_on`] for the Jungle.
+pub fn earned(ticks: u32) -> Option<Medal> {
+    earned_on(Map::Jungle, ticks)
+}
+
+/// The Jungle's: [`author_shown_on`] for the Jungle.
+pub fn author_shown(best: Option<u32>) -> bool {
+    author_shown_on(Map::Jungle, best)
+}
+
+/// The Jungle's: [`next_target_on`] for the Jungle.
+pub fn next_target(best: Option<u32>) -> Option<Medal> {
+    next_target_on(Map::Jungle, best)
 }
 
 #[cfg(test)]
@@ -91,6 +143,24 @@ mod tests {
             assert!(w[1] < w[0]);
         }
         assert_eq!(target(Medal::Author), 68 * TICKS_PER_SECOND as u32);
+    }
+
+    #[test]
+    fn each_map_has_its_own_medals_and_the_jungles_are_unchanged() {
+        assert_eq!(medals(Map::Jungle), [12_000, 10_200, 9_000, 8_160]);
+        for map in Map::ALL {
+            for w in medals(map).windows(2) {
+                assert!(w[1] < w[0], "{map:?}");
+            }
+        }
+        assert_ne!(medals(Map::City), medals(Map::Jungle));
+        let gold = target_on(Map::City, Medal::Gold);
+        assert_eq!(earned_on(Map::City, gold), Some(Medal::Gold));
+        assert_eq!(earned_on(Map::City, gold + 1), Some(Medal::Silver));
+        assert!(author_shown_on(Map::City, Some(gold)));
+        assert!(!author_shown_on(Map::City, Some(gold + 1)));
+        assert_eq!(next_target_on(Map::City, Some(gold)), Some(Medal::Author));
+        assert_eq!(next_target_on(Map::City, None), Some(Medal::Bronze));
     }
 
     #[test]

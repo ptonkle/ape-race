@@ -245,6 +245,11 @@ impl Course {
             return self.mushroom_under(p);
         };
         let feet = p.y - BODY_DROP;
+        // no car or boat stands this tall: an ape up among the vines (the
+        // AI's planned flights, every tick) is on none of them
+        if feet > ground(p.x, p.z) + BOUNCER_TALLEST {
+            return None;
+        }
         let floor = self.city_floor(p) - int(1);
         let on = |m: &Mushroom| {
             let d = p.flat().sub(m.top.flat());
@@ -255,11 +260,16 @@ impl Course {
         if let Some(m) = self.mushrooms[..movers].iter().position(on) {
             return Some(m);
         }
-        city.cars
-            .iter()
-            .filter(|car| car.drive.is_some())
-            .map(|car| car.bouncer)
-            .find(|&m| on(&self.bouncer(m, tick)))
+        city.cars.iter().find_map(|car| {
+            let d = car.drive.as_ref()?;
+            let (at, _) = drive_at(self, d, tick);
+            let b = self.mushrooms[car.bouncer];
+            let moved = Mushroom {
+                top: v3(at.x, at.y + b.top.y - car.at.y, at.z),
+                radius: b.radius,
+            };
+            on(&moved).then_some(car.bouncer)
+        })
     }
 
     /// Where a swimmer at `p` makes for: the nearest way out of the river
@@ -357,6 +367,9 @@ impl Bridge {
     }
 }
 
+/// No car's roof or boat's deck stands higher than this above the street.
+pub const BOUNCER_TALLEST: i32 = int(5);
+
 /// The river runs this far either side of the course (for the drawing:
 /// no other street comes this near it, and no building stands in it).
 pub const RIVER_REACH: i32 = int(220);
@@ -393,4 +406,6 @@ pub mod style {
 }
 
 mod layout;
+#[cfg(test)]
+mod tests;
 pub use layout::{boat_size, car_size, city, city_seeded, DECK_HALF};
