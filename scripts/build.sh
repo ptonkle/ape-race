@@ -43,5 +43,23 @@ done
 cp web/vendor/* dist/vendor/
 (cd dist/vendor && sha256sum --check --strict --quiet SHA256SUMS)
 
+# Cache-busting: GitHub Pages lets browsers keep a file for 10 minutes, so
+# right after a deploy a browser could pair new code with old strings or an
+# old module. Every file the page loads gets the build's id as a query
+# (letters only), in dist/ only; web/ stays as written.
+ID=$(find dist -type f -not -path 'dist/vendor/*' | sort | xargs cat | sha256sum | cut -c1-12 | tr 0-9 g-p)
+stamp() { # file, from, to: fails the build if `from` is not there
+  grep -qF -- "$2" "$1" || { echo "build.sh: '$2' not found in $1 (cache-busting)" >&2; exit 1; }
+  F="$2" T="$3" perl -0pi -e 's/\Q$ENV{F}\E/$ENV{T}/g' "$1"
+}
+stamp dist/index.html 'href="style.css"' "href=\"style.css?v=$ID\""
+stamp dist/index.html 'src="app.js"' "src=\"app.js?v=$ID\""
+stamp dist/app.js '"./pkg/tool_shim.js"' "\"./pkg/tool_shim.js?v=$ID\""
+stamp dist/app.js '"./gl.js"' "\"./gl.js?v=$ID\""
+stamp dist/app.js '"./online.js"' "\"./online.js?v=$ID\""
+stamp dist/app.js 'fetch(f)' "fetch(f + \"?v=$ID\")"
+stamp dist/app.js 'await init();' "await init({ module_or_path: \"pkg/tool_shim_bg.wasm?v=$ID\" });"
+stamp dist/online.js '"./online-config.js"' "\"./online-config.js?v=$ID\""
+
 echo "Built dist/:"
 find dist -type f | sort

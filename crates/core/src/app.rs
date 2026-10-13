@@ -52,8 +52,8 @@ const KEEP_AGAIN: u32 = rules::TICKS_PER_SECOND as u32 * 10;
 /// camera pans to one still racing (TRIAGE T34).
 const SPECTATE_AFTER: u32 = rules::TICKS_PER_SECOND as u32 * 2;
 /// An eaten ape (TRIAGE T37): the camera stays for the jaguar, and pans
-/// on half a second after it has eaten.
-const EATEN_SPECTATE_AFTER: u32 = crate::jaguar::EATEN + rules::TICKS_PER_SECOND as u32 / 2;
+/// on a quarter of a second after it has eaten.
+const EATEN_SPECTATE_AFTER: u32 = crate::jaguar::EATEN + rules::TICKS_PER_SECOND as u32 / 4;
 
 /// Clicks on the title that unlock Speed Colours (TRIAGE row 26).
 const TITLE_CLICKS: u32 = 10;

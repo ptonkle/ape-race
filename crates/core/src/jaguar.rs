@@ -17,15 +17,15 @@ const fn secs(hundredths: u32) -> u32 {
 }
 
 /// The run in from the trees, ticks after the ape touched the ground.
-pub const RUN: u32 = secs(110);
+pub const RUN: u32 = secs(55);
 /// The leap onto the ape (the roar is at its start).
-pub const LEAP: u32 = secs(40);
+pub const LEAP: u32 = secs(20);
 /// The bite: the ape is gone from here on.
 pub const BITE: u32 = RUN + LEAP;
 /// Eating, head down, until here: the eating is over.
-pub const EATEN: u32 = BITE + secs(90);
+pub const EATEN: u32 = BITE + secs(45);
 /// Then a trot back into the trees; the jaguar is gone at this tick.
-pub const GONE: u32 = EATEN + secs(160);
+pub const GONE: u32 = EATEN + secs(80);
 
 /// Where the jaguar waits: at the course's edge (this far inside it, so the
 /// way to the ape is open on any map: the Jungle's trees or the City's
@@ -115,7 +115,7 @@ impl Eaten {
             Jaguar {
                 feet: on_ground(self.from.lerp(leap_at, s.min(ONE))),
                 yaw: toward,
-                gait: gait(ago, 9),
+                gait: gait(ago, 18),
                 stride: ONE,
                 leap: 0,
                 head_down: 0,
@@ -137,7 +137,7 @@ impl Eaten {
             }
         } else if t < ticks(EATEN) {
             // eating, head down, the jaw working
-            let chew = fx::sin(gait(ago, 10)).abs();
+            let chew = fx::sin(gait(ago, 20)).abs();
             Jaguar {
                 feet: on_ground(goal),
                 yaw: toward,
@@ -153,7 +153,7 @@ impl Eaten {
             Jaguar {
                 feet: on_ground(goal.lerp(self.from, s)),
                 yaw: fx::wrap(toward + fx::TURN / 2),
-                gait: gait(ago, 6),
+                gait: gait(ago, 12),
                 stride: ONE * 2 / 3,
                 leap: 0,
                 head_down: 0,
@@ -246,7 +246,8 @@ mod tests {
         let late = e.jaguar(&c, e.tick + GONE - 1, 0).unwrap();
         assert!(late.feet.flat().sub(e.from.flat()).len() < int(1));
         assert_eq!(e.jaguar(&c, e.tick + GONE, 0), None);
-        // the whole eating is about two seconds, as asked
-        assert!((secs(150)..=secs(250)).contains(&EATEN));
+        // the whole eating is about a second (the person, 2026-10-12:
+        // twice as fast as the first two seconds)
+        assert!((secs(75)..=secs(125)).contains(&EATEN));
     }
 }
