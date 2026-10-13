@@ -212,20 +212,75 @@ fn leaders_roll_attacks_and_those_behind_roll_catch_ups() {
 #[test]
 fn a_time_trial_crate_gives_only_speed_boosts() {
     let mut r = crate_race(1);
-    r.boost_only = true;
+    r.items = ItemSet::only(Item::Boost);
+    let dice = r.dice;
     for _ in 0..50 {
-        assert_eq!(roll_for(&mut r, 0), Item::Boost);
+        assert_eq!(roll_for(&mut r, 0), Some(Item::Boost));
     }
-    // the flag reaches the crate
+    // one item left: no throw of the dice (old Time Trial replays hold)
+    assert_eq!(r.dice, dice);
+    // the set reaches the crate
     hang_on(&mut r, 0, 0);
     step(&mut r);
     assert_eq!(r.racers[0].item, Some(Item::Boost));
-    // without it, a low ape gets a mix
-    r.boost_only = false;
+    // every item: a low ape gets a mix
+    r.items = ItemSet::ALL;
     put_at(&mut r, 0, 0, int(100), int(1));
-    let got: Vec<Item> = (0..50).map(|_| roll_for(&mut r, 0)).collect();
+    let got: Vec<Item> = (0..50).filter_map(|_| roll_for(&mut r, 0)).collect();
     assert!(got.iter().any(|i| *i != Item::Boost));
     assert!(got.contains(&Item::Vine), "{got:?}");
+}
+
+#[test]
+fn items_left_out_of_the_set_never_come_out() {
+    let mut d = fx::Dice(11);
+    let allowed = ItemSet::ALL
+        .with(Item::Stick, false)
+        .with(Item::Hook, false)
+        .with(Item::Boost, false);
+    let mut c = [0; 5];
+    for _ in 0..3000 {
+        let item = roll_among(&mut d, 1, 4, false, allowed).expect("an item");
+        c[item as usize] += 1;
+    }
+    assert_eq!((c[1], c[2], c[3]), (0, 0, 0), "{c:?}");
+    // the rest keep their odds: the leader high up gets Bananas (weight 40)
+    // far more than Vines (4)
+    assert!(c[0] > c[4] * 5 && c[4] > 0, "{c:?}");
+    // and a low ape still gets many more Vines
+    let mut low = [0; 5];
+    for _ in 0..3000 {
+        low[roll_among(&mut d, 1, 4, true, allowed).unwrap() as usize] += 1;
+    }
+    assert!(low[4] > c[4] * 4, "{low:?} {c:?}");
+    // every item allowed is the same throw as before the sets
+    let (mut a, mut b) = (fx::Dice(5), fx::Dice(5));
+    for place in 1..=4 {
+        for low in [false, true] {
+            assert_eq!(
+                roll_among(&mut a, place, 4, low, ItemSet::ALL),
+                Some(roll(&mut b, place, 4, low))
+            );
+        }
+    }
+}
+
+#[test]
+fn with_no_items_the_crates_give_nothing_and_are_not_drawn() {
+    let mut r = crate_race(1);
+    let mut b = Batch::new();
+    draw(&mut b, &r);
+    let with = b.count();
+    r.items = ItemSet::NONE;
+    let mut b = Batch::new();
+    draw(&mut b, &r);
+    assert!(b.count() < with, "{} of {with} drawn", b.count());
+    assert_eq!(roll_for(&mut r, 0), None);
+    hang_on(&mut r, 0, 0);
+    step(&mut r);
+    assert_eq!(r.racers[0].item, None);
+    assert!(r.events.is_empty(), "{:?}", r.events);
+    assert_eq!(r.crates, vec![0, 0]);
 }
 
 /// Ape 0 throws a Banana straight at ape 1, 10 m away along +x.

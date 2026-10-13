@@ -21,7 +21,8 @@ use serde::{Deserialize, Serialize};
 use crate::ai::{self, Brain};
 use crate::ape::Controls;
 use crate::course::Course;
-use crate::race::{Driver, Entry, Race};
+use crate::items::ItemSet;
+use crate::race::{Driver, Entry, Item, Race};
 use crate::rules::TICKS_PER_SECOND;
 
 /// The recording format; recordings of another format are dropped.
@@ -62,7 +63,8 @@ pub struct Recording {
     pub local: usize,
     pub equal_stats: bool,
     pub seed: u64,
-    pub boost_only: bool,
+    /// the items its crates gave (TRIAGE T42)
+    pub items: ItemSet,
     /// the AI's difficulty (its brains are rebuilt from it)
     pub ai_level: crate::ai::Difficulty,
     /// the local ape's controls, one per race tick from the first
@@ -92,7 +94,7 @@ impl Recording {
             local,
             equal_stats: race.equal_stats,
             seed: race.dice.0,
-            boost_only: race.boost_only,
+            items: race.items,
             ai_level: race.ai_level,
             controls: Vec::new(),
             finish: None,
@@ -108,7 +110,7 @@ impl Recording {
     /// The race at its first tick, as it was set up.
     pub fn race(&self, course: &Course) -> Race {
         let mut r = Race::new(course.clone(), &self.entries, self.equal_stats, self.seed);
-        r.boost_only = self.boost_only;
+        r.items = self.items;
         r.ai_level = self.ai_level;
         r
     }
@@ -294,7 +296,12 @@ struct Stored {
     local: usize,
     equal_stats: bool,
     seed: u64,
+    /// recordings from before TRIAGE T42 carry only this: a Time Trial
+    #[serde(default)]
     boost_only: bool,
+    /// the race's item set (TRIAGE T42); missing in older recordings
+    #[serde(default)]
+    items: Option<ItemSet>,
     #[serde(default)]
     ai_level: crate::ai::Difficulty,
     finish: Option<u32>,
@@ -312,7 +319,8 @@ impl Stored {
             local: r.local,
             equal_stats: r.equal_stats,
             seed: r.seed,
-            boost_only: r.boost_only,
+            boost_only: r.items == ItemSet::only(Item::Boost),
+            items: Some(r.items),
             ai_level: r.ai_level,
             finish: r.finish,
             serial: r.serial,
@@ -333,7 +341,11 @@ impl Stored {
             local: self.local,
             equal_stats: self.equal_stats,
             seed: self.seed,
-            boost_only: self.boost_only,
+            items: self.items.unwrap_or(if self.boost_only {
+                ItemSet::only(Item::Boost)
+            } else {
+                ItemSet::ALL
+            }),
             ai_level: self.ai_level,
             finish: self.finish,
             serial: self.serial,

@@ -72,6 +72,14 @@ def run(page, check, engine):
     )
     check(pips == [3, 3, 3, 3, 3], f"Equal Stats shows the average ape {pips}")
     page.click("[id='setup.equal']")
+    # TRIAGE T42: a checkbox per item, all ticked at first; one unticks
+    boxes = page.evaluate("() => [...document.querySelectorAll('.checks input')].map(b => b.checked)")
+    check(boxes == [True] * 5, f"five item checkboxes, all ticked {boxes}")
+    page.click("[id='setup.item.banana']")
+    page.wait_for_timeout(100)
+    check(not page.is_checked("[id='setup.item.banana']"), "the Banana box unticks")
+    page.click("[id='setup.item.banana']")
+    page.wait_for_timeout(100)
     page.select_option("[id='setup.opponents']", "2")
     check(canvas_drawn(page), "the chosen ape is drawn on the setup screen")
 

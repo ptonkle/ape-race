@@ -74,6 +74,8 @@ pub struct Settings {
     pub trial_best: Option<u32>,
     /// race the best Time Trial's ghost
     pub ghost: bool,
+    /// the items crates may give in a race (TRIAGE T42)
+    pub items: crate::items::ItemSet,
 }
 
 impl Default for Settings {
@@ -93,6 +95,7 @@ impl Default for Settings {
             best: None,
             trial_best: None,
             ghost: true,
+            items: crate::items::ItemSet::ALL,
         }
     }
 }
@@ -105,6 +108,7 @@ impl Settings {
         // a race has one to three AI opponents (TRIAGE T26: Time Trial is
         // the solo run); a saved 0 reads as 1
         s.ai_count = s.ai_count.clamp(1, 3);
+        s.items = s.items.clean();
         // Speed Colours is a secret until unlocked (TRIAGE row 26), even for
         // settings saved while it was on by default
         s.speed_colours &= s.colours_unlocked;
@@ -161,6 +165,9 @@ pub struct Play {
     /// the same, smoothed over about a second, for the speed colours
     /// (TRIAGE row 22: they followed each swing's rise and fall)
     pub colour_speed: i32,
+    /// the hype call-outs and their flash (TRIAGE T22): live racing only,
+    /// not stepped in a replay
+    pub hype: crate::hype::Hype,
     /// the local finish beat the saved best
     new_best: bool,
     /// each vine drawn as a bending chain (TRIAGE row 12)
@@ -614,6 +621,7 @@ impl App {
                 self.settings.equal_stats = value == "on";
                 self.save = true;
             }
+            _ if id.starts_with("setup.item.") => self.tick_item(id, value),
             "settings.volume" => {
                 if let Ok(v) = value.parse::<u8>() {
                     self.settings.volume = v.min(100);
@@ -684,8 +692,13 @@ impl App {
             self.settings.equal_stats,
             d.next(),
         );
-        // a Time Trial: crates give only the Speed Boost (TRIAGE T13)
-        race.boost_only = self.trial;
+        // a Time Trial: crates give only the Speed Boost (TRIAGE T13);
+        // otherwise the items ticked on the setup (T42)
+        race.items = if self.trial {
+            crate::items::ItemSet::only(crate::race::Item::Boost)
+        } else {
+            self.settings.items
+        };
         race.ai_level = self.settings.ai_level;
         let record = Recording::of(&race, 0, self.mode());
         // (after `begin`, which keeps the run being left: it may be the best)
@@ -726,6 +739,7 @@ impl App {
             since_finish: None,
             hype_speed: 0,
             colour_speed: 0,
+            hype: crate::hype::Hype::default(),
             new_best: false,
             chains: Vec::new(),
             trial: false,
@@ -800,6 +814,7 @@ impl App {
         let flat = p.race.racers[p.local].ape.vel.len_xz();
         p.hype_speed += (flat - p.hype_speed) / 30;
         p.colour_speed += (flat - p.colour_speed) / 120;
+        self.hype_tick(p);
         if p.online {
             self.online_step(p);
         }
@@ -834,6 +849,19 @@ impl App {
             if let Some(cue) = cue_for(&e, p.local) {
                 self.sounds.push(cue.key().to_string());
             }
+        }
+    }
+
+    /// The hype call-outs (TRIAGE T22): crossing a hype level upward calls
+    /// it out in an ape voice (`hype::Hype` keeps it from repeating); not
+    /// once the local ape has finished.
+    fn hype_tick(&mut self, p: &mut Play) {
+        if p.race.racers[p.local].finish.is_some() {
+            return;
+        }
+        let kmh = crate::speedo::kmh(p.hype_speed);
+        if let Some(level) = p.hype.step(kmh) {
+            self.sounds.push(crate::hype::voice_key(level));
         }
     }
 
@@ -1095,6 +1123,9 @@ impl App {
             json!({ "type": "toggle", "id": "setup.equal", "label": self.t("setup.equal"),
           "value": self.settings.equal_stats }),
         );
+        if !self.trial {
+            items.extend(self.item_toggles());
+        }
         items.push(self.button("menu.start"));
         if self.best_replay().is_some() {
             items.push(self.quiet_button("replay.best"));
@@ -1106,6 +1137,37 @@ impl App {
             "setup.heading"
         };
         vec![json!({ "kind": "setup", "heading": self.t(heading), "items": items })]
+    }
+
+    /// The race setup's item checkboxes (TRIAGE T42): one per item, ticked
+    /// when crates may give it, and a note when none is. Online, the host's
+    /// go out with the start.
+    pub(crate) fn item_toggles(&self) -> Vec<Value> {
+        let options: Vec<Value> = crate::race::Item::ALL
+            .iter()
+            .map(|item| {
+                json!({ "id": format!("setup.item.{}", item.key()),
+                  "text": self.t(&format!("item.{}", item.key())),
+                  "value": self.settings.items.has(*item) })
+            })
+            .collect();
+        let note = if self.settings.items.is_empty() {
+            self.t("setup.no_items")
+        } else {
+            String::new()
+        };
+        vec![
+            json!({ "type": "checks", "label": self.t("setup.items"), "options": options, "note": note }),
+        ]
+    }
+
+    /// An item checkbox changed (`setup.item.<key>`).
+    pub(crate) fn tick_item(&mut self, id: &str, value: &str) {
+        let key = id.trim_start_matches("setup.item.");
+        if let Some(item) = crate::race::Item::ALL.into_iter().find(|i| i.key() == key) {
+            self.settings.items = self.settings.items.with(item, value == "on");
+            self.save = true;
+        }
     }
 
     fn quiet_button(&self, id: &str) -> Value {
@@ -1355,6 +1417,10 @@ impl App {
                 "hype": crate::speedo::hype(crate::speedo::kmh(p.hype_speed)),
                 "amount": decimal(&crate::speedo::amount_text(crate::speedo::kmh(p.hype_speed))),
                 "shout": self.t(&format!("hud.hype{}", crate::speedo::hype(crate::speedo::kmh(p.hype_speed)))),
+                // the splash of a call-out (TRIAGE T22): the screen's flash,
+                // 0 to 1, and the level whose shout pops while it shows
+                "flash": decimal(&p.hype.flash_text()),
+                "burst": p.hype.burst(),
             },
             "item": [self.t("hud.item"), item],
             "item_key": me.item.map(|i| i.key()).unwrap_or(""),
@@ -1465,6 +1531,9 @@ impl App {
         }
         if key == sound::SCREECH {
             return sound::screech(self.settings.volume);
+        }
+        if let Some(level) = sound::voice_level(key) {
+            return sound::voice(level, self.settings.volume);
         }
         match Cue::from_key(key) {
             Some(c) => sound::wav(c, self.settings.volume),
@@ -1694,6 +1763,10 @@ fn cue_for(e: &Event, local: usize) -> Option<Cue> {
         _ => None,
     }
 }
+
+#[cfg(test)]
+#[path = "app/items_hype_tests.rs"]
+mod items_hype_tests;
 
 #[cfg(test)]
 mod tests {
@@ -1970,7 +2043,7 @@ mod tests {
         a.act("menu.start", "");
         let p = a.play.as_mut().unwrap();
         assert_eq!(p.race.racers.len(), 1);
-        assert!(p.race.boost_only && p.trial);
+        assert!(p.race.items == crate::items::ItemSet::only(crate::race::Item::Boost) && p.trial);
         p.race.phase = Phase::Running;
         p.race.clock = 120 * 95;
         p.race.racers[0].finish = Some(120 * 95);

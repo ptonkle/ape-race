@@ -253,3 +253,24 @@ fn a_supplied_screech_file_plays_at_the_players_volume() {
         "no data: silence"
     );
 }
+
+#[test]
+fn the_hosts_item_choice_reaches_the_joiner_with_the_start() {
+    // TRIAGE T42: the host's lobby has the item boxes; the joiner's race
+    // gets the host's set, whatever its own settings say
+    let mut p = Pair::lobby();
+    let ui = p.apps[0].ui();
+    assert!(
+        ui.contains("setup.item.vine"),
+        "the host's lobby has the boxes"
+    );
+    p.apps[0].act("setup.item.vine", "off");
+    p.apps[0].act("setup.item.stick", "off");
+    p.race();
+    let host = p.apps[0].play.as_ref().unwrap().race.items;
+    let joiner = p.apps[1].play.as_ref().unwrap().race.items;
+    assert!(!host.has(crate::race::Item::Vine) && !host.has(crate::race::Item::Stick));
+    assert!(host.has(crate::race::Item::Banana));
+    assert_eq!(joiner, host);
+    assert!(p.apps[1].settings.items.has(crate::race::Item::Vine));
+}

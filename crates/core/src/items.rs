@@ -16,6 +16,7 @@ use crate::mesh::Mesh;
 use crate::race::{Driver, Event, Item, Race, Shot, Summon};
 use crate::render::{self, placed, rgb, rod, Batch};
 use crate::rules::*;
+use serde::{Deserialize, Serialize};
 
 /// Ape `who` pressed the item key: use and consume the held item.
 pub fn use_item(race: &mut Race, who: usize, c: &Controls) {
@@ -189,47 +190,120 @@ fn expire(race: &mut Race) {
     }
 }
 
-/// The item a crate gives ape `who`: only a Boost in a Time Trial
-/// (`race.boost_only`, TRIAGE T13), otherwise [`roll`] by its place and
-/// whether it is low (on the ground or near it).
-pub fn roll_for(race: &mut Race, who: usize) -> Item {
-    if race.boost_only {
-        return Item::Boost;
+/// The items a race's crates may give (TRIAGE T42): one bit per
+/// [`Item`], in the order of `Item::ALL`. Kept in the settings, sent with an
+/// online race's start and kept in a recording, as a number.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(transparent)]
+pub struct ItemSet(pub u8);
+
+impl Default for ItemSet {
+    fn default() -> ItemSet {
+        ItemSet::ALL
     }
+}
+
+impl ItemSet {
+    pub const ALL: ItemSet = ItemSet((1 << Item::ALL.len()) - 1);
+    pub const NONE: ItemSet = ItemSet(0);
+
+    fn bit(item: Item) -> u8 {
+        1 << (item as u8)
+    }
+
+    /// Just this item (a Time Trial: the Speed Boost, TRIAGE T13).
+    pub fn only(item: Item) -> ItemSet {
+        ItemSet(ItemSet::bit(item))
+    }
+
+    pub fn has(self, item: Item) -> bool {
+        self.0 & ItemSet::bit(item) != 0
+    }
+
+    /// This set with `item` added (`on`) or taken out.
+    pub fn with(self, item: Item, on: bool) -> ItemSet {
+        if on {
+            ItemSet(self.0 | ItemSet::bit(item))
+        } else {
+            ItemSet(self.0 & !ItemSet::bit(item))
+        }
+    }
+
+    /// Only bits that name an item (a stored or received set may have more).
+    pub fn clean(self) -> ItemSet {
+        ItemSet(self.0 & ItemSet::ALL.0)
+    }
+
+    /// No item at all: crates give nothing and are not drawn.
+    pub fn is_empty(self) -> bool {
+        self.clean().0 == 0
+    }
+
+    pub fn items(self) -> Vec<Item> {
+        Item::ALL.into_iter().filter(|i| self.has(*i)).collect()
+    }
+}
+
+/// The item a crate gives ape `who`: one of `race.items` (TRIAGE T42; a
+/// Time Trial allows only the Boost, T13), drawn by [`roll_among`] by its
+/// place and whether it is low (on the ground or near it). `None` when no
+/// item is allowed.
+pub fn roll_for(race: &mut Race, who: usize) -> Option<Item> {
+    let allowed = race.items.clean();
     let n = race.racers.len();
     let r = &race.racers[who];
     let low =
         r.ape.mode == Mode::Grounded || r.ape.pos.y - race.course.support(r.ape.pos) < SUMMON_LOW;
     let place = r.place;
-    roll(&mut race.dice, place, n, low)
+    roll_among(&mut race.dice, place, n, low, allowed)
 }
 
-/// A random item for an ape in `place` of `n`, Mario Kart style: the
-/// leaders get more Bananas and Sticks, those behind more Hooks, Boosts and
-/// Vines; an ape that is `low` (on or near the ground) gets many more
-/// Vines.
+/// [`roll_among`] with every item allowed.
 pub fn roll(dice: &mut fx::Dice, place: usize, n: usize, low: bool) -> Item {
+    roll_among(dice, place, n, low, ItemSet::ALL).unwrap_or(Item::Boost)
+}
+
+/// A random item of `allowed` for an ape in `place` of `n`, Mario Kart
+/// style: the leaders get more Bananas and Sticks, those behind more Hooks,
+/// Boosts and Vines; an ape that is `low` (on or near the ground) gets many
+/// more Vines. Items left out are not drawn: the others keep their weights
+/// (TRIAGE T42). One allowed item comes out without a throw of the dice
+/// (as the Time Trial's Boost always did), none gives `None`.
+pub fn roll_among(
+    dice: &mut fx::Dice,
+    place: usize,
+    n: usize,
+    low: bool,
+    allowed: ItemSet,
+) -> Option<Item> {
+    let left = allowed.items();
+    if left.len() <= 1 {
+        return left.first().copied();
+    }
     let behind = if n > 1 {
         ((place.clamp(1, n) - 1) * 100 / (n - 1)) as i32
     } else {
         0
     };
-    let weights = [
+    let weights: Vec<(Item, i32)> = [
         (Item::Banana, 40 - behind / 4),
         (Item::Stick, 30 - behind / 5),
         (Item::Hook, 15 + behind / 4),
         (Item::Boost, 15 + behind / 5),
         (Item::Vine, 4 + behind / 10 + if low { 30 } else { 0 }),
-    ];
+    ]
+    .into_iter()
+    .filter(|(i, _)| allowed.has(*i))
+    .collect();
     let total: i32 = weights.iter().map(|w| w.1).sum();
     let mut pick = dice.below(total as u32) as i32;
-    for (item, w) in weights {
+    for (item, w) in weights.iter().copied() {
         if pick < w {
-            return item;
+            return Some(item);
         }
         pick -= w;
     }
-    Item::Boost
+    left.last().copied()
 }
 
 /// Crates, pickups, thrown things and summoned vines, once a tick after the
@@ -285,6 +359,10 @@ pub fn crate_at(race: &Race, k: usize) -> V3 {
 const CRATE_HANG: i32 = cm(90);
 
 fn pickups(race: &mut Race) {
+    // no item allowed (TRIAGE T42): the crates are not there
+    if race.items.is_empty() {
+        return;
+    }
     let n = race.racers.len();
     for k in 0..race.crates.len() {
         if race.crates[k] > 0 {
@@ -304,7 +382,9 @@ fn pickups(race: &mut Race) {
             // catching the crate's vine takes it, and so does flying into it
             let caught = r.ape.swinging() == Some(vine);
             if caught || r.ape.middle().dist(at) <= CRATE_RADIUS + BODY_RADIUS {
-                let item = roll_for(race, i);
+                let Some(item) = roll_for(race, i) else {
+                    break;
+                };
                 race.racers[i].item = Some(item);
                 race.crates[k] = CRATE_RESPAWN;
                 race.events.push(Event::Pickup { who: i, item });
@@ -489,7 +569,13 @@ const REACH: render::Rgb = rgb(255, 120, 60);
 /// ape in reach.
 pub fn draw(b: &mut Batch, race: &Race) {
     let tick = race.tick as i32;
-    for k in 0..race.crate_vines.len() {
+    // no item allowed (TRIAGE T42): no crate markers
+    let shown = if race.items.is_empty() {
+        0
+    } else {
+        race.crate_vines.len()
+    };
+    for k in 0..shown {
         if race.crates.get(k).copied().unwrap_or(0) == 0 {
             let at = crate_at(race, k);
             let v = race.crate_vines[k];
