@@ -110,6 +110,26 @@ pub struct Racer {
     pub finish: Option<u32>,
     /// 1-based place: finish order, then progress
     pub place: usize,
+    /// the last course reward it had, and the race tick it came (for the
+    /// HUD's flash)
+    pub reward: Option<(Reward, u32)>,
+}
+
+/// A reward from the course itself (group K), for the HUD's flash and the
+/// sounds.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Reward {
+    /// a bounce mushroom's push (TRIAGE T48)
+    Mushroom,
+}
+
+impl Reward {
+    pub fn key(self) -> &'static str {
+        match self {
+            Reward::Mushroom => "mushroom",
+        }
+    }
 }
 
 /// A thrown Banana, or a Hook on its way.
@@ -203,6 +223,7 @@ impl Race {
                     progress: 0,
                     finish: None,
                     place: i + 1,
+                    reward: None,
                 }
             })
             .collect();
@@ -276,6 +297,9 @@ impl Race {
             self.racers[i].ape.step(&c, &self.course, tick);
             for what in self.racers[i].ape.happened.clone() {
                 self.events.push(Event::Body { who: i, what });
+                if what == Happening::Bounce {
+                    self.racers[i].reward = Some((Reward::Mushroom, tick));
+                }
             }
             if c.item {
                 crate::items::use_item(self, i, &c);

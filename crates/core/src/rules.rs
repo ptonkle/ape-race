@@ -55,12 +55,17 @@ pub const LANDING_ROLL: i32 = ONE * 3 / 10;
 pub const HOP_KEEP: i32 = ONE * 4 / 10;
 /// Sliding fast on the ground, WASD turn the slide this hard (no faster).
 pub const SLIDE_STEER: i32 = int(14);
-/// A bounce mushroom's cap: its top above the ground, and its radius.
-pub const MUSHROOM_HEIGHT: i32 = cm(220);
-pub const MUSHROOM_RADIUS: i32 = cm(230);
+/// A bounce mushroom's cap: its top above the ground, and its radius
+/// (TRIAGE T48: 1.5 times the first 2.2 m and 2.3 m, so the cap keeps its
+/// shape).
+pub const MUSHROOM_HEIGHT: i32 = cm(330);
+pub const MUSHROOM_RADIUS: i32 = cm(345);
 /// A bounce mushroom throws an ape up at this speed: some 14 m, into the
 /// reach of most vines (TRIAGE T5).
 pub const MUSHROOM_BOUNCE: i32 = int(22);
+/// A bounce is a reward too (TRIAGE T48): it adds this much speed forward,
+/// along the ape's heading on the ground.
+pub const MUSHROOM_PUSH: i32 = int(6);
 /// How fast WASD bring the ape to its running velocity on the ground.
 pub const RUN_ACCEL: i32 = int(40);
 

@@ -1352,6 +1352,7 @@ impl App {
             // the held item as a picture (TRIAGE T19)
             "item_icon": me.item.map(crate::items::icon_svg).unwrap_or_default(),
             "big": big,
+            "flash": self.reward_flash(me, race.tick),
             "hint": if p.replay.is_some() || self.pointer_locked {
                 String::new()
             } else {
@@ -1365,6 +1366,15 @@ impl App {
                 "max": 1000,
             })),
         })
+    }
+
+    /// A course reward's name, for a second after it came (group K: the
+    /// mushroom's push, a catch-up vine).
+    fn reward_flash(&self, me: &crate::race::Racer, tick: u32) -> String {
+        match me.reward {
+            Some((r, at)) if tick < at + REWARD_FLASH => self.t(&format!("hud.reward.{}", r.key())),
+            _ => String::new(),
+        }
     }
 
     /// The HUD's Best: the race best, or in a Time Trial the next medal to
@@ -1658,6 +1668,9 @@ pub fn clock_text(ticks: u32) -> String {
     format!("{m}:{sec:02}.{h:02}")
 }
 
+/// How long a course reward's name shows on the HUD, ticks.
+const REWARD_FLASH: u32 = rules::TICKS_PER_SECOND as u32;
+
 /// The sound a race event makes, for the player at `local`.
 fn cue_for(e: &Event, local: usize) -> Option<Cue> {
     match *e {
@@ -1668,6 +1681,7 @@ fn cue_for(e: &Event, local: usize) -> Option<Cue> {
             Happening::Jump => Cue::Jump,
             Happening::Land => Cue::Land,
             Happening::Knocked => Cue::Hit,
+            Happening::Bounce => Cue::Bounce,
             Happening::Wall => return None,
         }),
         Event::Countdown { .. } => Some(Cue::Beep),

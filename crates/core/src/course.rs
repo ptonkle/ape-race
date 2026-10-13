@@ -502,6 +502,9 @@ fn build(legs: &[Leg], seed: u64) -> Course {
     let mut s = 32;
     let mut station = 0;
     let mut slides = 0;
+    // the extra mushrooms (TRIAGE T48) draw from dice of their own, so the
+    // rest of the layout is the same as before them
+    let mut extra = Dice(seed ^ 0x6D75_7368);
     while s < len_m - 30 {
         let h = c.heading_at(int(s));
         let r = right_of(h);
@@ -561,6 +564,16 @@ fn build(legs: &[Leg], seed: u64) -> Course {
             // and between them a bounce mushroom (TRIAGE T5), short of one
             // of this station's vines, so the bounce rises into its reach
             let off = lanes[dice.below(lanes.len() as u32) as usize];
+            let p = c.point(int(s - 11)).add(r.scale(int(off)));
+            c.mushrooms.push(Mushroom {
+                top: v3(p.x, ground(p.x, p.z) + MUSHROOM_HEIGHT, p.z),
+                radius: MUSHROOM_RADIUS,
+            });
+        }
+        if station % 16 == 7 {
+            // a fifth more of them (TRIAGE T48): one on every sixteenth
+            // station as well, under a lane, away from its low vine
+            let off = lanes[extra.below(lanes.len() as u32) as usize];
             let p = c.point(int(s - 11)).add(r.scale(int(off)));
             c.mushrooms.push(Mushroom {
                 top: v3(p.x, ground(p.x, p.z) + MUSHROOM_HEIGHT, p.z),
@@ -971,6 +984,35 @@ mod tests {
                 v.at > along && v.at < along + int(25) && v.anchor.y - v.length < peak + reach
             });
             assert!(ahead, "{} m: no vine to bounce to", along / ONE);
+        }
+    }
+
+    #[test]
+    fn mushrooms_are_a_fifth_more_and_stand_clear_of_vines_and_trees() {
+        // TRIAGE T48: 18 before; 1.5 times the size, out from under every
+        // vine's end (with its sway) and every trunk
+        let c = Course::jungle();
+        let n = c.mushrooms.len();
+        assert!((21..=24).contains(&n), "{n} mushrooms");
+        for m in &c.mushrooms {
+            assert_eq!(m.radius, MUSHROOM_RADIUS);
+            for (i, v) in c.vines.iter().enumerate() {
+                let sway = v.slide.map(|s| s.reach.len()).unwrap_or(0) + cm(60);
+                let flat = v.anchor.flat().sub(m.top.flat()).len();
+                let bottom = v.anchor.y - v.length;
+                assert!(
+                    flat > m.radius + sway || bottom > m.top.y + int(2),
+                    "vine {i} ends {} m above a cap {} m away",
+                    (bottom - m.top.y) / ONE,
+                    flat / ONE
+                );
+            }
+            for p in &c.props {
+                if let Prop::Tree { at, radius, .. } = *p {
+                    let flat = at.flat().sub(m.top.flat()).len();
+                    assert!(flat > m.radius + radius, "a trunk {} m away", flat / ONE);
+                }
+            }
         }
     }
 

@@ -253,6 +253,8 @@ function drawHud(h) {
   }
   el("hud-big").textContent = h.big;
   el("hud-hint").textContent = h.hint;
+  // a course reward's name, briefly (the core says when)
+  if (el("hud-flash").textContent !== h.flash) el("hud-flash").textContent = h.flash;
   el("hud-reticle").className = h.cooldown ? "reticle cool" : "reticle";
   drawMinimap(h.minimap);
   drawReplayBar(h.replay);

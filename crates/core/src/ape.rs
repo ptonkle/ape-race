@@ -50,6 +50,8 @@ pub enum Happening {
     Land,
     Wall,
     Knocked,
+    /// thrown up by a bounce mushroom, with its push forward (TRIAGE T48)
+    Bounce,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -385,8 +387,16 @@ impl Ape {
             if let Some(m) = course.mushroom_under(self.pos) {
                 self.pos.y = self.pos.y.max(course.mushrooms[m].top.y + BODY_DROP);
                 self.vel.y = MUSHROOM_BOUNCE;
+                // and a push forward along the heading, as a reward (T48)
+                let flat = self.vel.flat();
+                let dir = if flat.len() > ONE {
+                    flat.norm()
+                } else {
+                    facing(self.yaw, 0)
+                };
+                self.vel = self.vel.add(dir.scale(MUSHROOM_PUSH));
                 self.mode = Mode::Flying;
-                self.happened.push(Happening::Jump);
+                self.happened.push(Happening::Bounce);
                 return;
             }
         }

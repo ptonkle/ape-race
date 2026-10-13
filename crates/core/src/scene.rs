@@ -744,7 +744,8 @@ fn mushroom(b: &mut Batch, m: &Mushroom) {
     let top = m.top;
     let gy = ground(top.x, top.z);
     let r = m.radius;
-    let cap_h = cm(170);
+    // the cap's height grows with its radius (TRIAGE T48)
+    let cap_h = mul(r, ONE * 74 / 100);
     let under = top.y - cap_h * 3 / 4;
     b.push(
         Mesh::Cyl,

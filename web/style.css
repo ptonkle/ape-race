@@ -387,3 +387,7 @@ body[data-screen="race"] .menus:has(.panel.replay) {
 .replay-bar input { flex: 1; accent-color: var(--accent); }
 .replay-bar[hidden] { display: none; }
 .panel.replay h2 { margin: 0 0.4rem 0 0; }
+
+/* group K: a course reward's name (mushroom push, catch-up vine), shown
+   briefly by the core above the middle */
+.hint.flash { bottom: auto; top: 22%; color: var(--banana); font-weight: 800; }
