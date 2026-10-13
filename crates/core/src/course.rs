@@ -174,6 +174,9 @@ pub struct Course {
     /// where the four starters stand, and the way they face
     pub starts: [V3; 4],
     pub start_yaw: i32,
+    /// the City's buildings, cars, river, bridge and hangers (`city.rs`);
+    /// `None` on the Jungle
+    pub city: Option<Box<crate::city::CityLayout>>,
 }
 
 /// A straight (`turn` 0) or a bend of the centreline: metres, degrees.
@@ -460,6 +463,7 @@ fn centreline(name: &'static str, legs: &[Leg]) -> Course {
         props: Vec::new(),
         starts: [V3::ZERO; 4],
         start_yaw: 0,
+        city: None,
     }
 }
 
