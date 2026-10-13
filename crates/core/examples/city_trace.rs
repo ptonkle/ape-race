@@ -39,7 +39,7 @@ fn main() {
                 _ => {}
             }
         }
-        if race.clock % (TICKS_PER_SECOND as u32 / 2) == 0 && race.running() {
+        if race.clock.is_multiple_of(TICKS_PER_SECOND as u32 / 2) && race.running() {
             let m = match a.mode {
                 Mode::Flying => "fly",
                 Mode::Swinging { .. } => "vine",

@@ -38,6 +38,7 @@ def main():
     ap.add_argument("--click", nargs="*", default=[])
     ap.add_argument("--hold", nargs="*", default=[])
     ap.add_argument("--size", default="1280x720")
+    ap.add_argument("--bare", action="store_true", help="hide the menus and HUD, the 3D view only")
     ap.add_argument("--frames", type=int, default=1, help="screenshots, --wait apart")
     a = ap.parse_args()
     w, h = (int(x) for x in a.size.split("x"))
@@ -71,6 +72,8 @@ def main():
                     page.mouse.up()
                 else:
                     page.keyboard.up(k)
+        if a.bare:
+            page.evaluate("document.querySelectorAll('body > :not(canvas)').forEach(e => e.style.setProperty('display', 'none', 'important'))")
         out = pathlib.Path(a.out)
         for i in range(a.frames):
             page.wait_for_timeout(a.wait * 1000)

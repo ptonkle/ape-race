@@ -52,8 +52,8 @@ const KEEP_AGAIN: u32 = rules::TICKS_PER_SECOND as u32 * 10;
 /// camera pans to one still racing (TRIAGE T34).
 const SPECTATE_AFTER: u32 = rules::TICKS_PER_SECOND as u32 * 2;
 /// An eaten ape (TRIAGE T37): the camera stays for the jaguar, and pans
-/// on half a second after it has eaten.
-const EATEN_SPECTATE_AFTER: u32 = crate::jaguar::EATEN + rules::TICKS_PER_SECOND as u32 / 2;
+/// on a quarter of a second after it has eaten.
+const EATEN_SPECTATE_AFTER: u32 = crate::jaguar::EATEN + rules::TICKS_PER_SECOND as u32 / 4;
 
 /// Clicks on the title that unlock Speed Colours (TRIAGE row 26).
 const TITLE_CLICKS: u32 = 10;
@@ -212,6 +212,9 @@ pub struct App {
     pub screen: Screen,
     /// clicks on the title text, toward the secret (TRIAGE row 26)
     title_clicks: u32,
+    /// where the title's flyover starts, metres along (group Y's test hook,
+    /// `?at=800` on the page)
+    fly_from: i32,
     /// the title's background is celebrating an unlock, until the screen
     /// changes
     celebrate: bool,
@@ -268,6 +271,7 @@ impl App {
             settings: Settings::parse(settings_json),
             screen: Screen::Title,
             title_clicks: 0,
+            fly_from: 0,
             celebrate: false,
             stage: Stage::Flyover,
             play: None,
@@ -624,8 +628,27 @@ impl App {
             .filter(|r| r.fits(&self.course))
     }
 
+    /// A look at another map before the map selector (group Y's test hook,
+    /// `?map=city` on the page).
+    fn preview_map(&mut self, key: &str) {
+        let Some(course) = crate::map::Map::from_key(key).map(|m| m.course()) else {
+            return;
+        };
+        self.jungle = scene::scenery(&course);
+        self.course = course;
+        self.scene_version += 1;
+    }
+
     /// A button or field: `id` names it, `value` is its new value.
     pub fn act(&mut self, id: &str, value: &str) {
+        if id == "flag.map" {
+            self.preview_map(value);
+            return;
+        }
+        if id == "flag.fly_at" {
+            self.fly_from = int(value.parse::<i32>().unwrap_or(0).clamp(0, 5000));
+            return;
+        }
         if id.starts_with("flag.") {
             self.online_flag(id, value);
             return;
@@ -1050,19 +1073,7 @@ impl App {
 
     /// A slow glide down the course, for the title.
     fn flyover(&self) -> Camera {
-        let c = &self.course;
-        let s = (self.ticks as i64 * int(6) as i64 / rules::TICKS_PER_SECOND as i64
-            % (c.length - int(100)) as i64) as i32
-            + int(40);
-        let p = c.point(s);
-        let ahead = c.point(s + int(30));
-        let eye = v3(p.x, crate::course::ground(p.x, p.z) + int(14), p.z);
-        let look = v3(ahead.x, eye.y - int(3), ahead.z);
-        Camera {
-            eye,
-            fwd: look.sub(eye).norm(),
-            fov: deg(70),
-        }
+        scene::flyover_camera(&self.course, self.ticks, self.fly_from)
     }
 
     /// This frame's view values, dynamic instances and draws.
@@ -1080,14 +1091,19 @@ impl App {
             _ => (0, 0),
         };
         let vivid = self.settings.colourblind;
+        // each map has its own sky, fog and light (the City at dusk)
+        let look = match (&self.play, self.stage) {
+            (Some(p), Stage::Race) => scene::look_of(&p.race.course),
+            _ => scene::look_of(&self.course),
+        };
         // the colourblind mode mutes the sky and the fog as well (TRIAGE T33)
         let (sky, fog) = if vivid {
             (
-                crate::sky::grey(scene::SKY, crate::sky::MUTE),
-                crate::sky::grey(scene::FOG, crate::sky::MUTE),
+                crate::sky::grey(look.sky, crate::sky::MUTE),
+                crate::sky::grey(look.fog, crate::sky::MUTE),
             )
         } else {
-            (scene::SKY, scene::FOG)
+            (look.sky, look.fog)
         };
         let colours = crate::sky::colours(sky, fog, speed, metres);
         let world = crate::sky::world(speed, metres);
@@ -1095,10 +1111,11 @@ impl App {
         let view = render::view_values(
             &cam,
             self.aspect(),
-            scene::fog_range(),
+            look.fog_range,
             colours,
             world,
             mute,
+            (look.light_dir, look.light, look.ground),
         );
         let (vines, batch) = match self.stage {
             Stage::Race => match &self.play {
@@ -1122,10 +1139,7 @@ impl App {
                 }
                 None => (Batch::new(), Batch::new()),
             },
-            Stage::Flyover => (
-                scene::flyover_dynamic(&self.course, self.ticks, vivid),
-                Batch::new(),
-            ),
+            Stage::Flyover => scene::flyover_dynamic(&self.course, self.ticks, vivid, cam.eye),
             Stage::Showcase => {
                 let mut b = Batch::new();
                 models::showcase(&mut b, self.settings.kind, self.ticks);
@@ -2394,6 +2408,28 @@ mod tests {
     }
 
     #[test]
+    fn the_frame_carries_its_maps_light() {
+        // the City at dusk, the Jungle at midday (`scene::look`)
+        let mut a = app();
+        let light = |a: &App| a.frame().0[38..47].to_vec();
+        let j = scene::look(crate::map::Map::Jungle);
+        assert_eq!(
+            light(&a)[0..3],
+            [j.light_dir.x, j.light_dir.y, j.light_dir.z]
+        );
+        a.act("flag.map", "city");
+        let c = scene::look_of(&crate::map::Map::City.course());
+        let v = light(&a);
+        assert_eq!(v[0..3], [c.light_dir.x, c.light_dir.y, c.light_dir.z]);
+        assert_eq!(v[3..6], c.light);
+        assert_eq!(v[6..9], c.ground);
+        assert_eq!(a.frame().0[21..24], c.fog);
+        a.act("menu.race", "");
+        a.act("menu.start", "");
+        assert_eq!(light(&a)[3..6], c.light);
+    }
+
+    #[test]
     fn every_screen_has_a_view_model_and_a_frame() {
         let mut a = app();
         for id in [
@@ -2407,7 +2443,7 @@ mod tests {
             let ui: Value = serde_json::from_str(&a.ui()).unwrap();
             assert!(ui["screen"].is_string());
             let (view, _, _) = a.frame();
-            assert_eq!(view.len(), 38);
+            assert_eq!(view.len(), 47);
             let (statics, _, _) = a.static_scene();
             assert!(!statics.is_empty());
         }
@@ -2572,7 +2608,7 @@ mod tests {
         // the cameras all give a view
         for v in ["orbit", "trackside", "chase"] {
             a.act("replay.camera", v);
-            assert_eq!(a.frame().0.len(), 38);
+            assert_eq!(a.frame().0.len(), 47);
         }
         // leaving goes back to the race it came from
         a.act("replay.exit", "");

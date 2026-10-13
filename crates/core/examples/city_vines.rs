@@ -7,7 +7,10 @@ use tool_core::course::ground;
 use tool_core::fx::ONE;
 
 fn main() {
-    let a: Vec<i64> = std::env::args().skip(1).map(|a| a.parse().unwrap()).collect();
+    let a: Vec<i64> = std::env::args()
+        .skip(1)
+        .map(|a| a.parse().unwrap())
+        .collect();
     let c = if a[0] == 0 {
         city()
     } else {

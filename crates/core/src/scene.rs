@@ -8,6 +8,7 @@ use crate::course::{
 };
 use crate::fx::{self, cm, deg, int, mul, sin, ONE};
 use crate::geom::{right_of, v3, Affine, V3};
+use crate::map::Map;
 use crate::mesh::{Mesh, VERTEX_VALUES};
 use crate::models::{self, Pose};
 use crate::race::Race;
@@ -47,7 +48,7 @@ const VINE_WIDTH_VIVID: i32 = cm(30);
 /// An item vine's flowers (TRIAGE T46): violet petals round a white heart,
 /// apart from the in-reach yellow and from red; told apart by shape (five
 /// petals) and count (three up the vine) too, for the colourblind mode.
-const PETAL: Rgb = rgb(160, 96, 255);
+pub(crate) const PETAL: Rgb = rgb(160, 96, 255);
 const HEART: Rgb = rgb(255, 252, 236);
 const BUD: Rgb = rgb(96, 120, 80);
 const FLOWERS: [Rgb; 4] = [
@@ -87,16 +88,54 @@ const BANNER: Rgb = rgb(240, 236, 220);
 const BANNER_DARK: Rgb = rgb(40, 40, 46);
 const SHADOW: Rgb = rgb(34, 40, 30);
 
+/// How a map is lit: the sky's and the fog's colours, where the fog
+/// starts and ends, the light's direction (toward the sun) and colour, and
+/// the ground's bounce. The Jungle at midday; the City at dusk.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Look {
+    pub sky: Rgb,
+    pub fog: Rgb,
+    pub fog_range: (i32, i32),
+    pub light_dir: V3,
+    pub light: Rgb,
+    pub ground: Rgb,
+}
+
+/// The look of a map.
+pub fn look(map: Map) -> Look {
+    match map {
+        Map::Jungle => Look {
+            sky: SKY,
+            fog: FOG,
+            // PLAN P10: about 150 m
+            fog_range: (int(60), int(170)),
+            light_dir: v3(cm(55), cm(80), cm(35)).norm(),
+            light: rgb(255, 244, 214),
+            ground: rgb(70, 110, 50),
+        },
+        Map::City => crate::cityscape::look(),
+    }
+}
+
+/// The look of the map a course was built for.
+pub fn look_of(c: &Course) -> Look {
+    match Map::of(c) {
+        // the light comes from the sun drawn on its horizon
+        Map::City => crate::cityscape::look_for(c),
+        Map::Jungle => look(Map::Jungle),
+    }
+}
+
 /// The light: its direction (toward the sun), its colour; the sky's and the
-/// fog's colours; the ground's bounce. Uploaded with the scene.
+/// fog's colours; the ground's bounce. Uploaded with the scene (the
+/// Jungle's; each frame then sends its own map's light, `Look`).
 pub fn uniforms() -> Vec<i32> {
-    let dir = v3(cm(55), cm(80), cm(35)).norm();
-    let light = rgb(255, 244, 214);
-    let mut v = vec![dir.x, dir.y, dir.z];
-    v.extend(light);
-    v.extend(SKY);
-    v.extend(FOG);
-    v.extend(rgb(70, 110, 50));
+    let l = look(Map::Jungle);
+    let mut v = vec![l.light_dir.x, l.light_dir.y, l.light_dir.z];
+    v.extend(l.light);
+    v.extend(l.sky);
+    v.extend(l.fog);
+    v.extend(l.ground);
     v
 }
 
@@ -106,7 +145,7 @@ pub fn clear_colour() -> Vec<i32> {
 
 /// The fog's start and end, in metres from the eye (PLAN P10: about 150 m).
 pub fn fog_range() -> (i32, i32) {
-    (int(60), int(170))
+    look(Map::Jungle).fog_range
 }
 
 /// The ground under the course: a strip of faceted triangles following the
@@ -119,7 +158,7 @@ pub fn terrain(c: &Course) -> Vec<i32> {
 
 /// The course's chunks: one per `CHUNK` centreline samples, and one more
 /// for the clearing past the finish.
-fn chunk_count(c: &Course) -> usize {
+pub(crate) fn chunk_count(c: &Course) -> usize {
     c.path.len().div_ceil(CHUNK) + 1
 }
 
@@ -214,7 +253,7 @@ fn terrain_chunked(c: &Course, n: usize) -> (Vec<i32>, Vec<(usize, u32, u32)>) {
 }
 
 /// One flat-shaded ground facet, turned to face up.
-fn push_ground(o: &mut Vec<i32>, p: [V3; 3], t: Rgb) {
+pub(crate) fn push_ground(o: &mut Vec<i32>, p: [V3; 3], t: Rgb) {
     let up = p[1].sub(p[0]).cross(p[2].sub(p[0]));
     let p = if up.y < 0 { [p[0], p[2], p[1]] } else { p };
     let n = p[1].sub(p[0]).cross(p[2].sub(p[0])).norm();
@@ -271,19 +310,26 @@ impl Scenery {
     }
 }
 
-/// Builds the course's scenery and ground, chunked.
+/// The chunk a scenery shape at `p` goes in, of `n`.
+pub(crate) fn chunk_of(c: &Course, p: V3, n: usize) -> usize {
+    let last = c.path.len() - 1;
+    let i = c.nearest_anywhere(p);
+    if i == last && p.flat().sub(c.path[last]).dot(c.heading[last]) > 0 {
+        n - 1
+    } else {
+        (i / CHUNK).min(n - 2)
+    }
+}
+
+/// Builds the course's scenery and ground, chunked. The City has its own
+/// (`cityscape.rs`).
 pub fn scenery(c: &Course) -> Scenery {
+    if let Some(city) = &c.city {
+        return crate::cityscape::scenery(c, city);
+    }
     let n = chunk_count(c);
     let mut batches: Vec<Batch> = (0..n).map(|_| Batch::new()).collect();
-    let last = c.path.len() - 1;
-    let chunk_of = |p: V3| {
-        let i = c.nearest_anywhere(p);
-        if i == last && p.flat().sub(c.path[last]).dot(c.heading[last]) > 0 {
-            n - 1
-        } else {
-            (i / CHUNK).min(n - 2)
-        }
-    };
+    let chunk_of = |p: V3| chunk_of(c, p, n);
     for p in &c.props {
         let at = match *p {
             Prop::Tree { at, .. } | Prop::Bush { at, .. } | Prop::Fern { at, .. } => at,
@@ -307,12 +353,25 @@ pub fn scenery(c: &Course) -> Scenery {
     }
     finish_arch(&mut batches[n - 2], c);
     outro(&mut batches[n - 1], c);
-    // the terrain's one instance comes first; its draws name vertex ranges
+    let (terrain, ranges) = terrain_chunked(c, n);
+    assemble(c, batches, terrain, ranges)
+}
+
+/// The scenery from its chunks' shapes and the ground with each chunk's
+/// vertex ranges: the terrain's one instance first, each chunk's draws
+/// naming its own ranges.
+pub(crate) fn assemble(
+    c: &Course,
+    batches: Vec<Batch>,
+    terrain: Vec<i32>,
+    ranges: Vec<(usize, u32, u32)>,
+) -> Scenery {
+    let last = c.path.len() - 1;
+    let n = batches.len();
     let mut values = Vec::new();
     let mut identity = Batch::new();
     identity.push(Mesh::Terrain, &Affine::IDENTITY, [ONE; 3], 0);
     identity.finish_into(crate::render::STATIC_BUFFER, &mut values);
-    let (terrain, ranges) = terrain_chunked(c, n);
     let mut chunks = Vec::new();
     for (k, b) in batches.into_iter().enumerate() {
         let mut draws = b.finish_into(crate::render::STATIC_BUFFER, &mut values);
@@ -352,7 +411,7 @@ fn slab(a: V3, b: V3, width: i32, thick: i32) -> Affine {
 }
 
 /// A point `r` out from `at` at angle `a` round it, `up` above it.
-fn around(at: V3, a: i32, r: i32, up: i32) -> V3 {
+pub(crate) fn around(at: V3, a: i32, r: i32, up: i32) -> V3 {
     at.add(v3(mul(fx::sin(a), r), up, mul(fx::cos(a), r)))
 }
 
@@ -1129,6 +1188,26 @@ pub fn vine_look(in_reach: bool, vivid: bool, tick: u32) -> VineLook {
     }
 }
 
+/// The look of a vine on a map: the Jungle's green vines, or the City's
+/// electric wires (dark cable glowing faintly cyan; vivid cyan in the
+/// colourblind mode). In reach, either map's vine takes the same yellow,
+/// or the same pulsing white in the colourblind mode.
+pub fn vine_look_on(map: Map, in_reach: bool, vivid: bool, tick: u32) -> VineLook {
+    let look = vine_look(in_reach, vivid, tick);
+    match (map, in_reach, vivid) {
+        (Map::City, false, false) => VineLook {
+            colour: crate::cityscape::WIRE,
+            glow: ONE * 9 / 20,
+            ..look
+        },
+        (Map::City, false, true) => VineLook {
+            colour: crate::cityscape::WIRE_VIVID,
+            ..look
+        },
+        _ => look,
+    }
+}
+
 /// Everything that moves: the vines and their flowers (drawn as
 /// `render::VINES`), and the rest.
 pub fn dynamic(f: &Frame) -> (Batch, Batch) {
@@ -1153,26 +1232,29 @@ pub fn dynamic(f: &Frame) -> (Batch, Batch) {
             held[v] = Some(f.apes[k]);
         }
     }
+    let map = Map::of(c);
+    // the City's wires carry no leaves
+    let leafy = map == Map::Jungle;
     for i in 0..c.vines.len() {
         let a = c.anchor(i, tick);
         if a.flat().sub(eye.flat()).len() > int(230) {
             continue;
         }
-        let look = vine_look(Some(i) == reach, f.vivid, f.tick);
+        let look = vine_look_on(map, Some(i) == reach, f.vivid, f.tick);
         let look = catch_up_look(race, f.local, i, Some(i) == reach, look);
+        let t = f.tick + i as u32 * 37;
         match f.chains.get(i) {
-            Some(chain) => chain_vine(&mut vines, chain, held[i], look, f.tick + i as u32 * 37),
-            None => vine(
-                &mut vines,
-                a,
-                c.vines[i].length,
-                held[i],
-                look,
-                f.tick + i as u32 * 37,
-            ),
+            Some(chain) => chain_vine(&mut vines, chain, held[i], look, t, leafy),
+            None => vine(&mut vines, a, c.vines[i].length, held[i], look, t, leafy),
         }
     }
     item_flowers(&mut vines, f, &held);
+    // what the City's vines hang from, where it moves
+    if let Some(city) = &c.city {
+        crate::cityscape::hangers_dynamic(&mut b, c, city, eye, f.tick, tick);
+        crate::cityscape::cars_dynamic(&mut b, c, city, eye, tick);
+        crate::cityscape::sun(&mut b, c, eye);
+    }
     for (k, r) in race.racers.iter().enumerate() {
         // Floor is Lava (TRIAGE T37): the jaguar, and the ape until the bite
         if let Some(e) = r.eaten {
@@ -1265,6 +1347,26 @@ fn item_flowers(b: &mut Batch, f: &Frame, held: &[Option<V3>]) {
         }
         let open = race.crates.get(k).copied().unwrap_or(0) == 0;
         let pts = vine_points(f, i, held.get(i).copied().flatten());
+        // on the City, sparks along the wire, and dull insulators while
+        // its item is taken
+        if Map::of(&race.course) == Map::City {
+            for (j, t) in FLOWER_AT.into_iter().enumerate() {
+                let side = if j % 2 == 0 { cm(30) } else { -cm(30) };
+                let at = along(&pts, t).add(right.scale(side));
+                if open {
+                    let spin = f.tick as i32 * 700 + (k * 3 + j) as i32 * 9000;
+                    crate::cityscape::spark(b, at, spin);
+                } else {
+                    b.push(
+                        Mesh::Hex,
+                        &placed(at, 0, v3(cm(36), cm(44), cm(36))),
+                        crate::cityscape::INSULATOR,
+                        0,
+                    );
+                }
+            }
+            continue;
+        }
         for (j, t) in FLOWER_AT.into_iter().enumerate() {
             // beside the vine, on alternate sides as the camera sees it
             let side = if j % 2 == 0 { cm(40) } else { -cm(40) };
@@ -1400,7 +1502,7 @@ fn catch_up_look(
 
 /// A vine from its anchor: straight down and swaying a little; or, when
 /// held, taut from the anchor to the hands with the rest dangling below.
-fn vine(b: &mut Batch, a: V3, length: i32, hands: Option<V3>, look: VineLook, t: u32) {
+fn vine(b: &mut Batch, a: V3, length: i32, hands: Option<V3>, look: VineLook, t: u32, leafy: bool) {
     let VineLook {
         colour,
         glow,
@@ -1415,7 +1517,9 @@ fn vine(b: &mut Batch, a: V3, length: i32, hands: Option<V3>, look: VineLook, t:
                 let end = h.sub(v3(0, rest, 0));
                 b.push(Mesh::Cyl, &rod(h, end, width), colour, glow);
             }
-            leaves(b, a, h, t);
+            if leafy {
+                leaves(b, a, h, t);
+            }
         }
         None => {
             // sway: the bottom drifts a little, in two directions
@@ -1433,7 +1537,9 @@ fn vine(b: &mut Batch, a: V3, length: i32, hands: Option<V3>, look: VineLook, t:
                 colour,
                 glow,
             );
-            leaves(b, a, bottom, t);
+            if leafy {
+                leaves(b, a, bottom, t);
+            }
         }
     }
 }
@@ -1446,6 +1552,7 @@ fn chain_vine(
     hands: Option<V3>,
     look: VineLook,
     t: u32,
+    leafy: bool,
 ) {
     let VineLook {
         colour,
@@ -1481,6 +1588,9 @@ fn chain_vine(
             colour,
             glow,
         );
+    }
+    if !leafy {
+        return;
     }
     for k in (1..pts.len() - 1).step_by(2) {
         let side = if k % 4 == 1 { cm(18) } else { -cm(18) };
@@ -1601,23 +1711,92 @@ fn stage_batch() -> Batch {
     b
 }
 
+/// A place on a map to show an ape on the selection screen, in front of
+/// the map's own scenery (`scenery(c).draws_near(camera.eye)`): where its
+/// feet stand, the way it faces (toward the camera), and the camera. On
+/// the Jungle the start platform's deck, the jungle behind; on the City a
+/// street corner in Midtown at dusk (`cityscape::preview`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Preview {
+    pub feet: V3,
+    pub yaw: i32,
+    pub camera: Camera,
+}
+
+pub fn preview(c: &Course) -> Preview {
+    let (feet, yaw, camera) = match Map::of(c) {
+        Map::City => crate::cityscape::preview(c),
+        Map::Jungle => {
+            let pl = c.platforms.first();
+            let feet = pl.map_or(c.point(int(4)), |p| {
+                v3(p.centre.x, p.top, p.centre.z).add(p.fwd.scale(p.half_len / 2))
+            });
+            let fwd = c.heading_at(0);
+            let eye = feet.add(fwd.scale(-cm(290))).add(v3(0, cm(125), 0));
+            let target = feet.add(v3(0, cm(62), 0));
+            (
+                feet,
+                crate::geom::yaw_of(eye.sub(feet).flat()),
+                Camera {
+                    eye,
+                    fwd: target.sub(eye).norm(),
+                    fov: deg(34),
+                },
+            )
+        }
+    };
+    Preview { feet, yaw, camera }
+}
+
+/// The title's flyover: a slow glide down the course, starting `from`
+/// metres along. Over the City a little higher, to see over the cars.
+pub fn flyover_camera(c: &Course, ticks: u32, from: i32) -> Camera {
+    let lap = (c.length - int(100)).max(int(1)) as i64;
+    let s = ((ticks as i64 * int(6) as i64 / crate::rules::TICKS_PER_SECOND as i64 + from as i64)
+        % lap) as i32
+        + int(40);
+    let p = c.point(s);
+    let ahead = c.point(s + int(30));
+    let lift = match Map::of(c) {
+        Map::Jungle => int(14),
+        Map::City => int(18),
+    };
+    let eye = v3(p.x, ground(p.x, p.z) + lift, p.z);
+    let look = v3(ahead.x, eye.y - int(3), ahead.z);
+    Camera {
+        eye,
+        fwd: look.sub(eye).norm(),
+        fov: deg(70),
+    }
+}
+
 /// What moves behind the title: the vines, swaying (drawn as
 /// `render::VINES`).
-pub fn flyover_dynamic(c: &Course, tick: u32, vivid: bool) -> Batch {
+pub fn flyover_dynamic(c: &Course, tick: u32, vivid: bool, eye: V3) -> (Batch, Batch) {
     let mut b = Batch::new();
-    let look = vine_look(false, vivid, tick);
+    let mut rest = Batch::new();
+    let map = Map::of(c);
+    let look = vine_look_on(map, false, vivid, tick);
     for i in 0..c.vines.len() {
         let a = c.anchor(i, tick);
+        let t = tick + i as u32 * 37;
         vine(
             &mut b,
             a,
             c.vines[i].length,
             None,
             look,
-            tick + i as u32 * 37,
+            t,
+            map == Map::Jungle,
         );
     }
-    b
+    // the City's helicopters and crane hooks, near the flyover's eye
+    if let Some(city) = &c.city {
+        crate::cityscape::hangers_dynamic(&mut rest, c, city, eye, tick, tick);
+        crate::cityscape::cars_dynamic(&mut rest, c, city, eye, tick);
+        crate::cityscape::sun(&mut rest, c, eye);
+    }
+    (b, rest)
 }
 
 #[cfg(test)]
@@ -1806,6 +1985,63 @@ mod tests {
         let marks =
             coloured(b.clone(), Mesh::Blob, PETAL).len() + coloured(b, Mesh::Sphere, BUD).len();
         assert_eq!(marks, 0, "flowers drawn with no items allowed");
+    }
+
+    #[test]
+    fn city_vines_are_glowing_wires_that_keep_the_reach_and_colourblind_looks() {
+        // the City's vines are electric cables, without leaves; in reach and
+        // in the colourblind mode they read as the Jungle's do (TRIAGE T33)
+        let wire = vine_look_on(Map::City, false, false, 0);
+        assert_eq!(wire.colour, crate::cityscape::WIRE);
+        assert!(wire.glow > 0 && wire.glow < ONE / 2);
+        for (reach, vivid, t) in [(true, false, 0), (true, true, 0), (true, true, 40)] {
+            assert_eq!(
+                vine_look_on(Map::City, reach, vivid, t),
+                vine_look(reach, vivid, t)
+            );
+        }
+        let vivid = vine_look_on(Map::City, false, true, 0);
+        let luma = |c: Rgb| (c[0] * 30 + c[1] * 59 + c[2] * 11) / 100;
+        assert!(luma(vivid.colour) > luma(wire.colour) + ONE / 5);
+        assert_eq!(vivid.width, vine_look(false, true, 0).width);
+        // the Jungle's are unchanged
+        for (reach, vivid) in [(false, false), (true, false), (false, true), (true, true)] {
+            assert_eq!(
+                vine_look_on(Map::Jungle, reach, vivid, 9),
+                vine_look(reach, vivid, 9)
+            );
+        }
+        // a wire carries no leaves
+        let mut b = Batch::new();
+        vine(&mut b, v3(0, int(40), 0), int(25), None, wire, 0, false);
+        assert_eq!(b.count_of(Mesh::Blob), 0);
+        let mut b = Batch::new();
+        vine(
+            &mut b,
+            v3(0, int(40), 0),
+            int(25),
+            None,
+            vine_look(false, false, 0),
+            0,
+            true,
+        );
+        assert!(b.count_of(Mesh::Blob) > 0);
+    }
+
+    #[test]
+    fn each_map_has_its_own_sky_and_light() {
+        let (j, c) = (look(Map::Jungle), look(Map::City));
+        assert_ne!(j.light, c.light);
+        assert_ne!(j.fog, c.fog);
+        // the City at dusk: a low sun, an orange light, a darker sky
+        assert!(c.light_dir.y < j.light_dir.y / 2);
+        assert!(c.light[2] < c.light[0] * 2 / 3);
+        let luma = |c: Rgb| (c[0] * 30 + c[1] * 59 + c[2] * 11) / 100;
+        assert!(luma(c.sky) < luma(j.sky));
+        // the Jungle keeps the light it was uploaded with
+        let u = uniforms();
+        assert_eq!(&u[0..3], &[j.light_dir.x, j.light_dir.y, j.light_dir.z]);
+        assert_eq!(fog_range(), j.fog_range);
     }
 
     #[test]

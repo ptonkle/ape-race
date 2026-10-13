@@ -389,7 +389,9 @@ impl Ape {
     pub fn swimming(&self, course: &Course) -> bool {
         self.mode == Mode::Grounded
             && self.climb.is_none()
-            && course.water(self.pos).is_some_and(|level| self.feet().y < level)
+            && course
+                .water(self.pos)
+                .is_some_and(|level| self.feet().y < level)
     }
 
     /// In the river: swim (the river's running) toward the nearest way out
