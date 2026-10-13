@@ -14,6 +14,7 @@ use crate::course::Course;
 use crate::focus::{self, Focus};
 use crate::fx::{self, deg, int, ONE};
 use crate::geom::{v3, V3};
+use crate::map::Map;
 use crate::models;
 use crate::race::{Driver, Entry, Event, Phase, Race};
 use crate::render::{self, Batch, Camera};
@@ -25,6 +26,9 @@ use crate::trial;
 
 mod online_play;
 pub use online_play::OnlinePlay;
+#[cfg(test)]
+mod map_tests;
+mod medals;
 mod menu_dock;
 #[cfg(test)]
 mod setup_tests;
@@ -88,8 +92,22 @@ pub struct Settings {
     pub items: crate::items::ItemSet,
     /// the colourblind mode (TRIAGE T33): the world muted, the vines vivid
     pub colourblind: bool,
+    /// the map last chosen for a race, a Time Trial or a hosted lobby (the
+    /// title flies over it); settings saved before the City read as Jungle
+    pub map: Map,
+    /// the bests on every map but the Jungle, by the map's key (the
+    /// Jungle's stay in `best` and `trial_best`, as saved before the City)
+    pub bests: BTreeMap<String, Bests>,
     /// Floor is Lava (TRIAGE T37): touch the ground and a jaguar eats you
     pub lava: bool,
+}
+
+/// One map's personal bests, in race ticks.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct Bests {
+    pub race: Option<u32>,
+    pub trial: Option<u32>,
 }
 
 impl Default for Settings {
@@ -111,6 +129,8 @@ impl Default for Settings {
             ghost: true,
             items: crate::items::ItemSet::ALL,
             colourblind: false,
+            map: Map::default(),
+            bests: BTreeMap::new(),
             lava: false,
         }
     }
@@ -130,6 +150,33 @@ impl Settings {
         s.speed_colours &= s.colours_unlocked;
         s
     }
+
+    /// The personal best on `map`, of a Time Trial (`trial`) or a race.
+    pub fn best(&self, map: Map, trial: bool) -> Option<u32> {
+        match (map, trial) {
+            (Map::Jungle, false) => self.best,
+            (Map::Jungle, true) => self.trial_best,
+            _ => self
+                .bests
+                .get(map.key())
+                .and_then(|b| if trial { b.trial } else { b.race }),
+        }
+    }
+
+    fn best_mut(&mut self, map: Map, trial: bool) -> &mut Option<u32> {
+        match (map, trial) {
+            (Map::Jungle, false) => &mut self.best,
+            (Map::Jungle, true) => &mut self.trial_best,
+            _ => {
+                let b = self.bests.entry(map.key().to_string()).or_default();
+                if trial {
+                    &mut b.trial
+                } else {
+                    &mut b.race
+                }
+            }
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
@@ -148,10 +195,27 @@ pub enum Screen {
     Replays,
 }
 
+/// The static scenery the page holds: `scene_version` changes with it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Shown {
+    /// the small jungle stage (the Jungle's ape preview, the lineup)
+    StageSet,
+    /// a map's whole scenery (the flyover, a race, the City's ape preview)
+    World(Map),
+}
+
+/// How many maps there are: the size of the course and scenery caches.
+const MAPS: usize = Map::ALL.len();
+
+/// A map's place in the caches.
+fn slot(map: Map) -> usize {
+    Map::ALL.iter().position(|m| *m == map).unwrap_or(0)
+}
+
 /// What the 3D view shows.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Stage {
-    /// the jungle, flown over slowly (behind the title)
+    /// the chosen map, flown over slowly (behind the title)
     Flyover,
     /// one ape spinning (race setup)
     Showcase,
@@ -236,9 +300,12 @@ pub struct App {
     scene_version: u32,
     view_w: i32,
     view_h: i32,
-    /// the course and its scenery, built once
-    course: Course,
-    jungle: scene::Scenery,
+    /// each map's course and scenery (in `Map::ALL` order), built when
+    /// first needed and kept
+    courses: [Option<Course>; MAPS],
+    worlds: [Option<scene::Scenery>; MAPS],
+    /// the static scenery the page was last given
+    shown: Shown,
     stage_set: scene::Scenery,
     seed: u64,
     /// the page clock in milliseconds, for online play
@@ -263,12 +330,13 @@ fn s(map: &BTreeMap<String, String>, key: &str) -> String {
 
 impl App {
     pub fn new(strings_json: &str, settings_json: &str, seed: u64) -> Result<App, String> {
-        let course = Course::jungle();
         let strings: BTreeMap<String, String> = serde_json::from_str(strings_json)
             .map_err(|e| format!("The strings file could not be read: {e}"))?;
-        Ok(App {
+        let settings = Settings::parse(settings_json);
+        let map = settings.map;
+        let mut app = App {
             strings,
-            settings: Settings::parse(settings_json),
+            settings,
             screen: Screen::Title,
             title_clicks: 0,
             fly_from: 0,
@@ -288,9 +356,10 @@ impl App {
             scene_version: 1,
             view_w: 1280,
             view_h: 720,
-            jungle: scene::scenery(&course),
+            courses: Default::default(),
+            worlds: Default::default(),
+            shown: Shown::World(map),
             stage_set: scene::stage_set(),
-            course,
             seed,
             now_ms: 0,
             online: OnlinePlay::default(),
@@ -300,11 +369,112 @@ impl App {
             last_r: None,
             stash: None,
             replay_exit: Screen::Title,
-        })
+        };
+        // only the map the title flies over is built now; the others when
+        // first chosen
+        app.ensure_world(map);
+        Ok(app)
     }
 
     pub fn t(&self, key: &str) -> String {
         s(&self.strings, key)
+    }
+
+    // ---- the maps ----
+
+    fn ensure_course(&mut self, map: Map) {
+        let k = slot(map);
+        if self.courses[k].is_none() {
+            self.courses[k] = Some(map.course());
+        }
+    }
+
+    /// Builds a map's course and scenery, unless they are built already.
+    fn ensure_world(&mut self, map: Map) {
+        self.ensure_course(map);
+        let k = slot(map);
+        if self.worlds[k].is_none() {
+            self.worlds[k] = self.courses[k].as_ref().map(scene::scenery);
+        }
+    }
+
+    /// A map's course, once built.
+    pub(crate) fn course_of(&self, map: Map) -> Option<&Course> {
+        self.courses[slot(map)].as_ref()
+    }
+
+    /// Whether a map's scenery has been built (it is built when first shown).
+    #[cfg(test)]
+    fn built(&self, map: Map) -> bool {
+        self.worlds[slot(map)].is_some()
+    }
+
+    /// The map the menus are set to: in a lobby the host's choice, else
+    /// the last chosen.
+    pub(crate) fn map(&self) -> Map {
+        match &self.online.session {
+            Some(o) if self.screen == Screen::Lobby => o.map(),
+            _ => self.settings.map,
+        }
+    }
+
+    /// The map the 3D view is on: a race's own, else the menus'.
+    fn shown_map(&self) -> Map {
+        match (&self.play, self.stage) {
+            (Some(p), Stage::Race) => Map::of(&p.race.course),
+            _ => self.map(),
+        }
+    }
+
+    fn wanted_scene(&self) -> Shown {
+        let map = self.shown_map();
+        match self.stage {
+            Stage::Lineup => Shown::StageSet,
+            Stage::Showcase if map == Map::Jungle => Shown::StageSet,
+            _ => Shown::World(map),
+        }
+    }
+
+    /// Builds what the screen now needs (the shown map's scenery, the
+    /// courses the Replays list checks its runs against) and moves the
+    /// scene version on when the static scenery changes.
+    fn settle_scene(&mut self) {
+        let map = self.shown_map();
+        self.ensure_course(map);
+        let want = self.wanted_scene();
+        if let Shown::World(m) = want {
+            self.ensure_world(m);
+        }
+        if self.screen == Screen::Replays {
+            let kept: Vec<Map> = self
+                .library
+                .listing()
+                .iter()
+                .filter_map(|(r, _)| Map::from_key(&r.course))
+                .collect();
+            for m in kept {
+                self.ensure_course(m);
+            }
+        }
+        if want != self.shown {
+            self.shown = want;
+            self.scene_version += 1;
+        }
+    }
+
+    /// The map choice on Race Setup, Time Trial and the host's lobby.
+    pub(crate) fn map_select(&self, id: &str) -> Value {
+        let options: Vec<Value> = Map::ALL
+            .iter()
+            .map(|m| json!({ "value": m.key(), "text": self.map_name(*m) }))
+            .collect();
+        json!({ "type": "select", "id": id, "label": self.t("setup.map"),
+                "value": self.map().key(), "options": options })
+    }
+
+    /// A map's name, as shown.
+    pub(crate) fn map_name(&self, map: Map) -> String {
+        self.t(&format!("map.{}", map.key()))
     }
 
     // ---- input ----
@@ -446,20 +616,14 @@ impl App {
             Screen::Lineup => Stage::Lineup,
             Screen::Race => Stage::Race,
         };
-        if stage != self.stage {
-            // the jungle's scenery serves the flyover and the race alike
-            let jungle = |s: Stage| matches!(s, Stage::Flyover | Stage::Race);
-            if !(jungle(stage) && jungle(self.stage)) {
-                self.scene_version += 1;
-            }
-            self.stage = stage;
-        }
+        self.stage = stage;
         if screen != Screen::Race {
             if let Some(mut p) = self.play.take() {
                 self.keep_recording(&mut p);
             }
             self.stash = None;
         }
+        self.settle_scene();
     }
 
     /// Puts a finished run into the replay library, or brings the one kept
@@ -555,10 +719,17 @@ impl App {
     /// Starts watching `rec`; leaving goes back to `exit` (or to the
     /// stashed race's results).
     fn watch(&mut self, rec: Recording, exit: Screen) -> bool {
-        if !rec.fits(&self.course) {
+        let Some(map) = Map::from_key(&rec.course) else {
             return false;
-        }
-        let race = rec.race(&self.course);
+        };
+        self.ensure_world(map);
+        let Some(race) = self
+            .course_of(map)
+            .filter(|c| rec.fits(c))
+            .map(|c| rec.race(c))
+        else {
+            return false;
+        };
         let local = rec.local;
         self.begin(race, local);
         self.replay_exit = exit;
@@ -621,22 +792,22 @@ impl App {
         }
     }
 
-    /// The best kept run of the setup's mode, when it fits the course.
+    /// The best kept run of the setup's mode on its map, when it fits the
+    /// map's course as it is now.
     fn best_replay(&self) -> Option<&Recording> {
+        let course = self.course_of(self.settings.map)?;
         self.library
-            .best_of(self.course.name, self.mode())
-            .filter(|r| r.fits(&self.course))
+            .best_of(course.name, self.mode())
+            .filter(|r| r.fits(course))
     }
 
     /// A look at another map before the map selector (group Y's test hook,
     /// `?map=city` on the page).
     fn preview_map(&mut self, key: &str) {
-        let Some(course) = crate::map::Map::from_key(key).map(|m| m.course()) else {
-            return;
-        };
-        self.jungle = scene::scenery(&course);
-        self.course = course;
-        self.scene_version += 1;
+        if let Some(map) = crate::map::Map::from_key(key) {
+            self.settings.map = map;
+            self.settle_scene();
+        }
     }
 
     /// A button or field: `id` names it, `value` is its new value.
@@ -703,6 +874,12 @@ impl App {
             "setup.ghost" => {
                 self.settings.ghost = value == "on";
                 self.save = true;
+            }
+            "setup.map" => {
+                if let Some(m) = Map::from_key(value) {
+                    self.settings.map = m;
+                    self.save = true;
+                }
             }
             "menu.settings" => self.go(Screen::Settings),
             "menu.back" | "menu.main" | "menu.quit" => self.go(Screen::Title),
@@ -791,6 +968,7 @@ impl App {
             }
             _ => {}
         }
+        self.settle_scene();
     }
 
     fn start_race(&mut self) {
@@ -819,12 +997,10 @@ impl App {
                 driver: Driver::Ai,
             });
         }
-        let mut race = Race::new(
-            self.course.clone(),
-            &entries,
-            self.settings.equal_stats,
-            d.next(),
-        );
+        let map = self.settings.map;
+        self.ensure_world(map);
+        let course = self.course_of(map).cloned().unwrap_or_else(|| map.course());
+        let mut race = Race::new(course, &entries, self.settings.equal_stats, d.next());
         // a Time Trial: crates give only the Speed Boost (TRIAGE T13);
         // otherwise the items ticked on the setup (T42)
         race.items = if self.trial {
@@ -841,7 +1017,7 @@ impl App {
         let ghost = self
             .best_replay()
             .filter(|_| self.trial && self.settings.ghost)
-            .and_then(|r| Ghost::new(r, &self.course));
+            .and_then(|r| self.course_of(map).and_then(|c| Ghost::new(r, c)));
         if let Some(p) = &mut self.play {
             p.trial = self.trial;
             p.record = Some(record);
@@ -886,6 +1062,7 @@ impl App {
             replay: None,
             ghost: None,
         });
+        self.settle_scene();
     }
 
     // ---- the clock ----
@@ -910,6 +1087,8 @@ impl App {
         self.now_ms = now_us / 1000;
         self.online_frame();
         self.alpha = ((self.acc * ONE as i64) / TICK_COST) as i32;
+        // a joiner's lobby follows the host's map
+        self.settle_scene();
         // mouse movement is applied once a frame
         let (dx, dy) = std::mem::take(&mut self.mouse);
         if let Some(p) = &mut self.play {
@@ -982,12 +1161,9 @@ impl App {
         let me = &p.race.racers[p.local];
         if me.out() {
             if let (None, Some(t)) = (p.since_out, me.finish) {
-                // a personal best is kept with the settings, one per mode
-                let best = if p.trial {
-                    &mut self.settings.trial_best
-                } else {
-                    &mut self.settings.best
-                };
+                // a personal best is kept with the settings, one per map
+                // and mode
+                let best = self.settings.best_mut(Map::of(&p.race.course), p.trial);
                 p.new_best = best.map(|b| t < b).unwrap_or(true);
                 if p.new_best {
                     *best = Some(t);
@@ -1039,9 +1215,9 @@ impl App {
     }
 
     fn scenery(&self) -> &scene::Scenery {
-        match self.stage {
-            Stage::Flyover | Stage::Race => &self.jungle,
-            Stage::Showcase | Stage::Lineup => &self.stage_set,
+        match self.shown {
+            Shown::StageSet => &self.stage_set,
+            Shown::World(m) => self.worlds[slot(m)].as_ref().unwrap_or(&self.stage_set),
         }
     }
 
@@ -1065,15 +1241,18 @@ impl App {
                 None => self.flyover(),
             },
             Stage::Flyover => self.flyover(),
-            // framed beside the docked menus (TRIAGE T47)
-            Stage::Showcase => self.framed(models::showcase_camera()),
+            // on the map, framed beside the docked menus (TRIAGE T47)
+            Stage::Showcase => self.preview_camera(),
             Stage::Lineup => models::lineup_camera(self.aspect()),
         }
     }
 
-    /// A slow glide down the course, for the title.
+    /// A slow glide down the chosen map's course, for the title.
     fn flyover(&self) -> Camera {
-        scene::flyover_camera(&self.course, self.ticks, self.fly_from)
+        let Some(c) = self.course_of(self.map()) else {
+            return models::showcase_camera();
+        };
+        scene::flyover_camera(c, self.ticks, self.fly_from)
     }
 
     /// This frame's view values, dynamic instances and draws.
@@ -1094,7 +1273,10 @@ impl App {
         // each map has its own sky, fog and light (the City at dusk)
         let look = match (&self.play, self.stage) {
             (Some(p), Stage::Race) => scene::look_of(&p.race.course),
-            _ => scene::look_of(&self.course),
+            _ => self
+                .course_of(self.shown_map())
+                .map(scene::look_of)
+                .unwrap_or_else(|| scene::look(self.shown_map())),
         };
         // the colourblind mode mutes the sky and the fog as well (TRIAGE T33)
         let (sky, fog) = if vivid {
@@ -1139,12 +1321,11 @@ impl App {
                 }
                 None => (Batch::new(), Batch::new()),
             },
-            Stage::Flyover => scene::flyover_dynamic(&self.course, self.ticks, vivid, cam.eye),
-            Stage::Showcase => {
-                let mut b = Batch::new();
-                models::showcase(&mut b, self.settings.kind, self.ticks);
-                (Batch::new(), b)
-            }
+            Stage::Flyover => self
+                .course_of(self.map())
+                .map(|c| scene::flyover_dynamic(c, self.ticks, vivid, cam.eye))
+                .unwrap_or_default(),
+            Stage::Showcase => self.preview_batches(vivid),
             Stage::Lineup => {
                 let mut b = Batch::new();
                 models::lineup(&mut b, self.ticks);
@@ -1280,13 +1461,14 @@ impl App {
             .collect();
         let stats = self.settings.kind.race_stats(self.settings.equal_stats);
         let mut items = vec![
+            self.map_select("setup.map"),
             json!({ "type": "picker", "id": "setup.ape", "label": self.t("setup.ape"),
               "value": self.settings.kind.key(), "options": kinds,
               "text": self.t(&format!("ape.{}", self.settings.kind.key())) }),
             json!({ "type": "stats", "label": self.t("setup.stats"), "rows": self.stats_rows(&stats) }),
         ];
         if self.trial {
-            items.push(self.medal_table(None));
+            items.push(self.medal_table(self.settings.map, None));
             items.push(
                 json!({ "type": "toggle", "id": "setup.ghost", "label": self.t("setup.ghost"),
               "value": self.settings.ghost }),
@@ -1368,12 +1550,13 @@ impl App {
 
     /// The target times: medal, target (the Author's hidden until Gold is
     /// earned), and a mark on each that `finish` beat.
-    fn medal_table(&self, finish: Option<u32>) -> Value {
-        let shown = trial::author_shown(self.settings.trial_best);
+    fn medal_table(&self, map: Map, finish: Option<u32>) -> Value {
+        let medals = medals::of(map);
+        let shown = medals.author_shown(self.settings.best(map, true));
         let rows: Vec<Value> = trial::Medal::ALL
             .iter()
             .map(|m| {
-                let target = trial::target(*m);
+                let target = medals.target(*m);
                 let text = if *m == trial::Medal::Author && !shown {
                     self.t("trial.hidden")
                 } else {
@@ -1407,7 +1590,11 @@ impl App {
                 if *best {
                     words.push(self.t("replays.best"));
                 }
-                words.push(self.t(&format!("course.{}", r.course)));
+                let map = Map::from_key(&r.course);
+                words.push(match map {
+                    Some(m) => self.map_name(m),
+                    None => r.course.clone(),
+                });
                 words.push(self.t(&format!("mode.{}", r.mode.key())));
                 words.push(self.t(&format!("ape.{}", r.kind().key())));
                 if r.lava {
@@ -1420,7 +1607,7 @@ impl App {
                 });
                 json!({ "type": "button", "id": format!("replays.watch.{k}"),
                         "text": words.join(" · "), "quiet": !*best,
-                        "disabled": !r.fits(&self.course) })
+                        "disabled": !map.and_then(|m| self.course_of(m)).is_some_and(|c| r.fits(c)) })
             })
             .collect();
         if items.is_empty() {
@@ -1479,19 +1666,22 @@ impl App {
                 ]}),
             );
         } else if results_due(p) {
+            let map = Map::of(&p.race.course);
             if p.trial {
                 let finish = p.race.racers[p.local].finish.unwrap_or(0);
-                let medal = trial::earned(finish)
+                let medal = medals::of(map)
+                    .earned(finish)
                     .map(|m| self.t(&format!("medal.{}", m.key())))
                     .unwrap_or_else(|| self.t("item.none"));
                 out.push(
                     json!({ "kind": "overlay", "heading": self.t("trial.heading"), "items": [
                         { "type": "list", "rows": [
+                            [self.t("setup.map"), self.map_name(map)],
                             [self.t("results.time"), clock_text(finish)],
                             [self.t("trial.medal"), medal],
                         ]},
                         self.best_row(p),
-                        self.medal_table(Some(finish)),
+                        self.medal_table(map, Some(finish)),
                         self.button("menu.restart"),
                         self.quiet_button("menu.replay"),
                         self.button("menu.main"),
@@ -1562,18 +1752,15 @@ impl App {
 
     /// The personal best under the results, marked when it was just set.
     fn best_row(&self, p: &Play) -> Value {
-        let best = if p.trial {
-            self.settings.trial_best
-        } else {
-            self.settings.best
-        };
+        let map = Map::of(&p.race.course);
+        let best = self.settings.best(map, p.trial);
         let best = best.map(clock_text).unwrap_or_else(|| self.t("item.none"));
         let label = if p.new_best {
             self.t("results.new_best")
         } else {
             self.t("results.best")
         };
-        json!({ "type": "list", "rows": [[label, best]] })
+        json!({ "type": "list", "rows": [[label, best], [self.t("setup.map"), self.map_name(map)]] })
     }
 
     fn results_table(&self, p: &Play) -> Value {
@@ -1636,6 +1823,7 @@ impl App {
             "place": [self.t("hud.place"), format!("{}/{}", me.place, race.racers.len())],
             "time": [self.t("hud.time"), clock_text(shown_clock)],
             "best": self.hud_best(p),
+            "map": [self.t("setup.map"), self.map_name(Map::of(&p.race.course))],
             "speed": [self.t("hud.speed"), format!("{} {}", p.hype_speed / ONE, self.t("hud.unit"))],
             "speedo": {
                 "value": crate::speedo::kmh(p.hype_speed).to_string(),
@@ -1692,21 +1880,23 @@ impl App {
     /// The HUD's Best: the race best, or in a Time Trial the next medal to
     /// aim for (TRIAGE T1).
     fn hud_best(&self, p: &Play) -> Value {
+        let map = Map::of(&p.race.course);
         if !p.trial {
-            let best = self.settings.best.map(clock_text);
+            let best = self.settings.best(map, false).map(clock_text);
             return json!([
                 self.t("results.best"),
                 best.unwrap_or_else(|| self.t("item.none"))
             ]);
         }
-        let b = self.settings.trial_best;
-        match trial::next_target(b) {
-            Some(trial::Medal::Author) if !trial::author_shown(b) => {
+        let b = self.settings.best(map, true);
+        let medals = medals::of(map);
+        match medals.next_target(b) {
+            Some(trial::Medal::Author) if !medals.author_shown(b) => {
                 json!([self.t("medal.author"), self.t("trial.hidden")])
             }
             Some(m) => json!([
                 self.t(&format!("medal.{}", m.key())),
-                clock_text(trial::target(m))
+                clock_text(medals.target(m))
             ]),
             None => json!([
                 self.t("results.best"),

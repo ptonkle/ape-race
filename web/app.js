@@ -264,6 +264,7 @@ function drawHud(h) {
   drawSpeedo(h.speedo);
   pair("hud-best", h.best);
   pair("hud-bananas", h.bananas);
+  pair("hud-map", h.map);
   pair("hud-item", h.item);
   el("hud-item").className = h.item_key ? "item-slot full" : "item-slot";
   // the item's picture, made by the core (TRIAGE T19)

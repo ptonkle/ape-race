@@ -24,6 +24,7 @@ LOOPBACK_ONLY): the pasted codes are rewritten for it.
 
     python3 tests/browser/online_race.py
 """
+import json
 import pathlib
 import sys
 
@@ -33,6 +34,7 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 import online as transport  # noqa: E402  (the helpers of the transport check)
 
 WAIT_MS = transport.WAIT_MS
+CITY = json.loads((pathlib.Path(__file__).resolve().parents[2] / "data" / "strings.json").read_text())["map.city"]
 check = transport.check
 
 
@@ -144,6 +146,18 @@ def run_engine(p, engine, origin):
     except Exception:
         screeched = False
     check(screeched, "B's screech plays on both tabs")
+    # The City (2026-10-12): the host picks the map; B's lobby shows it live
+    a.page.select_option(by_id("lobby.map"), "city")
+    try:
+        b.page.wait_for_function(
+            "city => document.getElementById('menus').innerText.includes(city)",
+            arg=CITY,
+            timeout=WAIT_MS,
+        )
+        shown = True
+    except Exception:
+        shown = False
+    check(shown, "A's choice of the City shows in B's lobby")
     b.click("lobby.ready")
     ok = a.enabled("lobby.start")
     check(ok, "A's Start comes on once B is Ready")
@@ -158,6 +172,9 @@ def run_engine(p, engine, origin):
     for t in tabs:
         t.page.evaluate("() => document.activeElement && document.activeElement.blur()")
         t.page.keyboard.down("w")
+    for t in tabs:
+        on = t.page.text_content("#hud-map .v")
+        check(on == CITY, f"{t.name} races on the City ({on})")
     for t, other in ((a, "B's ape"), (b, "A's apes")):
         try:
             t.page.wait_for_selector("body[data-remote-moved='true']", timeout=WAIT_MS)
