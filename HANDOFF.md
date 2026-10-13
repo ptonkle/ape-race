@@ -22,6 +22,7 @@ A fresh session starts from this file, not from memory.
 
 ## What passed
 
+- Group U branch (choosing a map: Jungle/City selector, per-map courses, scenery, bests, medals, ghost, replays, PROTOCOL 5; merged with main at b51e67a), 2026-10-12: `cargo test --workspace` 250 core, 4 AI (5 ignored), 13 boundary, 17 online; `BUILDER_ENGINES=chromium ./scripts/check.sh` BUILDER CHECK PASSED; `BUILDER_ENGINES=chromium ./scripts/check-online.sh` ONLINE CHECK PASSED (Chromium only).
 - T37 Floor is Lava branch (merged with main at e478e46), 2026-10-12: `cargo test --workspace` 239 core, 4 AI (5 ignored reports; `lava_report` run, SECOND-ORDER V6), 13 boundary, 16 online; `cargo fmt`, `clippy -D warnings` clean; `BUILDER_ENGINES=chromium ./scripts/check.sh` BUILDER CHECK PASSED; `BUILDER_ENGINES=chromium ./scripts/check-online.sh` ONLINE CHECK PASSED (Chromium only).
 - Group K branch (T48, T45, T43, T32, T29, merged with main at 060aecc), 2026-10-12: `BUILDER_ENGINES=chromium ./scripts/check.sh` BUILDER CHECK PASSED; `BUILDER_ENGINES=chromium ./scripts/check-online.sh` ONLINE CHECK PASSED (Chromium only); `cargo test --workspace` 223 core, 8 AI (4 ignored reports run too), 13 boundary, 15 online.
 
