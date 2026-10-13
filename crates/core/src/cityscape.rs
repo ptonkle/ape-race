@@ -96,7 +96,7 @@ pub fn sun(b: &mut Batch, c: &Course, eye: V3) {
     let mut k = 0;
     while t < int(280) {
         let p = eye.flat().add(flat.scale(t));
-        if f.in_river(f.local(p).0) {
+        if f.river_here(c, p) {
             let w = cm(120) + t / 25;
             let len = int(4) + t / 14;
             let side = right_of(flat).scale(mul(sin(k * 9000), w));
@@ -374,6 +374,11 @@ struct RiverFrame {
     v: V3,
     /// the river's far bank, metres along `u` (its near bank is at 0)
     far: Option<i32>,
+    /// the stretch of the course (metres along it) the river is drawn
+    /// near: the band across the city is water only where the course's
+    /// nearest point is the crossing, not where another street passes
+    /// through the same band (the first left turn)
+    span: Option<(i32, i32)>,
 }
 
 impl RiverFrame {
@@ -388,6 +393,7 @@ impl RiverFrame {
                     u,
                     v: right_of(u),
                     far: Some(far.max(int(4))),
+                    span: Some((r.from - RIVER_MARGIN, r.to + RIVER_MARGIN)),
                 }
             }
             None => RiverFrame {
@@ -395,6 +401,7 @@ impl RiverFrame {
                 u: v3(0, 0, ONE),
                 v: v3(-ONE, 0, 0),
                 far: None,
+                span: None,
             },
         }
     }
@@ -410,6 +417,19 @@ impl RiverFrame {
 
     fn in_river(&self, a: i32) -> bool {
         self.far.is_some_and(|f| a > 0 && a < f)
+    }
+
+    /// Whether the river is drawn at `p`: inside its band, and near the
+    /// crossing rather than another street.
+    fn river_here(&self, c: &Course, p: V3) -> bool {
+        let Some((from, to)) = self.span else {
+            return false;
+        };
+        if !self.in_river(self.local(p).0) {
+            return false;
+        }
+        let s = nearest(c, p) as i32 * crate::course::STEP;
+        s > from && s < to
     }
 }
 
@@ -470,6 +490,10 @@ fn nearest(c: &Course, p: V3) -> usize {
     c.nearest(p, best.1)
 }
 
+/// The river is drawn only where the course's nearest point is within
+/// this far of the crossing.
+const RIVER_MARGIN: i32 = int(60);
+
 /// How far out from the centreline the ground is drawn.
 const GROUND_OUT: i32 = int(240);
 const CELL: i32 = int(12);
@@ -499,7 +523,7 @@ fn terrain(c: &Course, f: &RiverFrame, n: usize) -> (Vec<i32>, Vec<(usize, u32, 
         for (j, h) in vs.windows(2).enumerate() {
             let (ua, ub, va, vb) = (w[0], w[1], h[0], h[1]);
             let mid = f.world((ua + ub) / 2, (va + vb) / 2);
-            let wet = f.in_river((ua + ub) / 2);
+            let wet = f.river_here(c, mid);
             let d = distance(&pts, mid);
             if d > GROUND_OUT + if wet { int(80) } else { 0 } {
                 continue;
@@ -574,12 +598,12 @@ fn river_level(c: &Course) -> i32 {
 
 // ---- the river ----
 
-/// The water, in pieces 100 m across; its stone embankments with a railing
+/// The water, in pieces 25 m across (only near the crossing); its stone embankments with a railing
 /// along their tops; and the city's lights reflected in it.
 fn river(s: &mut Sink, c: &Course, f: &RiverFrame, r: River, bridge: Option<&Bridge>) {
     let Some(far) = f.far else { return };
     let pts = samples(c);
-    let piece = int(100);
+    let piece = int(25);
     let reach = GROUND_OUT + int(80);
     let crossing = f.local(c.point((r.from + r.to) / 2)).1;
     let mut b = -int(1400);
@@ -587,7 +611,7 @@ fn river(s: &mut Sink, c: &Course, f: &RiverFrame, r: River, bridge: Option<&Bri
     while b < int(1400) {
         let mid_b = b + piece / 2;
         let mid = f.world(far / 2, mid_b);
-        if distance(&pts, mid) > reach + piece / 2 {
+        if distance(&pts, mid) > reach + piece / 2 || !f.river_here(c, mid) {
             b += piece;
             k += 1;
             continue;
@@ -596,7 +620,7 @@ fn river(s: &mut Sink, c: &Course, f: &RiverFrame, r: River, bridge: Option<&Bri
         let water = panel(at, f.v, V3::UP, f.u, piece, cm(60), far);
         s.at(mid).push(Mesh::Cube, &water, WATER, ONE / 10);
         // the lights' reflections: short bright streaks across the water
-        for j in 0..6 {
+        for j in 0..2 {
             let seed = seed_of(k, j);
             let a = (pick(seed, 1000) as i32) * (far / 1000);
             let bb = b + (pick(seed ^ 7, 1000) as i32) * (piece / 1000);
@@ -2941,6 +2965,29 @@ mod tests {
     use crate::city::CarKind;
     use crate::map::Map;
     use crate::render::{DRAW_VALUES, DYNAMIC_BUFFER, INSTANCE_VALUES, STATIC_BUFFER};
+
+    #[test]
+    fn the_river_is_drawn_on_the_course_only_where_there_is_water() {
+        // the river's band crosses the whole city; the first street passes
+        // through it near the first left turn, where the ground was drawn
+        // as riverbed under water the ape could not swim in
+        let c = crate::map::Map::City.course();
+        let r = c.city.as_ref().unwrap().river.unwrap();
+        let f = RiverFrame::of(&c, Some(r));
+        let mut wet = 0;
+        for (i, p) in c.path.iter().enumerate() {
+            let s = i as i32 * crate::course::STEP;
+            if f.river_here(&c, *p) {
+                wet += 1;
+                assert!(
+                    c.water(*p).is_some(),
+                    "river drawn at {} m with no water",
+                    s / ONE
+                );
+            }
+        }
+        assert!(wet > 0, "the crossing has its river");
+    }
 
     #[test]
     fn grid_lines_meet_the_banks_exactly() {
