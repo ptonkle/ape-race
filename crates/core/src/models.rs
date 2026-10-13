@@ -1274,9 +1274,9 @@ fn jaguar_legs(rig: &mut Rig, j: &crate::jaguar::Jaguar, body: &Frame, fwd: V3) 
     ];
     for (side, front, offset) in legs {
         let (along, len, w) = if front {
-            (cm(40), cm(62), cm(15))
+            (cm(40), cm(62), cm(18))
         } else {
-            (-cm(42), cm(66), cm(17))
+            (-cm(42), cm(66), cm(21))
         };
         let root = body.at(-side * cm(13), along, -cm(8));
         let under = v3(root.x, cm(4), root.z);

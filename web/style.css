@@ -249,6 +249,7 @@ table.cells tr.me td { color: var(--banana); font-weight: 800; }
 }
 /* a whole message (Floor is Lava's jaguar, TRIAGE T37): one line, smaller */
 .big.message {
+  top: 15%;
   font-size: clamp(1.6rem, 6vw, 4.5rem);
   white-space: nowrap;
   color: #ff9a3c;
