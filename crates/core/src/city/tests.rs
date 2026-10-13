@@ -353,6 +353,10 @@ fn every_car_and_boat_bounces_from_its_own_bouncer() {
         let at = c.progress(boat.at, c.nearest_anywhere(boat.at));
         assert!(at.1.abs() > DECK_HALF + m.radius - cm(10), "a boat under the deck");
     }
+    // none is taller than the bouncer search's cut-off
+    for m in &c.mushrooms {
+        assert!(m.top.y - ground(m.top.x, m.top.z) < BOUNCER_TALLEST);
+    }
     let parked = lay.cars.iter().filter(|k| k.drive.is_none()).count();
     let moving = lay.cars.len() - parked;
     assert!(parked >= 15 && moving >= 8, "{parked} parked, {moving} moving");
@@ -619,4 +623,28 @@ fn every_starter_can_run_off_the_platform_and_catch_a_vine() {
             assert!(caught, "{kind:?} from {start:?} never caught a vine");
         }
     }
+}
+
+#[test]
+fn the_start_streets_end_is_well_behind_the_start_for_the_camera() {
+    // Y13: the chase camera, some 10 m behind an ape at the start, was
+    // inside the office closing the start street (7 m behind it)
+    let c = city();
+    let lay = c.city.as_ref().unwrap();
+    let back = lay
+        .blocks
+        .iter()
+        .filter(|b| b.centre.flat().sub(c.path[0]).dot(c.heading[0]) < 0)
+        .filter(|b| {
+            let d = b.centre.flat().sub(c.path[0]);
+            d.dot(right_of(c.heading[0])).abs() < b.half_width
+        })
+        .map(|b| -(b.centre.flat().sub(c.path[0]).dot(c.heading[0])) - b.half_len)
+        .min()
+        .unwrap();
+    assert!(back >= int(16), "the start's back wall {} m behind it", back / ONE);
+    // and an ape still cannot run off backwards
+    let p = c.path[0].sub(c.heading[0].scale(int(12)));
+    let (q, _, _) = c.contain(v3(p.x, int(1), p.z), V3::ZERO, 0);
+    assert!(q.flat().sub(c.path[0]).dot(c.heading[0]) >= -int(6));
 }

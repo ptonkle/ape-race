@@ -2,7 +2,8 @@
 //! (T13), against target times in the Trackmania manner: Bronze, Silver,
 //! Gold, and a hidden Author time that shows once Gold is earned.
 //!
-//! The target times are the four constants below. Re-tune them whenever
+//! The target times are per map: the Jungle's four constants and the
+//! City's (`medals(map)`). Re-tune them whenever
 //! the course or the physics changes: run
 //! `cargo test --release -p tool_core --test ai -- --ignored --nocapture`
 //! and set the Author time to about the AI's time alone, the others in
@@ -55,13 +56,14 @@ pub const BRONZE: u32 = 10_000;
 pub const JUNGLE: [u32; 4] = [secs(BRONZE), secs(SILVER), secs(GOLD), secs(AUTHOR)];
 
 /// The City's target times in hundredths of a second (2026-10-12, set as
-/// the Jungle's were: King Kong alone as a Time Trial runs, every kind;
-/// `time_trial_report` in `tests/ai.rs`, SECOND-ORDER C rows). Author:
-/// about the AI's best kind; then generous steps above.
-pub const CITY_AUTHOR: u32 = 7_200;
-pub const CITY_GOLD: u32 = 8_000;
-pub const CITY_SILVER: u32 = 9_000;
-pub const CITY_BRONZE: u32 = 10_500;
+/// the Jungle's were: King Kong alone as a Time Trial runs finishes in
+/// 67.2–76.8 s by kind, Gibbon best; `city_time_trial_report` in
+/// `tests/city_ai.rs`, SECOND-ORDER C rows). Author: just under the best
+/// kind; then the Jungle's steps above it (7, 10, 15 s).
+pub const CITY_AUTHOR: u32 = 6_700;
+pub const CITY_GOLD: u32 = 7_400;
+pub const CITY_SILVER: u32 = 8_400;
+pub const CITY_BRONZE: u32 = 9_900;
 
 /// The City's target times, in race ticks, slowest first.
 pub const CITY: [u32; 4] = [

@@ -61,6 +61,10 @@ const RIVER_WIDE: i32 = int(150);
 const DECK_ON: i32 = int(4);
 pub const DECK_HALF: i32 = int(10);
 
+/// The start street runs on this far behind the start (to the office
+/// closing it), clear of the chase camera at the start.
+const START_BACK: i32 = int(18);
+
 /// The corner anchors: 27 m up, on 13 m cables.
 const CORNER_HEIGHT: i32 = int(27);
 const CORNER_CABLE: i32 = int(13);
@@ -500,7 +504,7 @@ fn streets(c: &Course, straights: &[Straight], corners: &[Corner]) -> Vec<Street
                 } else {
                     tan_half(corners[k].turn)
                 },
-                ext0: if k == 0 { int(7) } else { 0 },
+                ext0: if k == 0 { START_BACK } else { 0 },
                 ext1: if k == n - 1 { OUTRO } else { 0 },
             }
         })
@@ -666,8 +670,9 @@ fn blocks(
             style: style::HOARDING,
         });
     }
-    // the start's back: an office across the street's end
-    let back = c.path[0].sub(c.heading[0].scale(int(7) + int(12)));
+    // the start's back: an office across the street's end, far enough
+    // behind the start for the chase camera (some 10 m behind the ape)
+    let back = c.path[0].sub(c.heading[0].scale(START_BACK + int(12)));
     out.push(Block {
         centre: v3(back.x, ground(back.x, back.z), back.z),
         fwd: c.heading[0],
@@ -703,7 +708,7 @@ fn blocks(
             // mitre, outside it runs on past it
             let inner_at = |k: &Corner| (k.turn > 0) == (side < 0);
             let a0 = if k == 0 {
-                -int(7)
+                -START_BACK
             } else {
                 let e = mul(hw, st.tan0);
                 if inner_at(&corners[k - 1]) {
