@@ -6,13 +6,21 @@
 //! and drops so the ape stands in the top part. The page only applies the
 //! dock it is given (`body[data-dock]`, `--dock-w`, `--dock-top` in
 //! `web/style.css`), so the framing and the layout cannot disagree.
+//!
+//! The previewed ape stands on the chosen map (the City, 2026-10-12): on
+//! the Jungle in its small jungle stage as before, elsewhere at a spot on
+//! the map's course with the map behind it ([`preview_spot`]).
 
 use serde_json::{json, Value};
 
 use super::{App, Stage};
-use crate::fx::{self, cm, ratio, ONE};
+use crate::course::Course;
+use crate::fx::{self, cm, deg, ratio, ONE, TURN};
 use crate::geom::{v3, V3};
-use crate::render::Camera;
+use crate::map::Map;
+use crate::models;
+use crate::render::{Batch, Camera};
+use crate::rules::BODY_DROP;
 
 /// A menu panel's width in CSS pixels (25 rem: `.panel.setup`).
 const PANEL_W: i32 = 400;
@@ -23,8 +31,48 @@ const GAP: i32 = 24;
 const OPEN_MIN: i32 = 320;
 /// With the menus below, the share of the height left for the ape (Q16).
 const OPEN_TOP: i32 = ratio(46, 100);
-/// The ape's middle, where the preview camera looks (`models::showcase_camera`).
-const FOCUS: V3 = v3(0, cm(62), 0);
+/// The ape's middle above its feet, where the preview camera looks
+/// (`models::showcase_camera`).
+const FOCUS_UP: i32 = cm(62);
+/// The preview camera's height above the feet and its distance from the
+/// ape (`models::showcase_camera`: 1.25 m up, 2.9 m off).
+const EYE_UP: i32 = cm(125);
+const EYE_BACK: i32 = cm(290);
+/// How far down the course the preview camera looks past the ape.
+const LOOK_AHEAD: i32 = fx::int(30);
+
+/// Where the previewed ape stands on a map and the way the camera looks
+/// at it (flat, unit). The Jungle: its stage at the origin, seen from +z
+/// as before the City. Elsewhere: the course's first start, looking down
+/// the course, so the map stretches away behind the ape. Built from the
+/// shared course data so it works on any course; the art agent's City
+/// framing slots in here.
+pub(super) fn preview_spot(map: Map, course: Option<&Course>) -> (V3, V3) {
+    match (map, course) {
+        (Map::Jungle, _) | (_, None) => (V3::ZERO, v3(0, 0, -ONE)),
+        (_, Some(c)) => {
+            let feet = c.starts[0].sub(v3(0, BODY_DROP, 0));
+            let ahead = c.point(LOOK_AHEAD).sub(feet).flat();
+            let look = if ahead.len() > 0 {
+                ahead.norm()
+            } else {
+                c.heading_at(0).flat().norm()
+            };
+            (feet, look)
+        }
+    }
+}
+
+/// The preview camera for an ape standing at `feet`, looking `look`.
+fn preview_view(feet: V3, look: V3) -> Camera {
+    let target = feet.add(v3(0, FOCUS_UP, 0));
+    let eye = feet.add(v3(0, EYE_UP, 0)).sub(look.scale(EYE_BACK));
+    Camera {
+        eye,
+        fwd: target.sub(eye).norm(),
+        fov: deg(34),
+    }
+}
 
 /// Where the menus go.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -75,16 +123,47 @@ impl App {
         v["dock_top"] = json!(format!("{top}px"));
     }
 
-    /// The preview camera moved so the ape stands in the open part of the
-    /// screen the dock leaves.
-    pub(super) fn framed(&self, cam: Camera) -> Camera {
+    fn preview_at(&self) -> (V3, V3) {
+        let map = self.map();
+        preview_spot(map, self.course_of(map))
+    }
+
+    /// The preview camera on the chosen map, framed beside the menus.
+    pub(super) fn preview_camera(&self) -> Camera {
+        let (feet, look) = self.preview_at();
+        self.framed(preview_view(feet, look), feet.add(v3(0, FOCUS_UP, 0)))
+    }
+
+    /// The preview's moving parts: the vines (on a map's own ground) and
+    /// the ape, turning a full circle every 6 s as `models::showcase` does.
+    pub(super) fn preview_batches(&self, vivid: bool) -> (Batch, Batch) {
+        let map = self.map();
+        let mut b = Batch::new();
+        if map == Map::Jungle {
+            models::showcase(&mut b, self.settings.kind, self.ticks);
+            return (Batch::new(), b);
+        }
+        let (feet, _) = self.preview_at();
+        let yaw = ((self.ticks as i64 % 720) * TURN as i64 / 720) as i32;
+        let pose = models::Pose::standing(feet, yaw, self.ticks);
+        models::draw(&mut b, self.settings.kind, &pose);
+        let vines = self
+            .course_of(map)
+            .map(|c| crate::scene::flyover_dynamic(c, self.ticks, vivid))
+            .unwrap_or_default();
+        (vines, b)
+    }
+
+    /// The preview camera moved so the ape (its middle at `focus`) stands
+    /// in the open part of the screen the dock leaves.
+    pub(super) fn framed(&self, cam: Camera, focus: V3) -> Camera {
         let h = self.view_h.max(1);
         let fwd = cam.fwd.norm();
         let right = fwd.cross(V3::UP).norm();
         let up = right.cross(fwd);
         let half = cam.fov / 2;
         let tan = fx::div(fx::sin(half), fx::cos(half));
-        let d = FOCUS.sub(cam.eye).dot(fwd);
+        let d = focus.sub(cam.eye).dot(fwd);
         match self.dock() {
             Dock::Centre => cam,
             Dock::Side(w) => {
@@ -101,7 +180,7 @@ impl App {
                 // camera so it stands in that part's middle
                 let open = fx::div(top, h).clamp(ONE / 4, ONE);
                 let back = fx::mul(fx::div(d, open), ratio(2, 3)).max(d);
-                let eye = FOCUS.sub(fwd.scale(back));
+                let eye = focus.sub(fwd.scale(back));
                 let drop = fx::mul(fx::mul(ONE - open, tan), back);
                 Camera {
                     eye: eye.sub(up.scale(drop)),
@@ -116,7 +195,6 @@ impl App {
 mod tests {
     use super::super::Screen;
     use super::*;
-    use crate::models;
 
     fn app_at(screen: Screen, w: i32, h: i32) -> App {
         let mut a = App::new(include_str!("../../../../data/strings.json"), "", 7).unwrap();
@@ -127,9 +205,44 @@ mod tests {
 
     /// Where the ape's middle lands, in hundredths of the width and height.
     fn ape_on_screen(a: &App) -> (i32, i32) {
-        let cam = a.framed(models::showcase_camera());
-        let (x, y) = cam.screen(fx::div(a.view_w, a.view_h), FOCUS).unwrap();
+        let cam = a.preview_camera();
+        let (feet, _) = a.preview_at();
+        let focus = feet.add(v3(0, FOCUS_UP, 0));
+        let (x, y) = cam.screen(fx::div(a.view_w, a.view_h), focus).unwrap();
         (x / ONE, y / ONE)
+    }
+
+    #[test]
+    fn the_jungle_preview_camera_is_the_showcase_camera() {
+        let cam = preview_view(V3::ZERO, v3(0, 0, -ONE));
+        let old = models::showcase_camera();
+        assert_eq!(cam.eye, old.eye);
+        assert_eq!(cam.fwd, old.fwd);
+        assert_eq!(cam.fov, old.fov);
+    }
+
+    #[test]
+    fn on_the_city_the_ape_stands_at_the_start_framed_beside_the_menus() {
+        for (w, h) in [(1280, 720), (390, 844)] {
+            let mut a = app_at(Screen::Setup, w, h);
+            a.act("setup.map", "city");
+            let (feet, _) = a.preview_at();
+            let start = a.course_of(Map::City).unwrap().starts[0];
+            assert_eq!(feet, start.sub(v3(0, BODY_DROP, 0)));
+            let (x, y) = ape_on_screen(&a);
+            match a.dock() {
+                Dock::Side(dock) => {
+                    let open_middle = (dock + (w - dock) / 2) * 100 / w;
+                    assert!((x - open_middle).abs() <= 2, "{w}x{h}: ape at {x}%");
+                    assert!((40..=60).contains(&y), "{w}x{h}: ape at {y}% down");
+                }
+                Dock::Below(top) => {
+                    assert!((x - 50).abs() <= 1, "{w}x{h}: ape at {x}% across");
+                    assert!((y - top * 50 / h).abs() <= 2, "{w}x{h}: ape at {y}% down");
+                }
+                Dock::Centre => panic!("the setup docks its menus"),
+            }
+        }
     }
 
     #[test]

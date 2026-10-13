@@ -179,3 +179,37 @@ def run(page, check, engine):
     page.click("[id='menu.replays']")
     check(STRINGS["replays.none"] in text(page, "#menus"), "the Replays list is empty before a finish")
     page.click("[id='menu.back']")
+
+    # The City (2026-10-12): the map select on Race Setup, the ape preview
+    # moves onto the chosen map, and the race runs there
+    page.click("[id='menu.race']")
+    options = page.evaluate("() => [...document.getElementById('setup.map').options].map(o => o.text)")
+    check(options == [STRINGS["map.jungle"], STRINGS["map.city"]], f"Race Setup offers the Jungle and the City {options}")
+    page.select_option("[id='setup.map']", "city")
+    page.wait_for_timeout(300)
+    check(page.input_value("[id='setup.map']") == "city", "the City is chosen")
+    check(canvas_drawn(page), "the ape is drawn on the City behind the setup")
+    page.click("[id='menu.start']")
+    page.wait_for_function("() => document.getElementById('hud-place').innerText.includes('/')", timeout=10000)
+    check(STRINGS["map.city"] in text(page, "#hud-map"), "the HUD names the City")
+    page.wait_for_function(
+        "() => document.querySelector('#hud-time .v').innerText.trim() !== '0:00.00'",
+        timeout=30000,
+    )
+    page.keyboard.down("KeyW")
+    page.wait_for_function(
+        "() => document.getElementById('speedo-value').innerText.trim() !== '0'",
+        timeout=20000,
+    )
+    page.keyboard.up("KeyW")
+    check(canvas_drawn(page), "the City race runs and is drawn")
+    page.keyboard.press("Escape")
+    page.wait_for_selector("[id='menu.quit']", timeout=5000)
+    page.click("[id='menu.quit']")
+    # the map is remembered: after a reload the Time Trial is set to the City
+    page.reload()
+    page.wait_for_selector("body[data-ready='true']", timeout=20000)
+    check(canvas_drawn(page), "the title flies over the last chosen map")
+    page.click("[id='menu.trial']")
+    check(page.input_value("[id='setup.map']") == "city", "the City is kept after a reload")
+    page.click("[id='menu.back']")

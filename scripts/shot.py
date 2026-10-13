@@ -5,7 +5,8 @@ person at the keys (and for the home page thumbnail).
     .venv/bin/python scripts/shot.py OUT.png [--query lineup] [--wait 2]
         [--click id ...] [--hold KeyW,Mouse:1.5 ...] [--size 1280x720]
 
---click presses the menu button with that element id, in order;
+--click presses the menu button with that element id, in order (`id=value`
+chooses that value in a select, e.g. `setup.map=city`);
 --hold presses keys (comma-separated) for some seconds, in order.
 """
 import argparse
@@ -53,8 +54,12 @@ def main():
         page.goto(url)
         page.wait_for_selector("body[data-ready='true']", timeout=30000)
         for c in a.click:
+            c, _, value = c.partition("=")
             page.wait_for_selector(f"[id='{c}']", timeout=10000)
-            page.click(f"[id='{c}']")
+            if value:
+                page.select_option(f"[id='{c}']", value)
+            else:
+                page.click(f"[id='{c}']")
             page.wait_for_timeout(300)
         for spec in a.hold:
             keys, secs = spec.split(":")

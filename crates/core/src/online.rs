@@ -53,11 +53,11 @@
 //!    [`Online::set_kind`], [`Online::set_name`], [`Online::set_ready`],
 //!    [`Online::screech`] (anyone; then play the screech once for each
 //!    [`Online::take_screeches`] counts), and on the host
-//!    [`Online::set_ai_count`], [`Online::set_equal_stats`] and
+//!    [`Online::set_ai_count`], [`Online::set_equal_stats`], [`Online::set_map`] and
 //!    [`Online::start`]`(seed, now_ms)` (refused unless every joined human is
 //!    Ready and there are at least two apes).
 //! 5. **Race start:** when [`Online::take_race_start`] gives a [`RaceStart`],
-//!    build `Race::new(Course::jungle(), &start.entries, start.equal_stats,
+//!    build `Race::new(start.map.course(), &start.entries, start.equal_stats,
 //!    start.seed)`. The local player drives `start.local_index`; on the host,
 //!    AI apes are `Driver::Ai`; everything else is `Driver::Remote`.
 //! 6. **During the race, every frame after stepping the race:**
@@ -90,13 +90,15 @@ use crate::ape::{Ape, Mode};
 use crate::fx::{self, Dice, ONE};
 use crate::geom::V3;
 use crate::items::ItemSet;
+use crate::map::Map;
 use crate::race::{Driver, Entry, Item, Race, Summon};
 use crate::rules::{Kind, TICKS_PER_SECOND};
 
 /// The protocol version. A joiner with another one is refused. 2: the Vine
 /// item's summoned vines (TRIAGE T12) and the Item `vine`. 3: renaming in
 /// the lobby (`Name`, TRIAGE T35) and the lobby screech (`Screech`, T44).
-pub const PROTOCOL: u32 = 3;
+/// 4: the map (the City, 2026-10-12) in `Roster` and `Start`.
+pub const PROTOCOL: u32 = 4;
 /// The most apes in a race, humans and AI together.
 pub const MAX_APES: usize = 4;
 /// The most AI apes the host may add.
@@ -269,6 +271,8 @@ pub struct RaceStart {
     pub round: u32,
     /// the items crates may give, the host's choice (TRIAGE T42)
     pub items: ItemSet,
+    /// the map the race runs on, the host's choice
+    pub map: Map,
 }
 
 /// An item hit for this browser to apply to an ape it owns.
@@ -312,6 +316,8 @@ pub struct LobbyView {
     /// The most AI apes the host may set now.
     pub max_ai: usize,
     pub equal_stats: bool,
+    /// The map, the host's choice.
+    pub map: Map,
     /// This browser's Ready mark, as last asked for.
     pub ready: bool,
     /// The host may press Start.
@@ -348,6 +354,9 @@ enum Msg {
         humans: Vec<Human>,
         ai: usize,
         equal: bool,
+        /// the host's map (PROTOCOL 4)
+        #[serde(default)]
+        map: Map,
     },
     Pick {
         kind: Kind,
@@ -379,6 +388,9 @@ enum Msg {
         /// the host's item set (TRIAGE T42); a host without it allows all
         #[serde(default)]
         items: ItemSet,
+        /// the host's map (PROTOCOL 4)
+        #[serde(default)]
+        map: Map,
     },
     Started {
         round: u32,
@@ -514,6 +526,8 @@ pub struct Online {
     /// the items crates may give (TRIAGE T42): set by the host, sent with
     /// the start
     items: ItemSet,
+    /// the map: set by the host, shown in every lobby, sent with the start
+    map: Map,
     peers: BTreeMap<PeerId, Peer>,
     outbox: Vec<Outgoing>,
     last_hello_ms: i64,
@@ -548,6 +562,7 @@ impl Online {
             ai_count: 0,
             equal_stats: false,
             items: ItemSet::ALL,
+            map: Map::default(),
             peers: BTreeMap::new(),
             outbox: Vec::new(),
             last_hello_ms: now_ms,
@@ -647,6 +662,7 @@ impl Online {
             humans: self.humans.clone(),
             ai: self.ai_count,
             equal: self.equal_stats,
+            map: self.map,
         }
     }
 
@@ -809,7 +825,8 @@ impl Online {
                 humans,
                 ai,
                 equal,
-            } if from_host => self.on_roster(round, humans, ai, equal),
+                map,
+            } if from_host => self.on_roster(round, humans, ai, equal, map),
             Msg::Dissolve if from_host => {
                 if matches!(self.status, Status::Joining | Status::Lobby) {
                     self.status = Status::Dissolved;
@@ -822,6 +839,7 @@ impl Online {
                 ai,
                 equal,
                 items,
+                map,
             } if from_host => {
                 let waiting = matches!(self.status, Status::Lobby | Status::Joining);
                 if waiting && humans.iter().any(|h| h.id == self.client_id) && round >= self.round {
@@ -830,6 +848,7 @@ impl Online {
                     self.ai_count = ai;
                     self.equal_stats = equal;
                     self.items = items.clean();
+                    self.map = map;
                     self.begin_race(seed, now_ms);
                 }
                 if self.race.as_ref().is_some_and(|r| r.round == round) {
@@ -993,7 +1012,7 @@ impl Online {
         }
     }
 
-    fn on_roster(&mut self, round: u32, humans: Vec<Human>, ai: usize, equal: bool) {
+    fn on_roster(&mut self, round: u32, humans: Vec<Human>, ai: usize, equal: bool, map: Map) {
         if round < self.round {
             return;
         }
@@ -1012,6 +1031,7 @@ impl Online {
         self.humans = humans;
         self.ai_count = ai;
         self.equal_stats = equal;
+        self.map = map;
         let seated = self.humans.iter().any(|h| h.id == self.client_id);
         self.status = if seated {
             Status::Lobby
@@ -1188,6 +1208,22 @@ impl Online {
         Ok(())
     }
 
+    /// Host: the map. Clears every Ready mark; the joiners see it at once.
+    pub fn set_map(&mut self, map: Map, now_ms: i64) -> Result<(), OnlineError> {
+        self.host_lobby()?;
+        if self.map != map {
+            self.map = map;
+            self.clear_ready();
+            self.roster_changed(now_ms);
+        }
+        Ok(())
+    }
+
+    /// The lobby's map, as the host set it.
+    pub fn map(&self) -> Map {
+        self.map
+    }
+
     /// True when every joined human but the host has pressed Ready Up.
     pub fn all_ready(&self) -> bool {
         self.humans.iter().skip(1).all(|h| h.ready)
@@ -1285,6 +1321,7 @@ impl Online {
             equal_stats: self.equal_stats,
             round: self.round,
             items: self.items,
+            map: self.map,
         };
         self.race = Some(RaceState {
             round: self.round,
@@ -1324,6 +1361,7 @@ impl Online {
             ai: self.ai_count,
             equal: self.equal_stats,
             items: self.items,
+            map: self.map,
         };
         let to: Vec<PeerId> = race.unacked.iter().cloned().collect();
         for peer in to {
@@ -1533,6 +1571,7 @@ impl Online {
             ai_count: self.ai_count,
             max_ai: self.max_ai(),
             equal_stats: self.equal_stats,
+            map: self.map,
             ready,
             can_start: self.is_host && self.in_lobby() && self.all_ready() && self.apes() >= 2,
         }

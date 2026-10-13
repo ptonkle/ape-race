@@ -7,6 +7,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use tool_core::ape::Controls;
 use tool_core::course::Course;
+use tool_core::map::Map;
 use tool_core::online::{Fin, Hit, Online, OnlineError, Outgoing, Refusal, Status, MAX_APES};
 use tool_core::race::{Driver, Item, Race};
 use tool_core::rules::{Kind, TICKS_PER_SECOND};
@@ -221,6 +222,8 @@ struct Net {
     applied: Vec<Vec<Hit>>,
     /// The seed each node's last race was built from.
     seeds: Vec<Option<u64>>,
+    /// the map each node's race start named
+    maps: Vec<Option<Map>>,
 }
 
 const KINDS: [Kind; 5] = [
@@ -253,6 +256,7 @@ impl Net {
             now: 0,
             applied: vec![Vec::new(); count],
             seeds: vec![None; count],
+            maps: vec![None; count],
         }
     }
 
@@ -305,6 +309,7 @@ impl Net {
             );
             self.races[i] = Some((race, now));
             self.seeds[i] = Some(start.seed);
+            self.maps[i] = Some(start.map);
         }
         if let Some((race, t0)) = &mut self.races[i] {
             if node.local_index().is_none() {
@@ -793,5 +798,39 @@ fn a_host_who_leaves_ends_the_lobby_and_a_race_goes_on_without_it() {
     ];
     for r in net.results() {
         assert_eq!(r, want);
+    }
+}
+
+#[test]
+fn the_hosts_map_reaches_every_lobby_and_rides_with_the_start() {
+    let mut net = Net::lobby(3);
+    let now = net.now;
+    net.nodes[0].set_map(Map::City, now).unwrap();
+    // a joiner may not choose
+    assert!(net.nodes[1].set_map(Map::Jungle, now).is_err());
+    net.run(1000);
+    for i in 0..3 {
+        assert_eq!(net.nodes[i].lobby().map, Map::City, "node {i}");
+    }
+    // the map clears every Ready mark, as any lobby change does
+    assert!(!net.nodes[0].lobby().can_start);
+    // back to the Jungle, every roster to node 2 lost: its Start still
+    // carries the host's map
+    let now = net.now;
+    net.nodes[0].set_map(Map::Jungle, now).unwrap();
+    for _ in 0..40 {
+        net.lb.drops.push((0, 2, "\"roster\"".into()));
+    }
+    net.ready_all();
+    assert_eq!(
+        net.nodes[2].lobby().map,
+        Map::City,
+        "node 2 missed the change"
+    );
+    let now = net.now;
+    net.nodes[0].start(9, now).unwrap();
+    net.run(1000);
+    for i in 0..3 {
+        assert_eq!(net.maps[i], Some(Map::Jungle), "node {i}");
     }
 }
