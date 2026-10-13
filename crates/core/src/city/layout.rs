@@ -9,8 +9,10 @@
 //!   progress along it stays smooth), but the walls are the streets':
 //!   buildings stand square on them.
 //! - **Corners**: at each 90° corner two short cables hang 27 m up over the
-//!   intersection, one from a crane standing in a building site on the
-//!   inside corner, one from a hovering helicopter further out. Caught
+//!   intersection on the inside line, one from a crane standing in a
+//!   building site on the inside corner, one from a hovering helicopter.
+//!   Round every corner the stations keep their middle and inside lanes:
+//!   no vine out wide to tempt an ape onto a poor line. Caught
 //!   high, a cable whirls an ape round (`examples/corner_swing.rs`: a
 //!   quarter turn in 0.4–1 s, keeping 80–95% of the speed), so it lets go
 //!   facing down the new street.
@@ -65,7 +67,16 @@ pub const DECK_HALF: i32 = int(10);
 /// closing it), clear of the chase camera at the start.
 const START_BACK: i32 = int(18);
 
-/// The corner anchors: 27 m up, on 13 m cables.
+/// No vine hangs on the outside of a turn from this far before a corner
+/// to this far after it.
+pub const CORNER_BEFORE: i32 = int(45);
+pub const CORNER_AFTER: i32 = int(35);
+
+/// The corner anchors: 27 m up, on 13 m cables, both on the inside line:
+/// the crane's 10 m short of the crossing and 8 m in, the helicopter's
+/// 16 m short and in the middle, so a quarter circle round either comes
+/// out in the middle or the inside half of the new street (and an ape
+/// making for the crane passes out of the helicopter cable's reach).
 const CORNER_HEIGHT: i32 = int(27);
 const CORNER_CABLE: i32 = int(13);
 
@@ -195,8 +206,10 @@ pub fn city_seeded(seed: u64) -> Course {
     let deck_s1 = river.to + DECK_ON;
     let len_m = c.length / ONE;
     // the stretches without stations: 90° corners (their cables instead)
-    // and the bridge (its cables); a station always stands 12–16 m short
-    // of one, so there is a way into it
+    // and the bridge (its cables); a station always stands within 12 m
+    // short of one (and no nearer than 4 m: on a corner's inside line it
+    // would catch an ape making for the corner's cable), so there is a way
+    // into it
     let mut gaps: Vec<(i32, i32)> = corners
         .iter()
         .filter(|k| k.turn.abs() == 90)
@@ -206,9 +219,10 @@ pub fn city_seeded(seed: u64) -> Course {
     let mut s = 32;
     let mut last = 0;
     let mut station = 0;
-    while s < len_m - 30 {
+    let mut middle_skipped = false;
+    while s < len_m - 18 {
         if let Some(&(g0, g1)) = gaps.iter().find(|&&(g0, g1)| s + 4 > g0 && s < g1) {
-            if last < g0 - 18 && s + 4 > g0 {
+            if last < g0 - 12 {
                 s = g0 - 4;
             } else {
                 s = g1 + 1;
@@ -219,11 +233,32 @@ pub fn city_seeded(seed: u64) -> Course {
         let si = int(s);
         let h = c.heading_at(si);
         let r = right_of(h);
+        // two lanes of three, keeping the middle one: a station with only
+        // the two outer lanes leaves no way on but along a wall (a long
+        // rope swung across the street hits it), so the middle is skipped
+        // one time in four at most, and never twice running; one station
+        // in six has all three (the person: the first City was too
+        // sparse). Round a corner, from 45 m before it to 35 m after, there is no
+        // vine out wide (the person: wires on the outside of a turn tempt
+        // an ape onto a poor line); each station keeps its middle and
+        // inside lanes
+        let turning = corners
+            .iter()
+            .find(|k| si > k.s0 - CORNER_BEFORE && si < k.s1 + CORNER_AFTER);
+        // which way is inside: -1 left (a left turn), 1 right
+        let inside = turning.map(|k| if k.turn > 0 { -1 } else { 1 });
         let skip = if station == 0 {
             3
+        } else if let Some(inside) = inside {
+            1 - inside
+        } else if dice.below(6) == 0 {
+            3
+        } else if !middle_skipped && dice.below(4) == 0 {
+            1
         } else {
-            dice.below(3) as i32
+            2 * dice.below(2) as i32
         };
+        middle_skipped = skip == 1;
         let mut here = Vec::new();
         let mut lanes = Vec::new();
         for lane in 0..3 {
@@ -236,7 +271,7 @@ pub fn city_seeded(seed: u64) -> Course {
                 (
                     int(dice.range(38, 50)),
                     int(dice.range(23, 31)),
-                    (lane - 1) * 10 + dice.range(-2, 2),
+                    (lane - 1) * 9 + dice.range(-1, 1),
                 )
             };
             let along = s + dice.range(-3, 3);
@@ -252,9 +287,17 @@ pub fn city_seeded(seed: u64) -> Course {
             lanes.push((off, anchor_h - length));
         }
         stations.push(here);
-        if station % 2 == 1 {
+        // (none in the last 30 m before a 90° corner: on the inside line
+        // there it would catch an ape making for the corner's cable)
+        let into_corner = corners
+            .iter()
+            .any(|k| k.turn.abs() == 90 && si > k.s0 - int(42) && si < k.s1);
+        if station % 2 == 1 && !into_corner {
             // a low vine to climb back up by
-            let off = dice.range(-9, 9);
+            let off = match inside {
+                Some(inside) => inside * dice.range(0, 9),
+                None => dice.range(-9, 9),
+            };
             let b = c.point(int(s + 7)).add(r.scale(int(off)));
             c.vines.push(Vine {
                 anchor: v3(b.x, ground(b.x, b.z) + int(27), b.z),
@@ -273,15 +316,15 @@ pub fn city_seeded(seed: u64) -> Course {
             }
         }
         station += 1;
-        s += dice.range(24, 30);
+        s += dice.range(23, 29);
     }
 
     // the corners' cables
     for k in corners.iter().filter(|k| k.turn.abs() == 90) {
         let inn = k.inward();
         for (u, w, hang) in [
-            (-int(8), int(6), Hang::Crane(*k)),
-            (-int(2), -int(8), Hang::Helicopter),
+            (-int(10), int(8), Hang::Crane(*k)),
+            (-int(16), -int(1), Hang::Helicopter),
         ] {
             let p = k.p.add(k.din.scale(u)).add(inn.scale(w));
             let anchor = v3(p.x, ground(p.x, p.z) + CORNER_HEIGHT, p.z);
@@ -294,16 +337,55 @@ pub fn city_seeded(seed: u64) -> Course {
             });
             hangs.push((c.vines.len() - 1, hang));
         }
+        // and a low vine just into the new street, for an ape that fell
+        // in the crossing
+        let at = k.s1 + int(2);
+        let b = c.point(at);
+        c.vines.push(Vine {
+            anchor: v3(b.x, ground(b.x, b.z) + int(27), b.z),
+            length: int(24) + cm(dice.range(0, 40)),
+            slide: None,
+            at,
+        });
+        hangs.push((c.vines.len() - 1, Hang::Street));
     }
 
-    // the bridge's cables: a station at each end's side span and three on
-    // the main span, two vines each (one inner cable, one outer), and a long
-    // one in the middle down to the deck
-    for (j, t) in [19, 50, 79, 108, 139].into_iter().enumerate() {
-        let pair = if j % 2 == 0 { [0, 2] } else { [1, 3] };
+    // over the bridge, a station every 14–25 m: from the main cables
+    // where they hang at vine height (the side spans' middles and the main
+    // span), and from helicopters hovering by the deck's ends and the
+    // towers, where the cables run too high; two vines each, and a low vine
+    // at three of them, so an ape out of the river climbs back up at once
+    for (lane, (t, cable, low)) in [
+        (8, false, false),
+        (22, true, false),
+        (38, false, true),
+        (54, true, false),
+        (79, true, true),
+        (104, true, false),
+        (120, false, true),
+        (136, true, false),
+    ]
+    .into_iter()
+    .enumerate()
+    {
         let mut here = Vec::new();
+        let pair = if lane % 2 == 0 { [0, 2] } else { [1, 3] };
         for k in pair {
-            let anchor = bridge.cable(k, int(t));
+            let (anchor, hang) = if cable {
+                (bridge.cable(k, int(t)), Hang::Cable)
+            } else {
+                let p = bridge.cable(k, int(t));
+                let across = CABLES[k] / 2 + int(dice.range(-1, 1));
+                let q = bridge
+                    .start
+                    .add(fwd.scale(int(t)))
+                    .add(right_of(fwd).scale(across));
+                let _ = p;
+                (
+                    v3(q.x, bridge.start.y + int(dice.range(40, 46)), q.z),
+                    Hang::Helicopter,
+                )
+            };
             let bottom = bridge.start.y + int(dice.range(11, 15));
             let at = c.progress(anchor, c.nearest_anywhere(anchor)).0;
             c.vines.push(Vine {
@@ -313,19 +395,22 @@ pub fn city_seeded(seed: u64) -> Course {
                 at,
             });
             here.push(c.vines.len() - 1);
-            hangs.push((c.vines.len() - 1, Hang::Cable));
+            hangs.push((c.vines.len() - 1, hang));
         }
         stations.push(here);
-        if t == 79 {
-            let anchor = bridge.cable(1, int(t + 6));
-            let at = c.progress(anchor, c.nearest_anywhere(anchor)).0;
+        if low {
+            let p = bridge
+                .start
+                .add(fwd.scale(int(t + 7)))
+                .add(right_of(fwd).scale(int(dice.range(-7, 7))));
+            let anchor = v3(p.x, bridge.start.y + int(27), p.z);
             c.vines.push(Vine {
                 anchor,
-                length: anchor.y - bridge.start.y - int(3),
+                length: int(24) + cm(dice.range(0, 40)),
                 slide: None,
-                at,
+                at: c.progress(anchor, c.nearest_anywhere(anchor)).0,
             });
-            hangs.push((c.vines.len() - 1, Hang::Cable));
+            hangs.push((c.vines.len() - 1, Hang::Lamp));
         }
     }
 
@@ -793,6 +878,8 @@ enum Hang {
     Crane(Corner),
     Helicopter,
     Cable,
+    /// a tall lamp on the bridge deck
+    Lamp,
 }
 
 /// The street a point is in: one whose own length (not a corner's mitre)
@@ -809,6 +896,16 @@ fn street_of(c: &Course, p: V3) -> Street {
             off as i64 * 4 + side as i64
         })
         .unwrap_or(c.streets[0])
+}
+
+/// Whether `p` is in some street's box, `margin` in from its walls.
+fn in_streets(c: &Course, p: V3, margin: i32) -> bool {
+    c.streets.iter().any(|st| {
+        let d = p.flat().sub(st.from);
+        let (lo, hi) = st.span(c.half_width - margin);
+        let a = d.dot(st.dir);
+        a > lo && a < hi && d.dot(right_of(st.dir)).abs() < c.half_width - margin
+    })
 }
 
 /// How tall the building just behind the wall at `p` is (0: none).
@@ -837,6 +934,16 @@ fn hangers(c: &Course, blocks: &[Block], hangs: &[(usize, Hang)], dice: &mut Dic
         let behind = |side: i32| height_at(blocks, on_line.add(r.scale(side * (hw + int(2)))));
         let (kind, from, to) = match hang {
             Hang::Cable => (HangerKind::BridgeCable, a, a),
+            Hang::Lamp => {
+                // its mast at the deck's edge on the near side
+                let side = if a.flat().sub(on_line).dot(r) >= 0 {
+                    1
+                } else {
+                    -1
+                };
+                let p = on_line.add(r.scale(side * DECK_HALF));
+                (HangerKind::StreetLight, v3(p.x, a.y - int(27), p.z), a)
+            }
             Hang::Helicopter => (HangerKind::Helicopter, a.add(v3(0, int(3), 0)), a),
             Hang::Crane(corner) => {
                 let site = corner
@@ -858,8 +965,11 @@ fn hangers(c: &Course, blocks: &[Block], hangs: &[(usize, Hang)], dice: &mut Dic
                 };
                 if tall || matches!(hang, Hang::Wire) {
                     (HangerKind::Wire, facade(-1, a.y), facade(1, a.y))
-                } else if a.y - ground(a.x, a.z) <= int(30) {
-                    // a tall lamp mast at the kerb, its arm out over the street
+                } else if a.y - ground(a.x, a.z) <= int(30)
+                    && !in_streets(c, on_line.add(r.scale(side * (hw - cm(50)))), int(1))
+                {
+                    // a tall lamp mast at the kerb, its arm out over the
+                    // street (not out in a crossing street)
                     let p = on_line.add(r.scale(side * (hw - cm(50))));
                     let foot = v3(p.x, 0, p.z);
                     (

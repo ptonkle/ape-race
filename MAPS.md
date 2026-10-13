@@ -29,7 +29,21 @@ Notes for building the next map, from the Jungle (the first course) and the City
 - **Water** (the City's river): swimming slowly to a bank or ladder is that map's "ground". Keep it forgiving (boats to bounce off, low vines nearby): falling in must not lose you the race. Water counts as the floor for Floor is Lava (`Course::floor`).
 - **`Course::floor`** is what the jaguar mode treats as the floor, and what the jaguar runs on. A map with a different floor (water, a bridge deck) changes only that function.
 - **The camera's start view:** the chase camera sits about 10 m behind the ape (`camera.rs` `BACK_REST`, for 2× apes). Keep any solid face at least 16 m behind `path[0]`, or the race opens inside a wall (City Y13).
-- **Watch the step cost**, not just the drawing: the City's first layout had a 6–7 ms stepping spike once a second (Y10). Measure with `examples/frame_cost.rs -- <map>`.
+- **Watch the step cost**, not just the drawing: the City's first layout had a 6–7 ms stepping spike once a second (Y10). Measure with `examples/frame_cost.rs -- <map>`. The cause was the AI: each plan flies copies of the ape hundreds of ticks ahead, so anything per ape per tick is paid thousands of times. The City's bouncer search walked every car for every moving bouncer. Fix: skip it when the feet are above the tallest bouncer (`city::BOUNCER_TALLEST`, 5 m), and look moving cars up directly. Worst step 1.7 ms after.
+- **The start camera fix** (Y13): the City's start street runs on 18 m behind the start (`START_BACK` in `city/layout.rs`) to the office closing it; the start's back rule still stops apes at 6 m.
+
+## Getting the AI round a new map
+
+- **Find where it stalls before tuning anything.** `examples/city_trace.rs` prints one AI ape every half second (progress, mode, height, speed, grabs, wall hits); stalls show up as 3 s with under 25 m gained. `examples/city_report.rs -- 8` gives every difficulty over eight seeds; `examples/city_map.rs` draws the layout from above as an SVG.
+- **Fix the layout, not the AI:** the difficulties are shared by every map, and retuning them changes the Jungle. On the City every fix was in the layout:
+  - a station 12–16 m short of each 90° corner (without it the last vines could be 35 m short of the corner cables, and the AI swung back and forth with no way on);
+  - a station 5 m into the new street after each 90° corner, so a quarter-circle release always has something close;
+  - stations every 24–30 m (26–32 m was past Sloth's 22 m ideal hop: it stalled on straights and failed to finish 1 race in 6);
+  - a low vine at every other station (every third left a fallen ape running 10 s).
+- **When the layout is right but the levels bunch up**, give the new map its own handicaps (`ai::Difficulty::tuning_on`), never the shared ones: on the City the Monkey and the Ape got quicker handicaps, the Jungle's stayed byte-identical (C12).
+- **New ground needs an AI rule:** in the City's river the AI presses no keys, so the auto-swim takes it to the nearest bank, ladder or boat (`ai::think`). Check it never swims at a vine it cannot reach.
+- **Then add an ordering test for the map** (`tests/city_ai.rs`: eight layouts, each level 6 s slower than the next, every race inside 150 s; every kind at Sloth and King Kong; four AIs with items).
+- **Medal times:** `city_time_trial_report` (King Kong alone, Speed Boosts only, every kind). Author just under the best kind, then the Jungle's steps of 7, 10 and 15 s (City: Orangutan 64.4 s, so 1:04 / 1:11 / 1:21 / 1:36). Medals are per map: `trial::medals(map)`, `target_on`, `earned_on`, `author_shown_on`, `next_target_on`.
 
 ## Art lessons
 

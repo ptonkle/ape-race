@@ -138,6 +138,31 @@ impl Difficulty {
         Difficulty::ALL.into_iter().find(|d| d.key() == k)
     }
 
+    /// A level's handicaps on a map: the Jungle's for every map, except on
+    /// the City: there, with the Jungle's handicaps, the Monkey was no
+    /// faster than the Sloth and the Ape barely faster than the Monkey
+    /// (sharp corners and sparser vines spread the levels differently), so
+    /// the City's Monkey reacts a little sooner and misjudges less, and its
+    /// Ape has stronger arms and reacts sooner.
+    fn tuning_on(self, city: bool) -> Tuning {
+        let t = self.tuning();
+        match self {
+            Difficulty::Monkey if city => Tuning {
+                hesitate: CITY_MONKEY_HESITATE,
+                jitter: CITY_MONKEY_HESITATE,
+                noise: CITY_MONKEY_NOISE,
+                ..t
+            },
+            Difficulty::Ape if city => Tuning {
+                hesitate: CITY_APE_HESITATE,
+                jitter: CITY_APE_HESITATE,
+                drive: CITY_APE_DRIVE,
+                ..t
+            },
+            _ => t,
+        }
+    }
+
     fn tuning(self) -> Tuning {
         let second = TICKS_PER_SECOND as u32;
         match self {
@@ -177,6 +202,14 @@ impl Difficulty {
     }
 }
 
+/// The City's Monkey (see [`Difficulty::tuning_on`]).
+const CITY_MONKEY_HESITATE: u32 = 12;
+const CITY_MONKEY_NOISE: i32 = int(4);
+/// The City's Ape: stronger arms and a quicker reaction than on the
+/// Jungle, to keep the levels spaced there.
+const CITY_APE_HESITATE: u32 = 2;
+const CITY_APE_DRIVE: u32 = 6;
+
 /// A difficulty's handicaps.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct Tuning {
@@ -210,6 +243,8 @@ const RESCUE: u32 = 4 * TICKS_PER_SECOND as u32;
 pub struct Brain {
     /// how well it drives
     pub difficulty: Difficulty,
+    /// racing on the City (set by [`think`] each tick)
+    city: bool,
     /// its own dice, for the handicaps
     dice: Dice,
     /// the first tick it may let go of the vine it holds
@@ -293,6 +328,7 @@ impl Brain {
     pub fn new(difficulty: Difficulty, seed: u64) -> Brain {
         Brain {
             difficulty,
+            city: false,
             dice: Dice(seed),
             ready: 0,
             grabbed: 0,
@@ -324,7 +360,7 @@ impl Brain {
         if tick < self.rescue_until {
             Difficulty::KingKong.tuning()
         } else {
-            self.difficulty.tuning()
+            self.difficulty.tuning_on(self.city)
         }
     }
 
@@ -354,6 +390,7 @@ impl Default for Brain {
 pub fn think(race: &Race, who: usize, brain: &mut Brain) -> Controls {
     let tick = race.tick + 1;
     let r = &race.racers[who];
+    brain.city = race.course.city.is_some();
     if race.running() && !r.out() && brain.difficulty != Difficulty::KingKong {
         brain.watch(tick, r.progress);
     }

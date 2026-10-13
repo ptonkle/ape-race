@@ -1,7 +1,8 @@
 //! One AI ape on the City, traced: every half second its progress, mode,
 //! height and speed, and where it hit walls, landed, swam or was stuck.
 //!
-//! `cargo run --release -p tool_core --example city_trace -- LEVEL [SEED]`
+//! `cargo run --release -p tool_core --example city_trace -- LEVEL [SEED [KIND [RUN]]]` (a kind other than the
+//! Chimpanzee races with its own stats)
 use tool_core::ai::{think, Brain, Difficulty};
 use tool_core::ape::{Happening, Mode};
 use tool_core::city::{city, city_seeded};
@@ -18,13 +19,18 @@ fn main() {
     } else {
         city_seeded(0xC17E_5EED_0001 + k * 7919)
     };
+    let kind = args
+        .get(2)
+        .and_then(|k| Kind::from_key(k))
+        .unwrap_or(Kind::Chimpanzee);
     let entries = [Entry {
         name: String::new(),
-        kind: Kind::Chimpanzee,
+        kind,
         driver: Driver::Ai,
     }];
-    let mut race = Race::new(course, &entries, true, 7);
-    let mut brain = Brain::new(level, 0xA9E5);
+    let run: u64 = args.get(3).map(|a| a.parse().unwrap()).unwrap_or(0);
+    let mut race = Race::new(course, &entries, kind == Kind::Chimpanzee, 7 + run);
+    let mut brain = Brain::new(level, 0xA9E5 + run * 101);
     let mut line = String::new();
     while race.clock < 150 * TICKS_PER_SECOND as u32 && race.phase != Phase::Done {
         let c = think(&race, 0, &mut brain);
