@@ -587,7 +587,7 @@ impl App {
                     Fin::Done(t) => super::clock_text(t),
                     Fin::Racing => self.t("results.racing"),
                     Fin::Dnf => self.t("results.out"),
-                    Fin::Eaten(_) => self.t("results.eaten"),
+                    Fin::Eaten(..) => self.t("results.eaten"),
                 };
                 json!([
                     place,

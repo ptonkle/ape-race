@@ -1233,29 +1233,29 @@ pub fn jaguar(b: &mut Batch, j: &crate::jaguar::Jaguar, scale: i32) {
     let body = Frame::upright(middle, spine, up);
     let p = |x: i32, y: i32, z: i32| v3(cm(x), cm(y), cm(z));
     // the torso: a barrel along the spine, the chest and haunches, the belly
-    rig.put(Mesh::Barrel, body.shape(p(0, 0, 0), p(44, 112, 48)), JAG_COAT);
+    rig.put(
+        Mesh::Barrel,
+        body.shape(p(0, 0, 0), p(44, 112, 48)),
+        JAG_COAT,
+    );
     rig.put(Mesh::Geo, body.shape(p(0, 38, -1), p(46, 46, 52)), JAG_COAT);
     rig.put(Mesh::Geo, body.shape(p(0, -40, 2), p(44, 46, 50)), JAG_COAT);
-    rig.put(Mesh::Geo, body.shape(p(0, 0, -14), p(34, 82, 26)), JAG_CREAM);
+    rig.put(
+        Mesh::Geo,
+        body.shape(p(0, 0, -14), p(34, 82, 26)),
+        JAG_CREAM,
+    );
     // the rosettes: dark rings round deeper tawny middles
     for (along, round) in ROSETTES {
         let a = deg(round);
         let n = body.dir(fx::sin(a), 0, fx::cos(a));
-        let at = body.at(
-            mul(fx::sin(a), cm(23)),
-            cm(along),
-            mul(fx::cos(a), cm(25)),
-        );
+        let at = body.at(mul(fx::sin(a), cm(23)), cm(along), mul(fx::cos(a), cm(25)));
         rig.put(
             Mesh::Hex,
             rod(at.sub(n.scale(cm(1))), at.add(n.scale(cm(2))), cm(11)),
             JAG_SPOT,
         );
-        rig.put(
-            Mesh::Hex,
-            rod(at, at.add(n.scale(cm(3))), cm(5)),
-            JAG_DEEP,
-        );
+        rig.put(Mesh::Hex, rod(at, at.add(n.scale(cm(3))), cm(5)), JAG_DEEP);
     }
     jaguar_legs(&mut rig, j, &body, fwd);
     jaguar_head(&mut rig, j, &body, fwd);
@@ -1306,10 +1306,18 @@ fn jaguar_legs(rig: &mut Rig, j: &crate::jaguar::Jaguar, body: &Frame, fwd: V3) 
         rig.bone(root, mid, w, JAG_COAT);
         rig.bone(mid, end, pct(w, 72), shade(JAG_COAT, 94));
         // a spot or two on the upper leg
-        rig.ball(root.lerp(mid, ONE / 2).add(flat.x.scale(side * pct(w, 40))), cm(5), JAG_SPOT);
+        rig.ball(
+            root.lerp(mid, ONE / 2).add(flat.x.scale(side * pct(w, 40))),
+            cm(5),
+            JAG_SPOT,
+        );
         // the paw
         let paw = Frame::upright(end, up, fwd);
-        rig.put(Mesh::Bevel, paw.shape(v3(0, 0, cm(3)), p3(12, 7, 15)), JAG_CREAM);
+        rig.put(
+            Mesh::Bevel,
+            paw.shape(v3(0, 0, cm(3)), p3(12, 7, 15)),
+            JAG_CREAM,
+        );
     }
 }
 
@@ -1331,7 +1339,11 @@ fn jaguar_head(rig: &mut Rig, j: &crate::jaguar::Jaguar, body: &Frame, fwd: V3) 
     let head_fwd = fwd.scale(fx::cos(a)).sub(up.scale(fx::sin(a)));
     let h = Frame::upright(at, head_up, head_fwd);
     rig.put(Mesh::Geo, h.shape(V3::ZERO, p3(30, 26, 32)), JAG_COAT);
-    rig.put(Mesh::Bevel, h.shape(p3(0, -5, 16), p3(17, 12, 14)), JAG_CREAM);
+    rig.put(
+        Mesh::Bevel,
+        h.shape(p3(0, -5, 16), p3(17, 12, 14)),
+        JAG_CREAM,
+    );
     rig.put(Mesh::Octa, h.shape(p3(0, -1, 23), p3(7, 4, 5)), JAG_NOSE);
     // the lower jaw, hinged under the cheeks, open by `jaw`
     let open = mul(j.jaw, deg(42));
@@ -1350,12 +1362,24 @@ fn jaguar_head(rig: &mut Rig, j: &crate::jaguar::Jaguar, body: &Frame, fwd: V3) 
     );
     if j.jaw > ONE / 5 {
         // the open mouth and its fangs
-        rig.put(Mesh::Bevel, h.shape(p3(0, -10, 12), p3(12, 4, 12)), JAG_MOUTH);
+        rig.put(
+            Mesh::Bevel,
+            h.shape(p3(0, -10, 12), p3(12, 4, 12)),
+            JAG_MOUTH,
+        );
         for s in SIDES {
             let top = h.at(s * cm(4), -cm(10), cm(20));
-            rig.put(Mesh::Spike, rod(top, top.sub(h.y.scale(cm(5))), cm(2)), JAG_FANG);
+            rig.put(
+                Mesh::Spike,
+                rod(top, top.sub(h.y.scale(cm(5))), cm(2)),
+                JAG_FANG,
+            );
             let low = hinge.add(jaw_fwd.scale(cm(13))).add(h.x.scale(s * cm(4)));
-            rig.put(Mesh::Spike, rod(low, low.add(jaw_up.scale(cm(4))), cm(2)), JAG_FANG);
+            rig.put(
+                Mesh::Spike,
+                rod(low, low.add(jaw_up.scale(cm(4))), cm(2)),
+                JAG_FANG,
+            );
         }
     }
     for s in SIDES {
@@ -1363,9 +1387,17 @@ fn jaguar_head(rig: &mut Rig, j: &crate::jaguar::Jaguar, body: &Frame, fwd: V3) 
         rig.put(Mesh::Ico, h.shape(p3(s * 7, 4, 13), p3(6, 5, 5)), JAG_EYE);
         rig.put(Mesh::Octa, h.shape(p3(s * 7, 4, 15), p3(2, 4, 2)), BLACK);
         let ear = h.at(s * cm(10), cm(13), -cm(3));
-        rig.put(Mesh::Hex, rod(ear, ear.add(h.z.scale(cm(3))), cm(10)), JAG_SPOT);
+        rig.put(
+            Mesh::Hex,
+            rod(ear, ear.add(h.z.scale(cm(3))), cm(10)),
+            JAG_SPOT,
+        );
         let inner = ear.add(h.z.scale(cm(2)));
-        rig.put(Mesh::Hex, rod(inner, inner.add(h.z.scale(cm(2))), cm(6)), JAG_CREAM);
+        rig.put(
+            Mesh::Hex,
+            rod(inner, inner.add(h.z.scale(cm(2))), cm(6)),
+            JAG_CREAM,
+        );
         rig.ball(h.at(s * cm(6), cm(11), cm(6)), cm(3), JAG_SPOT);
     }
     rig.ball(h.at(0, cm(13), cm(2)), cm(3), JAG_SPOT);
@@ -1536,6 +1568,62 @@ mod tests {
             ..fly
         };
         vec![rest, run, swing, fly, fall, dizzy, dizzy_air]
+    }
+
+    #[test]
+    fn the_jaguar_is_a_spotted_cat_at_the_racers_scale() {
+        // TRIAGE T37: four legs, a tail, rosettes; twice life size, as the
+        // racers are drawn, so it reads next to them
+        let base = crate::jaguar::Jaguar {
+            feet: v3(int(5), int(1), int(7)),
+            yaw: deg(30),
+            gait: deg(70),
+            stride: ONE,
+            leap: 0,
+            head_down: 0,
+            jaw: 0,
+        };
+        let leap = crate::jaguar::Jaguar {
+            leap: ONE,
+            jaw: ONE,
+            stride: 0,
+            ..base
+        };
+        let eat = crate::jaguar::Jaguar {
+            head_down: ONE,
+            jaw: ONE / 2,
+            stride: 0,
+            ..base
+        };
+        for j in [base, leap, eat] {
+            let mut b = Batch::new();
+            jaguar(&mut b, &j, 200);
+            let s = shapes(b);
+            assert!((80..=250).contains(&s.len()), "{} shapes", s.len());
+            let spots = s.iter().filter(|x| x.colour == JAG_SPOT).count();
+            assert!(spots >= 20, "{spots} rosettes and spots");
+            let top = s.iter().map(|x| x.at.y).max().unwrap() - j.feet.y;
+            let fwd = j.fwd();
+            let along: Vec<i32> = s.iter().map(|x| x.at.sub(j.feet).dot(fwd)).collect();
+            let long = along.iter().max().unwrap() - along.iter().min().unwrap();
+            assert!(
+                (cm(110)..=cm(260)).contains(&top),
+                "{} cm tall",
+                top * 100 / ONE
+            );
+            assert!(long >= cm(300), "{} cm long", long * 100 / ONE);
+        }
+        // the leap reaches out further than the run
+        let reach = |j: &crate::jaguar::Jaguar| {
+            let mut b = Batch::new();
+            jaguar(&mut b, j, 200);
+            shapes(b)
+                .iter()
+                .map(|x| x.at.sub(j.feet).dot(j.fwd()))
+                .max()
+                .unwrap()
+        };
+        assert!(reach(&leap) > reach(&base));
     }
 
     #[test]

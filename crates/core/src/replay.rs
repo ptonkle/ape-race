@@ -1264,6 +1264,44 @@ mod tests {
     }
 
     #[test]
+    fn a_track_keeps_the_jaguars_meals_and_plays_them_back() {
+        // TRIAGE T37: an online race's track has the eaten apes
+        let mut live = Race::new(Course::jungle(), &entries(3), false, 7);
+        live.lava = true;
+        let mut rec = Recording::online(&live, 0);
+        let mut brains = vec![Brain::default(); 3];
+        for t in 0..1500 {
+            let c = player(live.tick);
+            drive(&mut live, &mut brains, 0, c);
+            if t == 900 {
+                live.eat(2);
+            }
+            rec.track.as_mut().unwrap().record(&live);
+        }
+        let track = rec.track.as_ref().unwrap();
+        let e = live.racers[2].eaten.unwrap();
+        assert_eq!(track.eats, vec![(e.tick, 2, e.at)]);
+        // through the text and back
+        let text = track.pack(3);
+        assert_eq!(Track::unpack(&text, 3).as_ref(), Some(track));
+        // and a track with no one eaten packs as before: no third part
+        let (_, plain) = tracked(3, 600);
+        assert_eq!(
+            plain.track.as_ref().unwrap().pack(3).matches('.').count(),
+            1
+        );
+        // played back, the same ape is eaten at the same tick and place
+        let course = Course::jungle();
+        let mut again = rec.race(&course);
+        let mut none = Vec::new();
+        while again.tick < rec.length() {
+            rec.play(&mut again, &mut none);
+        }
+        assert_eq!(again.racers[2].eaten, Some(e));
+        assert!(again.racers[0].eaten.is_none() == live.racers[0].eaten.is_none());
+    }
+
+    #[test]
     fn a_track_plays_back_where_the_apes_were() {
         let (live, rec) = tracked(3, 2400);
         let course = Course::jungle();

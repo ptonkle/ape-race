@@ -259,8 +259,9 @@ pub enum Fin {
     /// Did not finish: its player left.
     Dnf,
     /// Eaten by the jaguar (Floor is Lava, TRIAGE T37), this far along the
-    /// course (metres, Q16).
-    Eaten(i32),
+    /// course (metres, Q16), here (its hands): the host's results carry the
+    /// place, so a browser that lost the `Eaten` message eats it there too.
+    Eaten(i32, V3),
 }
 
 /// Everything needed to build this browser's `Race`.
@@ -920,7 +921,7 @@ impl Online {
                             .eats_reported
                             .keys()
                             .copied()
-                            .filter(|i| matches!(race.fin[*i], Fin::Eaten(_)))
+                            .filter(|i| matches!(race.fin[*i], Fin::Eaten(..)))
                             .collect();
                         for i in eaten {
                             race.eats_reported.remove(&i);
@@ -1127,7 +1128,7 @@ impl Online {
         race.eats_heard.entry(i).or_insert((p, s));
         if is_host {
             if race.fin[i] == Fin::Racing {
-                race.fin[i] = Fin::Eaten(s);
+                race.fin[i] = Fin::Eaten(s, p);
             }
             self.send_results(now_ms);
         }
@@ -1806,7 +1807,7 @@ impl Online {
         };
         if is_host {
             if race.fin[index] == Fin::Racing {
-                race.fin[index] = Fin::Eaten(progress);
+                race.fin[index] = Fin::Eaten(progress, at);
             }
             self.broadcast(&msg);
             self.send_results(now_ms);
@@ -1886,16 +1887,7 @@ impl Online {
                 }
                 // the jaguar comes for it here too (TRIAGE T37), where its
                 // owner said it was eaten
-                Fin::Eaten(_) => {
-                    if state.applied.insert(i) {
-                        let at = state
-                            .eats_heard
-                            .get(&i)
-                            .map(|(p, _)| *p)
-                            .unwrap_or(race.racers[i].ape.pos);
-                        race.remote_eaten(i, at);
-                    }
-                }
+                Fin::Eaten(_, at) if state.applied.insert(i) => race.remote_eaten(i, *at),
                 _ => {}
             }
         }
@@ -1912,8 +1904,8 @@ impl Online {
             if *f == Fin::Racing {
                 if let Some(clock) = race.heard.get(&i) {
                     *f = Fin::Done(*clock);
-                } else if let Some((_, s)) = race.eats_heard.get(&i) {
-                    *f = Fin::Eaten(*s);
+                } else if let Some((p, s)) = race.eats_heard.get(&i) {
+                    *f = Fin::Eaten(*s, *p);
                 } else if race.gone.contains(&i) {
                     *f = Fin::Dnf;
                 }
@@ -1933,7 +1925,7 @@ impl Online {
         let rank = |i: &usize| match fin[*i] {
             Fin::Done(c) => (0, c as i64),
             Fin::Racing => (1, 0),
-            Fin::Eaten(s) => (2, -(s as i64)),
+            Fin::Eaten(s, _) => (2, -(s as i64)),
             Fin::Dnf => (3, 0),
         };
         let mut order: Vec<usize> = (0..fin.len()).collect();

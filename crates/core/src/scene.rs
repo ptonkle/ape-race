@@ -1183,7 +1183,11 @@ pub fn dynamic(f: &Frame) -> (Batch, Batch) {
                 let size = (cm(150) - high / 8) * RACE_SCALE / 100;
                 b.push(
                     Mesh::Cyl,
-                    &placed(v3(j.feet.x, ground + cm(4), j.feet.z), j.yaw, v3(size / 2, cm(2), size)),
+                    &placed(
+                        v3(j.feet.x, ground + cm(4), j.feet.z),
+                        j.yaw,
+                        v3(size / 2, cm(2), size),
+                    ),
                     SHADOW,
                     0,
                 );
@@ -1667,6 +1671,55 @@ mod tests {
             );
             assert!(lo <= floor + cm(30), "{kind:?}: floating");
         }
+    }
+
+    /// How many shapes the frame's non-vine batch has, looking at ape 0.
+    fn shapes_seen(race: &Race) -> usize {
+        let at = race.racers[0].ape.pos;
+        let eye = at.add(v3(0, int(3), -int(12)));
+        let cam = Camera {
+            eye,
+            fwd: at.sub(eye).norm(),
+            fov: deg(70),
+        };
+        let apes: Vec<V3> = race.racers.iter().map(|r| r.ape.pos).collect();
+        let b = dynamic(&Frame {
+            race,
+            cam: &cam,
+            apes: &apes,
+            local: Some(0),
+            tick: 10,
+            chains: &[],
+            vivid: false,
+        })
+        .1;
+        let (v, _) = b.finish(crate::render::DYNAMIC_BUFFER);
+        v.len() / crate::render::INSTANCE_VALUES
+    }
+
+    #[test]
+    fn the_jaguar_is_drawn_and_the_eaten_ape_goes_at_the_bite() {
+        // TRIAGE T37
+        let mut race = one_racer(crate::rules::Kind::Gorilla);
+        let p = race.course.point(int(300));
+        race.racers[0].ape.pos = v3(p.x, crate::course::ground(p.x, p.z) + BODY_DROP, p.z);
+        race.racers[0].ape.hint = race.course.nearest_anywhere(race.racers[0].ape.pos);
+        let plain = shapes_seen(&race);
+        race.eat(0);
+        let t0 = race.tick;
+        let at = |race: &mut Race, t: u32| {
+            race.tick = t0 + t;
+            shapes_seen(race)
+        };
+        let running = at(&mut race, crate::jaguar::RUN / 2);
+        let eating = at(&mut race, crate::jaguar::BITE + 1);
+        let gone = at(&mut race, crate::jaguar::GONE);
+        assert!(running >= plain + 60, "the jaguar: {plain} then {running}");
+        assert!(
+            eating < running - 40,
+            "the ape is gone: {eating} of {running}"
+        );
+        assert!(gone < eating - 60, "and the jaguar: {gone}");
     }
 
     /// The vines batch for a frame looking at `at` from 20 m back.

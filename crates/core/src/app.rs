@@ -1644,6 +1644,8 @@ impl App {
             // the held item as a picture (TRIAGE T19)
             "item_icon": me.item.map(crate::items::icon_svg).unwrap_or_default(),
             "big": big,
+            // a whole message (the jaguar, TRIAGE T37) is drawn smaller
+            "big_class": if big.chars().count() > 10 { "big message" } else { "big" },
             "reward": self.reward_flash(me, race.tick),
             "hint": if p.replay.is_some() {
                 self.t("hud.replay")
@@ -1846,11 +1848,12 @@ fn spectate_after(r: &crate::race::Racer) -> u32 {
 pub(crate) fn results_due(p: &Play) -> bool {
     let me = &p.race.racers[p.local];
     let wait = if me.finish.is_none() && me.eaten.is_some() {
+        // with the camera's pan on
         EATEN_SPECTATE_AFTER
     } else {
-        rules::TICKS_PER_SECOND as u32
+        rules::TICKS_PER_SECOND as u32 + 1
     };
-    p.since_out.is_some_and(|t| t > wait)
+    p.since_out.is_some_and(|t| t >= wait)
 }
 
 /// The race camera as it is, before any pan.
@@ -2109,6 +2112,8 @@ fn cue_for(e: &Event, local: usize) -> Option<Cue> {
 #[cfg(test)]
 #[path = "app/items_hype_tests.rs"]
 mod items_hype_tests;
+#[cfg(test)]
+mod lava_tests;
 #[cfg(test)]
 mod spectate_tests;
 

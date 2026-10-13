@@ -745,6 +745,55 @@ fn a_player_who_leaves_mid_race_is_dnf_and_stops() {
 }
 
 #[test]
+fn the_jaguar_eats_on_every_browser_even_when_messages_are_lost() {
+    // TRIAGE T37: the host's Floor is Lava reaches every lobby; an eaten
+    // ape is eaten in every race, and the results list the eaten after
+    // the finishers, the furthest first
+    let mut net = Net::lobby(3);
+    let now = net.now;
+    net.nodes[0].set_lava(true, now).unwrap();
+    assert_eq!(net.nodes[1].set_lava(true, now), Err(OnlineError::NotHost));
+    net.run(1500);
+    assert!((0..3).all(|i| net.nodes[i].lobby().lava));
+    let now = net.now;
+    net.nodes[0].set_ai_count(1, now).unwrap();
+    net.ready_all();
+    let now = net.now;
+    net.nodes[0].start(42, now).unwrap();
+    net.run(4500);
+    net.lb.loss_permille = 500;
+    // joiner 1 eaten early on, joiner 2 further on, each in its own race
+    for (i, s) in [(1usize, 120), (2, 400)] {
+        let race = net.race_mut(i);
+        let p = race.course.point(tool_core::fx::int(s));
+        race.racers[i].ape.pos = p;
+        race.racers[i].ape.hint = race.course.nearest_anywhere(p);
+        race.eat(i);
+    }
+    net.run(3000);
+    net.lb.loss_permille = 0;
+    for i in 0..3 {
+        for j in [1, 2] {
+            let e = net.race(i).racers[j].eaten;
+            assert_eq!(
+                e.map(|e| e.at),
+                net.race(j).racers[j].eaten.map(|e| e.at),
+                "{i} sees {j}"
+            );
+        }
+    }
+    net.race_mut(0).racers[0].finish = Some(900);
+    net.race_mut(0).racers[3].finish = Some(800);
+    net.run(2000);
+    for (i, r) in net.results().iter().enumerate() {
+        let order: Vec<usize> = r.iter().map(|x| x.0).collect();
+        assert_eq!(order, vec![3, 0, 2, 1], "node {i}: {r:?}");
+        assert!(matches!(r[2].2, Fin::Eaten(..)) && r[2].1.is_none());
+        assert!(net.nodes[i].results_final());
+    }
+}
+
+#[test]
 fn rematch_returns_everyone_to_the_lobby_for_a_new_round() {
     let mut net = racing(3, 1);
     net.run(1000);

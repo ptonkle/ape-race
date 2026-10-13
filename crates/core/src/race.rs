@@ -875,6 +875,123 @@ mod tests {
         assert!(!r.catch_up_vine(0, slot));
     }
 
+    /// A running lava race on the jungle with ape 0 dropped from `height`
+    /// over the floor at `s` metres along, stepped until it lands.
+    fn dropped(lava: bool, s: i32, height: i32) -> Race {
+        let mut r = Race::new(Course::jungle(), &entries(2), false, 1);
+        r.lava = lava;
+        r.phase = Phase::Running;
+        let p = r.course.point(int(s));
+        let floor = crate::course::ground(p.x, p.z);
+        r.racers[0].ape.pos = v3(p.x, floor + rules::BODY_DROP + height, p.z);
+        r.racers[0].ape.hint = r.course.nearest_anywhere(r.racers[0].ape.pos);
+        r.racers[0].ape.mode = Mode::Flying;
+        r.racers[0].ape.vel = v3(0, 0, int(8));
+        r
+    }
+
+    #[test]
+    fn floor_is_lava_eats_an_ape_that_touches_the_ground() {
+        // TRIAGE T37
+        let mut r = dropped(true, 300, int(3));
+        let mut eaten_at = None;
+        for _ in 0..240 {
+            r.step(&[Controls::default(); 2]);
+            if r.events.contains(&Event::Eaten { who: 0 }) {
+                eaten_at = Some(r.tick);
+            }
+        }
+        let at = eaten_at.expect("eaten on landing");
+        let e = r.racers[0].eaten.expect("eaten");
+        assert_eq!(e.tick, at);
+        assert!(r.racers[0].out() && r.racers[0].finish.is_none());
+        // it stays where it touched down, and only ape 0 was eaten
+        assert_eq!(r.racers[0].ape.pos, e.at);
+        assert_eq!(r.racers[0].ape.vel, V3::ZERO);
+        assert!(r.racers[1].eaten.is_none(), "on the start platform");
+        // the jaguar leaps, roaring, at the end of its run
+        let mut r2 = dropped(true, 300, int(3));
+        let mut pounce = None;
+        for _ in 0..(jaguar::RUN + 300) {
+            r2.step(&[Controls::default(); 2]);
+            if r2.events.contains(&Event::Pounce { who: 0 }) {
+                pounce = Some(r2.tick);
+            }
+        }
+        assert_eq!(pounce, Some(at + jaguar::RUN));
+        // without the mode, the same landing is only a landing
+        let mut off = dropped(false, 300, int(3));
+        for _ in 0..240 {
+            off.step(&[Controls::default(); 2]);
+        }
+        assert!(off.racers[0].eaten.is_none());
+        assert_eq!(off.racers[0].ape.mode, Mode::Grounded);
+    }
+
+    #[test]
+    fn the_start_platform_and_the_countdown_are_safe() {
+        let mut r = Race::new(Course::jungle(), &entries(2), false, 1);
+        r.lava = true;
+        // standing on the platform through the countdown and after Go
+        for _ in 0..COUNTDOWN as u32 + 120 {
+            r.step(&[Controls::default(); 2]);
+        }
+        assert!(r.running());
+        assert!(r.racers.iter().all(|x| x.eaten.is_none()));
+        assert!(r.racers.iter().all(|x| x.ape.mode == Mode::Grounded));
+    }
+
+    #[test]
+    fn a_mushroom_bounce_is_not_the_ground() {
+        let mut r = dropped(true, 300, int(3));
+        let m = r.course.mushrooms[0];
+        let a = &mut r.racers[0].ape;
+        a.pos = v3(m.top.x, m.top.y + rules::BODY_DROP + int(2), m.top.z);
+        a.hint = r.course.nearest_anywhere(a.pos);
+        a.vel = v3(0, -int(5), 0);
+        let mut bounced = false;
+        for _ in 0..120 {
+            if bounced {
+                break;
+            }
+            r.step(&[Controls::default(); 2]);
+            bounced |= r.events.contains(&Event::Body {
+                who: 0,
+                what: Happening::Bounce,
+            });
+        }
+        assert!(bounced);
+        assert!(r.racers[0].eaten.is_none());
+    }
+
+    #[test]
+    fn eaten_apes_place_after_finishers_by_progress_and_end_the_race() {
+        let mut r = Race::new(Course::jungle(), &entries(3), false, 1);
+        r.lava = true;
+        r.phase = Phase::Running;
+        let place = |r: &mut Race, i: usize, s: i32| {
+            let p = r.course.point(int(s));
+            let a = &mut r.racers[i].ape;
+            a.pos = v3(p.x, crate::course::ground(p.x, p.z) + rules::BODY_DROP, p.z);
+            a.hint = r.course.nearest_anywhere(a.pos);
+            a.mode = Mode::Grounded;
+        };
+        // ape 2 eaten far along, ape 1 eaten early, ape 0 finishes last
+        place(&mut r, 2, 900);
+        place(&mut r, 1, 200);
+        r.racers[0].ape.pos = v3(0, int(40), 0);
+        r.racers[0].ape.mode = Mode::Flying;
+        r.step(&[Controls::default(); 3]);
+        assert!(r.racers[1].eaten.is_some() && r.racers[2].eaten.is_some());
+        assert_eq!(r.phase, Phase::Running, "ape 0 still racing");
+        r.remote_finish(0, r.clock);
+        r.step(&[Controls::default(); 3]);
+        assert_eq!(r.phase, Phase::Done);
+        assert_eq!(r.racers[0].place, 1);
+        assert_eq!(r.racers[2].place, 2, "the furthest eaten next");
+        assert_eq!(r.racers[1].place, 3);
+    }
+
     #[test]
     fn places_follow_progress_during_the_race() {
         let c = Course::jungle();

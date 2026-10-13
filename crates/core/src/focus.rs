@@ -155,4 +155,21 @@ mod tests {
         assert!(!f.follow_racing(&r), "no one left: stays");
         assert_eq!(Focus::leader_racing(&r), None);
     }
+
+    #[test]
+    fn an_eaten_racer_is_out_of_the_race() {
+        // TRIAGE T37: the jaguar is a way out, like the finish
+        let mut r = race(3);
+        r.racers[0].place = 1;
+        r.racers[1].place = 2;
+        r.racers[2].place = 3;
+        r.eat(0);
+        assert!(!racing(&r.racers[0]));
+        let mut f = Focus::on(0);
+        assert!(f.follow_racing(&r));
+        assert_eq!(f.racer, 1);
+        r.eat(1);
+        f.next(&r, true);
+        assert_eq!(f.racer, 2, "skips the eaten");
+    }
 }
