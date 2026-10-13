@@ -26,11 +26,13 @@ pub const INSTANCE_VALUES: usize = 16;
 /// vertex and the vertex count of the mesh to draw (0 and 0: all of it; the
 /// terrain is drawn a chunk at a time), then what it is for the colours at
 /// speed: 0 keeps its colour (vines, apes, items), 1 is scenery, 2 the
-/// ground (TRIAGE row 20).
+/// ground (TRIAGE row 20), 3 the vines and their flowers (kept bright in
+/// the colourblind mode, TRIAGE T33).
 pub const DRAW_VALUES: usize = 7;
 pub const KEEPS_COLOUR: u32 = 0;
 pub const SCENERY: u32 = 1;
 pub const GROUND: u32 = 2;
+pub const VINES: u32 = 3;
 pub const BYTES_PER_VALUE: usize = 4;
 pub const STATIC_BUFFER: u32 = 0;
 pub const DYNAMIC_BUFFER: u32 = 1;
@@ -78,6 +80,12 @@ impl Batch {
     /// Appends the instance values to `values` and returns the draws, whose
     /// offsets count from the start of `values`.
     pub fn finish_into(self, buffer: u32, values: &mut Vec<i32>) -> Vec<u32> {
+        self.finish_as(buffer, None, values)
+    }
+
+    /// As `finish_into`, every draw marked `kind` when given (else by its
+    /// buffer and mesh).
+    pub fn finish_as(self, buffer: u32, kind: Option<u32>, values: &mut Vec<i32>) -> Vec<u32> {
         let mut draws = Vec::new();
         for m in Mesh::ALL {
             let v = &self.lists[m as usize];
@@ -91,7 +99,9 @@ impl Batch {
                 (v.len() / INSTANCE_VALUES) as u32,
                 0,
                 0,
-                if buffer != STATIC_BUFFER {
+                if let Some(k) = kind {
+                    k
+                } else if buffer != STATIC_BUFFER {
                     KEEPS_COLOUR
                 } else if m == Mesh::Terrain {
                     GROUND
@@ -161,13 +171,16 @@ impl Camera {
 
 /// The view values the page uploads each frame: the matrix (16), the eye
 /// (3), the fog's start and end distances (2), then the fog's colour (3)
-/// and the sky's (3), which change at top speed (TRIAGE T20).
+/// and the sky's (3), which change at top speed (TRIAGE T20); how wild
+/// the jungle has turned and its colours (10); and how muted the world is
+/// (1: the colourblind mode, TRIAGE T33).
 pub fn view_values(
     cam: &Camera,
     aspect: i32,
     fog: (i32, i32),
     colours: (Rgb, Rgb),
     world: (i32, [Rgb; 3]),
+    mute: i32,
 ) -> Vec<i32> {
     let mut v = cam.matrix(aspect).0.to_vec();
     v.extend([cam.eye.x, cam.eye.y, cam.eye.z, fog.0, fog.1]);
@@ -179,6 +192,7 @@ pub fn view_values(
     for c in world.1 {
         v.extend(c);
     }
+    v.push(mute);
     v
 }
 
@@ -209,7 +223,7 @@ pub fn numbers_json() -> String {
         },
         "draw_values": DRAW_VALUES,
         "buffers": { "static": STATIC_BUFFER, "dynamic": DYNAMIC_BUFFER },
-        "view": { "matrix": [0, 16], "eye": [16, 19], "fog": [19, 21], "fog_colour": [21, 24], "sky": [24, 27], "trip": 27, "wild_ground": [28, 31], "wild_wood": [31, 34], "wild_leaves": [34, 37] },
+        "view": { "matrix": [0, 16], "eye": [16, 19], "fog": [19, 21], "fog_colour": [21, 24], "sky": [24, 27], "trip": 27, "wild_ground": [28, 31], "wild_wood": [31, 34], "wild_leaves": [34, 37], "mute": 37 },
         "uniforms": [["uLightDir", 3], ["uLight", 3], ["uSky", 3], ["uFog", 3], ["uGround", 3]],
     })
     .to_string()

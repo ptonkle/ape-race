@@ -13,7 +13,7 @@ The design is in [`BRIEF.md`](BRIEF.md) and the build decisions in [`PLAN.md`](P
 | Drive | Hold **W** on a vine to drive forward along the swing (A/D steer it). The drive is strongest when slow and fades as you speed up, so at speed your line and when you let go count. You never need to swing back and forth. |
 | Catching | Hold the grab button and you catch the first vine that comes within reach (3.6–5.2 m, by ape). No timing needed. |
 | The ground | A landing slides on and keeps some of its speed. Red **mushrooms** bounce you back up. Fall and you run (slowly). **Space** jumps; click to grab a low vine from the jump. Low vines hang every few stations. |
-| Items | Fly through a crate to take an item (one at a time). **Right click** or **E** uses it. **Banana:** thrown where you look; a hit stuns and slows. **Stick:** whacks any ape next to you off its vine. **Hook:** pulls back the nearest ape ahead and pulls you forward. **Speed Boost:** a burst along your motion. |
+| Items | Catch a vine with **violet flowers** on it to take an item (one at a time; the flowers close into buds until it comes back). **Right click** or **E** uses it. **Banana:** thrown where you look; a hit stuns and slows. **Stick:** whacks any ape next to you off its vine. **Hook:** pulls back the nearest ape ahead and pulls you forward. **Speed Boost:** a burst along your motion. |
 | Apes | Orangutan, Gorilla, Chimpanzee, Gibbon, Proboscis Monkey, Lemur. Five stats: Swing Power, Top Speed, Reach, Air Control, Weight. Every ape's stats add up to the same total. **Equal Stats** gives every ape the average. |
 | Online | **Online → Host** gives a room code to share; others **Join** with it. Everyone picks an ape and readies up; the host adds AI apes and starts. |
 | Best time | Your fastest finish is kept on this device and shown in the HUD and results. |
@@ -32,7 +32,7 @@ The design is in [`BRIEF.md`](BRIEF.md) and the build decisions in [`PLAN.md`](P
 | Pause | Esc (online, Esc shows the menu but the race goes on) |
 | Quick restart | R twice quickly (offline races and Time Trials) |
 
-Settings: Volume, Mouse Sensitivity, Invert Mouse Y, Camera Follows (the camera swings back behind you when the mouse rests). They are kept in browser storage.
+Settings: Volume, Colourblind Mode (the jungle goes grey, the vines stay vivid, the vine in reach turns white and thick, minimap apes get shapes), Mouse Sensitivity, Invert Mouse Y, Camera Follows (the camera swings back behind you when the mouse rests). They are kept in browser storage.
 
 ## Build, test and serve
 

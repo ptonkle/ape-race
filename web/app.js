@@ -315,7 +315,13 @@ function drawMinimap(m) {
     ctx.strokeStyle = a.me ? m.me_ring : m.ring;
     ctx.lineWidth = m.ring_width;
     ctx.beginPath();
-    ctx.arc(a.x, a.y, a.me ? m.me_dot : m.dot, 0, m.circle);
+    // a shape from the core (the colourblind mode), or a round dot
+    if (a.shape) {
+      for (let i = 0; i < a.shape.length; i += m.stride) ctx.lineTo(a.shape[i], a.shape[i + 1]);
+      ctx.closePath();
+    } else {
+      ctx.arc(a.x, a.y, a.me ? m.me_dot : m.dot, 0, m.circle);
+    }
     ctx.fill();
     ctx.stroke();
   });

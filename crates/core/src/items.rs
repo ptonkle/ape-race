@@ -471,9 +471,6 @@ fn effect(race: &mut Race, who: usize, by: usize, item: Item) {
 
 // ---- drawing ----
 
-const WOOD: render::Rgb = rgb(178, 114, 54);
-const PLANK: render::Rgb = rgb(112, 64, 30);
-const MARK: render::Rgb = rgb(255, 214, 64);
 const BANANA: render::Rgb = rgb(250, 214, 50);
 const TIP: render::Rgb = rgb(92, 62, 30);
 const ROPE: render::Rgb = rgb(150, 112, 62);
@@ -482,25 +479,13 @@ const METAL: render::Rgb = rgb(170, 176, 186);
 const LEAFY: render::Rgb = rgb(90, 180, 70);
 const REACH: render::Rgb = rgb(255, 120, 60);
 
-/// Crates on their vines (not while they respawn), flying Bananas and Hooks
-/// with their ropes, the knot of leaves a summoned vine hangs from, and the
+/// Flying Bananas and Hooks with their ropes (an item vine's flowers are
+/// drawn with the vines, `scene::item_flowers`, TRIAGE T46), the knot of leaves a summoned vine hangs from, and the
 /// Stick's reach for the player (this browser's `Driver::Local` ape) holding
 /// one: a ring round it, brighter with an ape inside, and a marker over each
 /// ape in reach.
 pub fn draw(b: &mut Batch, race: &Race) {
     let tick = race.tick as i32;
-    for k in 0..race.crate_vines.len() {
-        if race.crates.get(k).copied().unwrap_or(0) == 0 {
-            let at = crate_at(race, k);
-            let v = race.crate_vines[k];
-            let a = race.course.anchor(v, race.tick);
-            // a short rope from the vine's end to the crate's top
-            let top = at.add(at.sub(a).with_len(-CRATE_SIZE / 2));
-            let end = at.add(at.sub(a).with_len(-CRATE_HANG));
-            b.push(Mesh::Cyl, &rod(end, top, cm(8)), ROPE, 0);
-            draw_crate(b, at, tick, k as i32);
-        }
-    }
     for s in &race.summons {
         if let Some(v) = race.course.vines.get(s.slot) {
             b.push(
@@ -557,60 +542,6 @@ fn draw_stick_reach(b: &mut Batch, race: &Race, who: usize, tick: i32) {
                 cm(45),
             ),
             REACH,
-            ONE,
-        );
-    }
-}
-
-/// A crate's edge.
-const CRATE_SIZE: i32 = cm(110);
-
-fn draw_crate(b: &mut Batch, at: V3, tick: i32, k: i32) {
-    let yaw = tick * 120 + k * 5_003;
-    let c = at;
-    let size = CRATE_SIZE;
-    let frame = Affine::translate(c).then(&Affine::rot_y(yaw));
-    let glow = ONE / 5;
-    b.push(
-        Mesh::Cube,
-        &placed(c, yaw, v3(size, size, size)),
-        WOOD,
-        glow,
-    );
-    // dark planks round the top and bottom edges
-    for y in [size / 2 - cm(8), cm(8) - size / 2] {
-        b.push(
-            Mesh::Cube,
-            &placed(
-                c.add(v3(0, y, 0)),
-                yaw,
-                v3(size + cm(6), cm(16), size + cm(6)),
-            ),
-            PLANK,
-            glow,
-        );
-    }
-    // a glowing "?" on each side face
-    let half = size / 2 + cm(4);
-    for face in 0..4 {
-        let f = frame.then(&Affine::rot_y(face * fx::QUARTER));
-        let at = |x: i32, y: i32| f.apply(v3(x, y, half));
-        let bar = |b: &mut Batch, p: V3, q: V3| b.push(Mesh::Cube, &rod(p, q, cm(10)), MARK, ONE);
-        // the hook of the "?": up the left, over the top, down the right
-        bar(b, at(-cm(22), cm(22)), at(-cm(22), cm(38)));
-        bar(b, at(-cm(22), cm(38)), at(cm(22), cm(38)));
-        bar(b, at(cm(22), cm(38)), at(cm(22), cm(14)));
-        bar(b, at(cm(22), cm(14)), at(0, cm(6)));
-        bar(b, at(0, cm(6)), at(0, -cm(14)));
-        // the dot
-        b.push(
-            Mesh::Cube,
-            &placed(
-                at(0, -cm(34)),
-                yaw + face * fx::QUARTER,
-                v3(cm(12), cm(12), cm(4)),
-            ),
-            MARK,
             ONE,
         );
     }

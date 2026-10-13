@@ -412,18 +412,15 @@ fn a_hit_from_another_browser_applies_to_a_local_ape() {
 }
 
 #[test]
-fn crates_vanish_while_they_respawn_and_shots_are_drawn() {
+fn crates_are_not_drawn_and_shots_are() {
+    // TRIAGE T46: an item vine is marked by flowers, drawn with the vines
+    // (`scene::item_flowers`); there is no crate to draw
     let mut r = race(2);
     assert_eq!(
         r.crate_vines,
         vec![0],
         "the test course: a crate on its one vine"
     );
-    let mut b = Batch::new();
-    draw(&mut b, &r);
-    let with_crate = b.count();
-    assert!(with_crate > 0);
-    r.crates = vec![5];
     let mut b = Batch::new();
     draw(&mut b, &r);
     assert_eq!(b.count(), 0);
