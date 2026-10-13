@@ -57,13 +57,14 @@ pub const JUNGLE: [u32; 4] = [secs(BRONZE), secs(SILVER), secs(GOLD), secs(AUTHO
 
 /// The City's target times in hundredths of a second (2026-10-12, set as
 /// the Jungle's were: King Kong alone as a Time Trial runs finishes in
-/// 67.2–76.8 s by kind, Gibbon best; `city_time_trial_report` in
+/// 64.4–94.5 s by kind, Orangutan best (after the outside of the turns
+/// was cleared and the vines made denser); `city_time_trial_report` in
 /// `tests/city_ai.rs`, SECOND-ORDER C rows). Author: just under the best
 /// kind; then the Jungle's steps above it (7, 10, 15 s).
-pub const CITY_AUTHOR: u32 = 6_700;
-pub const CITY_GOLD: u32 = 7_400;
-pub const CITY_SILVER: u32 = 8_400;
-pub const CITY_BRONZE: u32 = 9_900;
+pub const CITY_AUTHOR: u32 = 6_400;
+pub const CITY_GOLD: u32 = 7_100;
+pub const CITY_SILVER: u32 = 8_100;
+pub const CITY_BRONZE: u32 = 9_600;
 
 /// The City's target times, in race ticks, slowest first.
 pub const CITY: [u32; 4] = [

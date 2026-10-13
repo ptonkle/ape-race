@@ -42,7 +42,7 @@ Notes for building the next map, from the Jungle (the first course) and the City
   - a low vine at every other station (every third left a fallen ape running 10 s).
 - **New ground needs an AI rule:** in the City's river the AI presses no keys, so the auto-swim takes it to the nearest bank, ladder or boat (`ai::think`). Check it never swims at a vine it cannot reach.
 - **Then add an ordering test for the map** (`tests/city_ai.rs`: eight layouts, each level 6 s slower than the next, every race inside 150 s; every kind at Sloth and King Kong; four AIs with items).
-- **Medal times:** `city_time_trial_report` (King Kong alone, Speed Boosts only, every kind). Author just under the best kind, then the Jungle's steps of 7, 10 and 15 s (City: Gibbon 67.2 s, so 1:07 / 1:14 / 1:24 / 1:39). Medals are per map: `trial::medals(map)`, `target_on`, `earned_on`, `author_shown_on`, `next_target_on`.
+- **Medal times:** `city_time_trial_report` (King Kong alone, Speed Boosts only, every kind). Author just under the best kind, then the Jungle's steps of 7, 10 and 15 s (City: Orangutan 64.4 s, so 1:04 / 1:11 / 1:21 / 1:36). Medals are per map: `trial::medals(map)`, `target_on`, `earned_on`, `author_shown_on`, `next_target_on`.
 
 ## Art lessons
 
