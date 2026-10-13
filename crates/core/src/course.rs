@@ -167,6 +167,9 @@ pub struct Course {
     pub mushrooms: Vec<Mushroom>,
     pub platforms: Vec<Platform>,
     pub crates: Vec<V3>,
+    /// bananas to collect (TRIAGE T43), in arcs along good swing lines:
+    /// where the middle of a body passes
+    pub bananas: Vec<V3>,
     pub props: Vec<Prop>,
     /// where the four starters stand, and the way they face
     pub starts: [V3; 4],
@@ -453,6 +456,7 @@ fn centreline(name: &'static str, legs: &[Leg]) -> Course {
         mushrooms: Vec::new(),
         platforms: Vec::new(),
         crates: Vec::new(),
+        bananas: Vec::new(),
         props: Vec::new(),
         starts: [V3::ZERO; 4],
         start_yaw: 0,
@@ -507,7 +511,13 @@ fn build(legs: &[Leg], seed: u64) -> Course {
     let mut s = 32;
     let mut station = 0;
     let mut slides = 0;
+    // the extra mushrooms (TRIAGE T48) draw from dice of their own, so the
+    // rest of the layout is the same as before them
+    let mut extra = Dice(seed ^ 0x6D75_7368);
+    // each station's lane vines, for the banana arcs
+    let mut stations: Vec<Vec<usize>> = Vec::new();
     while s < len_m - 30 {
+        let mut here = Vec::new();
         let h = c.heading_at(int(s));
         let r = right_of(h);
         // which lanes get a vine: two of the three, now and then all three
@@ -549,8 +559,12 @@ fn build(legs: &[Leg], seed: u64) -> Course {
                 slide,
                 at: int(along),
             });
+            if slide.is_none() {
+                here.push(c.vines.len() - 1);
+            }
             lanes.push(off);
         }
+        stations.push(here);
         // a low vine to climb back up by
         if station % 2 == 1 {
             let off3 = dice.range(-9, 9);
@@ -572,9 +586,21 @@ fn build(legs: &[Leg], seed: u64) -> Course {
                 radius: MUSHROOM_RADIUS,
             });
         }
+        if station % 16 == 7 {
+            // a fifth more of them (TRIAGE T48): one on every sixteenth
+            // station as well, under a lane, away from its low vine
+            let off = lanes[extra.below(lanes.len() as u32) as usize];
+            let p = c.point(int(s - 11)).add(r.scale(int(off)));
+            c.mushrooms.push(Mushroom {
+                top: v3(p.x, ground(p.x, p.z) + MUSHROOM_HEIGHT, p.z),
+                radius: MUSHROOM_RADIUS,
+            });
+        }
         station += 1;
         s += dice.range(22, 28);
     }
+
+    banana_arcs(&mut c, &stations);
 
     // item crates: rows of three across the course
     let mut at = 150;
@@ -592,6 +618,36 @@ fn build(legs: &[Leg], seed: u64) -> Course {
 
     scenery(&mut c, &mut dice);
     c
+}
+
+/// Bananas in arcs along good swing lines (TRIAGE T43): under the vines of
+/// every `BANANA_EVERY`-th station, round the bottom of the swing a clean
+/// catch near the vine's end makes. The AI's swings (measured) catch some
+/// 4 m short of a vine within a few metres of its end and let go some 5 m
+/// past it, so a swing like that, along the course, sweeps the whole arc;
+/// a catch high up the vine, or a swing across the course, misses it.
+fn banana_arcs(c: &mut Course, stations: &[Vec<usize>]) {
+    use crate::rules::{BANANA_ARC, BANANA_EVERY};
+    for (k, here) in stations.iter().enumerate() {
+        if k == 0 || k % BANANA_EVERY != 0 {
+            continue;
+        }
+        for &i in here {
+            let v = c.vines[i];
+            let fwd = c.heading_at(v.at);
+            // where the hands swing, and the body's middle under them
+            let rope = v.length + cm(50);
+            for j in -2..=2 {
+                let angle = j * BANANA_ARC;
+                let hands = v.anchor.add(fwd.scale(mul(fx::sin(angle), rope)).sub(v3(
+                    0,
+                    mul(fx::cos(angle), rope),
+                    0,
+                )));
+                c.bananas.push(hands.sub(v3(0, BODY_DROP / 2, 0)));
+            }
+        }
+    }
 }
 
 /// Whether `s` metres along is in a stream's bed (nothing grows there).
@@ -977,6 +1033,71 @@ mod tests {
                 v.at > along && v.at < along + int(25) && v.anchor.y - v.length < peak + reach
             });
             assert!(ahead, "{} m: no vine to bounce to", along / ONE);
+        }
+    }
+
+    #[test]
+    fn mushrooms_are_a_fifth_more_and_stand_clear_of_vines_and_trees() {
+        // TRIAGE T48: 18 before; 1.5 times the size, out from under every
+        // vine's end (with its sway) and every trunk
+        let c = Course::jungle();
+        let n = c.mushrooms.len();
+        assert!((21..=24).contains(&n), "{n} mushrooms");
+        for m in &c.mushrooms {
+            assert_eq!(m.radius, MUSHROOM_RADIUS);
+            for (i, v) in c.vines.iter().enumerate() {
+                let sway = v.slide.map(|s| s.reach.len()).unwrap_or(0) + cm(60);
+                let flat = v.anchor.flat().sub(m.top.flat()).len();
+                let bottom = v.anchor.y - v.length;
+                assert!(
+                    flat > m.radius + sway || bottom > m.top.y + int(2),
+                    "vine {i} ends {} m above a cap {} m away",
+                    (bottom - m.top.y) / ONE,
+                    flat / ONE
+                );
+            }
+            for p in &c.props {
+                if let Prop::Tree { at, radius, .. } = *p {
+                    let flat = at.flat().sub(m.top.flat()).len();
+                    assert!(flat > m.radius + radius, "a trunk {} m away", flat / ONE);
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn banana_arcs_hang_under_vines_along_the_course() {
+        // TRIAGE T43: enough for a good run to fill up, in arcs of five
+        // round the bottom of a vine's swing, clear of the ground
+        use crate::rules::BANANAS_FULL;
+        let c = Course::jungle();
+        let n = c.bananas.len();
+        assert!(
+            n >= 3 * BANANAS_FULL as usize && n.is_multiple_of(5),
+            "{n} bananas"
+        );
+        for arc in c.bananas.chunks(5) {
+            let mid = arc[2];
+            // under a vine's end, a body's middle below the hands
+            let under = c.vines.iter().any(|v| {
+                v.anchor.flat().sub(mid.flat()).len() < cm(10)
+                    && (v.anchor.y - v.length - mid.y - BODY_DROP / 2 - cm(50)).abs() < cm(10)
+            });
+            assert!(under, "an arc at {} m is under no vine", mid.y / ONE);
+            for b in arc {
+                assert!(
+                    b.y - ground(b.x, b.z) > int(3),
+                    "a banana {} m up",
+                    b.y / ONE
+                );
+                let k = c.nearest_anywhere(*b);
+                assert!(c.progress(*b, k).1.abs() < c.half_width - int(2));
+            }
+            // and spread along the course, not across it
+            let k = c.nearest_anywhere(mid);
+            let (a0, _) = c.progress(arc[0], k);
+            let (a4, _) = c.progress(arc[4], k);
+            assert!(a4 - a0 > int(4), "{} m long", (a4 - a0) / ONE);
         }
     }
 

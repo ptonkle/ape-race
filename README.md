@@ -12,8 +12,15 @@ The design is in [`BRIEF.md`](BRIEF.md) and the build decisions in [`PLAN.md`](P
 | Swing | Press and **hold the left mouse button** near a vine to grab it. Let go to fly. Speed is kept: a grab redirects your speed along the swing, and letting go on the way up adds a little more. |
 | Drive | Hold **W** on a vine to drive forward along the swing (A/D steer it). The drive is strongest when slow and fades as you speed up, so at speed your line and when you let go count. You never need to swing back and forth. |
 | Catching | Hold the grab button and you catch the first vine that comes within reach (3.6–5.2 m, by ape). No timing needed. |
+<<<<<<< HEAD
+| The ground | A landing slides on and keeps some of its speed. Red **mushrooms** bounce you back up and push you forward: a bounce is a small speed boost. Fall and you run (slowly). **Space** jumps; click to grab a low vine from the jump. Low vines hang every few stations. |
+| Bananas | Arcs of bananas hang round the bottom of some vines' swings: catch the vine near its end and swing on through them. Each one raises your top speed, up to **100 bananas for 20%** (the HUD counts them). Each racer collects their own; an item hit drops 10. |
+| Catch-up vines | A vine another ape has swung on (and you have not) glows **coral red** for you. Let go of one and you get a small push forward, once per vine: whoever is behind meets more of them. |
+| Items | Fly through a crate to take an item (one at a time). **Right click** or **E** uses it. **Banana:** thrown where you look; a hit stuns and slows. **Stick:** whacks any ape next to you off its vine. **Hook:** pulls back the nearest ape ahead and pulls you forward. **Speed Boost:** a burst along your motion. |
+=======
 | The ground | A landing slides on and keeps some of its speed. Red **mushrooms** bounce you back up. Fall and you run (slowly). **Space** jumps; click to grab a low vine from the jump. Low vines hang every few stations. |
 | Items | Catch a vine with **violet flowers** on it to take an item (one at a time; the flowers close into buds until it comes back). **Right click** or **E** uses it. **Banana:** thrown where you look; a hit stuns and slows. **Stick:** whacks any ape next to you off its vine. **Hook:** pulls back the nearest ape ahead and pulls you forward. **Speed Boost:** a burst along your motion. | **Race Setup → Items** has a checkbox per item: unticked items never come out (none ticked: no items at all). Online, the host's choice counts.
+>>>>>>> main
 | Apes | Orangutan, Gorilla, Chimpanzee, Gibbon, Proboscis Monkey, Lemur. Five stats: Swing Power, Top Speed, Reach, Air Control, Weight. Every ape's stats add up to the same total. **Equal Stats** gives every ape the average. |
 | Online | **Online → Host** gives a room code to share; others **Join** with it. Everyone picks an ape, can change their name, and readies up; **Screech!** plays a chimp screech for everyone in the lobby. The host adds AI apes and starts. |
 | Best time | Your fastest finish is kept on this device and shown in the HUD and results. |

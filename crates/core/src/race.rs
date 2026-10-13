@@ -95,6 +95,11 @@ pub enum Event {
         who: usize,
         vine: usize,
     },
+    /// ape `who` had a reward from the course (group K)
+    Reward {
+        who: usize,
+        what: Reward,
+    },
 }
 
 /// One ape in the race.
@@ -110,6 +115,35 @@ pub struct Racer {
     pub finish: Option<u32>,
     /// 1-based place: finish order, then progress
     pub place: usize,
+    /// the last course reward it had, and the race tick it came (for the
+    /// HUD's flash)
+    pub reward: Option<(Reward, u32)>,
+    /// for each of the course's bananas: whether this ape has taken it
+    /// (TRIAGE T43: each ape collects its own)
+    pub took: Vec<bool>,
+}
+
+/// A reward from the course itself (group K), for the HUD's flash and the
+/// sounds.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Reward {
+    /// a bounce mushroom's push (TRIAGE T48)
+    Mushroom,
+    /// a vine an opponent swung on first (TRIAGE T45)
+    Catchup,
+    /// a banana on the course (TRIAGE T43); no flash, the count shows it
+    Banana,
+}
+
+impl Reward {
+    pub fn key(self) -> &'static str {
+        match self {
+            Reward::Mushroom => "mushroom",
+            Reward::Catchup => "catchup",
+            Reward::Banana => "banana",
+        }
+    }
 }
 
 /// A thrown Banana, or a Hook on its way.
@@ -179,6 +213,9 @@ pub struct Race {
     pub order: Vec<usize>,
     /// how well the AI apes race (TRIAGE T14)
     pub ai_level: crate::ai::Difficulty,
+    /// for each vine: which apes have swung on it, one bit per ape (TRIAGE
+    /// T45). Apes from other browsers count from their reported state.
+    pub used: Vec<u32>,
 }
 
 /// One entrant: a name, a kind of ape and who drives it.
@@ -204,6 +241,8 @@ impl Race {
                     progress: 0,
                     finish: None,
                     place: i + 1,
+                    reward: None,
+                    took: vec![false; course.bananas.len()],
                 }
             })
             .collect();
@@ -222,6 +261,7 @@ impl Race {
             items: crate::items::ItemSet::ALL,
             summons: Vec::new(),
             summon_count: vec![0; n],
+            used: Vec::new(),
             shots: Vec::new(),
             events: Vec::new(),
             equal_stats,
@@ -277,12 +317,19 @@ impl Race {
             self.racers[i].ape.step(&c, &self.course, tick);
             for what in self.racers[i].ape.happened.clone() {
                 self.events.push(Event::Body { who: i, what });
+                match what {
+                    Happening::Bounce => self.reward(i, Reward::Mushroom),
+                    Happening::Grab => self.catch_up(i),
+                    _ => {}
+                }
             }
             if c.item {
                 crate::items::use_item(self, i, &c);
             }
+            self.collect_bananas(i);
         }
         crate::items::step(self);
+        self.mark_used();
         self.update_places();
     }
 
@@ -333,6 +380,93 @@ impl Race {
         }
     }
 
+    /// Ape `who` has a course reward: its flash and its event.
+    fn reward(&mut self, who: usize, what: Reward) {
+        self.racers[who].reward = Some((what, self.tick));
+        self.events.push(Event::Reward { who, what });
+    }
+
+    /// Ape `who` takes the bananas its body passes through (TRIAGE T43).
+    fn collect_bananas(&mut self, who: usize) {
+        let r = &mut self.racers[who];
+        if r.finish.is_some() {
+            return;
+        }
+        let at = r.ape.middle();
+        let near = rules::BANANA_PICKUP + rules::BODY_RADIUS;
+        let mut got = 0;
+        for (k, b) in self.course.bananas.iter().enumerate() {
+            if (b.x - at.x).abs() > near || (b.z - at.z).abs() > near || r.took[k] {
+                continue;
+            }
+            if b.dist(at) <= near {
+                got += 1;
+                r.took[k] = true;
+            }
+        }
+        if got > 0 {
+            r.ape.bananas = (r.ape.bananas + got).min(rules::BANANAS_FULL);
+            self.events.push(Event::Reward {
+                who,
+                what: Reward::Banana,
+            });
+        }
+    }
+
+    /// Which apes have swung on vine `v`, one bit each.
+    pub fn used_by(&self, v: usize) -> u32 {
+        self.used.get(v).copied().unwrap_or(0)
+    }
+
+    /// Whether vine `v` is a catch-up vine for ape `who` (TRIAGE T45): an
+    /// opponent has swung on it and `who` has not. Each ape sees its own.
+    pub fn catch_up_vine(&self, who: usize, v: usize) -> bool {
+        let me = 1u32 << (who % 32);
+        let used = self.used_by(v);
+        used & !me != 0 && used & me == 0
+    }
+
+    /// Ape `who` just grabbed: a catch-up vine gives it a little speed when
+    /// it lets go, once (its own grab then marks the vine as used by it).
+    /// On the grab itself the speed would set a fast ape whirling round
+    /// the anchor.
+    fn catch_up(&mut self, who: usize) {
+        let Some(v) = self.racers[who].ape.swinging() else {
+            return;
+        };
+        if !self.catch_up_vine(who, v) {
+            return;
+        }
+        self.racers[who].ape.release_bonus = rules::CATCHUP_GAIN;
+        self.mark(who, v);
+        self.reward(who, Reward::Catchup);
+    }
+
+    fn mark(&mut self, who: usize, v: usize) {
+        if self.used.len() <= v {
+            self.used.resize(v + 1, 0);
+        }
+        self.used[v] |= 1u32 << (who % 32);
+    }
+
+    /// Every ape on a vine marks it as used by it.
+    fn mark_used(&mut self) {
+        for i in 0..self.racers.len() {
+            if let Some(v) = self.racers[i].ape.swinging() {
+                if v < self.course.vines.len() {
+                    self.mark(i, v);
+                }
+            }
+        }
+    }
+
+    /// A summoned vine's slot starts unused.
+    fn forget_used(&mut self, slot: usize) {
+        if let Some(u) = self.used.get_mut(slot) {
+            *u = 0;
+        }
+    }
+
     /// The slot ape `by`'s summon number `serial` goes in.
     pub fn summon_slot(&self, by: usize, serial: u32) -> usize {
         self.base_vines + by * rules::SUMMON_SLOTS + serial as usize % rules::SUMMON_SLOTS
@@ -360,6 +494,7 @@ impl Race {
         }
         self.let_go_of(s.slot);
         self.summons.retain(|o| o.slot != s.slot);
+        self.forget_used(s.slot);
         let hint = self.course.nearest_anywhere(s.anchor);
         let (at, _) = self.course.progress(s.anchor, hint);
         self.course.vines[s.slot] = Vine {
@@ -384,6 +519,7 @@ impl Race {
         if slot >= self.base_vines && slot < self.course.vines.len() {
             self.let_go_of(slot);
             self.course.vines[slot] = buried();
+            self.forget_used(slot);
             self.summons.retain(|o| o.slot != slot);
         }
     }
@@ -493,6 +629,165 @@ mod tests {
         assert_eq!(r.racers[0].place, 2);
         assert_eq!(r.racers[2].place, 3);
         assert_eq!(r.phase, Phase::Running);
+    }
+
+    /// Two apes on a one-vine course, running; ape 1 on the vine first if
+    /// `opponent_first`, then ape 0 flies into it holding grab, and lets go
+    /// the tick after. Returns the race after the grab, and ape 0's speed
+    /// just after the grab and its level speed just after letting go.
+    fn catch_up_race(opponent_first: bool) -> (Race, i32, i32) {
+        catch_up_race_at(opponent_first, int(10))
+    }
+
+    fn catch_up_race_at(opponent_first: bool, speed: i32) -> (Race, i32, i32) {
+        let c = Course::test_line(&[(int(50), int(30), int(12))]);
+        let mut r = Race::new(c, &entries(2), false, 1);
+        r.phase = Phase::Running;
+        let a = r.course.vines[0].anchor;
+        let hold = Controls {
+            grab: true,
+            ..Controls::default()
+        };
+        if opponent_first {
+            r.racers[1].ape.pos = a.sub(v3(0, int(10), 0));
+            r.racers[1].ape.mode = Mode::Swinging {
+                vine: 0,
+                rope: int(10),
+            };
+            r.step(&[Controls::default(), hold]);
+        }
+        r.racers[0].ape.pos = a.add(v3(0, -int(10), -int(3)));
+        r.racers[0].ape.vel = v3(0, 0, speed);
+        r.racers[0].ape.mode = Mode::Flying;
+        r.step(&[hold, hold]);
+        assert_eq!(r.racers[0].ape.swinging(), Some(0));
+        let grabbed = r.racers[0].ape.speed();
+        let mut gone = r.clone();
+        gone.step(&[Controls::default(), hold]);
+        assert_eq!(gone.racers[0].ape.swinging(), None);
+        (r, grabbed, gone.racers[0].ape.vel.len_xz())
+    }
+
+    #[test]
+    fn a_vine_an_opponent_swung_on_gives_a_catch_up_boost_once() {
+        // TRIAGE T45
+        let (plain, plain_grab, plain_after) = catch_up_race(false);
+        let (r, grab, after) = catch_up_race(true);
+        // the grab is the same; letting go adds the boost (forward, level)
+        assert_eq!(grab, plain_grab);
+        assert!(
+            after >= plain_after + rules::CATCHUP_GAIN - ONE / 10,
+            "{} vs {} cm/s",
+            after / 655,
+            plain_after / 655
+        );
+        assert!(r.events.contains(&Event::Reward {
+            who: 0,
+            what: Reward::Catchup
+        }));
+        assert!(!plain
+            .events
+            .iter()
+            .any(|e| matches!(e, Event::Reward { .. })));
+        // never past Catch-up Top: caught at 45 m/s it gains nothing
+        let (_, _, fast) = catch_up_race_at(true, int(45));
+        let (_, _, fast_plain) = catch_up_race_at(false, int(45));
+        assert!(
+            fast <= fast_plain,
+            "{} vs {} cm/s",
+            fast / 655,
+            fast_plain / 655
+        );
+        // each ape sees its own: ape 1's vine was never a catch-up vine for
+        // ape 1, and once ape 0 has had its boost it is not one for ape 0
+        assert!(!r.catch_up_vine(1, 0));
+        assert!(!r.catch_up_vine(0, 0));
+        // but ape 0 swinging marked it for ape 1 in the plain race
+        assert!(plain.catch_up_vine(1, 0));
+    }
+
+    #[test]
+    fn an_ape_from_another_browser_marks_the_vines_it_swings_on() {
+        // online (TRIAGE T45): no message of its own; the reported state
+        // is enough
+        let c = Course::test_line(&[(int(50), int(30), int(12))]);
+        let mut es = entries(2);
+        es[1].driver = Driver::Remote;
+        let mut r = Race::new(c, &es, false, 1);
+        r.phase = Phase::Running;
+        let a = r.course.vines[0].anchor;
+        let swing = Mode::Swinging {
+            vine: 0,
+            rope: int(10),
+        };
+        r.set_remote(1, a.sub(v3(0, int(10), 0)), V3::ZERO, swing, 0);
+        assert!(!r.catch_up_vine(0, 0));
+        r.step(&[Controls::default(); 2]);
+        assert!(r.catch_up_vine(0, 0));
+    }
+
+    #[test]
+    fn each_ape_collects_its_own_bananas_once() {
+        // TRIAGE T43
+        let mut c = Course::test_line(&[]);
+        let p = c.point(int(100));
+        c.bananas = (0..3).map(|k| v3(p.x, int(10), p.z + int(k * 2))).collect();
+        let mut r = Race::new(c, &entries(2), false, 1);
+        r.phase = Phase::Running;
+        let start = r.course.bananas[0].add(v3(0, rules::BODY_DROP / 2, -int(3)));
+        r.racers[0].ape.pos = start;
+        r.racers[0].ape.vel = v3(0, 0, int(20));
+        r.racers[0].ape.mode = Mode::Flying;
+        let mut rewards = 0;
+        for _ in 0..60 {
+            r.step(&[Controls::default(); 2]);
+            rewards += r
+                .events
+                .iter()
+                .filter(|e| {
+                    matches!(
+                        e,
+                        Event::Reward {
+                            who: 0,
+                            what: Reward::Banana
+                        }
+                    )
+                })
+                .count();
+        }
+        assert_eq!(r.racers[0].ape.bananas, 3);
+        assert!((1..=3).contains(&rewards), "{rewards}");
+        assert!(r.racers[0].took.iter().all(|t| *t));
+        // the other ape still has all three to take
+        assert!(r.racers[1].took.iter().all(|t| !*t));
+        assert_eq!(r.racers[1].ape.bananas, 0);
+        // flying through again takes nothing more
+        r.racers[0].ape.pos = start;
+        r.racers[0].ape.vel = v3(0, 0, int(20));
+        for _ in 0..60 {
+            r.step(&[Controls::default(); 2]);
+        }
+        assert_eq!(r.racers[0].ape.bananas, 3);
+    }
+
+    #[test]
+    fn a_summoned_vine_starts_unused() {
+        let c = Course::test_line(&[(int(50), int(30), int(12))]);
+        let mut r = Race::new(c, &entries(2), false, 1);
+        let slot = r.summon_slot(1, 0);
+        let s = Summon {
+            slot,
+            by: 1,
+            serial: 0,
+            anchor: v3(0, int(30), int(80)),
+            length: int(12),
+            life: 100,
+        };
+        r.place_vine(s);
+        r.mark(1, slot);
+        assert!(r.catch_up_vine(0, slot));
+        r.place_vine(Summon { serial: 3, ..s });
+        assert!(!r.catch_up_vine(0, slot));
     }
 
     #[test]

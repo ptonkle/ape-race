@@ -148,18 +148,18 @@ def run(page, check, engine):
     check(STRINGS["settings.speed_colours"] in text(page, "#menus"), "ten clicks on the title unlock JOJO MODE in Settings")
     page.click("[id='menu.back']")
 
-    # Time Trial (TRIAGE T1, T13): solo, the medal targets, Bronze 1:45.00
+    # Time Trial (TRIAGE T1, T13): solo, the medal targets, Bronze 1:40.00
     # (105 s, set in trial.rs from the AI's 73–76 s) and the Author hidden
     page.click("[id='menu.trial']")
     check(page.evaluate("document.body.dataset.screen") == "setup", "Time Trial opens its setup")
     shown = text(page, "#menus")
     check(STRINGS["trial.heading"].upper() in shown.upper(), "the setup is headed Time Trial")
-    check("1:45.00" in shown and STRINGS["medal.bronze"] in shown, "the Bronze target is 1:45.00")
+    check("1:40.00" in shown and STRINGS["medal.bronze"] in shown, "the Bronze target is 1:40.00")
     check(STRINGS["trial.hidden"] in shown, "the Author time is hidden")
     check(page.query_selector("[id='setup.opponents']") is None, "no AI opponents in a Time Trial")
     page.click("[id='menu.start']")
     page.wait_for_function("() => document.getElementById('hud-place').innerText.includes('/1')", timeout=10000)
-    check("1:45.00" in text(page, "#hud-best"), "the HUD aims for Bronze first")
+    check("1:40.00" in text(page, "#hud-best"), "the HUD aims for Bronze first")
 
     # R twice quickly restarts (TRIAGE T7): the clock goes back to the countdown
     page.wait_for_function(

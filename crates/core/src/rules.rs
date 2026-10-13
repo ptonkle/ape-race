@@ -55,12 +55,40 @@ pub const LANDING_ROLL: i32 = ONE * 3 / 10;
 pub const HOP_KEEP: i32 = ONE * 4 / 10;
 /// Sliding fast on the ground, WASD turn the slide this hard (no faster).
 pub const SLIDE_STEER: i32 = int(14);
-/// A bounce mushroom's cap: its top above the ground, and its radius.
-pub const MUSHROOM_HEIGHT: i32 = cm(220);
-pub const MUSHROOM_RADIUS: i32 = cm(230);
+/// A bounce mushroom's cap: its top above the ground, and its radius
+/// (TRIAGE T48: 1.5 times the first 2.2 m and 2.3 m, so the cap keeps its
+/// shape).
+pub const MUSHROOM_HEIGHT: i32 = cm(330);
+pub const MUSHROOM_RADIUS: i32 = cm(345);
 /// A bounce mushroom throws an ape up at this speed: some 14 m, into the
 /// reach of most vines (TRIAGE T5).
 pub const MUSHROOM_BOUNCE: i32 = int(22);
+/// A bounce is a reward too (TRIAGE T48): it adds this much speed forward,
+/// along the ape's heading on the ground.
+pub const MUSHROOM_PUSH: i32 = int(6);
+/// A vine an opponent swung on first gives this much speed, forward and
+/// level, when its catcher lets go of it, once per vine (TRIAGE T45: a
+/// catch-up for whoever is behind), but never past `CATCHUP_TOP`: a chain
+/// of them behind a leader would otherwise add up without end. (On the
+/// grab, the same speed set fast apes whirling round the anchor.)
+pub const CATCHUP_GAIN: i32 = int(4);
+pub const CATCHUP_TOP: i32 = int(40);
+/// Bananas on the course (TRIAGE T43), like Mario Kart's coins: an arc of
+/// five under each vine of every this-many-th station, this far apart (as
+/// an angle of the swing), and a body takes one within `BANANA_PICKUP` of
+/// its middle (plus the body's radius). Each ape collects its own: one it
+/// has taken is gone for it only, and does not come back.
+pub const BANANA_EVERY: usize = 2;
+pub const BANANA_ARC: i32 = crate::fx::deg(6);
+pub const BANANA_PICKUP: i32 = cm(120);
+/// At this many bananas the ape's top speed is 20% higher: drag falls by
+/// `BANANAS_DRAG_CUT` thousandths at the full count, in steps, and terminal
+/// speed under quadratic drag goes as one over the square root of the drag
+/// (1 / sqrt(0.694) = 1.20). More are not counted.
+pub const BANANAS_FULL: u32 = 100;
+pub const BANANAS_DRAG_CUT: i64 = 306;
+/// A hit (Banana, Stick or Hook) costs this many of them.
+pub const BANANAS_DROPPED: u32 = 10;
 /// How fast WASD bring the ape to its running velocity on the ground.
 pub const RUN_ACCEL: i32 = int(40);
 

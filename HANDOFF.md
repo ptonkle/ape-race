@@ -22,6 +22,8 @@ A fresh session starts from this file, not from memory.
 
 ## What passed
 
+- Group K branch (T48, T45, T43, T32, T29, merged with main at 060aecc), 2026-10-12: `BUILDER_ENGINES=chromium ./scripts/check.sh` BUILDER CHECK PASSED; `BUILDER_ENGINES=chromium ./scripts/check-online.sh` ONLINE CHECK PASSED (Chromium only); `cargo test --workspace` 223 core, 8 AI (4 ignored reports run too), 13 boundary, 15 online.
+
 - `./scripts/check.sh`: BUILDER CHECK PASSED, with the browser check passing in Chromium, Firefox and WebKit (game interactions: menus, settings kept after a reload, the ape picker, Equal Stats, a race started, W moves the ape, Esc pauses).
 - `./scripts/check-online.sh`: ONLINE CHECK PASSED and ONLINE RACE CHECK PASSED in three engines (two tabs by pasted codes, no relay).
 - Live site: `BUILDER_ORIGIN=https://ptonkle.github.io/ape-race .venv/bin/python tests/browser/check.py` passed in three engines.

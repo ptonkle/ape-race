@@ -40,12 +40,15 @@ const fn secs(hundredths: u32) -> u32 {
 }
 
 /// The jungle's target times in hundredths of a second (2026-10-12, TRIAGE
-/// row 14 physics: the AI alone finishes in 73.3–75.9 s, every kind).
-/// Author: about the AI's time, a strong run. Then generous steps above.
-pub const AUTHOR: u32 = 7_400;
-pub const GOLD: u32 = 8_000;
-pub const SILVER: u32 = 9_000;
-pub const BRONZE: u32 = 10_500;
+/// T29, after the drag cut, timing-based grabs, bigger mushrooms with a
+/// push, banana arcs and catch-up vines: King Kong alone as a Time Trial
+/// runs finishes in 68.9–76.4 s by kind; `time_trial_report` in
+/// `tests/ai.rs`). Author: about the AI's best kind, a strong run. Then
+/// generous steps above (a person is slower than the AI, TRIAGE row 16).
+pub const AUTHOR: u32 = 6_800;
+pub const GOLD: u32 = 7_500;
+pub const SILVER: u32 = 8_500;
+pub const BRONZE: u32 = 10_000;
 
 /// The jungle's target times, in race ticks, slowest first.
 pub const JUNGLE: [u32; 4] = [secs(BRONZE), secs(SILVER), secs(GOLD), secs(AUTHOR)];
@@ -87,7 +90,7 @@ mod tests {
         for w in JUNGLE.windows(2) {
             assert!(w[1] < w[0]);
         }
-        assert_eq!(target(Medal::Author), 74 * TICKS_PER_SECOND as u32);
+        assert_eq!(target(Medal::Author), 68 * TICKS_PER_SECOND as u32);
     }
 
     #[test]

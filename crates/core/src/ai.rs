@@ -143,17 +143,17 @@ impl Difficulty {
         match self {
             Difficulty::Sloth => Tuning {
                 ideal_hop: int(22),
-                hesitate: 16,
-                jitter: 16,
+                hesitate: 14,
+                jitter: 14,
                 noise: int(6),
                 drive: 2,
                 item_wait: 6 * second,
             },
             Difficulty::Monkey => Tuning {
                 ideal_hop: int(24),
-                hesitate: 12,
-                jitter: 12,
-                noise: int(4),
+                hesitate: 18,
+                jitter: 14,
+                noise: int(5),
                 drive: 3,
                 item_wait: 3 * second,
             },
@@ -934,7 +934,10 @@ fn on_ground(a: &Ape, course: &Course, tick: u32, brain: &mut Brain) -> Controls
         }
         let d = an.flat().sub(a.pos.flat()).len() as i64;
         let behind = if v.at < prog { int(25) as i64 } else { 0 };
-        let cost = if raised { v.at as i64 } else { d + behind };
+        // up on the start platform: the nearest of the first vines, so the
+        // starters fan out onto the start row's vine in front of each
+        // (TRIAGE T32: with `at` alone they all took the same one)
+        let cost = if raised { v.at as i64 + d } else { d + behind };
         if best.is_none_or(|(b, _)| cost < b) {
             best = Some((cost, i));
         }
@@ -1053,6 +1056,8 @@ pub struct Trial {
     pub landings: u32,
     /// ticks spent on the ground
     pub ground_ticks: u32,
+    /// bananas held at the end (TRIAGE T43)
+    pub bananas: u32,
 }
 
 /// Runs a race of AI apes alone on `course` for at most `limit` race ticks,
@@ -1071,6 +1076,38 @@ pub fn trial_at(
     equal: bool,
     limit: u32,
 ) -> Vec<Trial> {
+    trial_with(
+        course,
+        kinds,
+        levels,
+        equal,
+        limit,
+        crate::items::ItemSet::ALL,
+    )
+}
+
+/// One King Kong alone as a Time Trial runs (TRIAGE T1, T29: crates give
+/// only the Speed Boost), for setting the medal times.
+pub fn time_trial(course: Course, kind: Kind, equal: bool, limit: u32) -> Trial {
+    let boost = crate::items::ItemSet::only(Item::Boost);
+    trial_with(
+        course,
+        &[kind],
+        &[Difficulty::KingKong],
+        equal,
+        limit,
+        boost,
+    )[0]
+}
+
+fn trial_with(
+    course: Course,
+    kinds: &[Kind],
+    levels: &[Difficulty],
+    equal: bool,
+    limit: u32,
+    items: crate::items::ItemSet,
+) -> Vec<Trial> {
     let entries: Vec<Entry> = kinds
         .iter()
         .map(|&kind| Entry {
@@ -1080,6 +1117,7 @@ pub fn trial_at(
         })
         .collect();
     let mut race = Race::new(course, &entries, equal, 7);
+    race.items = items;
     let mut brains: Vec<Brain> = (0..kinds.len())
         .map(|i| Brain::new(levels[i], 0xA9E5 + i as u64))
         .collect();
@@ -1094,6 +1132,7 @@ pub fn trial_at(
             grabs: 0,
             landings: 0,
             ground_ticks: 0,
+            bananas: 0,
         })
         .collect();
     let mut sum = vec![0i64; kinds.len()];
@@ -1129,6 +1168,7 @@ pub fn trial_at(
         let t = &mut out[i];
         t.finish = r.finish;
         t.progress = r.progress;
+        t.bananas = r.ape.bananas;
         let ticks = r.finish.unwrap_or(race.clock).max(1);
         t.mean_speed = (sum[i] / ticks as i64) as i32;
     }

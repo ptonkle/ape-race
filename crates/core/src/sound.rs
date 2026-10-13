@@ -33,10 +33,15 @@ pub enum Cue {
     Go,
     Finish,
     Click,
+    /// course rewards (group K): a mushroom's bounce, a course banana, a
+    /// catch-up vine
+    Bounce,
+    Banana,
+    Catchup,
 }
 
 impl Cue {
-    pub const ALL: [Cue; 13] = [
+    pub const ALL: [Cue; 16] = [
         Cue::Grab,
         Cue::Release,
         Cue::Miss,
@@ -50,6 +55,9 @@ impl Cue {
         Cue::Go,
         Cue::Finish,
         Cue::Click,
+        Cue::Bounce,
+        Cue::Banana,
+        Cue::Catchup,
     ];
 
     pub fn key(self) -> &'static str {
@@ -67,6 +75,9 @@ impl Cue {
             Cue::Go => "go",
             Cue::Finish => "finish",
             Cue::Click => "click",
+            Cue::Bounce => "bounce",
+            Cue::Banana => "banana",
+            Cue::Catchup => "catchup",
         }
     }
 
@@ -198,6 +209,34 @@ fn notes(cue: Cue) -> Vec<Note> {
             n(AIR, 0, 15, 25, Noise(256), Perc),
             n((1200, 1200), 0, 28, 20, Sine, Perc),
         ],
+        Cue::Bounce | Cue::Banana | Cue::Catchup => reward_notes(cue),
+    }
+}
+
+/// The course rewards' cues (group K: TRIAGE T48, T43, T45).
+fn reward_notes(cue: Cue) -> Vec<Note> {
+    use Env::*;
+    use Wave::*;
+    const AIR: (u32, u32) = (0, 0);
+    match cue {
+        // A springy "boing" that keeps rising into a little zoom.
+        Cue::Bounce => vec![
+            n((180, 820), 0, 260, 50, Triangle, Perc),
+            n((360, 1640), 0, 170, 20, Sine, Perc),
+            n((420, 980), 110, 280, 25, Sine, Swell),
+        ],
+        // A quick, high double blip, lighter than a crate's Pickup.
+        Cue::Banana => vec![
+            n((1760, 1760), 0, 60, 40, Sine, Perc),
+            n((2637, 2637), 45, 120, 40, Sine, Perc),
+        ],
+        // A short rising sparkle.
+        Cue::Catchup => vec![
+            n((620, 1480), 0, 220, 40, Sine, Swell),
+            n((1240, 2960), 60, 170, 20, Triangle, Perc),
+            n(AIR, 0, 180, 15, Noise(120), Swell),
+        ],
+        _ => Vec::new(),
     }
 }
 

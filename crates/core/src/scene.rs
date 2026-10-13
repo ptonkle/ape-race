@@ -33,6 +33,9 @@ const LEAF: [Rgb; 4] = [
 ];
 const VINE: Rgb = rgb(150, 210, 70);
 const VINE_REACH: Rgb = rgb(255, 236, 90);
+const VINE_USED: Rgb = rgb(240, 84, 72);
+const BANANA_YELLOW: Rgb = rgb(255, 216, 40);
+const BANANA_STALK: Rgb = rgb(92, 62, 30);
 const VINE_LEAF: Rgb = rgb(90, 170, 60);
 /// The colourblind mode's vines (TRIAGE T33): a vivid green, brighter than
 /// anything in the muted world, and in reach near white, thicker and
@@ -753,7 +756,8 @@ fn mushroom(b: &mut Batch, m: &Mushroom) {
     let top = m.top;
     let gy = ground(top.x, top.z);
     let r = m.radius;
-    let cap_h = cm(170);
+    // the cap's height grows with its radius (TRIAGE T48)
+    let cap_h = mul(r, ONE * 74 / 100);
     let under = top.y - cap_h * 3 / 4;
     b.push(
         Mesh::Cyl,
@@ -1155,6 +1159,7 @@ pub fn dynamic(f: &Frame) -> (Batch, Batch) {
             continue;
         }
         let look = vine_look(Some(i) == reach, f.vivid, f.tick);
+        let look = catch_up_look(race, f.local, i, Some(i) == reach, look);
         match f.chains.get(i) {
             Some(chain) => chain_vine(&mut vines, chain, held[i], look, f.tick + i as u32 * 37),
             None => vine(
@@ -1185,6 +1190,7 @@ pub fn dynamic(f: &Frame) -> (Batch, Batch) {
             0,
         );
     }
+    course_bananas(&mut b, race, f.local, eye, f.tick);
     crate::items::draw(&mut b, race);
     speed_lines(&mut b, f);
     (vines, b)
@@ -1299,6 +1305,74 @@ pub fn racer_pose(race: &Race, k: usize, at: V3, tick: u32) -> Pose {
         stunned: a.stun > 0,
         tick,
         scale: RACE_SCALE,
+    }
+}
+
+/// The course's bananas (TRIAGE T43) the viewer has not taken, near the
+/// eye: each turning slowly and bobbing, lit so an arc reads from afar.
+fn course_bananas(b: &mut Batch, race: &Race, viewer: Option<usize>, eye: V3, t: u32) {
+    let took = viewer.and_then(|v| race.racers.get(v)).map(|r| &r.took);
+    for (k, at) in race.course.bananas.iter().enumerate() {
+        if took.is_some_and(|got| got.get(k).copied().unwrap_or(false)) {
+            continue;
+        }
+        if (at.x - eye.x).abs() > int(150) || (at.z - eye.z).abs() > int(150) {
+            continue;
+        }
+        let spin = (t as i32) * 220 + k as i32 * 5_000;
+        let bob = mul(sin((t as i32) * 300 + k as i32 * 7_000), cm(12));
+        pickup_banana(b, at.add(v3(0, bob, 0)), spin);
+    }
+}
+
+/// One course banana: a curved fruit of rods round a vertical axis, stalk
+/// up.
+fn pickup_banana(b: &mut Batch, at: V3, spin: i32) {
+    let frame = Affine::translate(at).then(&Affine::rot_y(spin));
+    let r = cm(45);
+    let arc = |d: i32| {
+        let a = deg(d);
+        frame.apply(v3(mul(fx::sin(a), r), r / 2 - mul(fx::cos(a), r), 0))
+    };
+    let points = [-70, -35, 0, 35, 70].map(arc);
+    for w in points.windows(2) {
+        b.push(
+            Mesh::Cyl,
+            &rod(w[0], w[1], cm(17)),
+            BANANA_YELLOW,
+            ONE * 2 / 5,
+        );
+    }
+    for p in &points[1..4] {
+        b.push(
+            Mesh::Sphere,
+            &placed(*p, 0, v3(cm(17), cm(17), cm(17))),
+            BANANA_YELLOW,
+            ONE * 2 / 5,
+        );
+    }
+    let tip = points[4].add(points[4].sub(points[3]).with_len(cm(9)));
+    b.push(Mesh::Cyl, &rod(points[4], tip, cm(8)), BANANA_STALK, 0);
+}
+
+/// A catch-up vine (TRIAGE T45: an opponent swung on it, the viewer has
+/// not) glows coral red, apart from the in-reach yellow (which wins) and
+/// the item vines' flowers; any other vine keeps its look.
+fn catch_up_look(
+    race: &Race,
+    viewer: Option<usize>,
+    i: usize,
+    in_reach: bool,
+    look: VineLook,
+) -> VineLook {
+    if !in_reach && viewer.is_some_and(|v| race.catch_up_vine(v, i)) {
+        VineLook {
+            colour: VINE_USED,
+            glow: look.glow.max(ONE * 9 / 20),
+            ..look
+        }
+    } else {
+        look
     }
 }
 

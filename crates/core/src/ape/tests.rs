@@ -632,7 +632,7 @@ fn a_mushroom_bounces_a_falling_ape_up_to_the_vines() {
     let mut grabbed = false;
     for t in 0..360 {
         ape.step(&held(), &c, t);
-        bounced |= ape.happened.contains(&Happening::Jump);
+        bounced |= ape.happened.contains(&Happening::Bounce);
         top = top.max(ape.pos.y);
         grabbed |= ape.swinging().is_some();
         assert_ne!(ape.mode, Mode::Grounded, "landed at tick {t}");
@@ -641,9 +641,108 @@ fn a_mushroom_bounces_a_falling_ape_up_to_the_vines() {
         }
     }
     assert!(bounced);
-    // thrown well up, and holding grab takes the vine up there
-    assert!(top - m.y > int(8), "{}", (top - m.y) / ONE);
+    // thrown well up (over 10 m above the ground: the cap is 3.3 m tall
+    // since TRIAGE T48), and holding grab takes the vine up there
+    let gy = ground(m.x, m.z);
+    assert!(top - gy > int(10), "{}", (top - gy) / ONE);
     assert!(grabbed);
+}
+
+#[test]
+fn a_bounce_pushes_the_ape_on_along_its_heading() {
+    // TRIAGE T48: a bounce is a reward, some speed forward
+    let c = mushroom_course();
+    let m = c.mushrooms[0].top;
+    let mut ape = Ape::new(Kind::Chimpanzee, true, m.add(v3(0, int(4), 0)), 0);
+    ape.mode = Mode::Flying;
+    ape.vel = v3(0, -int(5), int(10));
+    let mut bounced = None;
+    for t in 0..120 {
+        let before = ape.vel.len_xz();
+        ape.step(&Controls::default(), &c, t);
+        if ape.happened.contains(&Happening::Bounce) {
+            bounced = Some((before, ape.vel.len_xz()));
+            break;
+        }
+    }
+    let (before, after) = bounced.expect("it bounced");
+    assert!(
+        after >= before + MUSHROOM_PUSH - ONE / 4,
+        "{} to {} cm/s",
+        before / 655,
+        after / 655
+    );
+    // and still forward
+    assert!(ape.vel.z > before);
+    // standing still on the cap it is pushed the way it faces
+    let mut still = Ape::new(Kind::Chimpanzee, true, m.add(v3(0, int(2), 0)), 0);
+    still.mode = Mode::Flying;
+    for t in 0..120 {
+        still.step(&Controls::default(), &c, t);
+        if still.happened.contains(&Happening::Bounce) {
+            break;
+        }
+    }
+    assert!(still.vel.len_xz() >= MUSHROOM_PUSH - ONE / 4);
+}
+
+#[test]
+fn a_hundred_bananas_raise_the_top_speed_a_fifth() {
+    // TRIAGE T43: terminal speed is where gravity meets the drag; the drag
+    // falls with the bananas the last grab counted
+    let c = one_vine();
+    let terminal = |n: u32| {
+        let mut ape = Ape::new(Kind::Chimpanzee, true, v3(0, int(60), 0), 0);
+        ape.mode = Mode::Flying;
+        ape.bananas = n;
+        ape.banana_drag = n;
+        // fall for a long while, held up high so nothing is hit
+        for t in 0..120 * 60 {
+            ape.pos = v3(0, int(60), 0);
+            ape.step(&Controls::default(), &c, t);
+        }
+        ape.speed()
+    };
+    let none = terminal(0);
+    let full = terminal(BANANAS_FULL);
+    let ratio = fx::div(full, none);
+    assert!(
+        (ONE * 118 / 100..=ONE * 122 / 100).contains(&ratio),
+        "{} vs {} m/s",
+        full / ONE,
+        none / ONE
+    );
+    // more than the full count adds nothing
+    assert_eq!(terminal(BANANAS_FULL * 2), full);
+    // half way is part way
+    let half = terminal(BANANAS_FULL / 2);
+    assert!(half > none && half < full);
+}
+
+#[test]
+fn bananas_count_from_the_next_grab_and_a_hit_drops_some() {
+    let c = one_vine();
+    let mut ape = hanging(&c, 0);
+    ape.mode = Mode::Flying;
+    ape.pos = ape.pos.add(v3(0, 0, -int(2)));
+    ape.vel = v3(0, 0, int(8));
+    ape.bananas = 30;
+    assert_eq!(ape.banana_drag, 0);
+    let mut caught = false;
+    for t in 0..60 {
+        ape.step(&held(), &c, t);
+        if ape.swinging().is_some() {
+            caught = true;
+            break;
+        }
+    }
+    assert!(caught);
+    assert_eq!(ape.banana_drag, 30);
+    ape.hit(ONE, 10, V3::ZERO);
+    assert_eq!(ape.bananas, 30 - BANANAS_DROPPED);
+    ape.bananas = 4;
+    ape.hit(ONE, 10, V3::ZERO);
+    assert_eq!(ape.bananas, 0);
 }
 
 #[test]
@@ -664,7 +763,7 @@ fn running_into_a_mushroom_bounces_too() {
     let mut bounced = false;
     for t in 0..240 {
         ape.step(&run, &c, t);
-        bounced |= ape.happened.contains(&Happening::Jump);
+        bounced |= ape.happened.contains(&Happening::Bounce);
     }
     assert!(bounced);
 }

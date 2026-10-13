@@ -1608,10 +1608,13 @@ impl App {
                 "burst": p.hype.burst(),
             },
             "item": [self.t("hud.item"), item],
+            // the course's bananas taken (TRIAGE T43)
+            "bananas": [self.t("hud.bananas"), format!("{}/{}", me.ape.bananas, rules::BANANAS_FULL)],
             "item_key": me.item.map(|i| i.key()).unwrap_or(""),
             // the held item as a picture (TRIAGE T19)
             "item_icon": me.item.map(crate::items::icon_svg).unwrap_or_default(),
             "big": big,
+            "reward": self.reward_flash(me, race.tick),
             "hint": if p.replay.is_some() {
                 self.t("hud.replay")
             } else if p.focus.racer != p.local {
@@ -1629,6 +1632,15 @@ impl App {
                 "max": 1000,
             })),
         })
+    }
+
+    /// A course reward's name, for a second after it came (group K: the
+    /// mushroom's push, a catch-up vine).
+    fn reward_flash(&self, me: &crate::race::Racer, tick: u32) -> String {
+        match me.reward {
+            Some((r, at)) if tick < at + REWARD_FLASH => self.t(&format!("hud.reward.{}", r.key())),
+            _ => String::new(),
+        }
     }
 
     /// The HUD's Best: the race best, or in a Time Trial the next medal to
@@ -2005,6 +2017,9 @@ pub fn clock_text(ticks: u32) -> String {
     format!("{m}:{sec:02}.{h:02}")
 }
 
+/// How long a course reward's name shows on the HUD, ticks.
+const REWARD_FLASH: u32 = rules::TICKS_PER_SECOND as u32;
+
 /// The sound a race event makes, for the player at `local`.
 fn cue_for(e: &Event, local: usize) -> Option<Cue> {
     match *e {
@@ -2015,6 +2030,8 @@ fn cue_for(e: &Event, local: usize) -> Option<Cue> {
             Happening::Jump => Cue::Jump,
             Happening::Land => Cue::Land,
             Happening::Knocked => Cue::Hit,
+            // its sound comes with the reward
+            Happening::Bounce => return None,
             Happening::Wall => return None,
         }),
         Event::Countdown { .. } => Some(Cue::Beep),
@@ -2026,6 +2043,11 @@ fn cue_for(e: &Event, local: usize) -> Option<Cue> {
         }),
         Event::Hit { who, by, .. } if who == local || by == local => Some(Cue::Hit),
         Event::Finish { who, .. } if who == local => Some(Cue::Finish),
+        Event::Reward { who, what } if who == local => Some(match what {
+            crate::race::Reward::Mushroom => Cue::Bounce,
+            crate::race::Reward::Catchup => Cue::Catchup,
+            crate::race::Reward::Banana => Cue::Banana,
+        }),
         _ => None,
     }
 }
@@ -2355,10 +2377,10 @@ mod tests {
         assert_eq!(a.screen, Screen::Setup);
         let ui = ui_of(&mut a);
         let shown = texts(&ui["panels"]);
-        // the four targets, Bronze 1:45.00 worked out from the constants;
+        // the four targets, Bronze 1:40.00 worked out from the constants;
         // the Author time hidden until Gold
         assert!(
-            shown.contains("1:45.00") && shown.contains("???"),
+            shown.contains("1:40.00") && shown.contains("???"),
             "{shown}"
         );
         assert!(!shown.contains("setup.opponents"));
@@ -2373,9 +2395,9 @@ mod tests {
         // a Time Trial best, separate from the race best
         assert_eq!(a.settings.trial_best, Some(120 * 95));
         assert_eq!(a.settings.best, Some(120 * 90));
-        // 95 s earns Bronze (90–105 s); the HUD now aims for Silver
+        // 95 s earns Bronze (85–100 s); the HUD now aims for Silver
         let ui = ui_of(&mut a);
-        assert_eq!(ui["hud"]["best"][1], "1:30.00");
+        assert_eq!(ui["hud"]["best"][1], "1:25.00");
         for _ in 0..200 {
             a.tick();
         }

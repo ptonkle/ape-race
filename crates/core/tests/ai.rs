@@ -1,6 +1,6 @@
 //! The AI on the jungle course (PLAN P12, and P7's race length).
 
-use tool_core::ai::{trial, trial_at, Brain, Difficulty, Trial};
+use tool_core::ai::{time_trial, trial, trial_at, Brain, Difficulty, Trial};
 use tool_core::course::Course;
 use tool_core::fx::ONE;
 use tool_core::rules::{Kind, TICKS_PER_SECOND};
@@ -13,7 +13,7 @@ fn report(label: &str, trials: &[Trial]) {
     println!("{label}");
     for t in trials {
         println!(
-            "  {:<11} finish {:>9}  at {:>5.0} m  mean {:>5.1} m/s  top {:>5.1} m/s  grabs {:>3}  landings {:>2}  ground {:>5.1} s",
+            "  {:<11} finish {:>9}  at {:>5.0} m  mean {:>5.1} m/s  top {:>5.1} m/s  grabs {:>3}  landings {:>2}  ground {:>5.1} s  bananas {:>3}",
             format!("{:?}", t.kind),
             t.finish
                 .map(|f| format!("{:.2} s", secs(f)))
@@ -24,6 +24,7 @@ fn report(label: &str, trials: &[Trial]) {
             t.grabs,
             t.landings,
             secs(t.ground_ticks),
+            t.bananas,
         );
     }
 }
@@ -56,6 +57,21 @@ fn speed_report_every_kind_alone_and_four_together() {
         LIMIT,
     );
     report("four together", &t);
+}
+
+/// The medal report (TRIAGE T29): King Kong alone as a Time Trial runs
+/// (Speed Boosts only), every kind and Equal Stats, against the medal times.
+#[test]
+#[ignore]
+fn time_trial_report() {
+    let mut row = Vec::new();
+    for k in Kind::ALL {
+        row.push(time_trial(Course::jungle(), k, false, LIMIT));
+    }
+    row.push(time_trial(Course::jungle(), Kind::Chimpanzee, true, LIMIT));
+    report("time trial (last: equal stats)", &row);
+    let medals = tool_core::trial::JUNGLE.map(secs);
+    println!("medals bronze / silver / gold / author: {medals:.2?}");
 }
 
 /// Finish times over eight layouts of the jungle (its seed and seven more),
@@ -182,6 +198,45 @@ fn difficulties_are_ordered_and_spaced() {
             Difficulty::ALL[i + 1].key(),
             w[1]
         );
+    }
+}
+
+/// TRIAGE T32: the four AI starters each take the start-row vine in front
+/// of their own spot, not all the same one, and still get away cleanly.
+#[test]
+fn ai_starters_fan_out_onto_different_start_vines() {
+    use tool_core::ai::think;
+    use tool_core::race::{Driver, Entry, Race};
+    let kinds = [Kind::Gibbon, Kind::Gorilla, Kind::Lemur, Kind::Orangutan];
+    let entries: Vec<Entry> = kinds
+        .iter()
+        .map(|&kind| Entry {
+            name: String::new(),
+            kind,
+            driver: Driver::Ai,
+        })
+        .collect();
+    let mut race = Race::new(Course::jungle(), &entries, false, 7);
+    let mut brains: Vec<Brain> = (0..4)
+        .map(|i| Brain::new(Difficulty::KingKong, 0xA9E5 + i as u64))
+        .collect();
+    let mut first: Vec<Option<usize>> = vec![None; 4];
+    for _ in 0..12 * TICKS_PER_SECOND {
+        let c: Vec<_> = (0..4).map(|i| think(&race, i, &mut brains[i])).collect();
+        race.step(&c);
+        for (i, r) in race.racers.iter().enumerate() {
+            if first[i].is_none() {
+                first[i] = r.ape.swinging();
+            }
+        }
+    }
+    let mut got: Vec<usize> = first.iter().map(|f| f.expect("every AI grabs")).collect();
+    got.sort();
+    got.dedup();
+    assert_eq!(got.len(), 4, "first vines {first:?}");
+    // and twelve seconds on, every one is well on its way
+    for r in &race.racers {
+        assert!(r.progress > 120 * ONE, "at {} m", r.progress / ONE);
     }
 }
 
