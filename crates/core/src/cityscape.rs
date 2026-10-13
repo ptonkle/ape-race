@@ -1622,7 +1622,7 @@ fn fire_escape(b: &mut Batch, face: &Face, from: i32, to: i32, win: &Windows, se
     if floors < 3 || face.half < int(6) {
         return;
     }
-    let x = if seed % 2 == 0 {
+    let x = if seed.is_multiple_of(2) {
         face.half / 3
     } else {
         -face.half / 3
@@ -1804,7 +1804,11 @@ fn roof(
     if tank && hl > int(4) && hw > int(4) {
         let off = fwd
             .scale(hl / 3)
-            .add(right.scale(if seed % 2 == 0 { hw / 3 } else { -hw / 3 }));
+            .add(right.scale(if seed.is_multiple_of(2) {
+                hw / 3
+            } else {
+                -hw / 3
+            }));
         water_tower(b, c.add(off), seed);
     }
     if style == GLASS {
@@ -1992,7 +1996,8 @@ fn crane(b: &mut Batch, foot: V3, tip: V3) {
     let mut y = foot.y;
     let mut k = 0;
     while y + int(6) <= top.y {
-        for f in 0..4 {
+        // a zigzag up two faces a section, turn about
+        for f in (k % 2..4).step_by(2) {
             let a = corners[f];
             let e = corners[(f + 1) % 4];
             let (p, q) = if k % 2 == 0 { (a, e) } else { (e, a) };
@@ -2069,13 +2074,13 @@ fn crane(b: &mut Batch, foot: V3, tip: V3) {
     );
     let mut a = 0;
     let mut j = 0;
-    while a + int(3) <= len {
-        let lo = top.add(along.scale(a + if j % 2 == 0 { 0 } else { int(3) }));
+    while a + int(5) <= len {
+        let lo = top.add(along.scale(a + if j % 2 == 0 { 0 } else { int(5) }));
         let hi = top
-            .add(along.scale(a + if j % 2 == 0 { int(3) } else { 0 }))
+            .add(along.scale(a + if j % 2 == 0 { int(5) } else { 0 }))
             .add(lift);
         b.push(Mesh::Cube, &rod(lo, hi, cm(8)), CRANE, 0);
-        a += int(3);
+        a += int(5);
         j += 1;
     }
     for k in 0..3 {
@@ -2131,7 +2136,7 @@ fn gantry(b: &mut Batch, foot: V3, end: V3, k: usize) {
         v3(0, 0, ONE)
     };
     let side = right_of(along);
-    if k % 2 == 0 {
+    if k.is_multiple_of(2) {
         // the lamp head at the arm's end
         let head = end.sub(along.scale(cm(100))).sub(up(cm(30)));
         b.push(
@@ -2208,14 +2213,14 @@ pub fn hangers_dynamic(
         }
         match h.kind {
             HangerKind::Helicopter => {
-                let hub = h
-                    .from
-                    .add(now.sub(v.anchor))
-                    .add(up(vehicles::hover(tick, k)));
+                let hub = h.from.add(now.sub(v.anchor));
+                // high enough that its skids clear the vine's top
+                let hub =
+                    v3(hub.x, hub.y.max(now.y + cm(560)), hub.z).add(up(vehicles::hover(tick, k)));
                 let yaw = (k as i32) * deg(97);
                 vehicles::helicopter(b, hub, yaw, tick, k, ONE * 3 / 2);
                 // the cable from its belly down to the vine's top
-                let belly = hub.sub(up(int(3) + cm(60)));
+                let belly = hub.sub(up(cm(420)));
                 if belly.y > now.y + cm(30) {
                     b.push(Mesh::Cyl, &rod(belly, now, cm(12)), CABLE, 0);
                 }
