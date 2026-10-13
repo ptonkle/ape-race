@@ -2408,6 +2408,28 @@ mod tests {
     }
 
     #[test]
+    fn the_frame_carries_its_maps_light() {
+        // the City at dusk, the Jungle at midday (`scene::look`)
+        let mut a = app();
+        let light = |a: &App| a.frame().0[38..47].to_vec();
+        let j = scene::look(crate::map::Map::Jungle);
+        assert_eq!(
+            light(&a)[0..3],
+            [j.light_dir.x, j.light_dir.y, j.light_dir.z]
+        );
+        a.act("flag.map", "city");
+        let c = scene::look(crate::map::Map::City);
+        let v = light(&a);
+        assert_eq!(v[0..3], [c.light_dir.x, c.light_dir.y, c.light_dir.z]);
+        assert_eq!(v[3..6], c.light);
+        assert_eq!(v[6..9], c.ground);
+        assert_eq!(a.frame().0[21..24], c.fog);
+        a.act("menu.race", "");
+        a.act("menu.start", "");
+        assert_eq!(light(&a)[3..6], c.light);
+    }
+
+    #[test]
     fn every_screen_has_a_view_model_and_a_frame() {
         let mut a = app();
         for id in [

@@ -2848,11 +2848,216 @@ pub fn preview(c: &Course) -> (V3, i32, Camera) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::city::CarKind;
+    use crate::map::Map;
+    use crate::render::{DRAW_VALUES, DYNAMIC_BUFFER, INSTANCE_VALUES, STATIC_BUFFER};
 
     #[test]
     fn grid_lines_meet_the_banks_exactly() {
         let b = breaks(-int(50), int(80), int(12), &[0, int(31)]);
         assert!(b.contains(&0) && b.contains(&int(31)));
         assert!(b.windows(2).all(|w| w[1] > w[0] && w[1] - w[0] <= int(16)));
+    }
+
+    /// Every instance in `values` (centre, colour, glow).
+    fn shapes(values: &[i32]) -> Vec<(V3, Rgb, i32)> {
+        values
+            .chunks(INSTANCE_VALUES)
+            .map(|i| (v3(i[3], i[7], i[11]), [i[12], i[13], i[14]], i[15]))
+            .collect()
+    }
+
+    fn race_on(c: Course) -> crate::race::Race {
+        let e = crate::race::Entry {
+            name: "P".into(),
+            kind: crate::rules::Kind::Chimpanzee,
+            driver: crate::race::Driver::Local,
+        };
+        crate::race::Race::new(c, &[e], false, 1)
+    }
+
+    #[test]
+    fn the_city_draws_its_buildings_and_cars_and_no_mushrooms() {
+        let c = Map::City.course();
+        let city = c.city.as_ref().unwrap();
+        let s = scenery(&c, city);
+        let all = shapes(&s.values);
+        // a body for every building, standing on its block
+        for b in &city.blocks {
+            assert!(
+                all.iter()
+                    .any(|(p, _, _)| p.flat().sub(b.centre.flat()).len() < int(1)
+                        && p.y > b.centre.y),
+                "no body for the block at {:?}",
+                b.centre
+            );
+        }
+        // each parked car's yellow, or its paint, at its place; no
+        // mushroom cap anywhere (cars and boats bounce instead)
+        let cabs = city
+            .cars
+            .iter()
+            .filter(|car| car.drive.is_none() && car.kind == CarKind::Cab)
+            .count();
+        let yellow = all
+            .iter()
+            .filter(|(_, colour, _)| *colour == rgb(255, 196, 30))
+            .count();
+        assert!(
+            cabs > 0 && yellow >= cabs * 2,
+            "{cabs} cabs, {yellow} yellow shapes"
+        );
+        assert!(!all.iter().any(|(_, colour, _)| *colour == rgb(238, 58, 96)));
+        // the bridge's towers and cables are there
+        let br = city.bridge.as_ref().unwrap();
+        let granite = all
+            .iter()
+            .filter(|(_, colour, _)| *colour == GRANITE)
+            .count();
+        assert!(granite >= br.towers.len() * 3, "{granite}");
+    }
+
+    #[test]
+    fn the_city_is_a_few_thousand_shapes_near_any_point() {
+        let c = Map::City.course();
+        let s = crate::scene::scenery(&c);
+        let n = s.values.len() / INSTANCE_VALUES;
+        assert!(n > 5_000 && n < 26_000, "{n}");
+        let mut most = 0;
+        for k in 0..c.path.len() / 25 {
+            let d = s.draws_near(c.path[k * 25]);
+            let m: u32 = d
+                .chunks(DRAW_VALUES)
+                .filter(|d| d[1] != Mesh::Terrain as u32)
+                .map(|d| d[3])
+                .sum();
+            most = most.max(m);
+        }
+        assert!(most < 8_000, "{most} drawn at once");
+        // the ground: whole triangles facing up, every vertex in one chunk
+        assert_eq!(s.terrain.len() % (crate::mesh::VERTEX_VALUES * 3), 0);
+        let mut drawn = 0;
+        for ch in &s.chunks {
+            for d in ch.draws.chunks(DRAW_VALUES) {
+                assert_eq!(d[0], STATIC_BUFFER);
+                if d[1] == Mesh::Terrain as u32 {
+                    drawn += d[5];
+                }
+            }
+        }
+        assert_eq!(drawn as usize, s.terrain.len() / crate::mesh::VERTEX_VALUES);
+    }
+
+    #[test]
+    fn moving_cars_are_drawn_where_their_bouncers_are() {
+        let c = Map::City.course();
+        let city = c.city.as_ref().unwrap();
+        let (k, car) = city
+            .cars
+            .iter()
+            .enumerate()
+            .find(|(_, car)| car.drive.is_some())
+            .expect("a moving car");
+        for tick in [0, 600, 1800] {
+            let (at, _) = c.car_at(k, tick);
+            let mut b = Batch::new();
+            cars_dynamic(&mut b, &c, city, at, tick);
+            let (v, _) = b.finish(DYNAMIC_BUFFER);
+            let near = shapes(&v)
+                .iter()
+                .filter(|(p, _, _)| p.flat().sub(at.flat()).len() < int(7))
+                .count();
+            assert!(near >= 8, "tick {tick}: {near} shapes at the car");
+            // and its bouncer is over it
+            let m = c.bouncer(car.bouncer, tick);
+            assert!(m.top.flat().sub(at.flat()).len() < cm(10));
+        }
+    }
+
+    #[test]
+    fn city_item_wires_spark_and_go_dull_while_taken() {
+        // TRIAGE T46 on the City: sparks, not flowers; none with no items
+        let mut race = race_on(Map::City.course());
+        let v = race.crate_vines[0];
+        let a = race.course.anchor(v, race.tick);
+        let len = race.course.vines[v].length;
+        let mid = a.sub(v3(0, len / 2, 0));
+        let seen = |race: &crate::race::Race| {
+            let eye = mid.add(v3(0, 0, -int(20)));
+            let cam = Camera {
+                eye,
+                fwd: mid.sub(eye).norm(),
+                fov: deg(70),
+            };
+            let apes: Vec<V3> = race.racers.iter().map(|r| r.ape.pos).collect();
+            let (vines, _) = crate::scene::dynamic(&crate::scene::Frame {
+                race,
+                cam: &cam,
+                apes: &apes,
+                local: Some(0),
+                tick: 10,
+                chains: &[],
+                vivid: false,
+            });
+            let (v, _) = vines.finish(DYNAMIC_BUFFER);
+            let near = |colour: Rgb| {
+                shapes(&v)
+                    .iter()
+                    .filter(|(p, c, _)| *c == colour && p.flat().sub(a.flat()).len() < int(3))
+                    .count()
+            };
+            (near(SPARK), near(INSULATOR), near(crate::scene::PETAL))
+        };
+        let (sparks, dull, petals) = seen(&race);
+        assert_eq!(
+            (sparks, dull, petals),
+            (9, 0, 0),
+            "three sparks of three rods"
+        );
+        race.crates[0] = 5;
+        assert_eq!(seen(&race), (0, 3, 0), "taken: three insulators");
+        race.crates[0] = 0;
+        race.items = crate::items::ItemSet::NONE;
+        assert_eq!(seen(&race), (0, 0, 0), "no items: no marks");
+    }
+
+    #[test]
+    fn helicopters_follow_their_vines() {
+        let c = Map::City.course();
+        let city = c.city.as_ref().unwrap();
+        let h = city
+            .hangers
+            .iter()
+            .find(|h| h.kind == HangerKind::Helicopter)
+            .expect("a helicopter");
+        let a = c.anchor(h.vine, 0);
+        let mut b = Batch::new();
+        hangers_dynamic(&mut b, &c, city, a, 0, 0);
+        let (v, _) = b.finish(DYNAMIC_BUFFER);
+        let over = shapes(&v)
+            .iter()
+            .filter(|(p, _, _)| p.flat().sub(h.from.flat()).len() < int(8) && p.y > a.y)
+            .count();
+        assert!(over >= 12, "{over} shapes over the vine");
+    }
+
+    #[test]
+    fn the_preview_stands_in_the_street_facing_the_camera() {
+        let c = Map::City.course();
+        let city = c.city.as_ref().unwrap();
+        let (feet, yaw, cam) = preview(&c);
+        assert_eq!(feet.y, c.floor(feet.x, feet.z));
+        for b in &city.blocks {
+            let d = cam.eye.flat().sub(b.centre.flat());
+            let inside =
+                d.dot(b.fwd).abs() < b.half_len && d.dot(right_of(b.fwd)).abs() < b.half_width;
+            assert!(!inside, "the camera is inside a building");
+        }
+        let (x, y) = cam
+            .screen(ONE * 16 / 9, feet.add(v3(0, cm(60), 0)))
+            .unwrap();
+        assert!((x - 50 * ONE).abs() < 10 * ONE && (y - 50 * ONE).abs() < 15 * ONE);
+        let facing = crate::geom::facing(yaw, 0);
+        assert!(facing.dot(cam.eye.sub(feet).flat().norm()) > ONE * 9 / 10);
     }
 }

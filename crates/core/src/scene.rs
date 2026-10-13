@@ -48,7 +48,7 @@ const VINE_WIDTH_VIVID: i32 = cm(30);
 /// An item vine's flowers (TRIAGE T46): violet petals round a white heart,
 /// apart from the in-reach yellow and from red; told apart by shape (five
 /// petals) and count (three up the vine) too, for the colourblind mode.
-const PETAL: Rgb = rgb(160, 96, 255);
+pub(crate) const PETAL: Rgb = rgb(160, 96, 255);
 const HEART: Rgb = rgb(255, 252, 236);
 const BUD: Rgb = rgb(96, 120, 80);
 const FLOWERS: [Rgb; 4] = [
@@ -1706,6 +1706,43 @@ fn stage_batch() -> Batch {
     b
 }
 
+/// A place on a map to show an ape on the selection screen, in front of
+/// the map's own scenery (`scenery(c).draws_near(camera.eye)`): where its
+/// feet stand, the way it faces (toward the camera), and the camera. On
+/// the Jungle the start platform's deck, the jungle behind; on the City a
+/// street corner in Midtown at dusk (`cityscape::preview`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Preview {
+    pub feet: V3,
+    pub yaw: i32,
+    pub camera: Camera,
+}
+
+pub fn preview(c: &Course) -> Preview {
+    let (feet, yaw, camera) = match Map::of(c) {
+        Map::City => crate::cityscape::preview(c),
+        Map::Jungle => {
+            let pl = c.platforms.first();
+            let feet = pl.map_or(c.point(int(4)), |p| {
+                v3(p.centre.x, p.top, p.centre.z).add(p.fwd.scale(p.half_len / 2))
+            });
+            let fwd = c.heading_at(0);
+            let eye = feet.add(fwd.scale(-cm(290))).add(v3(0, cm(125), 0));
+            let target = feet.add(v3(0, cm(62), 0));
+            (
+                feet,
+                crate::geom::yaw_of(eye.sub(feet).flat()),
+                Camera {
+                    eye,
+                    fwd: target.sub(eye).norm(),
+                    fov: deg(34),
+                },
+            )
+        }
+    };
+    Preview { feet, yaw, camera }
+}
+
 /// The title's flyover: a slow glide down the course, starting `from`
 /// metres along. Over the City a little higher, to see over the cars.
 pub fn flyover_camera(c: &Course, ticks: u32, from: i32) -> Camera {
@@ -1942,6 +1979,63 @@ mod tests {
         let marks =
             coloured(b.clone(), Mesh::Blob, PETAL).len() + coloured(b, Mesh::Sphere, BUD).len();
         assert_eq!(marks, 0, "flowers drawn with no items allowed");
+    }
+
+    #[test]
+    fn city_vines_are_glowing_wires_that_keep_the_reach_and_colourblind_looks() {
+        // the City's vines are electric cables, without leaves; in reach and
+        // in the colourblind mode they read as the Jungle's do (TRIAGE T33)
+        let wire = vine_look_on(Map::City, false, false, 0);
+        assert_eq!(wire.colour, crate::cityscape::WIRE);
+        assert!(wire.glow > 0 && wire.glow < ONE / 2);
+        for (reach, vivid, t) in [(true, false, 0), (true, true, 0), (true, true, 40)] {
+            assert_eq!(
+                vine_look_on(Map::City, reach, vivid, t),
+                vine_look(reach, vivid, t)
+            );
+        }
+        let vivid = vine_look_on(Map::City, false, true, 0);
+        let luma = |c: Rgb| (c[0] * 30 + c[1] * 59 + c[2] * 11) / 100;
+        assert!(luma(vivid.colour) > luma(wire.colour) + ONE / 5);
+        assert_eq!(vivid.width, vine_look(false, true, 0).width);
+        // the Jungle's are unchanged
+        for (reach, vivid) in [(false, false), (true, false), (false, true), (true, true)] {
+            assert_eq!(
+                vine_look_on(Map::Jungle, reach, vivid, 9),
+                vine_look(reach, vivid, 9)
+            );
+        }
+        // a wire carries no leaves
+        let mut b = Batch::new();
+        vine(&mut b, v3(0, int(40), 0), int(25), None, wire, 0, false);
+        assert_eq!(b.count_of(Mesh::Blob), 0);
+        let mut b = Batch::new();
+        vine(
+            &mut b,
+            v3(0, int(40), 0),
+            int(25),
+            None,
+            vine_look(false, false, 0),
+            0,
+            true,
+        );
+        assert!(b.count_of(Mesh::Blob) > 0);
+    }
+
+    #[test]
+    fn each_map_has_its_own_sky_and_light() {
+        let (j, c) = (look(Map::Jungle), look(Map::City));
+        assert_ne!(j.light, c.light);
+        assert_ne!(j.fog, c.fog);
+        // the City at dusk: a low sun, an orange light, a darker sky
+        assert!(c.light_dir.y < j.light_dir.y / 2);
+        assert!(c.light[2] < c.light[0] * 2 / 3);
+        let luma = |c: Rgb| (c[0] * 30 + c[1] * 59 + c[2] * 11) / 100;
+        assert!(luma(c.sky) < luma(j.sky));
+        // the Jungle keeps the light it was uploaded with
+        let u = uniforms();
+        assert_eq!(&u[0..3], &[j.light_dir.x, j.light_dir.y, j.light_dir.z]);
+        assert_eq!(fog_range(), j.fog_range);
     }
 
     #[test]
