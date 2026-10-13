@@ -1600,9 +1600,11 @@ impl App {
                 "hype": crate::speedo::hype(crate::speedo::kmh(p.hype_speed)),
                 "amount": decimal(&crate::speedo::amount_text(crate::speedo::kmh(p.hype_speed))),
                 "shout": self.t(&format!("hud.hype{}", crate::speedo::hype(crate::speedo::kmh(p.hype_speed)))),
-                // the splash of a call-out (TRIAGE T22): the screen's flash,
-                // 0 to 1, and the level whose shout pops while it shows
+                // the splash of a call-out (TRIAGE T22): how strongly the
+                // shout pops (0 to 1), the screen flash's opacity, and the
+                // level whose shout pops while it shows
                 "flash": decimal(&p.hype.flash_text()),
+                "screen": decimal(&p.hype.screen_text()),
                 "burst": p.hype.burst(),
             },
             "item": [self.t("hud.item"), item],

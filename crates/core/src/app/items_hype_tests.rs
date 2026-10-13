@@ -146,6 +146,8 @@ fn speed_up(a: &mut App, n: u32, kmh: impl Fn(u32) -> i32) -> (Vec<String>, i32)
         let text: Value = serde_json::from_str(&hype.flash_text()).unwrap();
         assert_eq!(ui["hud"]["speedo"]["flash"], text);
         assert_eq!(ui["hud"]["speedo"]["burst"], hype.burst());
+        // the screen flash is off (the person, 2026-10-12): the shout pops alone
+        assert_eq!(ui["hud"]["speedo"]["screen"], 0.0, "the screen flashed");
         flash = flash.max(hype.flash());
     }
     (sounds, flash)

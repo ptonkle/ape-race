@@ -21,6 +21,9 @@ pub const HOLD: u32 = TPS * 4;
 pub const MARGIN_KMH: i32 = 4;
 /// The flash fades out over this many ticks.
 pub const FLASH: u32 = TPS * 7 / 10;
+/// Whether the screen itself flashes at a call-out (off: the person found
+/// it too much, 2026-10-12); the shout still pops.
+pub const SCREEN_FLASH: bool = false;
 /// The flash's strength (percent) by the level called: the top level is the
 /// splashiest.
 const FLASH_PCT: [i32; 4] = [0, 35, 60, 100];
@@ -81,6 +84,16 @@ impl Hype {
     pub fn flash_text(&self) -> String {
         let pct = (self.flash() as i64 * 100 / ONE as i64) as i32;
         format!("{}.{:02}", pct / 100, pct % 100)
+    }
+
+    /// The screen flash's opacity as text: the flash, or none while
+    /// `SCREEN_FLASH` is off.
+    pub fn screen_text(&self) -> String {
+        if SCREEN_FLASH {
+            self.flash_text()
+        } else {
+            "0.00".to_string()
+        }
     }
 
     /// The level of a call-out whose flash is still showing (the page pops
