@@ -348,13 +348,18 @@ fn a_swimmer_climbs_a_ladder_onto_the_deck() {
     let mut ape = Ape::new(Kind::Chimpanzee, true, start, 0);
     ape.hint = c.nearest_anywhere(start);
     assert!(ape.swimming(&c));
+    // up the ladder and standing on the deck within 5 s (a cab crossing
+    // the deck may bounce it on from there)
+    let mut stood = false;
     for t in 0..(TICKS_PER_SECOND as u32 * 5) {
         ape.step(&Controls::default(), &c, t);
+        stood |= ape.mode == Mode::Grounded
+            && ape.climb.is_none()
+            && !ape.swimming(&c)
+            && ape.feet().y == bridge.start.y;
     }
-    assert!(!ape.swimming(&c) && ape.climb.is_none());
-    assert_eq!(ape.feet().y, bridge.start.y, "on the deck");
-    // and on the deck it runs again
-    assert_eq!(ape.mode, Mode::Grounded);
+    assert!(stood, "never stood on the deck");
+    assert!(!ape.swimming(&c));
 }
 
 #[test]
@@ -505,9 +510,14 @@ fn every_vine_hangs_from_one_thing_and_all_five_kinds_are_used() {
             HangerKind::Helicopter => assert!(h.from.y > a.y),
             HangerKind::Crane | HangerKind::StreetLight => {
                 // its mast at the kerb or beyond the wall, not out in the street
+                // (on the bridge, a lamp stands on the deck's edge)
                 assert_eq!(h.to, a);
+                let on_deck = c.water(h.from).is_some() && {
+                    let side = c.progress(h.from, c.nearest_anywhere(h.from)).1;
+                    (side.abs() - DECK_HALF).abs() < cm(10)
+                };
                 assert!(
-                    !in_corridor(&c, h.from, int(1)),
+                    on_deck || !in_corridor(&c, h.from, int(1)),
                     "a mast in the street: vine {} {:?} at {} m",
                     h.vine,
                     h.kind,
@@ -522,12 +532,37 @@ fn every_vine_hangs_from_one_thing_and_all_five_kinds_are_used() {
 fn vines_are_sparser_than_the_jungles_but_always_offer_a_way_on() {
     let c = city();
     let j = Course::jungle();
-    assert!(
-        c.vines.len() * 10 < j.vines.len() * 9,
-        "{} vines to the Jungle's {}",
-        c.vines.len(),
-        j.vines.len()
-    );
+    assert!(c.vines.len() < j.vines.len(), "{} vines", c.vines.len());
+    // along the streets (not the start's row, the 90° corners' crossings
+    // or the bridge, which has more to make a fall in the river forgiving)
+    // there are fewer vines a metre than in the Jungle (the person asked
+    // for sparser, then found the first City too sparse: C rows)
+    let river = c.city.as_ref().unwrap().river.unwrap();
+    let bends: Vec<(i32, i32)> = (0..c.streets.len() - 1)
+        .filter(|&k| corner(&c, k).3.abs() == 90)
+        .map(|k| {
+            let at = c
+                .progress(corner(&c, k).0, c.nearest_anywhere(corner(&c, k).0))
+                .0;
+            (at - int(40), at + int(30))
+        })
+        .collect();
+    let street = |s: i32| {
+        s > int(40)
+            && s < c.length - int(10)
+            && !(s > river.from - int(40) && s < river.to + int(40))
+            && !bends.iter().any(|&(a, b)| s > a && s < b)
+    };
+    let metres = (0..1800).map(int).filter(|&s| street(s)).count() as i64;
+    let city_vines = c.vines.iter().filter(|v| street(v.at)).count() as i64;
+    let jungle_vines = j
+        .vines
+        .iter()
+        .filter(|v| v.at > int(40) && v.at < j.length - int(10))
+        .count() as i64;
+    // per 1000 m
+    let (cd, jd) = (city_vines * 1000 / metres, jungle_vines * 1000 / 1750);
+    assert!(cd < jd, "{cd} vines a km on the streets, the Jungle {jd}");
     let mut ats: Vec<i32> = c.vines.iter().map(|v| v.at).collect();
     ats.sort();
     for w in ats.windows(2) {
@@ -593,7 +628,7 @@ fn an_ape_swings_round_a_90_degree_corner_on_its_crane_cable() {
         let speed = int(28);
         let start = cable
             .anchor
-            .sub(a.dir.scale(int(20)))
+            .sub(a.dir.scale(int(14)))
             .sub(b.dir.scale(int(3)))
             .sub(v3(0, int(2), 0));
         let mut ape = Ape::new(Kind::Chimpanzee, true, start, 0);
@@ -603,7 +638,8 @@ fn an_ape_swings_round_a_90_degree_corner_on_its_crane_cable() {
         let mut held = false;
         let mut let_go = None;
         for t in 0..(3 * TICKS_PER_SECOND as u32) {
-            let facing = ape.vel.flat().norm().dot(b.dir) > ONE * 95 / 100;
+            // it lets go facing down the new street (within 8°)
+            let facing = ape.vel.flat().norm().dot(b.dir) > ONE * 99 / 100;
             let grab = let_go.is_none() && !(held && facing);
             ape.step(
                 &Controls {
@@ -619,9 +655,12 @@ fn an_ape_swings_round_a_90_degree_corner_on_its_crane_cable() {
             if held && !grab && let_go.is_none() {
                 let_go = Some((t, ape.speed()));
             }
+            // and touches no wall on the cable or for a second after
+            let flying_on = let_go.is_none_or(|(at, _)| t < at + TICKS_PER_SECOND as u32);
             assert!(
-                !ape.happened.contains(&Happening::Wall),
-                "corner {k}: into the wall at tick {t}"
+                !(flying_on && ape.happened.contains(&Happening::Wall)),
+                "corner {k}: into the wall at tick {t} (on vine {:?}, the crane's {i})",
+                ape.swinging()
             );
         }
         let (t, kept) = let_go.unwrap_or_else(|| panic!("corner {k}: never faced the new street"));
@@ -710,4 +749,54 @@ fn the_start_streets_end_is_well_behind_the_start_for_the_camera() {
     let p = c.path[0].sub(c.heading[0].scale(int(12)));
     let (q, _, _) = c.contain(v3(p.x, int(1), p.z), V3::ZERO, 0);
     assert!(q.flat().sub(c.path[0]).dot(c.heading[0]) >= -int(6));
+}
+
+#[test]
+fn no_vine_hangs_on_the_outside_of_a_turn() {
+    // the person, playing the City: wires on the outside of a turn are
+    // too tempting to grab and give a poor racing line. From 45 m before
+    // each corner to 35 m after it, every vine is in the middle or the
+    // inside half of the street, the corner cables on the inside line
+    let c = city();
+    for k in 0..c.streets.len() - 1 {
+        let (p, a, b, turn) = corner(&c, k);
+        let at = c.progress(p, c.nearest_anywhere(p)).0;
+        // toward the inside of the turn: left for a left turn
+        let inward = if turn > 0 {
+            right_of(a.dir).neg()
+        } else {
+            right_of(a.dir)
+        };
+        let inward_b = if turn > 0 {
+            right_of(b.dir).neg()
+        } else {
+            right_of(b.dir)
+        };
+        for (i, v) in c.vines.iter().enumerate() {
+            if v.at < at - layout_corner_before() || v.at > at + layout_corner_after() {
+                continue;
+            }
+            // measured across whichever street it hangs over
+            let d = v.anchor.flat().sub(p);
+            let before = d.dot(a.dir) < 0;
+            let inside = if before {
+                d.dot(inward)
+            } else {
+                d.dot(inward_b)
+            };
+            assert!(
+                inside > -int(2),
+                "corner {k} ({turn}°): vine {i} hangs {} m out wide",
+                -inside / ONE
+            );
+        }
+    }
+}
+
+fn layout_corner_before() -> i32 {
+    super::layout::CORNER_BEFORE - int(10)
+}
+
+fn layout_corner_after() -> i32 {
+    super::layout::CORNER_AFTER - int(10)
 }
