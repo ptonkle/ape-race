@@ -32,6 +32,8 @@ const LEAF: [Rgb; 4] = [
 const VINE: Rgb = rgb(150, 210, 70);
 const VINE_REACH: Rgb = rgb(255, 236, 90);
 const VINE_USED: Rgb = rgb(240, 84, 72);
+const BANANA_YELLOW: Rgb = rgb(255, 216, 40);
+const BANANA_STALK: Rgb = rgb(92, 62, 30);
 const VINE_LEAF: Rgb = rgb(90, 170, 60);
 const FLOWERS: [Rgb; 4] = [
     rgb(240, 90, 120),
@@ -1151,9 +1153,52 @@ pub fn dynamic(f: &Frame) -> Batch {
             0,
         );
     }
+    course_bananas(&mut b, race, f.local, eye, f.tick);
     crate::items::draw(&mut b, race);
     speed_lines(&mut b, f);
     b
+}
+
+/// The course's bananas (TRIAGE T43) the viewer has not taken, near the
+/// eye: each turning slowly and bobbing, lit so an arc reads from afar.
+fn course_bananas(b: &mut Batch, race: &Race, viewer: Option<usize>, eye: V3, t: u32) {
+    let took = viewer.and_then(|v| race.racers.get(v)).map(|r| &r.took);
+    for (k, at) in race.course.bananas.iter().enumerate() {
+        if took.is_some_and(|got| got.get(k).copied().unwrap_or(false)) {
+            continue;
+        }
+        if (at.x - eye.x).abs() > int(150) || (at.z - eye.z).abs() > int(150) {
+            continue;
+        }
+        let spin = (t as i32) * 220 + k as i32 * 5_000;
+        let bob = mul(sin((t as i32) * 300 + k as i32 * 7_000), cm(12));
+        pickup_banana(b, at.add(v3(0, bob, 0)), spin);
+    }
+}
+
+/// One course banana: a curved fruit of rods round a vertical axis, stalk
+/// up.
+fn pickup_banana(b: &mut Batch, at: V3, spin: i32) {
+    let frame = Affine::translate(at).then(&Affine::rot_y(spin));
+    let r = cm(45);
+    let arc = |d: i32| {
+        let a = deg(d);
+        frame.apply(v3(mul(fx::sin(a), r), r / 2 - mul(fx::cos(a), r), 0))
+    };
+    let points = [-70, -35, 0, 35, 70].map(arc);
+    for w in points.windows(2) {
+        b.push(Mesh::Cyl, &rod(w[0], w[1], cm(17)), BANANA_YELLOW, ONE * 2 / 5);
+    }
+    for p in &points[1..4] {
+        b.push(
+            Mesh::Sphere,
+            &placed(*p, 0, v3(cm(17), cm(17), cm(17))),
+            BANANA_YELLOW,
+            ONE * 2 / 5,
+        );
+    }
+    let tip = points[4].add(points[4].sub(points[3]).with_len(cm(9)));
+    b.push(Mesh::Cyl, &rod(points[4], tip, cm(8)), BANANA_STALK, 0);
 }
 
 /// A vine's colour and glow: yellow in reach; a catch-up vine (TRIAGE T45:

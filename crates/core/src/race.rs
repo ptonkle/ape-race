@@ -118,6 +118,9 @@ pub struct Racer {
     /// the last course reward it had, and the race tick it came (for the
     /// HUD's flash)
     pub reward: Option<(Reward, u32)>,
+    /// for each of the course's bananas: whether this ape has taken it
+    /// (TRIAGE T43: each ape collects its own)
+    pub took: Vec<bool>,
 }
 
 /// A reward from the course itself (group K), for the HUD's flash and the
@@ -129,6 +132,8 @@ pub enum Reward {
     Mushroom,
     /// a vine an opponent swung on first (TRIAGE T45)
     Catchup,
+    /// a banana on the course (TRIAGE T43); no flash, the count shows it
+    Banana,
 }
 
 impl Reward {
@@ -136,6 +141,7 @@ impl Reward {
         match self {
             Reward::Mushroom => "mushroom",
             Reward::Catchup => "catchup",
+            Reward::Banana => "banana",
         }
     }
 }
@@ -235,6 +241,7 @@ impl Race {
                     finish: None,
                     place: i + 1,
                     reward: None,
+                    took: vec![false; course.bananas.len()],
                 }
             })
             .collect();
@@ -318,6 +325,7 @@ impl Race {
             if c.item {
                 crate::items::use_item(self, i, &c);
             }
+            self.collect_bananas(i);
         }
         crate::items::step(self);
         self.mark_used();
@@ -375,6 +383,33 @@ impl Race {
     fn reward(&mut self, who: usize, what: Reward) {
         self.racers[who].reward = Some((what, self.tick));
         self.events.push(Event::Reward { who, what });
+    }
+
+    /// Ape `who` takes the bananas its body passes through (TRIAGE T43).
+    fn collect_bananas(&mut self, who: usize) {
+        let r = &mut self.racers[who];
+        if r.finish.is_some() {
+            return;
+        }
+        let at = r.ape.middle();
+        let near = rules::BANANA_PICKUP + rules::BODY_RADIUS;
+        let mut got = 0;
+        for (k, b) in self.course.bananas.iter().enumerate() {
+            if (b.x - at.x).abs() > near || (b.z - at.z).abs() > near || r.took[k] {
+                continue;
+            }
+            if b.dist(at) <= near {
+                got += 1;
+                r.took[k] = true;
+            }
+        }
+        if got > 0 {
+            r.ape.bananas = (r.ape.bananas + got).min(rules::BANANAS_FULL);
+            self.events.push(Event::Reward {
+                who,
+                what: Reward::Banana,
+            });
+        }
     }
 
     /// Which apes have swung on vine `v`, one bit each.
@@ -682,6 +717,42 @@ mod tests {
         assert!(!r.catch_up_vine(0, 0));
         r.step(&[Controls::default(); 2]);
         assert!(r.catch_up_vine(0, 0));
+    }
+
+    #[test]
+    fn each_ape_collects_its_own_bananas_once() {
+        // TRIAGE T43
+        let mut c = Course::test_line(&[]);
+        let p = c.point(int(100));
+        c.bananas = (0..3).map(|k| v3(p.x, int(10), p.z + int(k * 2))).collect();
+        let mut r = Race::new(c, &entries(2), false, 1);
+        r.phase = Phase::Running;
+        let start = r.course.bananas[0].add(v3(0, rules::BODY_DROP / 2, -int(3)));
+        r.racers[0].ape.pos = start;
+        r.racers[0].ape.vel = v3(0, 0, int(20));
+        r.racers[0].ape.mode = Mode::Flying;
+        let mut rewards = 0;
+        for _ in 0..60 {
+            r.step(&[Controls::default(); 2]);
+            rewards += r
+                .events
+                .iter()
+                .filter(|e| matches!(e, Event::Reward { who: 0, what: Reward::Banana }))
+                .count();
+        }
+        assert_eq!(r.racers[0].ape.bananas, 3);
+        assert!(rewards >= 1 && rewards <= 3, "{rewards}");
+        assert!(r.racers[0].took.iter().all(|t| *t));
+        // the other ape still has all three to take
+        assert!(r.racers[1].took.iter().all(|t| !*t));
+        assert_eq!(r.racers[1].ape.bananas, 0);
+        // flying through again takes nothing more
+        r.racers[0].ape.pos = start;
+        r.racers[0].ape.vel = v3(0, 0, int(20));
+        for _ in 0..60 {
+            r.step(&[Controls::default(); 2]);
+        }
+        assert_eq!(r.racers[0].ape.bananas, 3);
     }
 
     #[test]

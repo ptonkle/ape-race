@@ -73,6 +73,22 @@ pub const MUSHROOM_PUSH: i32 = int(6);
 /// grab, the same speed set fast apes whirling round the anchor.)
 pub const CATCHUP_GAIN: i32 = int(4);
 pub const CATCHUP_TOP: i32 = int(40);
+/// Bananas on the course (TRIAGE T43), like Mario Kart's coins: an arc of
+/// five under each vine of every this-many-th station, this far apart (as
+/// an angle of the swing), and a body takes one within `BANANA_PICKUP` of
+/// its middle (plus the body's radius). Each ape collects its own: one it
+/// has taken is gone for it only, and does not come back.
+pub const BANANA_EVERY: usize = 2;
+pub const BANANA_ARC: i32 = crate::fx::deg(6);
+pub const BANANA_PICKUP: i32 = cm(120);
+/// At this many bananas the ape's top speed is 20% higher: drag falls by
+/// `BANANAS_DRAG_CUT` thousandths at the full count, in steps, and terminal
+/// speed under quadratic drag goes as one over the square root of the drag
+/// (1 / sqrt(0.694) = 1.20). More are not counted.
+pub const BANANAS_FULL: u32 = 100;
+pub const BANANAS_DRAG_CUT: i64 = 306;
+/// A hit (Banana, Stick or Hook) costs this many of them.
+pub const BANANAS_DROPPED: u32 = 10;
 /// How fast WASD bring the ape to its running velocity on the ground.
 pub const RUN_ACCEL: i32 = int(40);
 

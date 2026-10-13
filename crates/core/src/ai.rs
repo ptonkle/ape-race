@@ -1053,6 +1053,8 @@ pub struct Trial {
     pub landings: u32,
     /// ticks spent on the ground
     pub ground_ticks: u32,
+    /// bananas held at the end (TRIAGE T43)
+    pub bananas: u32,
 }
 
 /// Runs a race of AI apes alone on `course` for at most `limit` race ticks,
@@ -1094,6 +1096,7 @@ pub fn trial_at(
             grabs: 0,
             landings: 0,
             ground_ticks: 0,
+            bananas: 0,
         })
         .collect();
     let mut sum = vec![0i64; kinds.len()];
@@ -1129,6 +1132,7 @@ pub fn trial_at(
         let t = &mut out[i];
         t.finish = r.finish;
         t.progress = r.progress;
+        t.bananas = r.ape.bananas;
         let ticks = r.finish.unwrap_or(race.clock).max(1);
         t.mean_speed = (sum[i] / ticks as i64) as i32;
     }

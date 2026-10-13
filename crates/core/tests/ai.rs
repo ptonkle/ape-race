@@ -13,7 +13,7 @@ fn report(label: &str, trials: &[Trial]) {
     println!("{label}");
     for t in trials {
         println!(
-            "  {:<11} finish {:>9}  at {:>5.0} m  mean {:>5.1} m/s  top {:>5.1} m/s  grabs {:>3}  landings {:>2}  ground {:>5.1} s",
+            "  {:<11} finish {:>9}  at {:>5.0} m  mean {:>5.1} m/s  top {:>5.1} m/s  grabs {:>3}  landings {:>2}  ground {:>5.1} s  bananas {:>3}",
             format!("{:?}", t.kind),
             t.finish
                 .map(|f| format!("{:.2} s", secs(f)))
@@ -24,6 +24,7 @@ fn report(label: &str, trials: &[Trial]) {
             t.grabs,
             t.landings,
             secs(t.ground_ticks),
+            t.bananas,
         );
     }
 }

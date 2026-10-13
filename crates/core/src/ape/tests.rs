@@ -687,6 +687,65 @@ fn a_bounce_pushes_the_ape_on_along_its_heading() {
 }
 
 #[test]
+fn a_hundred_bananas_raise_the_top_speed_a_fifth() {
+    // TRIAGE T43: terminal speed is where gravity meets the drag; the drag
+    // falls with the bananas the last grab counted
+    let c = one_vine();
+    let terminal = |n: u32| {
+        let mut ape = Ape::new(Kind::Chimpanzee, true, v3(0, int(60), 0), 0);
+        ape.mode = Mode::Flying;
+        ape.bananas = n;
+        ape.banana_drag = n;
+        // fall for a long while, held up high so nothing is hit
+        for t in 0..120 * 60 {
+            ape.pos = v3(0, int(60), 0);
+            ape.step(&Controls::default(), &c, t);
+        }
+        ape.speed()
+    };
+    let none = terminal(0);
+    let full = terminal(BANANAS_FULL);
+    let ratio = fx::div(full, none);
+    assert!(
+        (ONE * 118 / 100..=ONE * 122 / 100).contains(&ratio),
+        "{} vs {} m/s",
+        full / ONE,
+        none / ONE
+    );
+    // more than the full count adds nothing
+    assert_eq!(terminal(BANANAS_FULL * 2), full);
+    // half way is part way
+    let half = terminal(BANANAS_FULL / 2);
+    assert!(half > none && half < full);
+}
+
+#[test]
+fn bananas_count_from_the_next_grab_and_a_hit_drops_some() {
+    let c = one_vine();
+    let mut ape = hanging(&c, 0);
+    ape.mode = Mode::Flying;
+    ape.pos = ape.pos.add(v3(0, 0, -int(2)));
+    ape.vel = v3(0, 0, int(8));
+    ape.bananas = 30;
+    assert_eq!(ape.banana_drag, 0);
+    let mut caught = false;
+    for t in 0..60 {
+        ape.step(&held(), &c, t);
+        if ape.swinging().is_some() {
+            caught = true;
+            break;
+        }
+    }
+    assert!(caught);
+    assert_eq!(ape.banana_drag, 30);
+    ape.hit(ONE, 10, V3::ZERO);
+    assert_eq!(ape.bananas, 30 - BANANAS_DROPPED);
+    ape.bananas = 4;
+    ape.hit(ONE, 10, V3::ZERO);
+    assert_eq!(ape.bananas, 0);
+}
+
+#[test]
 fn running_into_a_mushroom_bounces_too() {
     let c = mushroom_course();
     let m = c.mushrooms[0].top;

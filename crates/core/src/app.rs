@@ -1348,6 +1348,8 @@ impl App {
                 "shout": self.t(&format!("hud.hype{}", crate::speedo::hype(crate::speedo::kmh(p.hype_speed)))),
             },
             "item": [self.t("hud.item"), item],
+            // the course's bananas taken (TRIAGE T43)
+            "bananas": [self.t("hud.bananas"), format!("{}/{}", me.ape.bananas, rules::BANANAS_FULL)],
             "item_key": me.item.map(|i| i.key()).unwrap_or(""),
             // the held item as a picture (TRIAGE T19)
             "item_icon": me.item.map(crate::items::icon_svg).unwrap_or_default(),
@@ -1697,6 +1699,7 @@ fn cue_for(e: &Event, local: usize) -> Option<Cue> {
         Event::Reward { who, what } if who == local => Some(match what {
             crate::race::Reward::Mushroom => Cue::Bounce,
             crate::race::Reward::Catchup => Cue::Catchup,
+            crate::race::Reward::Banana => Cue::Banana,
         }),
         _ => None,
     }

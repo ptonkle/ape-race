@@ -79,6 +79,14 @@ pub struct Ape {
     /// vine's boost, set by the race on the grab; kept in the ape so the
     /// AI's copies plan with it)
     pub release_bonus: i32,
+    /// bananas collected (TRIAGE T43), up to `BANANAS_FULL`: they lower
+    /// the drag, so the top speed rises
+    pub bananas: u32,
+    /// the bananas the drag counts: `bananas` as of the last grab. A
+    /// banana taken mid-swing or mid-flight counts from the next grab, so
+    /// the AI's plan for a swing and its flight (made on the grab) stays
+    /// exact.
+    pub banana_drag: u32,
 }
 
 impl Ape {
@@ -97,6 +105,8 @@ impl Ape {
             yaw,
             happened: Vec::new(),
             release_bonus: 0,
+            bananas: 0,
+            banana_drag: 0,
         }
     }
 
@@ -238,6 +248,7 @@ impl Ape {
         }
         self.mode = Mode::Swinging { vine, rope };
         self.hopped = false;
+        self.banana_drag = self.bananas;
         self.happened.push(Happening::Grab);
     }
 
@@ -268,10 +279,17 @@ impl Ape {
         mul(self.phys.pump, fx::div(fade - speed, fade))
     }
 
+    /// The drag now, in hundred-millionths per metre: the kind's, less up
+    /// to `BANANAS_DRAG_CUT` thousandths of it for the bananas collected.
+    pub fn drag_now(&self) -> i64 {
+        let n = self.banana_drag.min(BANANAS_FULL) as i64;
+        self.phys.drag as i64 * (1000 - BANANAS_DRAG_CUT * n / BANANAS_FULL as i64)
+    }
+
     fn drag(&mut self) {
         let speed = self.vel.len();
         // per second: drag / 100 000 × speed, as a share of the velocity
-        let k = (self.phys.drag as i64 * speed as i64 / 100_000) as i32;
+        let k = (self.drag_now() * speed as i64 / 100_000_000) as i32;
         self.vel = self.vel.sub(self.vel.scale(mul(k, DT)));
     }
 
@@ -453,6 +471,8 @@ impl Ape {
             self.last_vine = Some((vine, 0));
         }
         self.release_bonus = 0;
+        // and drops some bananas (TRIAGE T43)
+        self.bananas = self.bananas.saturating_sub(BANANAS_DROPPED);
         self.happened.push(Happening::Knocked);
     }
 }
