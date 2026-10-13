@@ -40,6 +40,7 @@ Notes for building the next map, from the Jungle (the first course) and the City
   - a station 5 m into the new street after each 90° corner, so a quarter-circle release always has something close;
   - stations every 24–30 m (26–32 m was past Sloth's 22 m ideal hop: it stalled on straights and failed to finish 1 race in 6);
   - a low vine at every other station (every third left a fallen ape running 10 s).
+- **When the layout is right but the levels bunch up**, give the new map its own handicaps (`ai::Difficulty::tuning_on`), never the shared ones: on the City the Monkey and the Ape got quicker handicaps, the Jungle's stayed byte-identical (C12).
 - **New ground needs an AI rule:** in the City's river the AI presses no keys, so the auto-swim takes it to the nearest bank, ladder or boat (`ai::think`). Check it never swims at a vine it cannot reach.
 - **Then add an ordering test for the map** (`tests/city_ai.rs`: eight layouts, each level 6 s slower than the next, every race inside 150 s; every kind at Sloth and King Kong; four AIs with items).
 - **Medal times:** `city_time_trial_report` (King Kong alone, Speed Boosts only, every kind). Author just under the best kind, then the Jungle's steps of 7, 10 and 15 s (City: Orangutan 64.4 s, so 1:04 / 1:11 / 1:21 / 1:36). Medals are per map: `trial::medals(map)`, `target_on`, `earned_on`, `author_shown_on`, `next_target_on`.
