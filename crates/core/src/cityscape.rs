@@ -33,6 +33,91 @@ pub fn look() -> Look {
     }
 }
 
+/// The City's look for its course: the light comes from its low sun
+/// (`sun_dir`).
+pub fn look_for(c: &Course) -> Look {
+    let l = look();
+    Look {
+        light_dir: sun_dir(c)
+            .flat()
+            .norm()
+            .scale(ONE * 95 / 100)
+            .add(v3(0, cm(30), 0))
+            .norm(),
+        ..l
+    }
+}
+
+/// Toward the setting sun: just off the course's heading over the river (so
+/// it is in view crossing the bridge, its glow on the open water beside the
+/// deck), 3° over the horizon.
+pub fn sun_dir(c: &Course) -> V3 {
+    let at = c
+        .city
+        .as_ref()
+        .and_then(|l| l.river)
+        .map_or(c.length / 2, |r| (r.from + r.to) / 2);
+    let yaw = yaw_of(c.heading_at(at)) + deg(22);
+    crate::geom::facing(yaw, deg(3))
+}
+
+/// How far out the sun and its halo are drawn (inside the far plane).
+const SUN_AT: i32 = int(520);
+
+/// The low sun: a glowing disc on the horizon with rings of warm haze
+/// round it, kept at the same place in the sky wherever the eye is (drawn
+/// round the eye each frame, unfogged: `glow` over ONE), and its glitter
+/// across the river's water toward the eye.
+pub fn sun(b: &mut Batch, c: &Course, eye: V3) {
+    let dir = sun_dir(c);
+    let face = |at: V3, r: i32| Affine {
+        c0: right_of(dir).scale(r * 2),
+        c1: dir.scale(cm(20)),
+        c2: right_of(dir).cross(dir).norm().scale(r * 2),
+        t: at,
+    };
+    let rings = [
+        (int(30), rgb(255, 236, 170), 0),
+        (int(46), rgb(255, 170, 90), cm(200)),
+        (int(74), rgb(236, 120, 96), cm(400)),
+        (int(118), rgb(184, 104, 120), cm(600)),
+    ];
+    for (r, colour, back) in rings {
+        let at = eye.add(dir.scale(SUN_AT + back));
+        b.push(Mesh::Cyl, &face(at, r), colour, ONE * 2);
+    }
+    // the glitter: short bright strips on the water along the line to it
+    let Some(r) = c.city.as_ref().and_then(|l| l.river) else {
+        return;
+    };
+    let f = RiverFrame::of(c, Some(r));
+    let flat = dir.flat().norm();
+    let mut t = int(12);
+    let mut k = 0;
+    while t < int(280) {
+        let p = eye.flat().add(flat.scale(t));
+        if f.in_river(f.local(p).0) {
+            let w = cm(120) + t / 25;
+            let len = int(4) + t / 14;
+            let side = right_of(flat).scale(mul(sin(k * 9000), w));
+            let at = v3(p.x, r.level + cm(3), p.z).add(side);
+            let colour = if k % 2 == 0 {
+                rgb(255, 200, 120)
+            } else {
+                rgb(255, 150, 90)
+            };
+            b.push(
+                Mesh::Cube,
+                &panel(at, right_of(flat), V3::UP, flat, w, cm(2), len),
+                colour,
+                ONE,
+            );
+        }
+        t += int(4) + t / 16;
+        k += 1;
+    }
+}
+
 /// The dusk haze: the far colour, and the clear colour behind everything.
 pub const FOG: Rgb = rgb(132, 96, 132);
 
@@ -47,6 +132,9 @@ const STONE: Rgb = rgb(150, 134, 110);
 const GRANITE: Rgb = rgb(178, 158, 126);
 const STEEL: Rgb = rgb(56, 62, 70);
 const CABLE: Rgb = rgb(70, 74, 82);
+/// The bridge's suspenders and stays: thin, and near the dusk haze's own
+/// colour, so they sit back behind the vines.
+const SUSPENDER: Rgb = rgb(92, 76, 100);
 const POLE: Rgb = rgb(44, 58, 52);
 const LAMP: Rgb = rgb(255, 214, 140);
 const CRANE: Rgb = rgb(236, 176, 30);
@@ -758,19 +846,16 @@ fn bridge(s: &mut Sink, c: &Course, br: &Bridge, river: Option<River>) {
             let out = s.at(a);
             out.push(
                 Mesh::Cyl,
-                &rod(a, b, if is_outer { cm(60) } else { cm(50) }),
+                &rod(a, b, if is_outer { cm(50) } else { cm(40) }),
                 CABLE,
                 0,
             );
-            let every = if is_outer { int(5) } else { int(15) };
-            if t % every == 0 && t > 0 {
-                let foot = if is_outer {
-                    deck(t, x).sub(up(cm(60)))
-                } else {
-                    deck(t, x)
-                };
+            // suspenders only from the outer cables, beside the deck, thin
+            // and dim against the dusk so the swingable wires stand out
+            if is_outer && t % int(10) == 0 && t > 0 {
+                let foot = deck(t, x).sub(up(cm(60)));
                 if a.y > foot.y + int(2) && clear(a) {
-                    out.push(Mesh::Cube, &rod(foot, a, cm(8)), CABLE, 0);
+                    out.push(Mesh::Cube, &rod(foot, a, cm(5)), SUSPENDER, ONE / 3);
                 }
             }
             t = t1;
@@ -797,14 +882,14 @@ fn bridge(s: &mut Sink, c: &Course, br: &Bridge, river: Option<River>) {
             for &at in &towers {
                 let top = br.cable(k, at);
                 for dir in [-1, 1] {
-                    for j in 1..=5 {
-                        let to = at + dir * int(7) * j;
+                    for j in 1..=3 {
+                        let to = at + dir * int(9) * j;
                         if to <= 0 || to >= len {
                             continue;
                         }
                         let foot = deck(to, x).sub(up(cm(60)));
                         s.at(foot)
-                            .push(Mesh::Cube, &rod(top, foot, cm(8)), CABLE, 0);
+                            .push(Mesh::Cube, &rod(top, foot, cm(5)), SUSPENDER, ONE / 3);
                     }
                 }
             }
@@ -2780,7 +2865,7 @@ fn plaza(b: &mut Batch, c: &Course) {
 // ---- the vines as wires ----
 
 /// The City's vines are electric cables: dark, with a faint glow at dusk.
-pub const WIRE: Rgb = rgb(52, 128, 160);
+pub const WIRE: Rgb = rgb(60, 156, 196);
 /// The colourblind mode's wires (TRIAGE T33): a vivid cyan, brighter than
 /// anything in the muted world.
 pub const WIRE_VIVID: Rgb = rgb(90, 240, 255);

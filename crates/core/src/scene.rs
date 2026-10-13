@@ -119,7 +119,11 @@ pub fn look(map: Map) -> Look {
 
 /// The look of the map a course was built for.
 pub fn look_of(c: &Course) -> Look {
-    look(Map::of(c))
+    match Map::of(c) {
+        // the light comes from the sun drawn on its horizon
+        Map::City => crate::cityscape::look_for(c),
+        Map::Jungle => look(Map::Jungle),
+    }
 }
 
 /// The light: its direction (toward the sun), its colour; the sky's and the
@@ -1193,7 +1197,7 @@ pub fn vine_look_on(map: Map, in_reach: bool, vivid: bool, tick: u32) -> VineLoo
     match (map, in_reach, vivid) {
         (Map::City, false, false) => VineLook {
             colour: crate::cityscape::WIRE,
-            glow: ONE * 3 / 10,
+            glow: ONE * 9 / 20,
             ..look
         },
         (Map::City, false, true) => VineLook {
@@ -1249,6 +1253,7 @@ pub fn dynamic(f: &Frame) -> (Batch, Batch) {
     if let Some(city) = &c.city {
         crate::cityscape::hangers_dynamic(&mut b, c, city, eye, f.tick, tick);
         crate::cityscape::cars_dynamic(&mut b, c, city, eye, tick);
+        crate::cityscape::sun(&mut b, c, eye);
     }
     for (k, r) in race.racers.iter().enumerate() {
         // Floor is Lava (TRIAGE T37): the jaguar, and the ape until the bite
@@ -1789,6 +1794,7 @@ pub fn flyover_dynamic(c: &Course, tick: u32, vivid: bool, eye: V3) -> (Batch, B
     if let Some(city) = &c.city {
         crate::cityscape::hangers_dynamic(&mut rest, c, city, eye, tick, tick);
         crate::cityscape::cars_dynamic(&mut rest, c, city, eye, tick);
+        crate::cityscape::sun(&mut rest, c, eye);
     }
     (b, rest)
 }

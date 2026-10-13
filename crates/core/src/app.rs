@@ -2418,7 +2418,7 @@ mod tests {
             [j.light_dir.x, j.light_dir.y, j.light_dir.z]
         );
         a.act("flag.map", "city");
-        let c = scene::look(crate::map::Map::City);
+        let c = scene::look_of(&crate::map::Map::City.course());
         let v = light(&a);
         assert_eq!(v[0..3], [c.light_dir.x, c.light_dir.y, c.light_dir.z]);
         assert_eq!(v[3..6], c.light);
