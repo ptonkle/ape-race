@@ -318,13 +318,18 @@ fn a_swimmer_climbs_a_ladder_onto_the_deck() {
     let mut ape = Ape::new(Kind::Chimpanzee, true, start, 0);
     ape.hint = c.nearest_anywhere(start);
     assert!(ape.swimming(&c));
+    // up the ladder and standing on the deck within 5 s (a cab crossing
+    // the deck may bounce it on from there)
+    let mut stood = false;
     for t in 0..(TICKS_PER_SECOND as u32 * 5) {
         ape.step(&Controls::default(), &c, t);
+        stood |= ape.mode == Mode::Grounded
+            && ape.climb.is_none()
+            && !ape.swimming(&c)
+            && ape.feet().y == bridge.start.y;
     }
-    assert!(!ape.swimming(&c) && ape.climb.is_none());
-    assert_eq!(ape.feet().y, bridge.start.y, "on the deck");
-    // and on the deck it runs again
-    assert_eq!(ape.mode, Mode::Grounded);
+    assert!(stood, "never stood on the deck");
+    assert!(!ape.swimming(&c));
 }
 
 #[test]
@@ -681,4 +686,54 @@ fn the_start_streets_end_is_well_behind_the_start_for_the_camera() {
     let p = c.path[0].sub(c.heading[0].scale(int(12)));
     let (q, _, _) = c.contain(v3(p.x, int(1), p.z), V3::ZERO, 0);
     assert!(q.flat().sub(c.path[0]).dot(c.heading[0]) >= -int(6));
+}
+
+#[test]
+fn no_vine_hangs_on_the_outside_of_a_turn() {
+    // the person, playing the City: wires on the outside of a turn are
+    // too tempting to grab and give a poor racing line. From 45 m before
+    // each corner to 35 m after it, every vine is in the middle or the
+    // inside half of the street, the corner cables on the inside line
+    let c = city();
+    for k in 0..c.streets.len() - 1 {
+        let (p, a, b, turn) = corner(&c, k);
+        let at = c.progress(p, c.nearest_anywhere(p)).0;
+        // toward the inside of the turn: left for a left turn
+        let inward = if turn > 0 {
+            right_of(a.dir).neg()
+        } else {
+            right_of(a.dir)
+        };
+        let inward_b = if turn > 0 {
+            right_of(b.dir).neg()
+        } else {
+            right_of(b.dir)
+        };
+        for (i, v) in c.vines.iter().enumerate() {
+            if v.at < at - layout_corner_before() || v.at > at + layout_corner_after() {
+                continue;
+            }
+            // measured across whichever street it hangs over
+            let d = v.anchor.flat().sub(p);
+            let before = d.dot(a.dir) < 0;
+            let inside = if before {
+                d.dot(inward)
+            } else {
+                d.dot(inward_b)
+            };
+            assert!(
+                inside > -int(2),
+                "corner {k} ({turn}°): vine {i} hangs {} m out wide",
+                -inside / ONE
+            );
+        }
+    }
+}
+
+fn layout_corner_before() -> i32 {
+    super::layout::CORNER_BEFORE - int(10)
+}
+
+fn layout_corner_after() -> i32 {
+    super::layout::CORNER_AFTER - int(10)
 }

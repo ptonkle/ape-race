@@ -9,8 +9,10 @@
 //!   progress along it stays smooth), but the walls are the streets':
 //!   buildings stand square on them.
 //! - **Corners**: at each 90° corner two short cables hang 27 m up over the
-//!   intersection, one from a crane standing in a building site on the
-//!   inside corner, one from a hovering helicopter further out. Caught
+//!   intersection on the inside line, one from a crane standing in a
+//!   building site on the inside corner, one from a hovering helicopter.
+//!   Round every corner the stations keep their middle and inside lanes:
+//!   no vine out wide to tempt an ape onto a poor line. Caught
 //!   high, a cable whirls an ape round (`examples/corner_swing.rs`: a
 //!   quarter turn in 0.4–1 s, keeping 80–95% of the speed), so it lets go
 //!   facing down the new street.
@@ -65,7 +67,16 @@ pub const DECK_HALF: i32 = int(10);
 /// closing it), clear of the chase camera at the start.
 const START_BACK: i32 = int(18);
 
-/// The corner anchors: 27 m up, on 13 m cables.
+/// No vine hangs on the outside of a turn from this far before a corner
+/// to this far after it.
+pub const CORNER_BEFORE: i32 = int(45);
+pub const CORNER_AFTER: i32 = int(35);
+
+/// The corner anchors: 27 m up, on 13 m cables, both on the inside line:
+/// the crane's 10 m short of the crossing and 8 m in, the helicopter's
+/// 16 m short and in the middle, so a quarter circle round either comes
+/// out in the middle or the inside half of the new street (and an ape
+/// making for the crane passes out of the helicopter cable's reach).
 const CORNER_HEIGHT: i32 = int(27);
 const CORNER_CABLE: i32 = int(13);
 
@@ -225,8 +236,19 @@ pub fn city_seeded(seed: u64) -> Course {
         // the two outer lanes leaves no way on but along a wall (a long
         // rope swung across the street hits it), so the middle is skipped
         // one time in four at most, and never twice running
+        // round a corner, from 45 m before it to 35 m after, there is no
+        // vine out wide (the person: wires on the outside of a turn tempt
+        // an ape onto a poor line); each station keeps its middle and
+        // inside lanes
+        let turning = corners
+            .iter()
+            .find(|k| si > k.s0 - CORNER_BEFORE && si < k.s1 + CORNER_AFTER);
+        // which way is inside: -1 left (a left turn), 1 right
+        let inside = turning.map(|k| if k.turn > 0 { -1 } else { 1 });
         let skip = if station == 0 {
             3
+        } else if let Some(inside) = inside {
+            1 + inside * -1
         } else if !middle_skipped && dice.below(4) == 0 {
             1
         } else {
@@ -263,7 +285,10 @@ pub fn city_seeded(seed: u64) -> Course {
         stations.push(here);
         if station % 2 == 1 {
             // a low vine to climb back up by
-            let off = dice.range(-9, 9);
+            let off = match inside {
+                Some(inside) => inside * dice.range(0, 9),
+                None => dice.range(-9, 9),
+            };
             let b = c.point(int(s + 7)).add(r.scale(int(off)));
             c.vines.push(Vine {
                 anchor: v3(b.x, ground(b.x, b.z) + int(27), b.z),
@@ -289,8 +314,8 @@ pub fn city_seeded(seed: u64) -> Course {
     for k in corners.iter().filter(|k| k.turn.abs() == 90) {
         let inn = k.inward();
         for (u, w, hang) in [
-            (-int(8), int(6), Hang::Crane(*k)),
-            (-int(2), -int(8), Hang::Helicopter),
+            (-int(10), int(8), Hang::Crane(*k)),
+            (-int(16), -int(1), Hang::Helicopter),
         ] {
             let p = k.p.add(k.din.scale(u)).add(inn.scale(w));
             let anchor = v3(p.x, ground(p.x, p.z) + CORNER_HEIGHT, p.z);
