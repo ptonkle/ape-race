@@ -9,8 +9,9 @@ use serde_json::{json, Value};
 
 use crate::ai::Brain;
 use crate::ape::{Controls, Happening};
-use crate::camera::Chase;
+use crate::camera::{self, Chase, Pan};
 use crate::course::Course;
+use crate::focus::{self, Focus};
 use crate::fx::{self, deg, int, ONE};
 use crate::geom::{v3, V3};
 use crate::models;
@@ -41,6 +42,12 @@ const DOUBLE_TAP: u32 = rules::TICKS_PER_SECOND as u32 * 2 / 5;
 /// A finished run is kept in the replay library this long after the finish
 /// (or on leaving, whichever comes first), so the coasting is in it too.
 const KEEP_AFTER_FINISH: u32 = rules::TICKS_PER_SECOND as u32 * 3;
+/// After that, a kept run is brought up to date this often while the
+/// rest race on (TRIAGE T34), and once more on leaving.
+const KEEP_AGAIN: u32 = rules::TICKS_PER_SECOND as u32 * 10;
+/// The followed ape has been out of the race (finished) this long when the
+/// camera pans to one still racing (TRIAGE T34).
+const SPECTATE_AFTER: u32 = rules::TICKS_PER_SECOND as u32 * 2;
 
 /// Clicks on the title that unlock Speed Colours (TRIAGE row 26).
 const TITLE_CLICKS: u32 = 10;
@@ -164,8 +171,14 @@ pub struct Play {
     pub trial: bool,
     /// what the local player does each tick, for the replay (offline only)
     pub record: Option<Recording>,
-    /// the recording has gone into the library
-    kept: bool,
+    /// the recording has gone into the library, under this serial
+    kept: Option<u32>,
+    /// the racer the camera follows (TRIAGE T24, T34)
+    pub focus: Focus,
+    /// ticks the followed racer has been out of the race
+    out_for: u32,
+    /// the camera gliding to a new racer
+    pan: Option<Pan>,
     /// watching a recording instead of racing (TRIAGE T15)
     pub replay: Option<Playback>,
     /// the best Time Trial, raced again beside the player
@@ -285,6 +298,14 @@ impl App {
             if code == "Space" && !self.keys.contains(code) {
                 if let Some(pb) = self.play.as_mut().and_then(|p| p.replay.as_mut()) {
                     pb.playing = !pb.playing;
+                }
+            }
+            // the racer followed in a replay or while spectating
+            if self.screen == Screen::Race && !self.keys.contains(code) {
+                match code {
+                    "KeyD" | "ArrowRight" => self.switch_focus(true),
+                    "KeyA" | "ArrowLeft" => self.switch_focus(false),
+                    _ => {}
                 }
             }
             self.keys.insert(code.to_string());
@@ -416,18 +437,86 @@ impl App {
         }
     }
 
-    /// Puts a finished offline run into the replay library (once).
+    /// Puts a finished run into the replay library, or brings the one kept
+    /// up to date (the race goes on being recorded while the rest finish).
     fn keep_recording(&mut self, p: &mut Play) {
-        if p.kept || p.online || p.replay.is_some() {
+        if p.replay.is_some() {
             return;
         }
         let finish = p.race.racers[p.local].finish;
         if let (Some(rec), Some(_)) = (&p.record, finish) {
             let mut rec = rec.clone();
             rec.finish = finish;
-            self.library.add(rec);
-            self.save_replays = true;
-            p.kept = true;
+            match p.kept {
+                Some(serial) => {
+                    rec.serial = serial;
+                    self.save_replays |= self.library.refresh(&rec);
+                }
+                None => {
+                    p.kept = Some(self.library.serial_of_next());
+                    self.library.add(rec);
+                    self.save_replays = true;
+                }
+            }
+        }
+    }
+
+    /// Follows the next or previous racer (`next`): in a replay any of
+    /// them, live only once the local ape is out of the race, and then
+    /// those still racing (TRIAGE T24, T34).
+    fn switch_focus(&mut self, next: bool) {
+        let alpha = self.alpha;
+        let Some(p) = &mut self.play else {
+            return;
+        };
+        let live = p.replay.is_none();
+        if live && focus::racing(&p.race.racers[p.local]) {
+            return;
+        }
+        let from = play_camera(p, alpha);
+        let moved = if next {
+            p.focus.next(&p.race, live)
+        } else {
+            p.focus.prev(&p.race, live)
+        };
+        if moved {
+            refocus(p, from, camera::PAN_QUICK);
+        }
+    }
+
+    /// A drag across the 3D view while not captured, in pixels: in a
+    /// replay it steers the orbit camera, switching to it (TRIAGE T23).
+    pub fn drag(&mut self, dx: i32, dy: i32) {
+        let alpha = self.alpha;
+        let Some(p) = &mut self.play else {
+            return;
+        };
+        let Some(view) = p.replay.as_ref().map(|pb| pb.view) else {
+            return;
+        };
+        if view != replay::View::Orbit {
+            // start from the view as it is
+            let cam = play_camera(p, alpha);
+            let at = p.race.racers[p.focus.racer].ape.pos;
+            if let Some(pb) = &mut p.replay {
+                pb.orbit.yaw = crate::geom::yaw_of(cam.fwd);
+                pb.orbit.pitch = crate::geom::pitch_of(cam.fwd);
+                pb.orbit.dist = at.dist(cam.eye);
+                pb.view = replay::View::Orbit;
+            }
+        }
+        if let Some(pb) = &mut p.replay {
+            pb.orbit.drag(dx, dy);
+        }
+    }
+
+    /// The mouse wheel over the 3D view: in a replay's orbit, zoom (only
+    /// its direction counts, so pixel and line wheels agree).
+    pub fn wheel(&mut self, dy: i32) {
+        if let Some(pb) = self.play.as_mut().and_then(|p| p.replay.as_mut()) {
+            if pb.view == replay::View::Orbit {
+                pb.orbit.zoom(dy.signum());
+            }
         }
     }
 
@@ -541,7 +630,7 @@ impl App {
                 // the race just run: watch it, then come back to its results
                 if let Some(mut p) = self.play.take() {
                     self.keep_recording(&mut p);
-                    let rec = p.record.clone().filter(|_| !p.online);
+                    let rec = p.record.clone();
                     let exit = self.screen;
                     self.stash = Some(p);
                     if !rec.is_some_and(|r| self.watch(r, exit)) {
@@ -562,6 +651,8 @@ impl App {
                 }
             }
             "replay.exit" => self.leave_replay(),
+            "focus.next" => self.switch_focus(true),
+            "focus.prev" => self.switch_focus(false),
             _ if id.starts_with("replay.") => self.replay_act(id, value),
             "setup.ghost" => {
                 self.settings.ghost = value == "on";
@@ -724,7 +815,10 @@ impl App {
             chains: Vec::new(),
             trial: false,
             record: None,
-            kept: false,
+            kept: None,
+            focus: Focus::on(local),
+            out_for: 0,
+            pan: None,
             replay: None,
             ghost: None,
         });
@@ -771,9 +865,16 @@ impl App {
             return;
         };
         if p.replay.is_some() {
-            replay_tick(&mut p);
+            for cue in replay_tick(&mut p) {
+                self.sounds.push(cue.key().to_string());
+            }
         } else if !p.paused || p.online {
             self.step_race(&mut p);
+        }
+        if let Some(pan) = &mut p.pan {
+            if !pan.tick() {
+                p.pan = None;
+            }
         }
         self.play = Some(p);
     }
@@ -781,9 +882,12 @@ impl App {
     fn step_race(&mut self, p: &mut Play) {
         p.prev = p.race.racers.iter().map(|r| r.ape.pos).collect();
         let mine = self.controls(p.chase.yaw, p.chase.pitch);
+        // an online race is recorded as a track of every ape (TRIAGE T24)
+        if p.online && p.record.is_none() && p.race.tick == 0 {
+            p.record = Some(Recording::online(&p.race, p.local));
+        }
         if let Some(rec) = &mut p.record {
-            if rec.controls.len() == p.race.tick as usize && rec.controls.len() < replay::MOST_TICKS
-            {
+            if rec.track.is_none() && rec.controls.len() == p.race.tick as usize && rec.has_room() {
                 rec.controls.push(mine);
             }
         }
@@ -791,19 +895,26 @@ impl App {
         if let Some(g) = &mut p.ghost {
             g.step();
         }
-        let flat = p.race.racers[p.local].ape.vel.len_xz();
-        p.hype_speed += (flat - p.hype_speed) / 30;
-        p.colour_speed += (flat - p.colour_speed) / 120;
         if p.online {
             self.online_step(p);
         }
+        if let Some(track) = p.record.as_mut().and_then(|r| r.track.as_mut()) {
+            track.record(&p.race);
+        }
+        follow_speed(p);
         step_chains(p);
+        // the camera follows the focused ape; on another's, by itself
+        let spectating = p.focus.racer != p.local;
+        let f = &p.race.racers[p.focus.racer];
+        let ahead = ahead_of(&p.race.course, f.ape.hint);
+        p.chase.follow(
+            f.ape.pos,
+            f.ape.vel,
+            ahead,
+            self.settings.auto_camera || spectating,
+        );
+        spectate(p, self.alpha);
         let me = &p.race.racers[p.local];
-        // the course's way forward, a little ahead of the ape
-        let c = &p.race.course;
-        let ahead = c.heading[(me.ape.hint + 8).min(c.heading.len() - 1)];
-        p.chase
-            .follow(me.ape.pos, me.ape.vel, ahead, self.settings.auto_camera);
         if let Some(t) = me.finish {
             if p.since_finish.is_none() {
                 // a personal best is kept with the settings, one per mode
@@ -820,12 +931,15 @@ impl App {
             }
             let since = p.since_finish.map(|t| t + 1).unwrap_or(0);
             p.since_finish = Some(since);
-            if since == KEEP_AFTER_FINISH {
+            if since == KEEP_AFTER_FINISH
+                || (since > KEEP_AFTER_FINISH && since.is_multiple_of(KEEP_AGAIN))
+            {
                 self.keep_recording(p);
             }
         }
+        // the sounds of the ape being watched
         for e in p.race.events.clone() {
-            if let Some(cue) = cue_for(&e, p.local) {
+            if let Some(cue) = cue_for(&e, p.focus.racer) {
                 self.sounds.push(cue.key().to_string());
             }
         }
@@ -863,10 +977,13 @@ impl App {
     fn camera(&self) -> Camera {
         match self.stage {
             Stage::Race => match &self.play {
-                Some(p) => match p.replay.as_ref().map(|pb| pb.view) {
-                    None | Some(replay::View::Chase) => p.chase.camera(self.alpha),
-                    Some(v) => replay_camera(p, v, self.alpha),
-                },
+                Some(p) => {
+                    let cam = play_camera(p, self.alpha);
+                    match &p.pan {
+                        Some(pan) => pan.blend(cam, self.alpha),
+                        None => cam,
+                    }
+                }
                 None => self.flyover(),
             },
             Stage::Flyover => self.flyover(),
@@ -923,7 +1040,7 @@ impl App {
                         race: &p.race,
                         cam: &cam,
                         apes: &apes,
-                        local: Some(p.local),
+                        local: Some(p.focus.racer),
                         tick: self.ticks,
                         chains: &p.chains,
                     })
@@ -962,7 +1079,11 @@ impl App {
             "speedo_face": crate::speedo::face(),
             "speedo_needle": crate::speedo::banana(),
             "want_pointer": self.screen == Screen::Race
-                && self.play.as_ref().map(|p| !p.paused && p.replay.is_none()).unwrap_or(false),
+                && self
+                    .play
+                    .as_ref()
+                    .map(|p| !p.paused && p.replay.is_none() && p.focus.racer == p.local)
+                    .unwrap_or(false),
         });
         let panels = match self.screen {
             Screen::Title => self.title_panels(),
@@ -993,12 +1114,17 @@ impl App {
         v.to_string()
     }
 
-    /// The wind's loudness, 0..=100, from the local ape's speed.
+    /// The wind's loudness, 0..=100, from the followed ape's smoothed
+    /// horizontal speed, as the speedometer reads it; quiet while a replay
+    /// is paused, over or seeking (TRIAGE T30: it read the raw speed, a
+    /// swing's fall included, and held on when a replay stopped).
     fn wind_gain(&self) -> i32 {
         match &self.play {
             Some(p) if !p.paused && self.screen == Screen::Race => {
-                let speed = p.race.racers[p.local].ape.speed();
-                fx::mul(sound::wind_gain(speed), int(100)) / ONE
+                if p.replay.as_ref().is_some_and(|pb| pb.hushed(p.race.tick)) {
+                    return 0;
+                }
+                fx::mul(sound::wind_gain(p.hype_speed), int(100)) / ONE
             }
             _ => 0,
         }
@@ -1099,7 +1225,7 @@ impl App {
         vec![json!({ "kind": "setup", "heading": self.t(heading), "items": items })]
     }
 
-    fn quiet_button(&self, id: &str) -> Value {
+    pub(crate) fn quiet_button(&self, id: &str) -> Value {
         json!({ "type": "button", "id": id, "text": self.t(id), "quiet": true })
     }
 
@@ -1230,18 +1356,40 @@ impl App {
                     ]}),
                 );
             } else {
+                // while others race on, a smaller panel at the side, with
+                // the racer followed (TRIAGE T34)
+                let racing = Focus::leader_racing(&p.race).is_some();
+                let mut items = vec![self.results_table(p)];
+                if racing {
+                    items.push(self.focus_picker(p));
+                } else {
+                    items.push(self.best_row(p));
+                }
+                items.extend([
+                    self.button("menu.rematch"),
+                    self.quiet_button("menu.replay"),
+                    self.button("menu.main"),
+                ]);
+                let kind = if racing { "spectate" } else { "overlay" };
                 out.push(
-                    json!({ "kind": "overlay", "heading": self.t("results.heading"), "items": [
-                        self.results_table(p),
-                        self.best_row(p),
-                        self.button("menu.rematch"),
-                        self.quiet_button("menu.replay"),
-                        self.button("menu.main"),
-                    ]}),
+                    json!({ "kind": kind, "heading": self.t("results.heading"), "items": items }),
                 );
             }
         }
         out
+    }
+
+    /// The racer the camera follows, with buttons either side to switch
+    /// (A/D or the arrow keys do the same).
+    pub(crate) fn focus_picker(&self, p: &Play) -> Value {
+        let name = p
+            .race
+            .racers
+            .get(p.focus.racer)
+            .map(|r| r.name.clone())
+            .unwrap_or_default();
+        json!({ "type": "picker", "id": "focus",
+                "text": format!("{} {}", self.t("focus.watching"), name) })
     }
 
     /// The replay viewer's controls; the seek bar is in the HUD.
@@ -1265,6 +1413,7 @@ impl App {
               "value": pb.speed.key(), "options": speeds },
             { "type": "select", "id": "replay.camera", "label": self.t("replay.camera"),
               "value": pb.view.key(), "options": views },
+            self.focus_picker(p),
             { "type": "button", "id": "replay.exit", "text": self.t("replay.exit"), "quiet": true },
         ]})
     }
@@ -1352,7 +1501,11 @@ impl App {
             // the held item as a picture (TRIAGE T19)
             "item_icon": me.item.map(crate::items::icon_svg).unwrap_or_default(),
             "big": big,
-            "hint": if p.replay.is_some() || self.pointer_locked {
+            "hint": if p.replay.is_some() {
+                self.t("hud.replay")
+            } else if p.focus.racer != p.local {
+                self.t("hud.spectate")
+            } else if self.pointer_locked {
                 String::new()
             } else {
                 self.t("hud.click")
@@ -1466,47 +1619,110 @@ fn restore(p: &mut Play, save: replay::SavePoint) {
     replay::put_back(save, &mut p.race, &mut p.brains);
     p.prev = p.race.racers.iter().map(|r| r.ape.pos).collect();
     p.since_finish = None;
-    let me = &p.race.racers[p.local];
-    p.chase = Chase::new(me.ape.pos, p.chase.yaw);
+    let f = &p.race.racers[p.focus.racer];
+    p.chase = Chase::new(f.ape.pos, p.chase.yaw);
+}
+
+/// The course's way forward a little ahead of centreline sample `hint`.
+fn ahead_of(c: &Course, hint: usize) -> V3 {
+    c.heading[(hint + 8).min(c.heading.len() - 1)]
+}
+
+/// The followed ape's horizontal speed, smoothed: the speedometer, the
+/// colours and the wind follow it (TRIAGE rows 19 and 22, T30).
+fn follow_speed(p: &mut Play) {
+    let flat = p.race.racers[p.focus.racer].ape.vel.len_xz();
+    p.hype_speed += (flat - p.hype_speed) / 30;
+    p.colour_speed += (flat - p.colour_speed) / 120;
+}
+
+/// The camera moves to the focused racer, gliding from `from`.
+fn refocus(p: &mut Play, from: Camera, ticks: u32) {
+    let f = &p.race.racers[p.focus.racer];
+    p.chase = Chase::new(f.ape.pos, p.chase.yaw);
+    p.prev[p.focus.racer] = f.ape.pos;
+    p.out_for = 0;
+    p.pan = Some(Pan::new(from, ticks));
+}
+
+/// Live, after a tick: once the followed ape has been out of the race for
+/// [`SPECTATE_AFTER`], the camera pans to the leading ape still racing
+/// (TRIAGE T34).
+fn spectate(p: &mut Play, alpha: i32) {
+    if focus::racing(&p.race.racers[p.focus.racer]) {
+        p.out_for = 0;
+        return;
+    }
+    p.out_for = p.out_for.saturating_add(1);
+    if p.out_for < SPECTATE_AFTER {
+        return;
+    }
+    let from = play_camera(p, alpha);
+    if p.focus.follow_racing(&p.race) {
+        refocus(p, from, camera::PAN_TICKS);
+    }
+}
+
+/// The race camera as it is, before any pan.
+fn play_camera(p: &Play, alpha: i32) -> Camera {
+    match p.replay.as_ref().map(|pb| pb.view) {
+        None | Some(replay::View::Chase) => p.chase.camera(alpha),
+        Some(v) => replay_camera(p, v, alpha),
+    }
 }
 
 /// One page tick of a replay: as many race ticks as the speed (or a seek)
-/// wants, the player's recorded camera with them.
-fn replay_tick(p: &mut Play) {
+/// wants, the player's recorded camera with them when it follows the
+/// player. Returns the sounds of the followed ape, none while seeking.
+fn replay_tick(p: &mut Play) -> Vec<Cue> {
     let Some(mut pb) = p.replay.take() else {
-        return;
+        return Vec::new();
     };
     let n = pb.due(p.race.tick);
+    let seeking = pb.seek.is_some();
+    let mut cues = Vec::new();
     for _ in 0..n {
         pb.keep(&mut p.race, &p.brains);
         let c = pb.rec.at(p.race.tick);
         p.prev = p.race.racers.iter().map(|r| r.ape.pos).collect();
-        replay::drive(&mut p.race, &mut p.brains, p.local, c);
-        let flat = p.race.racers[p.local].ape.vel.len_xz();
-        p.hype_speed += (flat - p.hype_speed) / 30;
-        p.colour_speed += (flat - p.colour_speed) / 120;
-        let me = &p.race.racers[p.local];
-        let course = &p.race.course;
-        let ahead = course.heading[(me.ape.hint + 8).min(course.heading.len() - 1)];
-        p.chase.yaw = c.yaw;
-        p.chase.pitch = c.pitch;
-        p.chase.follow(me.ape.pos, me.ape.vel, ahead, false);
-        if me.finish.is_some() {
+        pb.rec.play(&mut p.race, &mut p.brains);
+        pb.orbit.tick();
+        follow_speed(p);
+        let f = &p.race.racers[p.focus.racer];
+        let ahead = ahead_of(&p.race.course, f.ape.hint);
+        // the player's own camera when it follows the player; else by itself
+        let own = p.focus.racer == p.local && pb.rec.track.is_none();
+        if own {
+            p.chase.yaw = c.yaw;
+            p.chase.pitch = c.pitch;
+        }
+        p.chase.follow(f.ape.pos, f.ape.vel, ahead, !own);
+        if p.race.racers[p.local].finish.is_some() {
             p.since_finish = Some(p.since_finish.map(|t| t + 1).unwrap_or(0));
+        }
+        if !seeking {
+            cues.extend(
+                p.race
+                    .events
+                    .iter()
+                    .filter_map(|e| cue_for(e, p.focus.racer)),
+            );
         }
     }
     p.replay = Some(pb);
     if n > 0 {
         step_chains(p);
     }
+    cues
 }
 
-/// The orbit and trackside replay cameras.
+/// The orbit and trackside replay cameras, on the followed ape.
 fn replay_camera(p: &Play, view: replay::View, alpha: i32) -> Camera {
-    let me = &p.race.racers[p.local];
+    let i = p.focus.racer;
+    let me = &p.race.racers[i];
     let at = p
         .prev
-        .get(p.local)
+        .get(i)
         .copied()
         .unwrap_or(me.ape.pos)
         .lerp(me.ape.pos, alpha);
@@ -1535,18 +1751,10 @@ fn replay_camera(p: &Play, view: replay::View, alpha: i32) -> Camera {
                 fov,
             }
         }
-        _ => {
-            let a = (p.race.tick as i32).wrapping_mul(deg(1) / 4);
-            let look = crate::geom::facing(a, -deg(18));
-            let eye = at.sub(look.scale(int(7)));
-            let floor = crate::course::ground(eye.x, eye.z) + int(1);
-            let eye = v3(eye.x, eye.y.max(floor), eye.z);
-            Camera {
-                eye,
-                fwd: at.sub(eye).norm(),
-                fov: deg(65),
-            }
-        }
+        _ => match &p.replay {
+            Some(pb) => pb.orbit.camera(at),
+            None => camera::Orbit::default().camera(at),
+        },
     }
 }
 
@@ -1604,7 +1812,7 @@ fn step_chains(p: &mut Play) {
             Some(_) => {}
         }
     }
-    let me = p.race.racers[p.local].ape.pos;
+    let me = p.race.racers[p.focus.racer].ape.pos;
     for i in 0..c.vines.len() {
         let a = c.anchor(i, p.race.tick);
         if a.flat().sub(me.flat()).len() > int(170) {
@@ -1682,6 +1890,9 @@ fn cue_for(e: &Event, local: usize) -> Option<Cue> {
         _ => None,
     }
 }
+
+#[cfg(test)]
+mod spectate_tests;
 
 #[cfg(test)]
 mod tests {

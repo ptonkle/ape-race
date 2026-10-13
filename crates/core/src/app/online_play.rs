@@ -515,14 +515,28 @@ impl App {
         if !finished {
             return Vec::new();
         }
+        // spectating while others race (TRIAGE T34); the replay once all
+        // are in (TRIAGE T24: watching it stops this race's sending)
+        let done = self
+            .online
+            .session
+            .as_ref()
+            .is_some_and(|o| o.results_final());
         let mut items = vec![self.online_results()];
+        if !done {
+            items.push(self.focus_picker(p));
+        }
         if host {
             items.push(self.button("menu.rematch"));
         } else {
             items.push(json!({ "type": "list", "rows": [[self.t("online.status"), self.t("online.wait_rematch")]] }));
         }
+        if done {
+            items.push(self.quiet_button("menu.replay"));
+        }
         items.push(self.button("menu.main"));
-        vec![json!({ "kind": "overlay", "heading": self.t("results.heading"), "items": items })]
+        let kind = if done { "overlay" } else { "spectate" };
+        vec![json!({ "kind": kind, "heading": self.t("results.heading"), "items": items })]
     }
 
     fn online_results(&self) -> Value {
