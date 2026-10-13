@@ -2,7 +2,7 @@
 
 A 3D jungle racing game in the browser. Swing from vine to vine, let go at the right moment, and carry your momentum to the finish. Race one to three AI apes, or up to four players online.
 
-The design is in [`BRIEF.md`](BRIEF.md) and the build decisions in [`PLAN.md`](PLAN.md). Future ideas wait in [`TRIAGE.md`](TRIAGE.md).
+The design is in [`BRIEF.md`](BRIEF.md) and the build decisions in [`PLAN.md`](PLAN.md). How to make a new map is in [`MAPS.md`](MAPS.md). Future ideas wait in [`TRIAGE.md`](TRIAGE.md).
 
 ## How to play
 
