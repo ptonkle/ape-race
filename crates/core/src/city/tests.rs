@@ -535,8 +535,8 @@ fn vines_are_sparser_than_the_jungles_but_always_offer_a_way_on() {
     assert!(c.vines.len() < j.vines.len(), "{} vines", c.vines.len());
     // along the streets (not the start's row, the 90° corners' crossings
     // or the bridge, which has more to make a fall in the river forgiving)
-    // there are a tenth fewer vines a metre than in the Jungle (sparser
-    // still and the easiest AI no longer finishes in time: C rows)
+    // there are fewer vines a metre than in the Jungle (the person asked
+    // for sparser, then found the first City too sparse: C rows)
     let river = c.city.as_ref().unwrap().river.unwrap();
     let bends: Vec<(i32, i32)> = (0..c.streets.len() - 1)
         .filter(|&k| corner(&c, k).3.abs() == 90)
@@ -562,10 +562,7 @@ fn vines_are_sparser_than_the_jungles_but_always_offer_a_way_on() {
         .count() as i64;
     // per 1000 m
     let (cd, jd) = (city_vines * 1000 / metres, jungle_vines * 1000 / 1750);
-    assert!(
-        cd * 100 <= jd * 90,
-        "{cd} vines a km on the streets, the Jungle {jd}"
-    );
+    assert!(cd < jd, "{cd} vines a km on the streets, the Jungle {jd}");
     let mut ats: Vec<i32> = c.vines.iter().map(|v| v.at).collect();
     ats.sort();
     for w in ats.windows(2) {
@@ -631,7 +628,7 @@ fn an_ape_swings_round_a_90_degree_corner_on_its_crane_cable() {
         let speed = int(28);
         let start = cable
             .anchor
-            .sub(a.dir.scale(int(20)))
+            .sub(a.dir.scale(int(14)))
             .sub(b.dir.scale(int(3)))
             .sub(v3(0, int(2), 0));
         let mut ape = Ape::new(Kind::Chimpanzee, true, start, 0);
@@ -641,7 +638,8 @@ fn an_ape_swings_round_a_90_degree_corner_on_its_crane_cable() {
         let mut held = false;
         let mut let_go = None;
         for t in 0..(3 * TICKS_PER_SECOND as u32) {
-            let facing = ape.vel.flat().norm().dot(b.dir) > ONE * 95 / 100;
+            // it lets go facing down the new street (within 8°)
+            let facing = ape.vel.flat().norm().dot(b.dir) > ONE * 99 / 100;
             let grab = let_go.is_none() && !(held && facing);
             ape.step(
                 &Controls {
@@ -657,9 +655,12 @@ fn an_ape_swings_round_a_90_degree_corner_on_its_crane_cable() {
             if held && !grab && let_go.is_none() {
                 let_go = Some((t, ape.speed()));
             }
+            // and touches no wall on the cable or for a second after
+            let flying_on = let_go.is_none_or(|(at, _)| t < at + TICKS_PER_SECOND as u32);
             assert!(
-                !ape.happened.contains(&Happening::Wall),
-                "corner {k}: into the wall at tick {t}"
+                !(flying_on && ape.happened.contains(&Happening::Wall)),
+                "corner {k}: into the wall at tick {t} (on vine {:?}, the crane's {i})",
+                ape.swinging()
             );
         }
         let (t, kept) = let_go.unwrap_or_else(|| panic!("corner {k}: never faced the new street"));

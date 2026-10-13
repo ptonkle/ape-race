@@ -206,9 +206,10 @@ pub fn city_seeded(seed: u64) -> Course {
     let deck_s1 = river.to + DECK_ON;
     let len_m = c.length / ONE;
     // the stretches without stations: 90° corners (their cables instead)
-    // and the bridge (its cables); a station always stands just short of
-    // one (4–10 m before it, at least 12 m after the one before), so there
-    // is a way into it
+    // and the bridge (its cables); a station always stands within 12 m
+    // short of one (and no nearer than 4 m: on a corner's inside line it
+    // would catch an ape making for the corner's cable), so there is a way
+    // into it
     let mut gaps: Vec<(i32, i32)> = corners
         .iter()
         .filter(|k| k.turn.abs() == 90)
@@ -221,8 +222,8 @@ pub fn city_seeded(seed: u64) -> Course {
     let mut middle_skipped = false;
     while s < len_m - 18 {
         if let Some(&(g0, g1)) = gaps.iter().find(|&&(g0, g1)| s + 4 > g0 && s < g1) {
-            if last <= g0 - 10 {
-                s = (g0 - 4).max(last + 12);
+            if last < g0 - 12 {
+                s = g0 - 4;
             } else {
                 s = g1 + 1;
                 continue;
@@ -235,8 +236,9 @@ pub fn city_seeded(seed: u64) -> Course {
         // two lanes of three, keeping the middle one: a station with only
         // the two outer lanes leaves no way on but along a wall (a long
         // rope swung across the street hits it), so the middle is skipped
-        // one time in four at most, and never twice running
-        // round a corner, from 45 m before it to 35 m after, there is no
+        // one time in four at most, and never twice running; one station
+        // in six has all three (the person: the first City was too
+        // sparse). Round a corner, from 45 m before it to 35 m after, there is no
         // vine out wide (the person: wires on the outside of a turn tempt
         // an ape onto a poor line); each station keeps its middle and
         // inside lanes
@@ -248,7 +250,9 @@ pub fn city_seeded(seed: u64) -> Course {
         let skip = if station == 0 {
             3
         } else if let Some(inside) = inside {
-            1 + inside * -1
+            1 - inside
+        } else if dice.below(6) == 0 {
+            3
         } else if !middle_skipped && dice.below(4) == 0 {
             1
         } else {
@@ -283,7 +287,12 @@ pub fn city_seeded(seed: u64) -> Course {
             lanes.push((off, anchor_h - length));
         }
         stations.push(here);
-        if station % 2 == 1 {
+        // (none in the last 30 m before a 90° corner: on the inside line
+        // there it would catch an ape making for the corner's cable)
+        let into_corner = corners
+            .iter()
+            .any(|k| k.turn.abs() == 90 && si > k.s0 - int(42) && si < k.s1);
+        if station % 2 == 1 && !into_corner {
             // a low vine to climb back up by
             let off = match inside {
                 Some(inside) => inside * dice.range(0, 9),
@@ -307,7 +316,7 @@ pub fn city_seeded(seed: u64) -> Course {
             }
         }
         station += 1;
-        s += dice.range(24, 30);
+        s += dice.range(23, 29);
     }
 
     // the corners' cables
@@ -346,8 +355,7 @@ pub fn city_seeded(seed: u64) -> Course {
     // span), and from helicopters hovering by the deck's ends and the
     // towers, where the cables run too high; two vines each, and a low vine
     // at three of them, so an ape out of the river climbs back up at once
-    let mut lane = 0;
-    for (t, cable, low) in [
+    for (lane, (t, cable, low)) in [
         (8, false, false),
         (22, true, false),
         (38, false, true),
@@ -356,10 +364,12 @@ pub fn city_seeded(seed: u64) -> Course {
         (104, true, false),
         (120, false, true),
         (136, true, false),
-    ] {
+    ]
+    .into_iter()
+    .enumerate()
+    {
         let mut here = Vec::new();
         let pair = if lane % 2 == 0 { [0, 2] } else { [1, 3] };
-        lane += 1;
         for k in pair {
             let (anchor, hang) = if cable {
                 (bridge.cable(k, int(t)), Hang::Cable)

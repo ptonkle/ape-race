@@ -14,9 +14,9 @@ fn main() {
     let level = Difficulty::from_key(&a[0]).unwrap();
     let seed: u64 = a.get(1).map(|s| s.parse().unwrap()).unwrap_or(0);
     let runs: u64 = a.get(2).map(|s| s.parse().unwrap()).unwrap_or(1);
-    let mut total = vec![0.0; 13];
+    let mut total = [0.0; 13];
     let mut count = 0.0;
-    let mut kind_total = vec![0.0; 13];
+    let mut kind_total = [0.0; 13];
     let marks = [
         230, 300, 490, 550, 720, 800, 1170, 1240, 1390, 1470, 1620, 1690, 1800,
     ];
