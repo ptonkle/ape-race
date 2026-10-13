@@ -1336,7 +1336,12 @@ fn pickup_banana(b: &mut Batch, at: V3, spin: i32) {
     };
     let points = [-70, -35, 0, 35, 70].map(arc);
     for w in points.windows(2) {
-        b.push(Mesh::Cyl, &rod(w[0], w[1], cm(17)), BANANA_YELLOW, ONE * 2 / 5);
+        b.push(
+            Mesh::Cyl,
+            &rod(w[0], w[1], cm(17)),
+            BANANA_YELLOW,
+            ONE * 2 / 5,
+        );
     }
     for p in &points[1..4] {
         b.push(

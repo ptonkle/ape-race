@@ -30,7 +30,8 @@ use crate::race::{Driver, Entry, Item, Phase, Race, Summon};
 use crate::rules::TICKS_PER_SECOND;
 
 /// The recording format; recordings of another format are dropped.
-pub const FORMAT: u32 = 1;
+/// (2: group K, mushroom push, bananas, catch-up vines, the AI's start.)
+pub const FORMAT: u32 = 2;
 /// How many recordings besides the bests are kept.
 pub const RECENT: usize = 10;
 /// A save point for scrubbing every this many ticks.
@@ -1221,7 +1222,14 @@ mod tests {
             // to the track's precision (1/1024 m)
             let d = again.racers[i].ape.pos.dist(live.racers[i].ape.pos);
             assert!(d < 200, "ape {i} off by {d}");
-            assert_eq!(again.racers[i].ape.mode, live.racers[i].ape.mode);
+            // the same mode, a rope to the track's precision too
+            match (again.racers[i].ape.mode, live.racers[i].ape.mode) {
+                (
+                    crate::ape::Mode::Swinging { vine: a, rope: ra },
+                    crate::ape::Mode::Swinging { vine: b, rope: rb },
+                ) => assert!(a == b && (ra - rb).abs() < 200, "ape {i}: {ra} vs {rb}"),
+                (a, b) => assert_eq!(a, b),
+            }
         }
         assert!(again.racers[1].progress > crate::fx::int(50));
         // between samples it blends, and moves

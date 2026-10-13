@@ -2375,10 +2375,10 @@ mod tests {
         assert_eq!(a.screen, Screen::Setup);
         let ui = ui_of(&mut a);
         let shown = texts(&ui["panels"]);
-        // the four targets, Bronze 1:45.00 worked out from the constants;
+        // the four targets, Bronze 1:40.00 worked out from the constants;
         // the Author time hidden until Gold
         assert!(
-            shown.contains("1:45.00") && shown.contains("???"),
+            shown.contains("1:40.00") && shown.contains("???"),
             "{shown}"
         );
         assert!(!shown.contains("setup.opponents"));
@@ -2393,9 +2393,9 @@ mod tests {
         // a Time Trial best, separate from the race best
         assert_eq!(a.settings.trial_best, Some(120 * 95));
         assert_eq!(a.settings.best, Some(120 * 90));
-        // 95 s earns Bronze (90–105 s); the HUD now aims for Silver
+        // 95 s earns Bronze (85–100 s); the HUD now aims for Silver
         let ui = ui_of(&mut a);
-        assert_eq!(ui["hud"]["best"][1], "1:30.00");
+        assert_eq!(ui["hud"]["best"][1], "1:25.00");
         for _ in 0..200 {
             a.tick();
         }

@@ -681,17 +681,23 @@ mod tests {
             after / 655,
             plain_after / 655
         );
-        assert!(r
+        assert!(r.events.contains(&Event::Reward {
+            who: 0,
+            what: Reward::Catchup
+        }));
+        assert!(!plain
             .events
-            .contains(&Event::Reward {
-                who: 0,
-                what: Reward::Catchup
-            }));
-        assert!(!plain.events.iter().any(|e| matches!(e, Event::Reward { .. })));
+            .iter()
+            .any(|e| matches!(e, Event::Reward { .. })));
         // never past Catch-up Top: caught at 45 m/s it gains nothing
         let (_, _, fast) = catch_up_race_at(true, int(45));
         let (_, _, fast_plain) = catch_up_race_at(false, int(45));
-        assert!(fast <= fast_plain, "{} vs {} cm/s", fast / 655, fast_plain / 655);
+        assert!(
+            fast <= fast_plain,
+            "{} vs {} cm/s",
+            fast / 655,
+            fast_plain / 655
+        );
         // each ape sees its own: ape 1's vine was never a catch-up vine for
         // ape 1, and once ape 0 has had its boost it is not one for ape 0
         assert!(!r.catch_up_vine(1, 0));
@@ -738,11 +744,19 @@ mod tests {
             rewards += r
                 .events
                 .iter()
-                .filter(|e| matches!(e, Event::Reward { who: 0, what: Reward::Banana }))
+                .filter(|e| {
+                    matches!(
+                        e,
+                        Event::Reward {
+                            who: 0,
+                            what: Reward::Banana
+                        }
+                    )
+                })
                 .count();
         }
         assert_eq!(r.racers[0].ape.bananas, 3);
-        assert!(rewards >= 1 && rewards <= 3, "{rewards}");
+        assert!((1..=3).contains(&rewards), "{rewards}");
         assert!(r.racers[0].took.iter().all(|t| *t));
         // the other ape still has all three to take
         assert!(r.racers[1].took.iter().all(|t| !*t));
@@ -772,10 +786,7 @@ mod tests {
         r.place_vine(s);
         r.mark(1, slot);
         assert!(r.catch_up_vine(0, slot));
-        r.place_vine(Summon {
-            serial: 3,
-            ..s
-        });
+        r.place_vine(Summon { serial: 3, ..s });
         assert!(!r.catch_up_vine(0, slot));
     }
 

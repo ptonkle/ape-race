@@ -639,10 +639,11 @@ fn banana_arcs(c: &mut Course, stations: &[Vec<usize>]) {
             let rope = v.length + cm(50);
             for j in -2..=2 {
                 let angle = j * BANANA_ARC;
-                let hands = v.anchor.add(
-                    fwd.scale(mul(fx::sin(angle), rope))
-                        .sub(v3(0, mul(fx::cos(angle), rope), 0)),
-                );
+                let hands = v.anchor.add(fwd.scale(mul(fx::sin(angle), rope)).sub(v3(
+                    0,
+                    mul(fx::cos(angle), rope),
+                    0,
+                )));
                 c.bananas.push(hands.sub(v3(0, BODY_DROP / 2, 0)));
             }
         }
@@ -1071,7 +1072,10 @@ mod tests {
         use crate::rules::BANANAS_FULL;
         let c = Course::jungle();
         let n = c.bananas.len();
-        assert!(n >= 3 * BANANAS_FULL as usize && n % 5 == 0, "{n} bananas");
+        assert!(
+            n >= 3 * BANANAS_FULL as usize && n.is_multiple_of(5),
+            "{n} bananas"
+        );
         for arc in c.bananas.chunks(5) {
             let mid = arc[2];
             // under a vine's end, a body's middle below the hands
@@ -1081,7 +1085,11 @@ mod tests {
             });
             assert!(under, "an arc at {} m is under no vine", mid.y / ONE);
             for b in arc {
-                assert!(b.y - ground(b.x, b.z) > int(3), "a banana {} m up", b.y / ONE);
+                assert!(
+                    b.y - ground(b.x, b.z) > int(3),
+                    "a banana {} m up",
+                    b.y / ONE
+                );
                 let k = c.nearest_anywhere(*b);
                 assert!(c.progress(*b, k).1.abs() < c.half_width - int(2));
             }
