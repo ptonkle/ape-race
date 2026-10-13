@@ -87,6 +87,7 @@ use serde::{Deserialize, Serialize};
 use crate::ape::{Ape, Mode};
 use crate::fx::{self, Dice, ONE};
 use crate::geom::V3;
+use crate::items::ItemSet;
 use crate::race::{Driver, Entry, Item, Race, Summon};
 use crate::rules::{Kind, TICKS_PER_SECOND};
 
@@ -263,6 +264,8 @@ pub struct RaceStart {
     pub local_index: usize,
     pub equal_stats: bool,
     pub round: u32,
+    /// the items crates may give, the host's choice (TRIAGE T42)
+    pub items: ItemSet,
 }
 
 /// An item hit for this browser to apply to an ape it owns.
@@ -364,6 +367,9 @@ enum Msg {
         humans: Vec<Human>,
         ai: usize,
         equal: bool,
+        /// the host's item set (TRIAGE T42); a host without it allows all
+        #[serde(default)]
+        items: ItemSet,
     },
     Started {
         round: u32,
@@ -496,6 +502,9 @@ pub struct Online {
     humans: Vec<Human>,
     ai_count: usize,
     equal_stats: bool,
+    /// the items crates may give (TRIAGE T42): set by the host, sent with
+    /// the start
+    items: ItemSet,
     peers: BTreeMap<PeerId, Peer>,
     outbox: Vec<Outgoing>,
     last_hello_ms: i64,
@@ -525,6 +534,7 @@ impl Online {
             humans: Vec::new(),
             ai_count: 0,
             equal_stats: false,
+            items: ItemSet::ALL,
             peers: BTreeMap::new(),
             outbox: Vec::new(),
             last_hello_ms: now_ms,
@@ -789,6 +799,7 @@ impl Online {
                 humans,
                 ai,
                 equal,
+                items,
             } if from_host => {
                 let waiting = matches!(self.status, Status::Lobby | Status::Joining);
                 if waiting && humans.iter().any(|h| h.id == self.client_id) && round >= self.round {
@@ -796,6 +807,7 @@ impl Online {
                     self.humans = humans;
                     self.ai_count = ai;
                     self.equal_stats = equal;
+                    self.items = items.clean();
                     self.begin_race(seed, now_ms);
                 }
                 if self.race.as_ref().is_some_and(|r| r.round == round) {
@@ -1108,6 +1120,14 @@ impl Online {
     /// Host: starts the race with a seed the caller chose. Each joiner gets
     /// a Start (repeated until acknowledged); the host's own start follows
     /// once the Start has had time to arrive (see [`MAX_START_LEAD_MS`]).
+    /// Host: the items the next race's crates may give (TRIAGE T42). It
+    /// reaches the joiners with the start; nothing is sent now.
+    pub fn set_items(&mut self, items: ItemSet) {
+        if self.is_host {
+            self.items = items.clean();
+        }
+    }
+
     pub fn start(&mut self, seed: u64, now_ms: i64) -> Result<(), OnlineError> {
         self.host_lobby()?;
         if !self.all_ready() {
@@ -1184,6 +1204,7 @@ impl Online {
             local_index,
             equal_stats: self.equal_stats,
             round: self.round,
+            items: self.items,
         };
         self.race = Some(RaceState {
             round: self.round,
@@ -1222,6 +1243,7 @@ impl Online {
             humans: self.humans.clone(),
             ai: self.ai_count,
             equal: self.equal_stats,
+            items: self.items,
         };
         let to: Vec<PeerId> = race.unacked.iter().cloned().collect();
         for peer in to {

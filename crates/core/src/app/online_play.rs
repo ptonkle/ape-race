@@ -199,6 +199,7 @@ impl App {
             "lobby.start" => {
                 let seed = self.seed ^ (now as u64).rotate_left(29) ^ self.ticks as u64;
                 if let Some(o) = &mut self.online.session {
+                    o.set_items(self.settings.items);
                     let _ = o.start(seed, now);
                 }
             }
@@ -281,6 +282,8 @@ impl App {
             );
             // only the host runs the AI apes, at its own difficulty
             race.ai_level = self.settings.ai_level;
+            // the host's items (TRIAGE T42)
+            race.items = start.items;
             self.begin(race, start.local_index);
             if let Some(p) = &mut self.play {
                 p.online = true;
@@ -472,6 +475,7 @@ impl App {
                 json!({ "type": "toggle", "id": "lobby.equal", "label": self.t("setup.equal"),
                               "value": view.equal_stats }),
             );
+            mine.extend(self.item_toggles());
             let mut start = self.button("lobby.start");
             start["disabled"] = json!(!view.can_start);
             mine.push(start);

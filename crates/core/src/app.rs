@@ -71,6 +71,8 @@ pub struct Settings {
     pub trial_best: Option<u32>,
     /// race the best Time Trial's ghost
     pub ghost: bool,
+    /// the items crates may give in a race (TRIAGE T42)
+    pub items: crate::items::ItemSet,
 }
 
 impl Default for Settings {
@@ -90,6 +92,7 @@ impl Default for Settings {
             best: None,
             trial_best: None,
             ghost: true,
+            items: crate::items::ItemSet::ALL,
         }
     }
 }
@@ -100,6 +103,7 @@ impl Settings {
         s.volume = s.volume.min(100);
         s.sensitivity = s.sensitivity.clamp(1, 10);
         s.ai_count = s.ai_count.min(3);
+        s.items = s.items.clean();
         // Speed Colours is a secret until unlocked (TRIAGE row 26), even for
         // settings saved while it was on by default
         s.speed_colours &= s.colours_unlocked;
@@ -609,6 +613,7 @@ impl App {
                 self.settings.equal_stats = value == "on";
                 self.save = true;
             }
+            _ if id.starts_with("setup.item.") => self.tick_item(id, value),
             "settings.volume" => {
                 if let Ok(v) = value.parse::<u8>() {
                     self.settings.volume = v.min(100);
@@ -678,8 +683,13 @@ impl App {
             self.settings.equal_stats,
             d.next(),
         );
-        // a Time Trial: crates give only the Speed Boost (TRIAGE T13)
-        race.boost_only = self.trial;
+        // a Time Trial: crates give only the Speed Boost (TRIAGE T13);
+        // otherwise the items ticked on the setup (T42)
+        race.items = if self.trial {
+            crate::items::ItemSet::only(crate::race::Item::Boost)
+        } else {
+            self.settings.items
+        };
         race.ai_level = self.settings.ai_level;
         let record = Recording::of(&race, 0, self.mode());
         // (after `begin`, which keeps the run being left: it may be the best)
@@ -1086,6 +1096,9 @@ impl App {
             json!({ "type": "toggle", "id": "setup.equal", "label": self.t("setup.equal"),
           "value": self.settings.equal_stats }),
         );
+        if !self.trial {
+            items.extend(self.item_toggles());
+        }
         items.push(self.button("menu.start"));
         if self.best_replay().is_some() {
             items.push(self.quiet_button("replay.best"));
@@ -1097,6 +1110,37 @@ impl App {
             "setup.heading"
         };
         vec![json!({ "kind": "setup", "heading": self.t(heading), "items": items })]
+    }
+
+    /// The race setup's item checkboxes (TRIAGE T42): one per item, ticked
+    /// when crates may give it, and a note when none is. Online, the host's
+    /// go out with the start.
+    pub(crate) fn item_toggles(&self) -> Vec<Value> {
+        let options: Vec<Value> = crate::race::Item::ALL
+            .iter()
+            .map(|item| {
+                json!({ "id": format!("setup.item.{}", item.key()),
+                  "text": self.t(&format!("item.{}", item.key())),
+                  "value": self.settings.items.has(*item) })
+            })
+            .collect();
+        let note = if self.settings.items.is_empty() {
+            self.t("setup.no_items")
+        } else {
+            String::new()
+        };
+        vec![
+            json!({ "type": "checks", "label": self.t("setup.items"), "options": options, "note": note }),
+        ]
+    }
+
+    /// An item checkbox changed (`setup.item.<key>`).
+    pub(crate) fn tick_item(&mut self, id: &str, value: &str) {
+        let key = id.trim_start_matches("setup.item.");
+        if let Some(item) = crate::race::Item::ALL.into_iter().find(|i| i.key() == key) {
+            self.settings.items = self.settings.items.with(item, value == "on");
+            self.save = true;
+        }
     }
 
     fn quiet_button(&self, id: &str) -> Value {
@@ -1684,6 +1728,10 @@ fn cue_for(e: &Event, local: usize) -> Option<Cue> {
 }
 
 #[cfg(test)]
+#[path = "app/items_hype_tests.rs"]
+mod items_hype_tests;
+
+#[cfg(test)]
 mod tests {
     use super::*;
 
@@ -1958,7 +2006,7 @@ mod tests {
         a.act("menu.start", "");
         let p = a.play.as_mut().unwrap();
         assert_eq!(p.race.racers.len(), 1);
-        assert!(p.race.boost_only && p.trial);
+        assert!(p.race.items == crate::items::ItemSet::only(crate::race::Item::Boost) && p.trial);
         p.race.phase = Phase::Running;
         p.race.clock = 120 * 95;
         p.race.racers[0].finish = Some(120 * 95);

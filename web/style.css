@@ -170,6 +170,13 @@ table.cells tr.me td { color: var(--banana); font-weight: 800; }
 .toggle { display: flex; align-items: center; justify-content: space-between; margin: 0.5rem 0; gap: 1rem; }
 .toggle span { color: var(--muted); }
 .toggle input { width: 1.2rem; height: 1.2rem; accent-color: var(--leaf); }
+/* the items crates may give (TRIAGE T42) */
+.checks { margin: 0.5rem 0; }
+.checks-label, .checks-note { color: var(--muted); }
+.checks-row { display: flex; flex-wrap: wrap; gap: 0.3rem 0.9rem; margin-top: 0.3rem; }
+.check { display: flex; align-items: center; gap: 0.3rem; font-size: 0.9rem; }
+.check input { width: 1.1rem; height: 1.1rem; accent-color: var(--leaf); }
+.checks-note { display: block; font-size: 0.85rem; margin-top: 0.3rem; }
 
 /* ---- the race HUD ---- */
 
