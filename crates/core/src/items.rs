@@ -89,7 +89,7 @@ pub fn hook_target(race: &Race, who: usize) -> Option<usize> {
     let at = me.ape.middle();
     let mut best: Option<(i32, usize)> = None;
     for (i, r) in race.racers.iter().enumerate() {
-        if i == who || r.finish.is_some() || r.progress <= me.progress {
+        if i == who || r.out() || r.progress <= me.progress {
             continue;
         }
         let d = r.ape.middle().dist(at);
@@ -108,7 +108,7 @@ pub fn banana_target(race: &Race, who: usize, aim: V3) -> Option<usize> {
     let wide = fx::cos(BANANA_CONE);
     let mut best: Option<(i32, usize)> = None;
     for (i, r) in race.racers.iter().enumerate() {
-        if i == who || r.finish.is_some() {
+        if i == who || r.out() {
             continue;
         }
         let to = r.ape.middle().sub(at);
@@ -376,7 +376,7 @@ fn pickups(race: &mut Race) {
         for i in 0..n {
             let r = &race.racers[i];
             // a Remote ape picks up in its own browser
-            if r.item.is_some() || r.finish.is_some() || r.driver == Driver::Remote {
+            if r.item.is_some() || r.out() || r.driver == Driver::Remote {
                 continue;
             }
             // catching the crate's vine takes it, and so does flying into it
@@ -404,7 +404,7 @@ fn fly(race: &mut Race) {
             Item::Banana => {
                 let target = s
                     .target
-                    .filter(|t| race.racers.get(*t).is_some_and(|r| r.finish.is_none()));
+                    .filter(|t| race.racers.get(*t).is_some_and(|r| !r.out()));
                 match target {
                     // homing (TRIAGE T10): turn toward the target at most
                     // `BANANA_TURN`, at least `BANANA_CHASE` faster than it
@@ -519,6 +519,9 @@ fn strike(race: &mut Race, who: usize, by: usize, item: Item) {
 pub fn apply_hit(race: &mut Race, who: usize, by: usize, item: Item) {
     let n = race.racers.len();
     if who >= n || by >= n || who == by || race.racers[who].driver == Driver::Remote {
+        return;
+    }
+    if race.racers[who].eaten.is_some() {
         return;
     }
     race.events.push(Event::Hit { who, by, item });

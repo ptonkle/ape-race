@@ -315,6 +315,13 @@ impl Course {
         })
     }
 
+    /// Whether a body at `p` (the hands) stands on the jungle floor itself,
+    /// not on a platform (Floor is Lava, TRIAGE T37).
+    pub fn on_floor(&self, p: V3) -> bool {
+        let floor = ground(p.x, p.z);
+        self.support(p) <= floor && p.y - BODY_DROP <= floor + cm(10)
+    }
+
     /// The highest surface under a point: the ground, or a platform's top.
     pub fn support(&self, p: V3) -> i32 {
         let mut top = ground(p.x, p.z);

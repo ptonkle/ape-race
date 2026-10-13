@@ -8,9 +8,10 @@
 
 use crate::race::{Race, Racer};
 
-/// Whether a racer is still in the race: not finished.
+/// Whether a racer is still in the race: not finished, and not eaten by
+/// the jaguar (TRIAGE T37).
 pub fn racing(r: &Racer) -> bool {
-    r.finish.is_none()
+    !r.out()
 }
 
 /// The racer the camera follows, by seat (an index into `race.racers`).

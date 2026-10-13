@@ -26,6 +26,7 @@ pub mod geom;
 pub mod hype;
 pub mod icon;
 pub mod items;
+pub mod jaguar;
 pub mod mesh;
 pub mod models;
 pub mod online;

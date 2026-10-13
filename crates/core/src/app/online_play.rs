@@ -80,6 +80,7 @@ impl App {
         if host {
             let _ = o.set_ai_count(self.settings.ai_count as usize, self.now_ms);
             let _ = o.set_equal_stats(self.settings.equal_stats, self.now_ms);
+            let _ = o.set_lava(self.settings.lava, self.now_ms);
         }
         self.online.session = Some(o);
         self.online.status = String::new();
@@ -206,6 +207,14 @@ impl App {
                     self.save = true;
                 }
             }
+            "lobby.lava" => {
+                let on = value == "on";
+                if let Some(o) = &mut self.online.session {
+                    let _ = o.set_lava(on, now);
+                    self.settings.lava = on;
+                    self.save = true;
+                }
+            }
             "lobby.start" => {
                 let seed = self.seed ^ (now as u64).rotate_left(29) ^ self.ticks as u64;
                 if let Some(o) = &mut self.online.session {
@@ -295,8 +304,9 @@ impl App {
             );
             // only the host runs the AI apes, at its own difficulty
             race.ai_level = self.settings.ai_level;
-            // the host's items (TRIAGE T42)
+            // the host's items (TRIAGE T42) and Floor is Lava (T37)
             race.items = start.items;
+            race.lava = start.lava;
             self.begin(race, start.local_index);
             if let Some(p) = &mut self.play {
                 p.online = true;
@@ -490,6 +500,7 @@ impl App {
                 json!({ "type": "toggle", "id": "lobby.equal", "label": self.t("setup.equal"),
                               "value": view.equal_stats }),
             );
+            mine.push(self.lava_toggle("lobby.lava"));
             mine.extend(self.item_toggles());
             let mut start = self.button("lobby.start");
             start["disabled"] = json!(!view.can_start);
@@ -497,6 +508,8 @@ impl App {
         } else {
             mine.push(json!({ "type": "list", "rows": [[self.t("setup.equal"),
                 self.t(if view.equal_stats { "on" } else { "off" })]] }));
+            mine.push(json!({ "type": "list", "rows": [[self.t("setup.lava"),
+                self.t(if view.lava { "on" } else { "off" })]] }));
             let mut ready = self.button("lobby.ready");
             ready["text"] = json!(self.t(if view.ready {
                 "online.cancel_ready"
@@ -524,9 +537,7 @@ impl App {
     /// The menu overlay (Esc; the race runs on) and the results.
     pub(super) fn online_race_panels(&self, p: &Play) -> Vec<Value> {
         let host = self.hosting();
-        let finished = p
-            .since_finish
-            .is_some_and(|t| t > crate::rules::TICKS_PER_SECOND as u32);
+        let finished = super::results_due(p);
         if p.paused {
             return vec![
                 json!({ "kind": "overlay", "heading": self.t("menu.online"), "items": [
@@ -576,6 +587,7 @@ impl App {
                     Fin::Done(t) => super::clock_text(t),
                     Fin::Racing => self.t("results.racing"),
                     Fin::Dnf => self.t("results.out"),
+                    Fin::Eaten(_) => self.t("results.eaten"),
                 };
                 json!([
                     place,

@@ -51,6 +51,9 @@ const KEEP_AGAIN: u32 = rules::TICKS_PER_SECOND as u32 * 10;
 /// The followed ape has been out of the race (finished) this long when the
 /// camera pans to one still racing (TRIAGE T34).
 const SPECTATE_AFTER: u32 = rules::TICKS_PER_SECOND as u32 * 2;
+/// An eaten ape (TRIAGE T37): the camera stays for the jaguar, and pans
+/// on half a second after it has eaten.
+const EATEN_SPECTATE_AFTER: u32 = crate::jaguar::EATEN + rules::TICKS_PER_SECOND as u32 / 2;
 
 /// Clicks on the title that unlock Speed Colours (TRIAGE row 26).
 const TITLE_CLICKS: u32 = 10;
@@ -85,6 +88,8 @@ pub struct Settings {
     pub items: crate::items::ItemSet,
     /// the colourblind mode (TRIAGE T33): the world muted, the vines vivid
     pub colourblind: bool,
+    /// Floor is Lava (TRIAGE T37): touch the ground and a jaguar eats you
+    pub lava: bool,
 }
 
 impl Default for Settings {
@@ -106,6 +111,7 @@ impl Default for Settings {
             ghost: true,
             items: crate::items::ItemSet::ALL,
             colourblind: false,
+            lava: false,
         }
     }
 }
@@ -166,8 +172,8 @@ pub struct Play {
     pub online: bool,
     /// each ape's position last tick, for drawing between ticks
     prev: Vec<V3>,
-    /// ticks since the local ape finished
-    since_finish: Option<u32>,
+    /// ticks since the local ape was out of the race (finished or eaten)
+    since_out: Option<u32>,
     /// the local ape's horizontal speed, smoothed over about a quarter
     /// second: what the speedometer, the hype and the colours read (TRIAGE
     /// row 19: a downswing's falling speed set them off)
@@ -355,7 +361,7 @@ impl App {
         // losing the pointer mid-race (Esc, or a click away) pauses it
         if self.pointer_locked && !locked {
             if let Some(p) = &mut self.play {
-                if p.since_finish.is_none() && !p.online {
+                if p.since_out.is_none() && !p.online {
                     p.paused = true;
                 }
             }
@@ -458,10 +464,12 @@ impl App {
         if p.replay.is_some() {
             return;
         }
-        let finish = p.race.racers[p.local].finish;
-        if let (Some(rec), Some(_)) = (&p.record, finish) {
+        let me = &p.race.racers[p.local];
+        let (finish, eaten) = (me.finish, me.eaten.is_some());
+        if let (Some(rec), true) = (&p.record, finish.is_some() || eaten) {
             let mut rec = rec.clone();
             rec.finish = finish;
+            rec.eaten = eaten;
             match p.kept {
                 Some(serial) => {
                     rec.serial = serial;
@@ -715,6 +723,10 @@ impl App {
                 self.settings.equal_stats = value == "on";
                 self.save = true;
             }
+            "setup.lava" => {
+                self.settings.lava = value == "on";
+                self.save = true;
+            }
             _ if id.starts_with("setup.item.") => self.tick_item(id, value),
             "settings.volume" => {
                 if let Ok(v) = value.parse::<u8>() {
@@ -798,6 +810,8 @@ impl App {
             self.settings.items
         };
         race.ai_level = self.settings.ai_level;
+        // Floor is Lava (TRIAGE T37); never in a Time Trial
+        race.lava = self.settings.lava && !self.trial;
         let record = Recording::of(&race, 0, self.mode());
         // (after `begin`, which keeps the run being left: it may be the best)
         self.begin(race, 0);
@@ -834,7 +848,7 @@ impl App {
             paused: false,
             online: false,
             prev,
-            since_finish: None,
+            since_out: None,
             hype_speed: 0,
             colour_speed: 0,
             hype: crate::hype::Hype::default(),
@@ -943,8 +957,8 @@ impl App {
         );
         spectate(p, self.alpha);
         let me = &p.race.racers[p.local];
-        if let Some(t) = me.finish {
-            if p.since_finish.is_none() {
+        if me.out() {
+            if let (None, Some(t)) = (p.since_out, me.finish) {
                 // a personal best is kept with the settings, one per mode
                 let best = if p.trial {
                     &mut self.settings.trial_best
@@ -957,8 +971,8 @@ impl App {
                     self.save = true;
                 }
             }
-            let since = p.since_finish.map(|t| t + 1).unwrap_or(0);
-            p.since_finish = Some(since);
+            let since = p.since_out.map(|t| t + 1).unwrap_or(0);
+            p.since_out = Some(since);
             if since == KEEP_AFTER_FINISH
                 || (since > KEEP_AFTER_FINISH && since.is_multiple_of(KEEP_AGAIN))
             {
@@ -977,7 +991,7 @@ impl App {
     /// it out in an ape voice (`hype::Hype` keeps it from repeating); not
     /// once the local ape has finished.
     fn hype_tick(&mut self, p: &mut Play) {
-        if p.race.racers[p.local].finish.is_some() {
+        if p.race.racers[p.local].out() {
             return;
         }
         let kmh = crate::speedo::kmh(p.hype_speed);
@@ -1280,6 +1294,7 @@ impl App {
           "value": self.settings.equal_stats }),
         );
         if !self.trial {
+            items.push(self.lava_toggle("setup.lava"));
             items.extend(self.item_toggles());
         }
         items.push(self.button("menu.start"));
@@ -1315,6 +1330,13 @@ impl App {
         vec![
             json!({ "type": "checks", "label": self.t("setup.items"), "options": options, "note": note }),
         ]
+    }
+
+    /// The Floor is Lava checkbox (TRIAGE T37), on the setup (`setup.lava`)
+    /// or the host's lobby (`lobby.lava`).
+    pub(crate) fn lava_toggle(&self, id: &str) -> Value {
+        json!({ "type": "toggle", "id": id, "label": self.t("setup.lava"),
+          "value": self.settings.lava })
     }
 
     /// An item checkbox changed (`setup.item.<key>`).
@@ -1374,7 +1396,14 @@ impl App {
                 words.push(self.t(&format!("course.{}", r.course)));
                 words.push(self.t(&format!("mode.{}", r.mode.key())));
                 words.push(self.t(&format!("ape.{}", r.kind().key())));
-                words.push(r.finish.map(clock_text).unwrap_or_default());
+                if r.lava {
+                    words.push(self.t("setup.lava"));
+                }
+                words.push(match r.finish {
+                    Some(t) => clock_text(t),
+                    None if r.eaten => self.t("results.eaten"),
+                    None => String::new(),
+                });
                 json!({ "type": "button", "id": format!("replays.watch.{k}"),
                         "text": words.join(" · "), "quiet": !*best,
                         "disabled": !r.fits(&self.course) })
@@ -1435,11 +1464,7 @@ impl App {
                     self.button("menu.quit"),
                 ]}),
             );
-        } else if p
-            .since_finish
-            .map(|t| t > rules::TICKS_PER_SECOND as u32)
-            .unwrap_or(false)
-        {
+        } else if results_due(p) {
             if p.trial {
                 let finish = p.race.racers[p.local].finish.unwrap_or(0);
                 let medal = trial::earned(finish)
@@ -1544,9 +1569,10 @@ impl App {
             .iter()
             .map(|i| {
                 let r = &p.race.racers[*i];
-                let shown = match r.finish {
-                    Some(t) => clock_text(t),
-                    None => self.t("results.racing"),
+                let shown = match (r.finish, r.eaten) {
+                    (Some(t), _) => clock_text(t),
+                    (None, Some(_)) => self.t("results.eaten"),
+                    (None, None) => self.t("results.racing"),
                 };
                 json!([
                     ordinal(r.place),
@@ -1574,9 +1600,13 @@ impl App {
                 n.to_string()
             }
             Phase::Running if race.clock < rules::TICKS_PER_SECOND as u32 => self.t("hud.go"),
-            _ => match me.finish {
-                Some(_) if p.since_finish.unwrap_or(0) < rules::TICKS_PER_SECOND as u32 * 2 => {
+            _ => match (me.finish, me.eaten) {
+                (Some(_), _) if p.since_out.unwrap_or(0) < rules::TICKS_PER_SECOND as u32 * 2 => {
                     self.t("hud.finished")
+                }
+                // the jaguar (TRIAGE T37): until the camera moves on
+                (None, Some(_)) if p.since_out.unwrap_or(0) < EATEN_SPECTATE_AFTER => {
+                    self.t("hud.eaten")
                 }
                 _ => String::new(),
             },
@@ -1755,7 +1785,7 @@ impl App {
 fn restore(p: &mut Play, save: replay::SavePoint) {
     replay::put_back(save, &mut p.race, &mut p.brains);
     p.prev = p.race.racers.iter().map(|r| r.ape.pos).collect();
-    p.since_finish = None;
+    p.since_out = None;
     let f = &p.race.racers[p.focus.racer];
     p.chase = Chase::new(f.ape.pos, p.chase.yaw);
 }
@@ -1786,18 +1816,41 @@ fn refocus(p: &mut Play, from: Camera, ticks: u32) {
 /// [`SPECTATE_AFTER`], the camera pans to the leading ape still racing
 /// (TRIAGE T34).
 fn spectate(p: &mut Play, alpha: i32) {
-    if focus::racing(&p.race.racers[p.focus.racer]) {
+    let followed = &p.race.racers[p.focus.racer];
+    if focus::racing(followed) {
         p.out_for = 0;
         return;
     }
     p.out_for = p.out_for.saturating_add(1);
-    if p.out_for < SPECTATE_AFTER {
+    if p.out_for < spectate_after(followed) {
         return;
     }
     let from = play_camera(p, alpha);
     if p.focus.follow_racing(&p.race) {
         refocus(p, from, camera::PAN_TICKS);
     }
+}
+
+/// How long the camera stays on a racer out of the race: a finisher a
+/// moment, an eaten one until the jaguar has eaten (TRIAGE T37).
+fn spectate_after(r: &crate::race::Racer) -> u32 {
+    if r.eaten.is_some() && r.finish.is_none() {
+        EATEN_SPECTATE_AFTER
+    } else {
+        SPECTATE_AFTER
+    }
+}
+
+/// Whether the results show yet: a second after the local ape finished,
+/// or once the jaguar has eaten it (TRIAGE T37).
+pub(crate) fn results_due(p: &Play) -> bool {
+    let me = &p.race.racers[p.local];
+    let wait = if me.finish.is_none() && me.eaten.is_some() {
+        EATEN_SPECTATE_AFTER
+    } else {
+        rules::TICKS_PER_SECOND as u32
+    };
+    p.since_out.is_some_and(|t| t > wait)
 }
 
 /// The race camera as it is, before any pan.
@@ -1834,8 +1887,8 @@ fn replay_tick(p: &mut Play) -> Vec<Cue> {
             p.chase.pitch = c.pitch;
         }
         p.chase.follow(f.ape.pos, f.ape.vel, ahead, !own);
-        if p.race.racers[p.local].finish.is_some() {
-            p.since_finish = Some(p.since_finish.map(|t| t + 1).unwrap_or(0));
+        if p.race.racers[p.local].out() {
+            p.since_out = Some(p.since_out.map(|t| t + 1).unwrap_or(0));
         }
         if !seeking {
             cues.extend(
@@ -2043,6 +2096,7 @@ fn cue_for(e: &Event, local: usize) -> Option<Cue> {
         }),
         Event::Hit { who, by, .. } if who == local || by == local => Some(Cue::Hit),
         Event::Finish { who, .. } if who == local => Some(Cue::Finish),
+        Event::Pounce { who } if who == local => Some(Cue::Roar),
         Event::Reward { who, what } if who == local => Some(match what {
             crate::race::Reward::Mushroom => Cue::Bounce,
             crate::race::Reward::Catchup => Cue::Catchup,

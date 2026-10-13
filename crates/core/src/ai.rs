@@ -354,7 +354,7 @@ impl Default for Brain {
 pub fn think(race: &Race, who: usize, brain: &mut Brain) -> Controls {
     let tick = race.tick + 1;
     let r = &race.racers[who];
-    if race.running() && r.finish.is_none() && brain.difficulty != Difficulty::KingKong {
+    if race.running() && !r.out() && brain.difficulty != Difficulty::KingKong {
         brain.watch(tick, r.progress);
     }
     let tune = brain.tune(tick);
@@ -370,7 +370,7 @@ pub fn think(race: &Race, who: usize, brain: &mut Brain) -> Controls {
             brain.expect = None;
         }
     }
-    let mut c = if !race.running() || r.finish.is_some() {
+    let mut c = if !race.running() || r.out() {
         Controls {
             yaw: course.start_yaw,
             ..Controls::default()
@@ -417,7 +417,7 @@ pub fn think(race: &Race, who: usize, brain: &mut Brain) -> Controls {
         }
     };
     if race.running()
-        && r.finish.is_none()
+        && !r.out()
         && r.item.is_some()
         && ape.swinging().is_none()
         && tick >= since + tune.item_wait
@@ -993,7 +993,7 @@ fn use_item(race: &Race, who: usize, c: &mut Controls) {
     let mut ahead: Option<(i32, usize)> = None;
     let mut close = i32::MAX;
     for (i, r) in race.racers.iter().enumerate() {
-        if i == who || r.finish.is_some() {
+        if i == who || r.out() {
             continue;
         }
         let d = r.ape.pos.dist(a.pos);

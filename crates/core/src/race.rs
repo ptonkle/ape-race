@@ -10,6 +10,7 @@ use crate::ape::{Ape, Controls, Happening, Mode};
 use crate::course::{Course, Vine};
 use crate::fx::{int, Dice, ONE};
 use crate::geom::{v3, V3};
+use crate::jaguar::{self, Eaten};
 use crate::rules::{self, Kind};
 
 /// The countdown before the start: 3, 2, 1, then go.
@@ -100,6 +101,14 @@ pub enum Event {
         who: usize,
         what: Reward,
     },
+    /// Floor is Lava (TRIAGE T37): ape `who` touched the ground and is out
+    Eaten {
+        who: usize,
+    },
+    /// the jaguar leaps on ape `who`, roaring
+    Pounce {
+        who: usize,
+    },
 }
 
 /// One ape in the race.
@@ -121,6 +130,16 @@ pub struct Racer {
     /// for each of the course's bananas: whether this ape has taken it
     /// (TRIAGE T43: each ape collects its own)
     pub took: Vec<bool>,
+    /// Floor is Lava (TRIAGE T37): it touched the ground and the jaguar
+    /// came for it
+    pub eaten: Option<Eaten>,
+}
+
+impl Racer {
+    /// Out of the race: finished, or eaten.
+    pub fn out(&self) -> bool {
+        self.finish.is_some() || self.eaten.is_some()
+    }
 }
 
 /// A reward from the course itself (group K), for the HUD's flash and the
@@ -216,6 +235,8 @@ pub struct Race {
     /// for each vine: which apes have swung on it, one bit per ape (TRIAGE
     /// T45). Apes from other browsers count from their reported state.
     pub used: Vec<u32>,
+    /// Floor is Lava (TRIAGE T37): touching the ground is the end
+    pub lava: bool,
 }
 
 /// One entrant: a name, a kind of ape and who drives it.
@@ -243,6 +264,7 @@ impl Race {
                     place: i + 1,
                     reward: None,
                     took: vec![false; course.bananas.len()],
+                    eaten: None,
                 }
             })
             .collect();
@@ -268,6 +290,7 @@ impl Race {
             dice: Dice(seed),
             order: Vec::new(),
             ai_level: crate::ai::Difficulty::default(),
+            lava: false,
         }
     }
 
@@ -301,7 +324,8 @@ impl Race {
         }
         let tick = self.tick;
         for i in 0..self.racers.len() {
-            if self.racers[i].driver == Driver::Remote {
+            // an eaten ape stays where it touched down
+            if self.racers[i].driver == Driver::Remote || self.racers[i].eaten.is_some() {
                 continue;
             }
             let c = controls.get(i).copied().unwrap_or_default();
@@ -323,18 +347,79 @@ impl Race {
                     _ => {}
                 }
             }
+            if self.floor_is_lava(i) {
+                self.eat(i);
+                continue;
+            }
             if c.item {
                 crate::items::use_item(self, i, &c);
             }
             self.collect_bananas(i);
         }
+        self.jaguars();
         crate::items::step(self);
         self.mark_used();
         self.update_places();
     }
 
-    /// Moves a remote ape to where its browser says it is.
+    /// Floor is Lava (TRIAGE T37): ape `i` (still racing) is on the ground.
+    /// The start platform and the mushroom caps are not the ground.
+    fn floor_is_lava(&self, i: usize) -> bool {
+        let r = &self.racers[i];
+        self.lava
+            && self.phase == Phase::Running
+            && !r.out()
+            && r.ape.mode == Mode::Grounded
+            && self.course.on_floor(r.ape.pos)
+    }
+
+    /// Ape `i` is eaten where it is: it stops, facing the jaguar coming.
+    pub fn eat(&mut self, i: usize) {
+        let tick = self.tick;
+        let Some(r) = self.racers.get_mut(i) else {
+            return;
+        };
+        if r.out() {
+            return;
+        }
+        let e = Eaten::new(&self.course, r.ape.pos, r.ape.hint, tick);
+        r.ape.vel = V3::ZERO;
+        r.ape.stun = 0;
+        r.ape.yaw = crate::geom::yaw_of(e.from.sub(e.at));
+        r.item = None;
+        r.eaten = Some(e);
+        self.events.push(Event::Eaten { who: i });
+    }
+
+    /// Records ape `i` eaten at `at` in another browser (online, or a
+    /// replay's track).
+    pub fn remote_eaten(&mut self, i: usize, at: V3) {
+        if let Some(r) = self.racers.get_mut(i) {
+            if !r.out() {
+                r.ape.pos = at;
+                r.ape.hint = self.course.nearest(at, r.ape.hint);
+                self.eat(i);
+            }
+        }
+    }
+
+    /// The jaguars' moments that make a sound.
+    fn jaguars(&mut self) {
+        for (who, r) in self.racers.iter().enumerate() {
+            if let Some(e) = r.eaten {
+                if e.ago(self.tick) == jaguar::RUN {
+                    self.events.push(Event::Pounce { who });
+                }
+            }
+        }
+    }
+
+    /// Moves a remote ape to where its browser says it is (an eaten one
+    /// stays where it was eaten).
     pub fn set_remote(&mut self, i: usize, pos: V3, vel: V3, mode: Mode, yaw: i32) {
+        if self.racers.get(i).is_some_and(|r| r.eaten.is_some()) {
+            return;
+        }
         // a vine this browser has not heard of yet: drawn as flying
         let mode = match mode {
             Mode::Swinging { vine, .. } if vine >= self.course.vines.len() => Mode::Flying,
@@ -374,7 +459,7 @@ impl Race {
             .racers
             .iter()
             .filter(|r| r.driver != Driver::Remote)
-            .all(|r| r.finish.is_some());
+            .all(|r| r.out());
         if self.phase == Phase::Running && racing && !self.racers.is_empty() {
             self.phase = Phase::Done;
         }
@@ -389,7 +474,7 @@ impl Race {
     /// Ape `who` takes the bananas its body passes through (TRIAGE T43).
     fn collect_bananas(&mut self, who: usize) {
         let r = &mut self.racers[who];
-        if r.finish.is_some() {
+        if r.out() {
             return;
         }
         let at = r.ape.middle();
@@ -535,7 +620,7 @@ impl Race {
 
     /// Records a finish reported from another browser.
     pub fn remote_finish(&mut self, i: usize, clock: u32) {
-        if i < self.racers.len() && self.racers[i].finish.is_none() {
+        if i < self.racers.len() && !self.racers[i].out() {
             self.racers[i].finish = Some(clock);
             self.order.push(i);
             let place = self.order.len();

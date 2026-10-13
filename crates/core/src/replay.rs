@@ -87,6 +87,11 @@ pub struct Recording {
     pub controls: Vec<Controls>,
     /// the local ape's finish, in race-clock ticks
     pub finish: Option<u32>,
+    /// Floor is Lava (TRIAGE T37): the race had it on
+    pub lava: bool,
+    /// the local ape was eaten by the jaguar (a run kept among the recent
+    /// ones, never a best)
+    pub eaten: bool,
     /// order of keeping: higher is newer
     pub serial: u32,
     /// an online race: every ape's place instead of the controls
@@ -116,6 +121,8 @@ impl Recording {
             ai_level: race.ai_level,
             controls: Vec::new(),
             finish: None,
+            lava: race.lava,
+            eaten: false,
             serial: 0,
             track: None,
         }
@@ -142,6 +149,7 @@ impl Recording {
         let mut r = Race::new(course.clone(), &self.entries, self.equal_stats, self.seed);
         r.items = self.items;
         r.ai_level = self.ai_level;
+        r.lava = self.lava;
         if self.track.is_some() {
             for racer in &mut r.racers {
                 racer.driver = Driver::Remote;
@@ -389,13 +397,16 @@ impl Spot {
 }
 
 /// An online race as it was seen here (TRIAGE T24): every ape's place
-/// [`TRACK_EVERY`] ticks apart, and the vines summoned in it.
+/// [`TRACK_EVERY`] ticks apart, the vines summoned in it, and the apes the
+/// jaguar ate (TRIAGE T37).
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct Track {
     /// `samples[k][i]`: ape `i` at tick `k * TRACK_EVERY`
     pub samples: Vec<Vec<Spot>>,
     /// each summoned vine and the tick it stood at
     pub summons: Vec<(u32, Summon)>,
+    /// each eaten ape: the tick, the ape and where (its hands)
+    pub eats: Vec<(u32, usize, V3)>,
 }
 
 /// One ape's last values while packing or unpacking a track: its mode,
@@ -431,6 +442,13 @@ impl Track {
                 self.summons.push((race.tick, *s));
             }
         }
+        for (i, r) in race.racers.iter().enumerate() {
+            if let Some(e) = r.eaten {
+                if !self.eats.iter().any(|(_, j, _)| *j == i) {
+                    self.eats.push((e.tick, i, e.at));
+                }
+            }
+        }
     }
 
     /// Ape `i` at `tick`, blended between its samples: place, velocity,
@@ -459,13 +477,18 @@ impl Track {
     pub fn step(&self, race: &mut Race) {
         race.step(&[]);
         // with every ape remote the race would call itself done at Go;
-        // here it is done when every ape has finished
-        if race.phase == Phase::Done && race.racers.iter().any(|r| r.finish.is_none()) {
+        // here it is done when every ape is out
+        if race.phase == Phase::Done && race.racers.iter().any(|r| !r.out()) {
             race.phase = Phase::Running;
         }
         for (t, s) in &self.summons {
             if *t == race.tick {
                 race.place_vine(*s);
+            }
+        }
+        for (t, i, at) in &self.eats {
+            if *t == race.tick {
+                race.remote_eaten(*i, *at);
             }
         }
         for i in 0..race.racers.len() {
@@ -478,7 +501,8 @@ impl Track {
 
     /// The track as text: per sample, per ape, a mode code (and a new
     /// vine), the second differences of its place and the change of
-    /// heading; then `.` and the summoned vines.
+    /// heading; then `.` and the summoned vines; then, only when the
+    /// jaguar ate someone, `.` and the eaten apes.
     pub fn pack(&self, apes: usize) -> String {
         let mut out = String::new();
         let mut last: Vec<Last> = vec![(ApeMode::Grounded, [0; 3], [0; 3], 0); apes];
@@ -527,12 +551,21 @@ impl Track {
                 put(&mut out, v);
             }
         }
+        if !self.eats.is_empty() {
+            out.push('.');
+            for (t, i, at) in &self.eats {
+                for v in [*t, *i as u32, zig(at.x), zig(at.y), zig(at.z)] {
+                    put(&mut out, v);
+                }
+            }
+        }
         out
     }
 
     /// The track back from [`Track::pack`]; `None` when it is not one.
     pub fn unpack(text: &str, apes: usize) -> Option<Track> {
-        let (body, vines) = text.split_once('.')?;
+        let (body, rest) = text.split_once('.')?;
+        let (vines, eats) = rest.split_once('.').unwrap_or((rest, ""));
         let mut it = numbers(body)?.into_iter().peekable();
         let mut track = Track::default();
         let mut last: Vec<Last> = vec![(ApeMode::Grounded, [0; 3], [0; 3], 0); apes];
@@ -594,6 +627,21 @@ impl Track {
                 },
             ));
         }
+        let e = numbers(eats)?;
+        if e.len() % 5 != 0 {
+            return None;
+        }
+        for q in e.chunks(5) {
+            if q[1] as usize >= apes {
+                return None;
+            }
+            let at = V3 {
+                x: unzig(q[2]),
+                y: unzig(q[3]),
+                z: unzig(q[4]),
+            };
+            track.eats.push((q[0], q[1] as usize, at));
+        }
         Some(track)
     }
 }
@@ -617,6 +665,12 @@ struct Stored {
     #[serde(default)]
     ai_level: crate::ai::Difficulty,
     finish: Option<u32>,
+    /// Floor is Lava (TRIAGE T37); written only when on, so the rest are
+    /// kept as before
+    #[serde(default, skip_serializing_if = "is_false")]
+    lava: bool,
+    #[serde(default, skip_serializing_if = "is_false")]
+    eaten: bool,
     serial: u32,
     controls: String,
     /// an online recording's packed track
@@ -638,6 +692,8 @@ impl Stored {
             items: Some(r.items),
             ai_level: r.ai_level,
             finish: r.finish,
+            lava: r.lava,
+            eaten: r.eaten,
             serial: r.serial,
             controls: pack(&r.controls),
             track: r.track.as_ref().map(|t| t.pack(r.entries.len())),
@@ -672,9 +728,15 @@ impl Stored {
             }),
             ai_level: self.ai_level,
             finish: self.finish,
+            lava: self.lava,
+            eaten: self.eaten,
             serial: self.serial,
         })
     }
+}
+
+fn is_false(b: &bool) -> bool {
+    !*b
 }
 
 #[derive(Serialize, Deserialize, Default)]
@@ -737,13 +799,16 @@ impl Library {
 
     /// Keeps a finished run: the best for its course and mode if it beats
     /// the one kept (which then joins the recent ones), else a recent one.
-    /// An unfinished run is not kept.
+    /// A run the jaguar ended (TRIAGE T37) is a recent one; any other
+    /// unfinished run is not kept.
     pub fn add(&mut self, mut rec: Recording) {
-        let Some(t) = rec.finish else {
-            return;
+        let t = match rec.finish {
+            Some(t) => t,
+            None if rec.eaten => u32::MAX,
+            None => return,
         };
         rec.serial = self.next_serial();
-        if rec.mode == Mode::Online {
+        if rec.mode == Mode::Online || rec.finish.is_none() {
             // never a best: kept among the recent, at most ONLINE_KEPT
             self.recent.push(rec);
             self.trim();

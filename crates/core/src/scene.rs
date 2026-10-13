@@ -1140,7 +1140,7 @@ pub fn dynamic(f: &Frame) -> (Batch, Batch) {
     let eye = f.cam.eye;
     let reach = f.local.and_then(|i| {
         let a = &race.racers[i].ape;
-        if a.swinging().is_none() && a.stun == 0 {
+        if a.swinging().is_none() && a.stun == 0 && race.racers[i].eaten.is_none() {
             a.vine_in_reach(c, tick)
         } else {
             None
@@ -1174,6 +1174,24 @@ pub fn dynamic(f: &Frame) -> (Batch, Batch) {
     }
     item_flowers(&mut vines, f, &held);
     for (k, r) in race.racers.iter().enumerate() {
+        // Floor is Lava (TRIAGE T37): the jaguar, and the ape until the bite
+        if let Some(e) = r.eaten {
+            if let Some(j) = e.jaguar(tick, 0) {
+                models::jaguar(&mut b, &j, RACE_SCALE);
+                let ground = crate::course::ground(j.feet.x, j.feet.z);
+                let high = (j.feet.y - ground).clamp(0, int(4));
+                let size = (cm(150) - high / 8) * RACE_SCALE / 100;
+                b.push(
+                    Mesh::Cyl,
+                    &placed(v3(j.feet.x, ground + cm(4), j.feet.z), j.yaw, v3(size / 2, cm(2), size)),
+                    SHADOW,
+                    0,
+                );
+            }
+            if !e.whole(tick) {
+                continue;
+            }
+        }
         let at = f.apes[k];
         let pose = racer_pose(race, k, at, f.tick + k as u32 * 53);
         models::draw(&mut b, r.ape.kind, &pose);
