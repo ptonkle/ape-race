@@ -465,8 +465,19 @@ fn every_vine_hangs_from_one_thing_and_all_five_kinds_are_used() {
             HangerKind::Helicopter => assert!(h.from.y > a.y),
             HangerKind::Crane | HangerKind::StreetLight => {
                 // its mast at the kerb or beyond the wall, not out in the street
+                // (on the bridge, a lamp stands on the deck's edge)
                 assert_eq!(h.to, a);
-                assert!(!in_corridor(&c, h.from, int(1)), "a mast in the street: vine {} {:?} at {} m", h.vine, h.kind, c.vines[h.vine].at / ONE);
+                let on_deck = c.water(h.from).is_some() && {
+                    let side = c.progress(h.from, c.nearest_anywhere(h.from)).1;
+                    (side.abs() - DECK_HALF).abs() < cm(10)
+                };
+                assert!(
+                    on_deck || !in_corridor(&c, h.from, int(1)),
+                    "a mast in the street: vine {} {:?} at {} m",
+                    h.vine,
+                    h.kind,
+                    c.vines[h.vine].at / ONE
+                );
             }
         }
     }
@@ -476,12 +487,35 @@ fn every_vine_hangs_from_one_thing_and_all_five_kinds_are_used() {
 fn vines_are_sparser_than_the_jungles_but_always_offer_a_way_on() {
     let c = city();
     let j = Course::jungle();
-    assert!(
-        c.vines.len() * 10 < j.vines.len() * 9,
-        "{} vines to the Jungle's {}",
-        c.vines.len(),
-        j.vines.len()
-    );
+    assert!(c.vines.len() < j.vines.len(), "{} vines", c.vines.len());
+    // along the streets (not the start's row, the 90° corners' crossings
+    // or the bridge, which has more to make a fall in the river forgiving)
+    // there are a tenth fewer vines a metre than in the Jungle (sparser
+    // still and the easiest AI no longer finishes in time: C rows)
+    let river = c.city.as_ref().unwrap().river.unwrap();
+    let bends: Vec<(i32, i32)> = (0..c.streets.len() - 1)
+        .filter(|&k| corner(&c, k).3.abs() == 90)
+        .map(|k| {
+            let at = c.progress(corner(&c, k).0, c.nearest_anywhere(corner(&c, k).0)).0;
+            (at - int(40), at + int(30))
+        })
+        .collect();
+    let street = |s: i32| {
+        s > int(40)
+            && s < c.length - int(10)
+            && !(s > river.from - int(40) && s < river.to + int(40))
+            && !bends.iter().any(|&(a, b)| s > a && s < b)
+    };
+    let metres = (0..1800).map(int).filter(|&s| street(s)).count() as i64;
+    let city_vines = c.vines.iter().filter(|v| street(v.at)).count() as i64;
+    let jungle_vines = j
+        .vines
+        .iter()
+        .filter(|v| v.at > int(40) && v.at < j.length - int(10))
+        .count() as i64;
+    // per 1000 m
+    let (cd, jd) = (city_vines * 1000 / metres, jungle_vines * 1000 / 1750);
+    assert!(cd * 100 <= jd * 90, "{cd} vines a km on the streets, the Jungle {jd}");
     let mut ats: Vec<i32> = c.vines.iter().map(|v| v.at).collect();
     ats.sort();
     for w in ats.windows(2) {
