@@ -53,6 +53,15 @@ SHOTS = {
         ("the leader flying head-on near the end", "seed=1,at=8178,focus=3,view=orbit,yaw=180,pitch=15,dist=80"),
         ("the winner leaping for the finish line", "seed=1,at=8165,focus=3,view=orbit,yaw=0,pitch=12,dist=60"),
     ],
+    # race-16 on (run with --first 16)
+    "city": [
+        ("four apes on the rooftop start", "seed=1,at=300,focus=1,view=orbit,yaw=200,pitch=-22,dist=75"),
+        ("a chimp swinging past Times Square's billboards", "seed=3,at=2100,focus=2,view=orbit,yaw=60,pitch=0,dist=60"),
+        ("flying down Midtown through bananas", "seed=3,at=3300,view=chase"),
+        ("a gorilla in flight among cranes at sunset", "seed=2,at=3100,focus=1,view=orbit,yaw=-60,pitch=5,dist=55"),
+        ("a lemur leaping by the cranes and the tower", "seed=1,at=5200,focus=0,view=orbit,yaw=90,pitch=0,dist=60"),
+        ("a lemur swinging on a glowing wire, helicopters behind", "seed=1,at=7600,focus=0,view=orbit,yaw=150,pitch=-8,dist=70"),
+    ],
 }
 
 

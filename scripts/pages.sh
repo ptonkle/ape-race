@@ -29,6 +29,7 @@ touch "$SITE/.nojekyll"
 # page's script picks one per visit; its count must match the files.
 if [ "${TILES:-1}" != "0" ]; then
   "$PY" scripts/tiles.py "$SITE/img/ape-race" --map jungle >/dev/null
+  "$PY" scripts/tiles.py "$SITE/img/ape-race" --map city --first 16 >/dev/null
 fi
 echo "Assembled $SITE/ape-race/ and $SITE/img/ape-race/:"
 find "$SITE/ape-race" "$SITE/img/ape-race" -type f | sort
