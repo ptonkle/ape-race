@@ -20,6 +20,7 @@ fn main() {
                     tool_core::course::Course::jungle_seeded(0x0A9E_2ACE_0001 + s * 7919)
                 }
                 (Map::City, s) => tool_core::city::city_seeded(0xC17E_5EED_0001 + s * 7919),
+                (Map::Ski, s) => tool_core::ski::ski_seeded(0x5C1_5EED_0001 + s * 7919),
             };
             let t = trial_at(course, &[k], &[level], false, 150 * TICKS_PER_SECOND as u32);
             row.push(match t[0].finish {

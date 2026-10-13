@@ -114,6 +114,8 @@ pub fn look(map: Map) -> Look {
             ground: rgb(70, 110, 50),
         },
         Map::City => crate::cityscape::look(),
+        // stand-in until the Ski Slope's art lands
+        Map::Ski => look(Map::Jungle),
     }
 }
 
@@ -123,6 +125,7 @@ pub fn look_of(c: &Course) -> Look {
         // the light comes from the sun drawn on its horizon
         Map::City => crate::cityscape::look_for(c),
         Map::Jungle => look(Map::Jungle),
+        Map::Ski => look(Map::Ski),
     }
 }
 
@@ -1755,7 +1758,7 @@ pub struct Preview {
 pub fn preview(c: &Course) -> Preview {
     let (feet, yaw, camera) = match Map::of(c) {
         Map::City => crate::cityscape::preview(c),
-        Map::Jungle => {
+        Map::Jungle | Map::Ski => {
             let pl = c.platforms.first();
             let feet = pl.map_or(c.point(int(4)), |p| {
                 v3(p.centre.x, p.top, p.centre.z).add(p.fwd.scale(p.half_len / 2))
@@ -1787,10 +1790,10 @@ pub fn flyover_camera(c: &Course, ticks: u32, from: i32) -> Camera {
     let p = c.point(s);
     let ahead = c.point(s + int(30));
     let lift = match Map::of(c) {
-        Map::Jungle => int(14),
+        Map::Jungle | Map::Ski => int(14),
         Map::City => int(18),
     };
-    let eye = v3(p.x, ground(p.x, p.z) + lift, p.z);
+    let eye = v3(p.x, c.terrain(p.x, p.z) + lift, p.z);
     let look = v3(ahead.x, eye.y - int(3), ahead.z);
     Camera {
         eye,

@@ -181,6 +181,13 @@ pub struct Course {
     /// the corridor the walls keep an ape in. Empty on the Jungle, whose
     /// walls are `half_width` either side of the centreline.
     pub streets: Vec<Street>,
+    /// the Ski Slope's lifts, trees, hangers, forks and landmarks
+    /// (`ski.rs`); `None` on the other maps
+    pub ski: Option<Box<crate::ski::SkiLayout>>,
+    /// how the ground's height is found: `Hills` (`ground`) on the Jungle
+    /// and the City, the ski hill's slope on the Ski Slope. The centreline
+    /// (`path`) stays at height 0 on every map; heights come from here.
+    pub terrain: crate::ski::Terrain,
 }
 
 /// A straight street of a course with sharp corners (the City). The
@@ -366,9 +373,15 @@ impl Course {
     /// counts as the floor), else the street.
     pub fn floor(&self, x: i32, z: i32) -> i32 {
         match self.city {
-            None => ground(x, z),
+            None => self.terrain(x, z),
             Some(_) => self.city_floor(v3(x, 0, z)),
         }
+    }
+
+    /// The land's height at (`x`, `z`), without water: `ground` on the
+    /// Jungle and the City, the hill on the Ski Slope.
+    pub fn terrain(&self, x: i32, z: i32) -> i32 {
+        self.terrain.height(x, z)
     }
 
     /// The highest surface under a point: the ground, or a platform's top.
@@ -474,7 +487,7 @@ impl Course {
                 vel = vel.sub(fwd.scale(into));
             }
         }
-        let top = ground(pos.x, pos.z) + CEILING;
+        let top = self.terrain(pos.x, pos.z) + CEILING;
         if pos.y > top {
             pos.y = top;
             vel.y = vel.y.min(0);
@@ -558,6 +571,8 @@ pub(crate) fn centreline(name: &'static str, legs: &[Leg]) -> Course {
         start_yaw: 0,
         city: None,
         streets: Vec::new(),
+        ski: None,
+        terrain: crate::ski::Terrain::Hills,
     }
 }
 

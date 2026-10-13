@@ -65,7 +65,7 @@ fn race_setup_and_time_trial_offer_every_map() {
             .iter()
             .map(|o| o["value"].as_str().unwrap())
             .collect();
-        assert_eq!(values, ["jungle", "city"]);
+        assert_eq!(values, ["jungle", "city", "ski"]);
         assert_eq!(select["value"], "jungle");
         assert_eq!(select["options"][1]["text"], "City");
     }

@@ -80,6 +80,8 @@ pub fn medals(map: Map) -> [u32; 4] {
     match map {
         Map::Jungle => JUNGLE,
         Map::City => CITY,
+        // stand-in until the Ski Slope's medals are measured
+        Map::Ski => JUNGLE,
     }
 }
 

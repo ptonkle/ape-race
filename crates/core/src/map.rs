@@ -12,10 +12,11 @@ pub enum Map {
     #[default]
     Jungle,
     City,
+    Ski,
 }
 
 impl Map {
-    pub const ALL: [Map; 2] = [Map::Jungle, Map::City];
+    pub const ALL: [Map; 3] = [Map::Jungle, Map::City, Map::Ski];
 
     /// The map's key: the course's `name`, the replay library's and the
     /// settings' word for it, and `map.<key>` in data/strings.json.
@@ -23,6 +24,7 @@ impl Map {
         match self {
             Map::Jungle => "jungle",
             Map::City => "city",
+            Map::Ski => "ski",
         }
     }
 
@@ -35,6 +37,7 @@ impl Map {
         match self {
             Map::Jungle => Course::jungle(),
             Map::City => crate::city::city(),
+            Map::Ski => crate::ski::ski(),
         }
     }
 
