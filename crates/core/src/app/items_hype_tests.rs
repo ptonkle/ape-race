@@ -121,3 +121,69 @@ fn a_kept_replay_keeps_its_item_set_and_old_ones_read_as_before() {
     let got = back.best.iter().chain(&back.recent).next().unwrap();
     assert_eq!(got.items, ItemSet::only(Item::Boost));
 }
+
+/// Ticks `a` `n` times, the local ape pushed along at `kmh(k)` km/h on
+/// tick k (flying level), collecting the hype sounds and the largest flash
+/// (Q16), which the HUD must carry.
+fn speed_up(a: &mut App, n: u32, kmh: impl Fn(u32) -> i32) -> (Vec<String>, i32) {
+    let mut sounds = Vec::new();
+    let mut flash = 0;
+    for k in 0..n {
+        let p = a.play.as_mut().unwrap();
+        let me = &mut p.race.racers[p.local].ape;
+        me.vel = crate::geom::v3(0, 0, crate::fx::int(kmh(k)) * 10 / 36);
+        me.mode = crate::ape::Mode::Flying;
+        me.pos.y = crate::course::ground(me.pos.x, me.pos.z) + crate::fx::int(30);
+        a.tick();
+        let ui = ui_of(a);
+        for s in ui["sounds"].as_array().cloned().unwrap_or_default() {
+            let s = s.as_str().unwrap().to_string();
+            if s.starts_with("hype") {
+                sounds.push(s);
+            }
+        }
+        let hype = &a.play.as_ref().unwrap().hype;
+        let text: Value = serde_json::from_str(&hype.flash_text()).unwrap();
+        assert_eq!(ui["hud"]["speedo"]["flash"], text);
+        assert_eq!(ui["hud"]["speedo"]["burst"], hype.burst());
+        flash = flash.max(hype.flash());
+    }
+    (sounds, flash)
+}
+
+#[test]
+fn speeding_up_calls_out_each_hype_level_once_with_a_flash() {
+    let mut a = app();
+    a.act("menu.race", "");
+    a.act("setup.opponents", "0");
+    a.act("menu.start", "");
+    a.play.as_mut().unwrap().race.phase = Phase::Running;
+    let (sounds, flash) = speed_up(&mut a, 30, |_| 0);
+    assert!(sounds.is_empty() && flash == 0, "{sounds:?}");
+    // up to 110 km/h over four seconds, then held there for four more
+    let (sounds, flash) = speed_up(&mut a, 960, |k| (k as i32 * 110 / 480).min(110));
+    assert_eq!(sounds, vec!["hype1", "hype2", "hype3"]);
+    assert!(
+        flash > crate::fx::ONE * 9 / 10,
+        "the top call flashes fully: {flash}"
+    );
+    assert_eq!(a.play.as_ref().unwrap().hype.flash(), 0, "faded");
+    // the page can make each call's sound
+    for s in sounds {
+        assert!(a.sound(&s).len() > 44, "{s}");
+    }
+}
+
+#[test]
+fn a_replay_makes_no_call_outs() {
+    let mut a = app();
+    a.act("menu.race", "");
+    a.act("setup.opponents", "0");
+    a.act("menu.start", "");
+    a.play.as_mut().unwrap().race.phase = Phase::Running;
+    speed_up(&mut a, 300, |_| 0);
+    a.act("menu.replay", "");
+    assert!(a.play.as_ref().unwrap().replay.is_some());
+    let (sounds, flash) = speed_up(&mut a, 600, |k| (k as i32).min(110));
+    assert!(sounds.is_empty() && flash == 0, "{sounds:?} {flash}");
+}

@@ -160,6 +160,9 @@ pub struct Play {
     /// the same, smoothed over about a second, for the speed colours
     /// (TRIAGE row 22: they followed each swing's rise and fall)
     pub colour_speed: i32,
+    /// the hype call-outs and their flash (TRIAGE T22): live racing only,
+    /// not stepped in a replay
+    pub hype: crate::hype::Hype,
     /// the local finish beat the saved best
     new_best: bool,
     /// each vine drawn as a bending chain (TRIAGE row 12)
@@ -730,6 +733,7 @@ impl App {
             since_finish: None,
             hype_speed: 0,
             colour_speed: 0,
+            hype: crate::hype::Hype::default(),
             new_best: false,
             chains: Vec::new(),
             trial: false,
@@ -804,6 +808,7 @@ impl App {
         let flat = p.race.racers[p.local].ape.vel.len_xz();
         p.hype_speed += (flat - p.hype_speed) / 30;
         p.colour_speed += (flat - p.colour_speed) / 120;
+        self.hype_tick(p);
         if p.online {
             self.online_step(p);
         }
@@ -838,6 +843,19 @@ impl App {
             if let Some(cue) = cue_for(&e, p.local) {
                 self.sounds.push(cue.key().to_string());
             }
+        }
+    }
+
+    /// The hype call-outs (TRIAGE T22): crossing a hype level upward calls
+    /// it out in an ape voice (`hype::Hype` keeps it from repeating); not
+    /// once the local ape has finished.
+    fn hype_tick(&mut self, p: &mut Play) {
+        if p.race.racers[p.local].finish.is_some() {
+            return;
+        }
+        let kmh = crate::speedo::kmh(p.hype_speed);
+        if let Some(level) = p.hype.step(kmh) {
+            self.sounds.push(crate::hype::voice_key(level));
         }
     }
 
@@ -1390,6 +1408,10 @@ impl App {
                 "hype": crate::speedo::hype(crate::speedo::kmh(p.hype_speed)),
                 "amount": decimal(&crate::speedo::amount_text(crate::speedo::kmh(p.hype_speed))),
                 "shout": self.t(&format!("hud.hype{}", crate::speedo::hype(crate::speedo::kmh(p.hype_speed)))),
+                // the splash of a call-out (TRIAGE T22): the screen's flash,
+                // 0 to 1, and the level whose shout pops while it shows
+                "flash": decimal(&p.hype.flash_text()),
+                "burst": p.hype.burst(),
             },
             "item": [self.t("hud.item"), item],
             "item_key": me.item.map(|i| i.key()).unwrap_or(""),
@@ -1497,6 +1519,9 @@ impl App {
     pub fn sound(&self, key: &str) -> Vec<u8> {
         if key == "wind" {
             return sound::wind(self.settings.volume);
+        }
+        if let Some(level) = sound::voice_level(key) {
+            return sound::voice(level, self.settings.volume);
         }
         match Cue::from_key(key) {
             Some(c) => sound::wav(c, self.settings.volume),

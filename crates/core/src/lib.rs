@@ -22,6 +22,7 @@ pub mod camera;
 pub mod course;
 pub mod fx;
 pub mod geom;
+pub mod hype;
 pub mod icon;
 pub mod items;
 pub mod mesh;

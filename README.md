@@ -13,10 +13,11 @@ The design is in [`BRIEF.md`](BRIEF.md) and the build decisions in [`PLAN.md`](P
 | Drive | Hold **W** on a vine to drive forward along the swing (A/D steer it). The drive is strongest when slow and fades as you speed up, so at speed your line and when you let go count. You never need to swing back and forth. |
 | Catching | Hold the grab button and you catch the first vine that comes within reach (3.6–5.2 m, by ape). No timing needed. |
 | The ground | A landing slides on and keeps some of its speed. Red **mushrooms** bounce you back up. Fall and you run (slowly). **Space** jumps; click to grab a low vine from the jump. Low vines hang every few stations. |
-| Items | Fly through a crate to take an item (one at a time). **Right click** or **E** uses it. **Banana:** thrown where you look; a hit stuns and slows. **Stick:** whacks any ape next to you off its vine. **Hook:** pulls back the nearest ape ahead and pulls you forward. **Speed Boost:** a burst along your motion. |
+| Items | Fly through a crate to take an item (one at a time). **Right click** or **E** uses it. **Banana:** thrown where you look; a hit stuns and slows. **Stick:** whacks any ape next to you off its vine. **Hook:** pulls back the nearest ape ahead and pulls you forward. **Speed Boost:** a burst along your motion. | **Race Setup → Items** has a checkbox per item: unticked items never come out (none ticked: no items at all). Online, the host's choice counts.
 | Apes | Orangutan, Gorilla, Chimpanzee, Gibbon, Proboscis Monkey, Lemur. Five stats: Swing Power, Top Speed, Reach, Air Control, Weight. Every ape's stats add up to the same total. **Equal Stats** gives every ape the average. |
 | Online | **Online → Host** gives a room code to share; others **Join** with it. Everyone picks an ape and readies up; the host adds AI apes and starts. |
 | Best time | Your fastest finish is kept on this device and shown in the HUD and results. |
+| Hype | Swing fast enough and the speedometer gets hyped: crossing each level, an ape whoops it out and the screen flashes (biggest at BANANAS!). |
 | Time Trial | Race alone (crates give only the Speed Boost) for Bronze, Silver and Gold target times; the Author time shows once you earn Gold. Your best Time Trial races beside you as a pale-blue ghost. |
 | Replays | **Watch Replay** on the results (or the pause menu) replays the race: play, pause, ½×/1×/2×, chase, orbit or trackside cameras, and a seek bar. Your fastest run per course and mode and your last 10 others are kept on this device under **Replays**. |
 
@@ -59,7 +60,7 @@ Needs Rust with the `wasm32-unknown-unknown` target, `wasm-bindgen-cli` 0.2.127,
 | `crates/core/src/course.rs` | the jungle course: centreline, vines, logs, crates, platforms, scenery placement |
 | `crates/core/src/race.rs`, `items.rs`, `ai.rs` | the race loop, items, and the AI driver |
 | `crates/core/src/camera.rs`, `scene.rs`, `models.rs`, `mesh.rs`, `render.rs` | the chase camera, the drawn world, the six ape models, unit meshes, the instance-draw contract |
-| `crates/core/src/sound.rs` | every sound, synthesised by the core as a WAV file |
+| `crates/core/src/sound.rs`, `hype.rs` | every sound, synthesised by the core as a WAV file (the hype call-outs' ape voices too); when a hype level is called out |
 | `crates/core/src/online.rs`, `app/online_play.rs` | online play: lobby, state sync, hits and results; its wiring into the app |
 | `crates/core/src/app.rs`, `api.rs` | screens, settings, input, the view model; the one door the shim calls |
 | `crates/shim` | the `wasm-bindgen` layer: one call into the core per method, Q16 → `f32` for WebGL |
