@@ -352,6 +352,20 @@ impl Course {
         })
     }
 
+    /// Whether a body at `p` (the hands) stands on the jungle floor itself,
+    /// not on a platform (Floor is Lava, TRIAGE T37).
+    pub fn on_floor(&self, p: V3) -> bool {
+        let floor = self.floor(p.x, p.z);
+        self.support(p) <= floor && p.y - BODY_DROP <= floor + cm(10)
+    }
+
+    /// The open floor's height at (`x`, `z`): what Floor is Lava counts as
+    /// the ground and the jaguar runs on (TRIAGE T37). Every map's floor
+    /// today is `ground`; a map with another floor changes only this.
+    pub fn floor(&self, x: i32, z: i32) -> i32 {
+        ground(x, z)
+    }
+
     /// The highest surface under a point: the ground, or a platform's top.
     pub fn support(&self, p: V3) -> i32 {
         // the City's river: its bed is below the water (city.rs)

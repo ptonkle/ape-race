@@ -249,3 +249,36 @@ fn difficulty_keys_round_trip_and_the_default_is_the_best() {
     assert_eq!(Difficulty::default(), Difficulty::KingKong);
     assert_eq!(Brain::default().difficulty, Difficulty::KingKong);
 }
+
+/// Floor is Lava (TRIAGE T37): how often the AI touches the ground and is
+/// eaten, per difficulty, over eight layouts (four apes a race). The AI is
+/// not tuned for the mode; this is a measurement for SECOND-ORDER.
+#[test]
+#[ignore]
+fn lava_report() {
+    let kinds = [Kind::Chimpanzee, Kind::Gorilla, Kind::Gibbon, Kind::Lemur];
+    for level in Difficulty::ALL {
+        let (mut eaten, mut done, mut at) = (0, 0, Vec::new());
+        for course in layouts() {
+            let t = tool_core::ai::lava_trial(course, &kinds, &[level; 4], false, LIMIT);
+            for r in &t {
+                match (r.finish, r.eaten) {
+                    (Some(_), _) => done += 1,
+                    (None, Some(c)) => {
+                        eaten += 1;
+                        at.push(format!(
+                            "{:.0} m @ {:.0} s",
+                            r.progress as f64 / ONE as f64,
+                            secs(c)
+                        ));
+                    }
+                    _ => {}
+                }
+            }
+        }
+        println!(
+            "{:<10} finished {done:>2}/32  eaten {eaten:>2}/32  {at:?}",
+            level.key()
+        );
+    }
+}
