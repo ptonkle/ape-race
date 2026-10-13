@@ -547,7 +547,7 @@ function handle(view) {
   document.body.dataset.dock = view.dock;
   document.body.style.setProperty("--dock-w", view.dock_w);
   document.body.style.setProperty("--dock-top", view.dock_top);
-  el("hud").hidden = view.screen !== "race";
+  el("hud").hidden = view.screen !== "race" || !view.hud;
   if (view.hud) drawHud(view.hud);
   drawMenus();
   setWind(view.wind);
@@ -594,6 +594,9 @@ async function start() {
   if (map) game.act("flag.map", map);
   const at = new URLSearchParams(location.search).get("at");
   if (at) game.act("flag.fly_at", at);
+  // `?tile=<spec>`: a home-page screenshot, held still (scripts/tiles.py)
+  const tile = new URLSearchParams(location.search).get("tile");
+  if (tile) game.act("screen.tile", tile);
   // This browser's id for online play, and `?codes`: the pasted-code path,
   // for the automated online check only.
   game.act("flag.client", crypto.randomUUID());
