@@ -4,15 +4,18 @@ Stage 9, written by the agent. `C5 Consolidate in your own words`.
 
 A fresh session starts from this file, not from memory.
 
-## Start here (end of session, 2026-10-12)
+## Start here (end of session, 2026-10-13)
 
-- **Live:** https://ptonkle.github.io/ape-race/ is main at the last "Ape Race:" site commit; everything on main is deployed. Last checks (2026-10-12, after merging the five-agent batch L/E/G/P/K for T22–T36, T40, T42–T48): `cargo test`, `check.sh` and `check-online.sh` passed in Chromium, Firefox and WebKit.
-- **Open work:** TRIAGE.md "Future ideas" rows still `open` are the four new modes the person held back: T37 (floor is lava: a jaguar eats you, then you spectate; call `focus::racing` / `Focus` from focus.rs), T38 (climb from rising lava, new map), T39 (co-op checkpoints, Harambe Mode, giant-banana revive), T41 (swing for distance). Waiting on the person: their screech sound file (SECOND-ORDER L4), a listen to the hype call-outs (E7), a try for the new Author time 1:08 (K15), real-hardware frame rate with the bigger trees (G). The hype screen flash is off at the person's request (`hype::SCREEN_FLASH`, I2).
-- **Maps:** read MAPS.md before making a map (what a map is, the skeleton-then-three-agents build, layout and art lessons from the Jungle and the City, a checklist).
-- **How the person works** (also in ~/.claude/CLAUDE.md): `/todo` = write it down only; `/try` = experiment on a `try/` branch, keep or revert; anything else = do it now and deploy at once. A follow-up that would block a deploy (e.g. AI retuning after a physics change) goes to a background agent immediately while the change ships.
-- **Feel is the person's:** TRIAGE rows 1–27 are their play feedback and override PLAN.md P4–P6. Current physics: hold left click to catch (reach 3.6–5.2 m), Space jumps, W drives along the swing (fades with speed), drag 0.00125, a clean grab keeps all speed and a mistimed one loses half the along-rope part, gravity 17, vines 23–31 m from 38–50 m, ropes slide out to 18 m, landings roll only after falls (not hops).
-- **Branches:** only `main`, plus `todo/time-trial` (an old draft, superseded by the merged Time Trial; safe to delete).
-- **After any physics or course change:** `cargo test --release -p tool_core --test ai` and `... -- --ignored --nocapture difficulty_report` (AI levels must stay ordered and finishing); `examples/swing_time.rs` measures swings.
+- **Live:** https://ptonkle.github.io/ape-race/ is main (a946b85); everything on main is deployed. Last checks before the last deploy: `check.sh` and `check-online.sh` passed in Chromium, Firefox and WebKit. Main is clean, no agents are running, and the only other branch is `todo/time-trial` (old, superseded; safe to delete).
+- **Two maps:** the Jungle and the City (New York at dusk), picked on Race Setup, Time Trial and the lobby (`map.rs`). The City has sharp 90°/45° corners swung on short high cables, driving cars and boats as bouncers, a river you swim out of, its own AI handicaps and medals (Author 1:04, Gold 1:11, Silver 1:21, Bronze 1:36), an orange sunset with a sun path on the river, glowing cyan wires and a muted backdrop. Read **MAPS.md** before making another map.
+- **Also built this session:** TRIAGE T22–T37, T40, T42–T48 (spectating, online replays, item checkboxes, hype call-outs, 2× apes, catch-up vines, banana arcs, rename and screech in the lobby, menus docked to the side, JOJO MODE, Floor is Lava with a jaguar). The jaguar is a surprise: the setting says only "Floor is Lava". The hype screen flash is off (`hype::SCREEN_FLASH`, I2).
+- **Open todos** (TRIAGE "Future ideas", parked: build only when the person asks): T38 climb from rising lava, T39 co-op checkpoints / Harambe Mode, T41 swing for distance, T49 ape colour palettes, T50 downhill map, T51 uphill map (a perturbed helix; setting still open), T52 online vines held by opponents (as a `/try`), T53 a celebratory dance per ape at the finish (no sad slumps), T54 a map grid instead of the dropdown.
+- **Small follow-ups noticed, not done:** the home-page card text (in `../ptonkle.github.io/index.html`) still says "3D jungle vine-swinging race"; the river's sun sheen stays orange in colourblind mode (on purpose; could go grey); the person should check the yellow in-reach highlight against the City's orange in play; places can flicker near the inside of 90° corners (C17).
+- **Waiting on the person:** their screech sound file (L4; a synthesised placeholder plays), a listen to the hype call-outs (E7) and the sounds (S6), the room-code path by hand (N11).
+- **How the person works** (also in ~/.claude/CLAUDE.md and memory): `/todo` = append a TRIAGE row and commit, don't build; a follow-up adding detail to a parked todo amends that row, it is not a go-ahead; `/try` = build on a `try/` branch and deploy so one step reverts it; anything else = do it now and **deploy at once** (this overrides CLAUDE.md rule 8 for this person). Ship now and hand blocking follow-ups to a background agent in a worktree. Desktop only: no phone-layout work. They play live, so keep the feedback-change-deploy loop fast and report in plain words.
+- **Deploy:** `./scripts/check.sh` and `./scripts/check-online.sh` (log to a file, check the exit codes), then `TILES=0 ./scripts/pages.sh` (without `TILES=0` it remakes the 21 home-page shots, a few minutes), then commit in `../ptonkle.github.io` as `git -c user.name=ptonk -c user.email=65458712+ptonkle@users.noreply.github.com commit` and push.
+- **Feel is the person's:** TRIAGE rows 1–27 are their play feedback and override PLAN.md P4–P6. Current physics: hold left click to catch (reach 3.6–5.2 m), Space jumps, W drives along the swing (fades with speed), a clean grab keeps all speed, gravity 17, ropes slide out to 18 m.
+- **After any physics or course change:** `cargo test --release -p tool_core --test ai --test city_ai` (AI levels ordered and finishing on both maps), `--test jungle_unchanged` (the Jungle stays byte-identical), and `examples/frame_cost.rs -- <map>` for step cost.
 
 ## Deployed (stage 8, 2026-10-11, by the person's decision)
 
@@ -58,13 +61,9 @@ Group L (lobby, online and setup UI, 2026-10-12): T26 (1–3 AI opponents), T35 
 
 ## What remains
 
-- **Sloth AI** (SECOND-ORDER D rows): on the new course the easiest level sometimes fails to finish in some seeded layouts (the jungle itself passes its test); the AI agent is fixing it. T22 (voice call-outs) is still open.
-
-- **AI difficulty** (SECOND-ORDER A3, *person*): one difficulty; the AI is consistent and may beat new players. A handicap (a release delay) is the place to add levels.
-- **Future ideas** are in `TRIAGE.md` (T1: time trial medals and an Author time; a draft is parked on branch `todo/time-trial`).
-- **Feel** (R5, *person*): nobody has played it yet. Every tuning number is in `rules.rs`.
-- **Sounds** (S6, *person*): not yet listened to.
-- **Room codes** (N11): the room-code path over the public relays is untested by hand. There is no TURN server (N2).
+- The open TRIAGE todos and the person's items listed in "Start here".
+- **No TURN server** (N2): two players both behind strict NATs cannot connect online.
+- Older rows below this point in the file are the history of earlier stages; "Start here" is the current state.
 
 ## What the next session must not assume
 
