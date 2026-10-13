@@ -1559,19 +1559,7 @@ fn ghost_draws(p: &Play, alpha: i32, ticks: u32, values: &mut Vec<i32>) -> Vec<u
     let r = &g.race.racers[0];
     let at = g.prev.lerp(r.ape.pos, alpha);
     let mut b = Batch::new();
-    let pose = models::Pose {
-        hands: at,
-        yaw: r.ape.yaw,
-        rope: r
-            .ape
-            .swinging()
-            .map(|v| g.race.course.anchor(v, g.race.tick).sub(at).norm()),
-        vel: r.ape.vel,
-        grounded: r.ape.mode == crate::ape::Mode::Grounded,
-        stunned: r.ape.stun > 0,
-        tick: ticks,
-        scale: 100,
-    };
+    let pose = scene::racer_pose(&g.race, 0, at, ticks);
     models::draw(&mut b, r.ape.kind, &pose);
     let start = values.len();
     let draws = b.finish_into(render::DYNAMIC_BUFFER, values);

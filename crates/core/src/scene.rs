@@ -3,7 +3,9 @@
 //! effects. Flat colours, with the vines kept bright and clear of
 //! clutter (brief section 10: decorations must not hide what an ape grabs).
 
-use crate::course::{crown_scale, ground, rise, Course, Mushroom, Prop, TreeKind, OUTRO, STEP};
+use crate::course::{
+    crown_scale, ground, rise, Course, Mushroom, Prop, TreeKind, GROW, OUTRO, STEP,
+};
 use crate::fx::{self, cm, deg, int, mul, sin, ONE};
 use crate::geom::{right_of, v3, Affine, V3};
 use crate::mesh::{Mesh, VERTEX_VALUES};
@@ -559,29 +561,26 @@ fn emergent(b: &mut Batch, at: V3, radius: i32, height: i32, s: u8) {
         );
     }
     let top = at.add(v3(0, height, 0));
+    let g = |m: i32| mul(int(m), GROW);
     b.push(
         Mesh::Blob,
-        &placed(top, radius * 5, v3(int(24), int(6), int(24))),
+        &placed(top, radius * 5, v3(g(24), g(6), g(24))),
         EMERGENT,
         0,
     );
     for j in 0..4 {
         let a = j * deg(90) + deg(45) + radius;
-        let p = around(top, a, int(10), -ONE);
+        let p = around(top, a, g(10), -GROW);
         b.push(
             Mesh::Blob,
-            &placed(p, a, v3(int(12), int(5), int(12))),
+            &placed(p, a, v3(g(12), g(5), g(12))),
             shade(EMERGENT, 82 + j * 7),
             0,
         );
         if j % 2 == 0 {
             b.push(
                 Mesh::Cyl,
-                &rod(
-                    top.sub(v3(0, int(8), 0)),
-                    around(top, a, int(8), -int(2)),
-                    r,
-                ),
+                &rod(top.sub(v3(0, g(8), 0)), around(top, a, g(8), -g(2)), r),
                 bark,
                 0,
             );
@@ -641,9 +640,10 @@ fn fig(b: &mut Batch, at: V3, radius: i32, height: i32, s: u8) {
     }
     let top = at.add(v3(0, height, 0));
     let leaf = shade(FIG_LEAF, 92 + s as i32 * 5);
+    let g = |m: i32| mul(int(m), GROW);
     b.push(
         Mesh::Blob,
-        &placed(top, radius * 3, v3(int(15), int(8), int(15))),
+        &placed(top, radius * 3, v3(g(15), g(8), g(15))),
         leaf,
         0,
     );
@@ -651,11 +651,7 @@ fn fig(b: &mut Batch, at: V3, radius: i32, height: i32, s: u8) {
         let a = j * deg(120) + radius * 2;
         b.push(
             Mesh::Blob,
-            &placed(
-                around(top, a, int(6), -int(2)),
-                a,
-                v3(int(10), int(5), int(10)),
-            ),
+            &placed(around(top, a, g(6), -g(2)), a, v3(g(10), g(5), g(10))),
             shade(leaf, 86 + j * 6),
             0,
         );
@@ -1126,30 +1122,17 @@ pub fn dynamic(f: &Frame) -> Batch {
     }
     for (k, r) in race.racers.iter().enumerate() {
         let at = f.apes[k];
-        let rope = r.ape.swinging().map(|v| c.anchor(v, tick).sub(at).norm());
-        let pose = Pose {
-            hands: at,
-            yaw: r.ape.yaw,
-            rope,
-            vel: r.ape.vel,
-            grounded: r.ape.mode == crate::ape::Mode::Grounded,
-            stunned: r.ape.stun > 0,
-            tick: f.tick + k as u32 * 53,
-            scale: 100,
-        };
+        let pose = racer_pose(race, k, at, f.tick + k as u32 * 53);
         models::draw(&mut b, r.ape.kind, &pose);
-        // a soft shadow on the ground, so height reads
+        // a soft shadow on the ground, so height reads (as big as the
+        // drawn ape)
         let support = c.support(at);
         let feet = at.y - BODY_DROP;
         let high = (feet - support).clamp(0, int(30));
-        let size = cm(110) - high * 2 / 60;
+        let size = (cm(110) - high * 2 / 60).max(cm(60)) * RACE_SCALE / 100;
         b.push(
             Mesh::Cyl,
-            &placed(
-                v3(at.x, support + cm(4), at.z),
-                0,
-                v3(size.max(cm(60)), cm(2), size.max(cm(60))),
-            ),
+            &placed(v3(at.x, support + cm(4), at.z), 0, v3(size, cm(2), size)),
             SHADOW,
             0,
         );
@@ -1157,6 +1140,29 @@ pub fn dynamic(f: &Frame) -> Batch {
     crate::items::draw(&mut b, race);
     speed_lines(&mut b, f);
     b
+}
+
+/// How big the racers are drawn, percent of life size (TRIAGE T40: twice,
+/// so opponents are easier to see). Only the drawing grows: the physics
+/// (reach, hit ranges, `BODY_DROP`) keeps its sizes.
+pub const RACE_SCALE: i32 = 200;
+
+/// Racer `k`'s pose this frame, drawn at `at` (its hands) at `RACE_SCALE`.
+/// A grounded ape is drawn about its feet, so it still stands on the floor.
+pub fn racer_pose(race: &Race, k: usize, at: V3, tick: u32) -> Pose {
+    let a = &race.racers[k].ape;
+    Pose {
+        hands: at,
+        yaw: a.yaw,
+        rope: a
+            .swinging()
+            .map(|v| race.course.anchor(v, race.tick).sub(at).norm()),
+        vel: a.vel,
+        grounded: a.mode == crate::ape::Mode::Grounded,
+        stunned: a.stun > 0,
+        tick,
+        scale: RACE_SCALE,
+    }
 }
 
 /// A vine from its anchor: straight down and swaying a little; or, when
@@ -1372,6 +1378,55 @@ pub fn flyover_dynamic(c: &Course, tick: u32) -> Batch {
 mod tests {
     use super::*;
 
+    fn one_racer(kind: crate::rules::Kind) -> Race {
+        let e = crate::race::Entry {
+            name: "P".into(),
+            kind,
+            driver: crate::race::Driver::Local,
+        };
+        Race::new(Course::jungle(), &[e], false, 1)
+    }
+
+    /// The lowest and highest instance centres in a batch (y).
+    fn heights(b: Batch) -> (i32, i32) {
+        let (v, _) = b.finish(crate::render::DYNAMIC_BUFFER);
+        let ys = v.chunks(crate::render::INSTANCE_VALUES).map(|i| i[7]);
+        (ys.clone().min().unwrap(), ys.max().unwrap())
+    }
+
+    #[test]
+    fn racers_are_drawn_twice_life_size_and_stand_on_the_ground() {
+        // TRIAGE T40
+        for kind in crate::rules::Kind::ALL {
+            let mut race = one_racer(kind);
+            let a = &mut race.racers[0].ape;
+            a.mode = crate::ape::Mode::Grounded;
+            let floor = race.course.support(a.pos);
+            a.pos.y = floor + BODY_DROP;
+            let at = race.racers[0].ape.pos;
+            let pose = racer_pose(&race, 0, at, 40);
+            let mut big = Batch::new();
+            models::draw(&mut big, kind, &pose);
+            let mut life = Batch::new();
+            models::draw(&mut life, kind, &Pose { scale: 100, ..pose });
+            let (lo, hi) = heights(big);
+            let (lo1, hi1) = heights(life);
+            assert!(
+                (hi - lo) * 10 >= (hi1 - lo1) * 18,
+                "{kind:?}: {} vs {} cm tall",
+                (hi - lo) * 100 / ONE,
+                (hi1 - lo1) * 100 / ONE
+            );
+            // the feet stay on the floor, not sunk into it
+            assert!(
+                lo >= floor - cm(2),
+                "{kind:?}: sunk {} cm",
+                (floor - lo) * 100 / ONE
+            );
+            assert!(lo <= floor + cm(30), "{kind:?}: floating");
+        }
+    }
+
     #[test]
     fn the_terrain_is_whole_upward_triangles() {
         let c = Course::jungle();
@@ -1396,7 +1451,7 @@ mod tests {
         let c = Course::jungle();
         let s = scenery(&c);
         let n = s.values.len() / crate::render::INSTANCE_VALUES;
-        assert!(n > 1000 && n < 20_000, "{n}");
+        assert!(n > 1000 && n < 30_000, "{n}");
         // one chunk per 100 m, and the clearing past the finish
         assert_eq!(s.chunks.len(), c.path.len().div_ceil(CHUNK) + 1);
         // every terrain vertex is drawn by exactly one chunk

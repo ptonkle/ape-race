@@ -81,17 +81,22 @@ pub fn crown(kind: TreeKind, height: i32) -> (i32, i32) {
             let k = crown_scale(height);
             (mul(int(11), k), mul(int(5), k))
         }
-        TreeKind::Emergent => (int(17), int(5)),
+        TreeKind::Emergent => (mul(int(17), GROW), mul(int(5), GROW)),
         TreeKind::Palm => (int(7), int(3)),
-        TreeKind::Fig => (int(12), int(6)),
+        TreeKind::Fig => (mul(int(12), GROW), mul(int(6), GROW)),
         TreeKind::Bamboo => (int(4), height),
         TreeKind::Hill => (int(9), height * 3 / 4),
     }
 }
 
-/// A broadleaf's crown grows with the tree: half size on a young tree.
+/// How much bigger the canopy trees' crowns are than at first (TRIAGE
+/// T31: much larger trees, so the crowns nearest the vines close overhead).
+pub const GROW: i32 = ONE * 3 / 2;
+
+/// A broadleaf's crown grows with the tree: half size on a young tree,
+/// twice the first size on a giant (TRIAGE T31).
 pub fn crown_scale(height: i32) -> i32 {
-    fx::div(height, int(65)).clamp(ONE / 2, ONE * 13 / 10)
+    fx::div(height, int(46)).clamp(ONE / 2, ONE * 2)
 }
 
 /// Something in the jungle that is only drawn.
@@ -602,40 +607,40 @@ fn scenery(c: &mut Course, dice: &mut Dice) {
     use TreeKind::*;
     let hw = c.half_width;
     let end = c.length + OUTRO;
-    // three rows of trees along each wall, of five kinds and of heights
-    // from 9 m (bamboo) to 100 m (TRIAGE T16, T21)
+    // four rows of trees along each wall, of five kinds and of heights
+    // from 9 m (bamboo) to 115 m, with thick trunks (TRIAGE T16, T21, T31)
     let mut s = 0;
     while s < end {
         let p = c.point(s);
         let r = right_of(c.heading_at(s));
         for sign in [-1, 1] {
-            for row in 0..3 {
-                let off = hw + int(2) + int(row * 7) + int(dice.range(0, 4));
+            for row in 0..4 {
+                let off = hw + int(2) + int(row * 6) + int(dice.range(0, 4));
                 let q = p.add(r.scale(off * sign));
                 let q = v3(
                     q.x + int(dice.range(-2, 2)),
                     0,
                     q.z + int(dice.range(-2, 2)),
                 );
-                let radius = cm(dice.range(70, 160)) + row * cm(20);
+                let radius = cm(dice.range(130, 260)) + row * cm(30);
                 let shade = dice.below(4) as u8;
                 let roll = dice.below(20);
                 let (kind, height) = if row == 0 {
                     // nearest the vines: crowns well above their anchors
                     match roll {
-                        0..=10 => (Broadleaf, int(dice.range(60, 78))),
-                        11..=15 => (Emergent, int(dice.range(80, 100))),
-                        16..=17 => (Fig, int(dice.range(62, 74))),
+                        0..=10 => (Broadleaf, int(dice.range(66, 90))),
+                        11..=15 => (Emergent, int(dice.range(92, 115))),
+                        16..=17 => (Fig, int(dice.range(68, 82))),
                         _ => (Palm, int(dice.range(16, 28))),
                     }
                 } else {
                     // deeper in: young trees and giants
                     match roll {
-                        0..=3 => (Broadleaf, int(dice.range(24, 34))),
-                        4..=6 => (Broadleaf, int(dice.range(58, 80))),
-                        7..=9 => (Emergent, int(dice.range(82, 100))),
+                        0..=3 => (Broadleaf, int(dice.range(24, 38))),
+                        4..=6 => (Broadleaf, int(dice.range(64, 90))),
+                        7..=9 => (Emergent, int(dice.range(90, 115))),
                         10..=13 => (Palm, int(dice.range(14, 30))),
-                        14..=15 => (Fig, int(dice.range(60, 72))),
+                        14..=15 => (Fig, int(dice.range(64, 80))),
                         _ => (Bamboo, int(dice.range(9, 16))),
                     }
                 };
@@ -651,7 +656,7 @@ fn scenery(c: &mut Course, dice: &mut Dice) {
                 });
             }
         }
-        s += int(dice.range(8, 12) * 2);
+        s += int(dice.range(6, 9) * 2);
     }
     // a branch from the nearer wall to each vine's anchor
     for v in &c.vines {
@@ -743,18 +748,19 @@ fn scenery(c: &mut Course, dice: &mut Dice) {
         let r = right_of(h);
         let base = c.point(s);
         let clearing = s > c.length + int(25) && s < c.length + int(70);
-        for k in 0..4 {
-            // three on the floor, one deeper among the trunks
+        for k in 0..6 {
+            // three on the floor, three deeper among the trunks (TRIAGE
+            // T31: denser cover)
             let off = if k < 3 {
                 int(dice.range(-19, 19))
             } else {
-                int(dice.range(21, 42)) * if dice.below(2) == 0 { 1 } else { -1 }
+                int(dice.range(21, 46)) * if dice.below(2) == 0 { 1 } else { -1 }
             };
             let p = base.add(r.scale(off)).add(h.scale(int(dice.range(-2, 2))));
             let at = v3(p.x, ground(p.x, p.z), p.z);
             let roll = dice.below(20);
             let (size, yaw, shade) = (
-                dice.range(50, 200),
+                dice.range(50, 200) + if k < 3 { 0 } else { 80 },
                 dice.range(0, fx::TURN),
                 dice.below(4) as u8,
             );
@@ -764,7 +770,7 @@ fn scenery(c: &mut Course, dice: &mut Dice) {
             c.props.push(match roll {
                 0..=5 => Prop::Fern {
                     at,
-                    size: cm(size.clamp(80, 160)),
+                    size: cm(size.clamp(80, 240)),
                     yaw,
                 },
                 6..=9 => Prop::Bush {
@@ -1033,6 +1039,38 @@ mod tests {
             hi / ONE
         );
         assert_eq!(kinds.len(), 6, "{kinds:?}");
+    }
+
+    #[test]
+    fn the_trees_are_large_and_the_cover_dense() {
+        // TRIAGE T31: thick trunks and wide crowns, close together
+        let c = Course::jungle();
+        let mut radii = Vec::new();
+        let mut spreads = Vec::new();
+        for p in &c.props {
+            if let Prop::Tree {
+                radius,
+                height,
+                kind,
+                ..
+            } = *p
+            {
+                if kind != TreeKind::Hill && kind != TreeKind::Bamboo && height > int(55) {
+                    radii.push(radius);
+                    spreads.push(crown(kind, height).0);
+                }
+            }
+        }
+        radii.sort();
+        spreads.sort();
+        let per_km = radii.len() as i32 * 1000 / ((c.length + OUTRO) / ONE);
+        let (r, w) = (radii[radii.len() / 2], spreads[spreads.len() / 2]);
+        assert!(
+            r >= int(2) && w >= int(18) && per_km >= 250,
+            "canopy trees: trunk {} cm, crown {} m, {per_km} a km",
+            r * 100 / ONE,
+            w / ONE
+        );
     }
 
     #[test]
