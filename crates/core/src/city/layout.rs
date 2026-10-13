@@ -14,8 +14,8 @@
 //!   high, a cable whirls an ape round (`examples/corner_swing.rs`: a
 //!   quarter turn in 0.4–1 s, keeping 80–95% of the speed), so it lets go
 //!   facing down the new street.
-//! - **Vines**: stations every 26–32 m with two lanes of three (the
-//!   Jungle: every 22–28 m, two or three), a low vine at every third
+//! - **Vines**: stations every 24–30 m with two lanes of three (the
+//!   Jungle: every 22–28 m, two or three), a low vine at every other
 //!   station to climb back up by.
 //! - **The bridge**: a deck 20 m wide at street level over the river,
 //!   narrower than the corridor, so an ape can fall in beside it. Vines
@@ -190,21 +190,29 @@ pub fn city_seeded(seed: u64) -> Course {
     let deck_s0 = river.from - DECK_ON;
     let deck_s1 = river.to + DECK_ON;
     let len_m = c.length / ONE;
+    // the stretches without stations: 90° corners (their cables instead)
+    // and the bridge (its cables); a station always stands 12–16 m short
+    // of one, so there is a way into it
+    let mut gaps: Vec<(i32, i32)> = corners
+        .iter()
+        .filter(|k| k.turn.abs() == 90)
+        .map(|k| (k.s0 / ONE - 12, k.s1 / ONE + 4))
+        .collect();
+    gaps.push((deck_s0 / ONE - 10, deck_s1 / ONE + 10));
     let mut s = 32;
+    let mut last = 0;
     let mut station = 0;
     while s < len_m - 30 {
+        if let Some(&(g0, g1)) = gaps.iter().find(|&&(g0, g1)| s + 4 > g0 && s < g1) {
+            if last < g0 - 18 && s + 4 > g0 {
+                s = g0 - 4;
+            } else {
+                s = g1 + 1;
+                continue;
+            }
+        }
+        last = s;
         let si = int(s);
-        if let Some(k) = corners
-            .iter()
-            .find(|k| k.turn.abs() == 90 && si > k.s0 - int(22) && si < k.s1 + int(12))
-        {
-            s = (k.s1 + int(12)) / ONE + 1;
-            continue;
-        }
-        if si > deck_s0 - int(12) && si < deck_s1 + int(10) {
-            s = (deck_s1 + int(10)) / ONE + 1;
-            continue;
-        }
         let h = c.heading_at(si);
         let r = right_of(h);
         let skip = if station == 0 { 3 } else { dice.below(3) as i32 };
@@ -236,7 +244,7 @@ pub fn city_seeded(seed: u64) -> Course {
             lanes.push((off, anchor_h - length));
         }
         stations.push(here);
-        if station % 3 == 1 {
+        if station % 2 == 1 {
             // a low vine to climb back up by
             let off = dice.range(-9, 9);
             let b = c.point(int(s + 7)).add(r.scale(int(off)));
@@ -247,7 +255,7 @@ pub fn city_seeded(seed: u64) -> Course {
                 at: int(s + 7),
             });
             hangs.push((c.vines.len() - 1, Hang::Street));
-        } else if station > 0 && (station % 4 == 2 || station % 16 == 7) {
+        } else if station > 0 && (station % 4 == 2 || station % 8 == 4) {
             // a stopped car short of a lane vine low enough for its bounce
             if let Some(&(off, _)) = lanes.iter().find(|(_, bottom)| *bottom < int(18)) {
                 let at = s - 11;
@@ -257,7 +265,7 @@ pub fn city_seeded(seed: u64) -> Course {
             }
         }
         station += 1;
-        s += dice.range(26, 32);
+        s += dice.range(24, 30);
     }
 
     // the corners' cables
@@ -829,10 +837,11 @@ fn hangers(c: &Course, blocks: &[Block], hangs: &[(usize, Hang)], dice: &mut Dic
                         v3(foot.x, ground(foot.x, foot.z), foot.z),
                         a,
                     )
-                } else if dice.below(3) > 0 && behind(side) < a.y - int(4) {
-                    // a crane on the roof beside it
-                    let p = on_line.add(r.scale(side * (hw + int(6))));
-                    (HangerKind::Crane, v3(p.x, behind(side), p.z), a)
+                } else if dice.below(6) > 0 && behind(-1).min(behind(1)) < a.y - int(4) {
+                    // a crane on the lower roof beside it
+                    let low = if behind(-1) <= behind(1) { -1 } else { 1 };
+                    let p = on_line.add(r.scale(low * (hw + int(6))));
+                    (HangerKind::Crane, v3(p.x, behind(low), p.z), a)
                 } else {
                     (HangerKind::Helicopter, a.add(v3(0, int(3), 0)), a)
                 }

@@ -393,4 +393,4 @@ pub mod style {
 }
 
 mod layout;
-pub use layout::{city, city_seeded};
+pub use layout::{boat_size, car_size, city, city_seeded, DECK_HALF};
