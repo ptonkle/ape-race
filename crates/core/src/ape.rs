@@ -5,7 +5,7 @@
 use serde::{Deserialize, Serialize};
 
 use crate::course::Course;
-use crate::fx::{self, div, isqrt, mul, ONE};
+use crate::fx::{self, cm, div, isqrt, mul, ONE};
 use crate::geom::{facing, right_of, v3, V3};
 use crate::rules::*;
 
@@ -87,6 +87,9 @@ pub struct Ape {
     /// the AI's plan for a swing and its flight (made on the grab) stays
     /// exact.
     pub banana_drag: u32,
+    /// climbing out of the City's river: where the hands end up (on the
+    /// bank or the bridge deck)
+    pub climb: Option<V3>,
 }
 
 impl Ape {
@@ -107,6 +110,7 @@ impl Ape {
             release_bonus: 0,
             bananas: 0,
             banana_drag: 0,
+            climb: None,
         }
     }
 
@@ -171,6 +175,12 @@ impl Ape {
         }
         let stunned = self.stun > 0;
 
+        // climbing out of the river (the City): nothing else until out
+        if let Some(top) = self.climb {
+            self.climb_out(top, course);
+            return;
+        }
+
         // let go
         if let Mode::Swinging { vine, .. } = self.mode {
             if !c.grab || stunned {
@@ -210,9 +220,9 @@ impl Ape {
         match self.mode {
             Mode::Swinging { vine, rope } => self.swing(vine, rope, wish, course, tick),
             Mode::Flying => self.fly(wish),
-            Mode::Grounded => self.run(wish),
+            Mode::Grounded => self.run(wish, course),
         }
-        self.collide(course);
+        self.collide(course, tick);
         if self.vel.len_xz() > ONE {
             let target = crate::geom::yaw_of(self.vel);
             let turn = fx::wrap(target - self.yaw);
@@ -375,7 +385,70 @@ impl Ape {
         self.pos = self.pos.add(self.vel.scale(DT));
     }
 
-    fn run(&mut self, wish: V3) {
+    /// Whether the ape is swimming in the City's river.
+    pub fn swimming(&self, course: &Course) -> bool {
+        self.mode == Mode::Grounded
+            && self.climb.is_none()
+            && course.water(self.pos).is_some_and(|level| self.feet().y < level)
+    }
+
+    /// In the river: swim (the river's running) toward the nearest way out
+    /// unless WASD say otherwise, and climb out on reaching a bank or a
+    /// ladder; a boat bounces the swimmer up (as a mushroom).
+    fn swim(&mut self, wish: V3, course: &Course) {
+        let exit = course.water_exit(self.pos);
+        let dir = match exit {
+            _ if wish != V3::ZERO => wish,
+            Some((to, _)) if to.flat().dist(self.pos.flat()) > cm(20) => {
+                to.flat().sub(self.pos.flat()).norm()
+            }
+            _ => V3::ZERO,
+        };
+        let flat = self.vel.flat();
+        let target = dir.scale(SWIM_SPEED);
+        let diff = target.sub(flat);
+        let step = mul(WATER_DRAG, DT);
+        let next = if diff.len() <= step {
+            target
+        } else {
+            flat.add(diff.with_len(step))
+        };
+        self.vel = v3(next.x, 0, next.z);
+        self.pos = self.pos.add(self.vel.scale(DT));
+        if let Some((to, Some(top))) = exit {
+            if to.flat().dist(self.pos.flat()) <= CLIMB_REACH + BODY_RADIUS {
+                self.climb = Some(top);
+            }
+        }
+    }
+
+    /// Up the bank or the ladder, then a step onto the top.
+    fn climb_out(&mut self, top: V3, course: &Course) {
+        let step = mul(CLIMB_SPEED, DT);
+        if self.pos.y < top.y {
+            self.pos.y = (self.pos.y + step).min(top.y);
+            self.vel = v3(0, CLIMB_SPEED, 0);
+        } else {
+            let d = top.flat().sub(self.pos.flat());
+            if d.len() <= step {
+                self.pos = top;
+                self.vel = V3::ZERO;
+                self.climb = None;
+            } else {
+                let m = d.with_len(step);
+                self.pos = self.pos.add(m);
+                self.vel = m.scale(int_speed(TICKS_PER_SECOND));
+            }
+        }
+        self.mode = Mode::Grounded;
+        self.hint = course.nearest(self.pos, self.hint);
+    }
+
+    fn run(&mut self, wish: V3, course: &Course) {
+        if self.swimming(course) {
+            self.swim(wish, course);
+            return;
+        }
         let flat = self.vel.flat();
         let speed = flat.len();
         let run = self.phys.run_speed;
@@ -405,7 +478,7 @@ impl Ape {
         self.pos = self.pos.add(self.vel.scale(DT));
     }
 
-    fn collide(&mut self, course: &Course) {
+    fn collide(&mut self, course: &Course, tick: u32) {
         self.hint = course.nearest(self.pos, self.hint);
         let (p, v, wall) = course.contain(self.pos, self.vel, self.hint);
         self.pos = p;
@@ -416,8 +489,9 @@ impl Ape {
         // a bounce mushroom throws a falling or running ape back up
         // toward the vines (TRIAGE T5)
         if self.swinging().is_none() && self.vel.y <= 0 {
-            if let Some(m) = course.mushroom_under(self.pos) {
-                self.pos.y = self.pos.y.max(course.mushrooms[m].top.y + BODY_DROP);
+            if let Some(m) = course.bouncer_under(self.pos, tick) {
+                let top = course.bouncer(m, tick).top.y;
+                self.pos.y = self.pos.y.max(top + BODY_DROP);
                 self.vel.y = MUSHROOM_BOUNCE;
                 // and a push forward along the heading, as a reward (T48)
                 let flat = self.vel.flat();
@@ -444,7 +518,10 @@ impl Ape {
                 // rather than stopping dead (TRIAGE T5)
                 // ... unless it is the end of the ape's own hop (TRIAGE row 25)
                 let flat = self.vel.flat();
-                if self.mode == Mode::Flying && flat.len() > ONE && !self.hopped {
+                // ... or a splash into the City's river, which takes the
+                // speed instead (see `swim`)
+                let splash = course.water(self.pos).is_some();
+                if self.mode == Mode::Flying && flat.len() > ONE && !self.hopped && !splash {
                     let roll = mul(-self.vel.y, LANDING_ROLL);
                     self.vel = flat.with_len(flat.len() + roll);
                 }

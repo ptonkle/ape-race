@@ -98,6 +98,25 @@ pub const WALL_BOUNCE: i32 = ONE * 3 / 10;
 /// Nothing flies higher than this above the ground.
 pub const CEILING: i32 = int(66);
 
+// ---- the City (2026-10-12) ----
+
+/// The City's river: its surface this far below the street.
+pub const RIVER_DROP: i32 = int(4);
+/// A swimmer's feet hang this far below the surface (the head stays out).
+pub const SWIM_SINK: i32 = cm(100);
+/// Swimming is the river's version of running: this fast, toward the
+/// nearest way out (a bank, a ladder up to the deck, a boat) unless WASD
+/// say otherwise. Kept short and forgiving: no exit is far.
+pub const SWIM_SPEED: i32 = int(5);
+/// Water takes the speed of a splash down to swimming speed this fast.
+pub const WATER_DRAG: i32 = int(40);
+/// A swimmer this close to a bank or a ladder (plus its body's radius)
+/// climbs out, at this speed.
+pub const CLIMB_REACH: i32 = cm(120);
+pub const CLIMB_SPEED: i32 = int(6);
+/// The bridge deck's ladders down to the water are this far apart.
+pub const LADDER_EVERY: i32 = int(20);
+
 /// The five stats of a kind of ape, each 1 to 5. Every kind's stats add up
 /// to [`STAT_SUM`], so no kind is simply better (PLAN P8).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
