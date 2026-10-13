@@ -1342,12 +1342,18 @@ impl App {
                 (Batch::new(), b)
             }
         };
+        let (mut vines, mut batch) = (vines, batch);
+        let halos = (vines.take_halos(), batch.take_halos());
         let mut draws = self.scenery().draws_near(cam.eye);
         let mut values = Vec::new();
         draws.extend(vines.finish_as(render::DYNAMIC_BUFFER, Some(render::VINES), &mut values));
         draws.extend(batch.finish_into(render::DYNAMIC_BUFFER, &mut values));
         if let (Stage::Race, Some(p)) = (self.stage, &self.play) {
             draws.extend(ghost_draws(p, self.alpha, self.ticks, &mut values));
+        }
+        // the soft glows (the City's wires) over everything else
+        for h in [halos.0, halos.1] {
+            draws.extend(h.finish_as(render::DYNAMIC_BUFFER, Some(render::HALO), &mut values));
         }
         (view, values, draws)
     }
@@ -2611,6 +2617,39 @@ mod tests {
         a.act("menu.quit", "");
         a.screen = Screen::Settings;
         assert!(a.ui().contains("settings.colourblind"));
+    }
+
+    #[test]
+    fn the_citys_wire_glows_are_drawn_last_and_the_jungle_has_none() {
+        // the person (2026-10-12): soft glows round the City's wires, added
+        // over everything (so drawn after every solid shape)
+        let mut a = app();
+        let kinds = |a: &App| -> Vec<u32> {
+            a.frame()
+                .2
+                .chunks(render::DRAW_VALUES)
+                .map(|d| d[6])
+                .collect()
+        };
+        assert!(!kinds(&a).contains(&render::HALO), "the Jungle's title");
+        a.act("menu.race", "");
+        a.act("menu.start", "");
+        assert!(!kinds(&a).contains(&render::HALO), "a Jungle race");
+        let mut a = app();
+        a.act("flag.map", "city");
+        for stage in ["title", "race"] {
+            if stage == "race" {
+                a.act("menu.race", "");
+                a.act("menu.start", "");
+            }
+            let k = kinds(&a);
+            let first = k.iter().position(|d| *d == render::HALO);
+            let first = first.unwrap_or_else(|| panic!("no glows on the City's {stage}"));
+            assert!(
+                k[first..].iter().all(|d| *d == render::HALO),
+                "{stage}: {k:?}"
+            );
+        }
     }
 
     #[test]

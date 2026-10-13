@@ -33,6 +33,9 @@ pub const KEEPS_COLOUR: u32 = 0;
 pub const SCENERY: u32 = 1;
 pub const GROUND: u32 = 2;
 pub const VINES: u32 = 3;
+/// 4: soft glows (`Batch::push_halo`), added over everything drawn before
+/// them, so they come last.
+pub const HALO: u32 = 4;
 pub const BYTES_PER_VALUE: usize = 4;
 pub const STATIC_BUFFER: u32 = 0;
 pub const DYNAMIC_BUFFER: u32 = 1;
@@ -44,13 +47,31 @@ pub const FAR: i32 = fx::int(600);
 #[derive(Debug, Clone, Default)]
 pub struct Batch {
     lists: Vec<Vec<i32>>,
+    /// soft glows, drawn after everything else (`HALO`)
+    halos: Option<Box<Batch>>,
 }
 
 impl Batch {
     pub fn new() -> Batch {
         Batch {
             lists: vec![Vec::new(); Mesh::ALL.len()],
+            halos: None,
         }
+    }
+
+    /// A soft glow of colour `c` through the shape, strongest (`strength`)
+    /// where it faces the eye and fading to nothing at its outline, added
+    /// over what is behind it; drawn last (`take_halos`, `HALO`). A
+    /// `strength` over ONE adds evenly, by the part over ONE.
+    pub fn push_halo(&mut self, mesh: Mesh, a: &Affine, c: Rgb, strength: i32) {
+        self.halos
+            .get_or_insert_with(|| Box::new(Batch::new()))
+            .push(mesh, a, c, strength);
+    }
+
+    /// The halos pushed into this batch, taken out of it.
+    pub fn take_halos(&mut self) -> Batch {
+        self.halos.take().map_or_else(Batch::new, |b| *b)
     }
 
     /// One shape. `glow` 0 is lit normally; ONE is drawn at full colour
@@ -68,6 +89,22 @@ impl Batch {
 
     pub fn count_of(&self, mesh: Mesh) -> usize {
         self.lists[mesh as usize].len() / INSTANCE_VALUES
+    }
+
+    /// Where each mesh's list ends now, for `recolour_since`.
+    pub fn marks(&self) -> Vec<usize> {
+        self.lists.iter().map(|l| l.len()).collect()
+    }
+
+    /// Gives every shape pushed since `marks` the colour `f` makes of its
+    /// colour and glow.
+    pub fn recolour_since(&mut self, marks: &[usize], f: impl Fn(Rgb, i32) -> Rgb) {
+        for (list, from) in self.lists.iter_mut().zip(marks) {
+            for s in list[*from..].chunks_mut(INSTANCE_VALUES) {
+                let c = f([s[12], s[13], s[14]], s[15]);
+                s[12..15].copy_from_slice(&c);
+            }
+        }
     }
 
     /// The instance values, and one draw per mesh that has any.

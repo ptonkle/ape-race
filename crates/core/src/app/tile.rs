@@ -11,7 +11,8 @@
 //! (the racer watched, 0), `view` (`chase`, `orbit` or `trackside`),
 //! `yaw` and `pitch` (the orbit's, in degrees; the yaw from straight
 //! behind, along the course), `dist` (the orbit's distance, in decimetres)
-//! and `hud` (`on` shows the HUD).
+//! `hud` (`on` shows the HUD), and `blind` and `jojo` (`on`: the
+//! colourblind mode, JOJO MODE).
 
 use crate::ai::Difficulty;
 use crate::camera::Orbit;
@@ -43,6 +44,8 @@ pub struct Tile {
     pub pitch: i32,
     pub dist: i32,
     pub hud: bool,
+    pub blind: bool,
+    pub jojo: bool,
 }
 
 impl Tile {
@@ -62,6 +65,8 @@ impl Tile {
             pitch: orbit.pitch,
             dist: orbit.dist,
             hud: false,
+            blind: false,
+            jojo: false,
         };
         for pair in text.split(',') {
             let Some((k, v)) = pair.split_once('=') else {
@@ -86,6 +91,8 @@ impl Tile {
                 "pitch" => t.pitch = n.map(deg).unwrap_or(t.pitch),
                 "dist" => t.dist = n.map(|d| int(d) / 10).unwrap_or(t.dist),
                 "hud" => t.hud = v == "on",
+                "blind" => t.blind = v == "on",
+                "jojo" => t.jojo = v == "on",
                 _ => {}
             }
         }
@@ -112,6 +119,8 @@ impl App {
     pub(super) fn tile(&mut self, spec: &str) {
         let t = Tile::parse(spec);
         self.settings.map = t.map;
+        self.settings.colourblind = t.blind;
+        self.settings.speed_colours = t.jojo;
         self.ensure_course(t.map);
         let Some(course) = self.course_of(t.map).cloned() else {
             return;

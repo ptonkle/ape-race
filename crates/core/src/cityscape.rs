@@ -20,16 +20,17 @@ use crate::render::{placed, rgb, rod, shade, Batch, Camera, Rgb};
 use crate::scene::{self, Look, Scenery, CHUNK};
 use crate::vehicles;
 
-/// The City at dusk: a rose and violet haze low down, a deep blue from
-/// above, a low orange sun, and the fog far enough out for the skyline.
+/// The City at dusk: an amber and orange haze low down, a deeper warm
+/// rust from above, a low golden sun, and the fog far enough out for the
+/// skyline.
 pub fn look() -> Look {
     Look {
-        sky: rgb(84, 92, 150),
+        sky: rgb(150, 92, 74),
         fog: FOG,
         fog_range: (int(80), int(290)),
         light_dir: v3(-cm(62), cm(30), cm(72)).norm(),
-        light: rgb(255, 156, 96),
-        ground: rgb(70, 58, 72),
+        light: rgb(255, 172, 100),
+        ground: rgb(84, 62, 52),
     }
 }
 
@@ -66,60 +67,189 @@ const SUN_AT: i32 = int(520);
 
 /// The low sun: a glowing disc on the horizon with rings of warm haze
 /// round it, kept at the same place in the sky wherever the eye is (drawn
-/// round the eye each frame, unfogged: `glow` over ONE), and its glitter
-/// across the river's water toward the eye.
-pub fn sun(b: &mut Batch, c: &Course, eye: V3) {
+/// round the eye each frame, unfogged: `glow` over ONE), and its path of
+/// glints across the river's water toward the eye (`sun_path`).
+pub fn sun(b: &mut Batch, c: &Course, eye: V3, tick: u32) {
     let dir = sun_dir(c);
+    // smooth discs (squashed balls) facing the eye, the smallest in front
     let face = |at: V3, r: i32| Affine {
         c0: right_of(dir).scale(r * 2),
         c1: dir.scale(cm(20)),
         c2: right_of(dir).cross(dir).norm().scale(r * 2),
         t: at,
     };
-    let rings = [
-        (int(30), rgb(255, 236, 170), 0),
-        (int(46), rgb(255, 170, 90), cm(200)),
-        (int(74), rgb(236, 120, 96), cm(400)),
-        (int(118), rgb(184, 104, 120), cm(600)),
-    ];
-    for (r, colour, back) in rings {
+    for (r, colour, back) in HALO {
         let at = eye.add(dir.scale(SUN_AT + back));
-        b.push(Mesh::Cyl, &face(at, r), colour, ONE * 2);
+        b.push(Mesh::Sphere, &face(at, r), colour, ONE * 2);
     }
-    // the glitter: short bright strips on the water along the line to it
-    let Some(r) = c.city.as_ref().and_then(|l| l.river) else {
-        return;
-    };
+    if let Some(r) = c.city.as_ref().and_then(|l| l.river) {
+        sun_path(b, c, r, eye, dir, tick);
+    }
+}
+
+/// The sun and its halo, from the disc out: radius, colour, and how far
+/// behind the disc each ring sits. Gold at the heart, through orange to
+/// the amber of the haze (`FOG`).
+pub const HALO: [(i32, Rgb, i32); 5] = [
+    (int(28), rgb(255, 246, 200), 0),
+    (int(42), rgb(255, 206, 120), cm(200)),
+    (int(64), rgb(255, 164, 78), cm(400)),
+    (int(98), rgb(240, 134, 66), cm(600)),
+    (int(150), rgb(222, 120, 66), cm(800)),
+];
+
+/// The sun's path on the water is drawn in bands of distance from the eye,
+/// each twice as far out as the one before with glints twice the size, so
+/// each band draws about as many. The glints sit on a grid fixed to the
+/// water (they stay put as the eye moves and the path follows the eye),
+/// thickest and brightest on the line to the sun and thinning out to
+/// either side, and each twinkles on its own beat.
+const PATH_BANDS: i32 = 6;
+/// The first band starts this far from the eye.
+const PATH_NEAR: i32 = int(5);
+/// The rows of glints in a band, and the grid's cells across at its start.
+const PATH_ROWS: i32 = 8;
+const PATH_CELLS: i32 = 32;
+/// The path's colours, from its edges in to its heart.
+const GLINT: [Rgb; 4] = [
+    rgb(214, 112, 60),
+    rgb(246, 152, 72),
+    rgb(255, 202, 116),
+    rgb(255, 240, 196),
+];
+/// Ticks per twinkle step.
+const TWINKLE: u32 = 9;
+/// The soft sheen under the glints: layers of warm light added over the
+/// water (`Batch::push_halo`), each narrower than the last (its width a
+/// share of the path's), so the path is brightest on its line and fades
+/// into the water at its edges.
+const SHEEN: [i32; 5] = [ONE, ONE * 4 / 5, ONE * 3 / 5, ONE * 2 / 5, ONE / 5];
+const SHEEN_COLOUR: Rgb = rgb(255, 150, 80);
+/// How much each layer adds at full strength, and the distance out at
+/// which it is full (it builds from a quarter at the eye).
+const SHEEN_ADD: i32 = ONE / 6;
+const SHEEN_FULL: i32 = int(120);
+
+fn sun_path(b: &mut Batch, c: &Course, r: River, eye: V3, dir: V3, tick: u32) {
     let f = RiverFrame::of(c, Some(r));
-    let flat = dir.flat().norm();
-    let mut t = int(12);
-    let mut k = 0;
-    while t < int(280) {
-        let p = eye.flat().add(flat.scale(t));
-        if f.river_here(c, p) {
-            let w = cm(120) + t / 25;
-            let len = int(4) + t / 14;
-            let side = right_of(flat).scale(mul(sin(k * 9000), w));
-            let at = v3(p.x, r.level + cm(3), p.z).add(side);
-            let colour = if k % 2 == 0 {
-                rgb(255, 200, 120)
-            } else {
-                rgb(255, 150, 90)
-            };
-            b.push(
-                Mesh::Cube,
-                &panel(at, right_of(flat), V3::UP, flat, w, cm(2), len),
-                colour,
-                ONE,
+    let along = dir.flat().norm();
+    let across = right_of(along);
+    let e = eye.flat();
+    let (ea, ex) = (e.dot(along), e.dot(across));
+    let high = (eye.y - r.level).max(int(2));
+    let mut t0 = PATH_NEAR;
+    for band in 0..PATH_BANDS {
+        let row = t0 / PATH_ROWS;
+        let first = (ea + t0).div_euclid(row);
+        for j in first..first + PATH_ROWS + 1 {
+            let t = j * row - ea;
+            if t < t0 || t >= t0 * 2 {
+                continue;
+            }
+            // the river near its crossing, under this row's middle
+            let mid = e.add(along.scale(t));
+            if !f.river_here(c, mid) {
+                continue;
+            }
+            glint_row(
+                b,
+                &f,
+                r,
+                (band, j),
+                (mid, t, t0),
+                (along, across, ex, high),
+                tick,
             );
         }
-        t += int(4) + t / 16;
-        k += 1;
+        t0 *= 2;
+    }
+}
+
+/// One row of the sun's path: `mid` on the line to the sun, `t` out from
+/// the eye in the band starting `t0` out.
+fn glint_row(
+    b: &mut Batch,
+    f: &RiverFrame,
+    r: River,
+    (band, j): (i32, i32),
+    (mid, t, t0): (V3, i32, i32),
+    (along, across, ex, high): (V3, V3, i32, i32),
+    tick: u32,
+) {
+    let row = t0 / PATH_ROWS;
+    let cell = t0 / PATH_CELLS;
+    // half the path's width: the same angle across wherever it is seen,
+    // so wider farther out
+    let w = (t / 8).max(cm(30));
+    // flat on the water, and deep enough along the line to be seen at a
+    // grazing angle: about as thick on screen near or far
+    let deep = (fx::div(mul(t, t), high) / 220).clamp(cm(6), row * 2 / 3);
+    // under the glints, the path's soft body (`SHEEN`), each row meeting
+    // the next; lifted with the distance, clear of the water in the depth
+    // buffer, and brighter farther out
+    let lift = cm(2) + t / 1000;
+    let add = mul(SHEEN_ADD, fx::div(t, SHEEN_FULL).clamp(ONE / 4, ONE));
+    let mut ripple = fx::Dice(seed_of((band * 8192 + j.rem_euclid(8192)) as usize, 0x5EE));
+    for (k, wide) in SHEEN.into_iter().enumerate() {
+        let at = mid.add(v3(0, r.level + lift * (k as i32 + 1), 0));
+        // each row's edges ripple a little, so the layers' steps from row
+        // to row read as waves, not stairs
+        let wide = wide * (85 + ripple.below(31) as i32) / 100;
+        let off = mul(w, ripple.below(ONE as u32 / 5) as i32 - ONE / 10);
+        b.push_halo(
+            Mesh::Quad,
+            &panel(
+                at.add(across.scale(off)),
+                across,
+                V3::UP,
+                along,
+                mul(w * 2, wide),
+                ONE,
+                row * 3 / 5,
+            ),
+            SHEEN_COLOUR,
+            ONE + add,
+        );
+    }
+    let lo = (ex - w).div_euclid(cell);
+    let hi = (ex + w).div_euclid(cell);
+    for k in lo..=hi {
+        let seed = seed_of(
+            (band * 8192 + j.rem_euclid(8192)) as usize,
+            k.rem_euclid(1 << 20) as usize,
+        );
+        let mut d = fx::Dice(seed);
+        // across from the line to the sun
+        let x = k * cell + d.below(cell as u32) as i32 - ex;
+        // 0 at the path's edge to ONE on its line
+        let near = ONE - fx::div(x.abs(), w).min(ONE);
+        if near <= 0 || d.below(ONE as u32) as i32 > near * 9 / 10 + ONE / 10 {
+            continue;
+        }
+        let step = (tick / TWINKLE + d.below(64)) % 6;
+        if step == 0 {
+            continue;
+        }
+        // brighter toward the line and farther out, with a flash now and then
+        let bright = near * 2 / 3 + fx::div(t - t0, t0) / 3;
+        let tone = (bright * 3 / ONE) as usize + usize::from(step == 3);
+        let long = cell * (5 + d.below(8) as i32) / 8 + mul(cell, near) / 2;
+        let sway = mul(row, sin(d.below(ONE as u32) as i32 + tick as i32 * 40)) / 6;
+        let p = mid.add(across.scale(x)).add(along.scale(sway));
+        let at = v3(p.x, r.level + lift * (SHEEN.len() as i32 + 1), p.z);
+        if f.in_river(f.local(at).0) {
+            b.push(
+                Mesh::Quad,
+                &panel(at, across, V3::UP, along, long, ONE, deep),
+                GLINT[tone.min(3)],
+                ONE * 2,
+            );
+        }
     }
 }
 
 /// The dusk haze: the far colour, and the clear colour behind everything.
-pub const FOG: Rgb = rgb(132, 96, 132);
+pub const FOG: Rgb = rgb(206, 124, 76);
 
 const ASPHALT: Rgb = rgb(56, 56, 64);
 const LANE: Rgb = rgb(214, 180, 70);
@@ -127,14 +257,14 @@ const ZEBRA: Rgb = rgb(196, 196, 190);
 const SIDEWALK: Rgb = rgb(118, 114, 110);
 const PAVER: [Rgb; 2] = [rgb(150, 138, 124), rgb(128, 120, 112)];
 const RIVERBED: Rgb = rgb(36, 40, 40);
-const WATER: Rgb = rgb(32, 50, 84);
+const WATER: Rgb = rgb(42, 46, 72);
 const STONE: Rgb = rgb(150, 134, 110);
 const GRANITE: Rgb = rgb(178, 158, 126);
 const STEEL: Rgb = rgb(56, 62, 70);
 const CABLE: Rgb = rgb(70, 74, 82);
 /// The bridge's suspenders and stays: thin, and near the dusk haze's own
 /// colour, so they sit back behind the vines.
-const SUSPENDER: Rgb = rgb(92, 76, 100);
+const SUSPENDER: Rgb = rgb(112, 80, 70);
 const POLE: Rgb = rgb(44, 58, 52);
 const LAMP: Rgb = rgb(255, 214, 140);
 const CRANE: Rgb = rgb(236, 176, 30);
@@ -159,13 +289,13 @@ const LIT: [Rgb; 4] = [
 ];
 const DARK_GLASS: Rgb = rgb(34, 44, 64);
 const BILLBOARDS: [Rgb; 7] = [
-    rgb(255, 40, 120),
-    rgb(40, 200, 255),
-    rgb(255, 220, 40),
-    rgb(120, 60, 255),
-    rgb(255, 110, 30),
-    rgb(60, 255, 140),
-    rgb(255, 255, 255),
+    rgb(232, 84, 132),
+    rgb(70, 184, 226),
+    rgb(236, 206, 84),
+    rgb(130, 92, 220),
+    rgb(232, 126, 64),
+    rgb(84, 222, 148),
+    rgb(240, 236, 226),
 ];
 const AWNINGS: [Rgb; 4] = [
     rgb(150, 30, 40),
@@ -218,7 +348,43 @@ impl Sink<'_> {
         let k = scene::chunk_of(self.c, p, self.n);
         &mut self.batches[k]
     }
+
+    fn marks(&self) -> Vec<Vec<usize>> {
+        self.batches.iter().map(|b| b.marks()).collect()
+    }
+
+    /// Calms every shape pushed since `marks` (`calm`).
+    fn calm_since(&mut self, marks: &[Vec<usize>]) {
+        for (b, m) in self.batches.iter_mut().zip(marks) {
+            b.recolour_since(m, calm);
+        }
+    }
 }
+
+/// The backdrop's colours calmed (the person, 2026-10-12: the City was
+/// hard to read): the buildings, their windows and billboards, and the
+/// skyline lose much of their saturation and some contrast, toward a warm
+/// mid tone, so the wires, apes, bananas and sparks are the most vivid
+/// things on screen and the dusk's orange comes from the sky and the
+/// light. Glowing shapes (windows, signs) are calmed and dimmed the most.
+pub fn calm(c: Rgb, glow: i32) -> Rgb {
+    let luma = (c[0] * 30 + c[1] * 59 + c[2] * 11) / 100;
+    let grey = [luma * 104 / 100, luma, luma * 94 / 100];
+    let (s, dim) = if glow > 0 {
+        (CALM_GLOW, 90)
+    } else {
+        (CALM, 100)
+    };
+    let c = shade(crate::render::mix(c, grey, s), dim);
+    crate::render::mix(c, CALM_MID, CALM_CONTRAST)
+}
+
+/// How far `calm` takes a colour toward its grey: lit, and glowing.
+pub const CALM: i32 = ONE * 2 / 5;
+pub const CALM_GLOW: i32 = ONE * 2 / 5;
+/// How far it then pulls the colour toward a warm mid tone.
+pub const CALM_CONTRAST: i32 = ONE / 5;
+const CALM_MID: Rgb = rgb(118, 104, 96);
 
 /// A box (or any unit mesh) centred at `at`, `w` along `across`, `h` along
 /// `up` and `d` along `out`.
@@ -278,9 +444,11 @@ fn build(c: &Course, city: &CityLayout) -> (Scenery, Vec<(&'static str, usize)>)
         parts.push((name, now - done));
         done = now;
     };
+    let start = s.marks();
     for (k, bl) in city.blocks.iter().enumerate() {
         building(&mut s, bl, k);
     }
+    s.calm_since(&start);
     tally(&s, "buildings");
     // the parked cars (the moving ones are drawn each frame, `cars_dynamic`)
     for (k, car) in city.cars.iter().enumerate() {
@@ -328,7 +496,9 @@ fn build(c: &Course, city: &CityLayout) -> (Scenery, Vec<(&'static str, usize)>)
     }
     streets(&mut s, c, city);
     tally(&s, "streets");
+    let before = s.marks();
     skyline(&mut s, c, city, &frame);
+    s.calm_since(&before);
     tally(&s, "skyline");
     finish_gantry(&mut s.batches[n - 2], c);
     plaza(&mut s.batches[n - 1], c);
@@ -2898,6 +3068,9 @@ pub const WIRE: Rgb = rgb(60, 156, 196);
 /// The colourblind mode's wires (TRIAGE T33): a vivid cyan, brighter than
 /// anything in the muted world.
 pub const WIRE_VIVID: Rgb = rgb(90, 240, 255);
+/// How many times a wire's width its soft glow is across (the person,
+/// 2026-10-12: the wires were hard to pick out against the streets).
+pub const WIRE_HALO: i32 = 5;
 /// An item wire's sparks (TRIAGE T46 on the City): violet, round a white
 /// heart, apart from the in-reach yellow, the catch-up coral and the
 /// wires' cyan; three up the wire.
@@ -3196,5 +3369,101 @@ mod tests {
         assert!((x - 50 * ONE).abs() < 10 * ONE && (y - 50 * ONE).abs() < 15 * ONE);
         let facing = crate::geom::facing(yaw, 0);
         assert!(facing.dot(cam.eye.sub(feet).flat().norm()) > ONE * 9 / 10);
+    }
+
+    /// The sun and its path drawn from `eye` at `tick`: the solid shapes'
+    /// instances, and the halos' (the path's sheen).
+    fn sun_from(c: &Course, eye: V3, tick: u32) -> (Vec<(Mesh, Vec<i32>)>, Batch) {
+        let mut b = Batch::new();
+        sun(&mut b, c, eye, tick);
+        let halos = b.take_halos();
+        let (v, draws) = b.finish(DYNAMIC_BUFFER);
+        let mut out = Vec::new();
+        for d in draws.chunks(DRAW_VALUES) {
+            let from = d[2] as usize / crate::render::BYTES_PER_VALUE;
+            let n = d[3] as usize * INSTANCE_VALUES;
+            out.push((Mesh::ALL[d[1] as usize], v[from..from + n].to_vec()));
+        }
+        (out, halos)
+    }
+
+    #[test]
+    fn the_sun_path_is_fine_flat_glints_only_on_the_river() {
+        // the person (2026-10-12): the old reflection, a line of chunky
+        // bright strips, read as low-res. Now: many thin flat glints on the
+        // water toward the sun, thick on its line and thinning to the sides,
+        // over a soft sheen, twinkling; and none away from the crossing
+        let c = Map::City.course();
+        let r = c.city.as_ref().unwrap().river.unwrap();
+        let f = RiverFrame::of(&c, Some(r));
+        let dir = sun_dir(&c).flat().norm();
+        let eye = c.point((r.from + r.to) / 2).add(v3(0, int(14), 0));
+        let (solid, sheen) = sun_from(&c, eye, 300);
+        let glints: Vec<V3> = solid
+            .iter()
+            .filter(|(m, _)| *m == Mesh::Quad)
+            .flat_map(|(_, v)| shapes(v).into_iter().map(|s| s.0))
+            .collect();
+        assert!(solid.iter().all(|(m, _)| *m != Mesh::Cube), "no boxes");
+        assert!(glints.len() > 120, "{} glints", glints.len());
+        assert!(sheen.count() > 20, "{} sheen", sheen.count());
+        // a reasonable count: at most 600 shapes in all
+        let all = solid
+            .iter()
+            .map(|(_, v)| v.len() / INSTANCE_VALUES)
+            .sum::<usize>();
+        assert!(all + sheen.count() < 600, "{all} + {}", sheen.count());
+        // all on the water, inside the river near the crossing
+        for p in &glints {
+            assert!((p.y - r.level).abs() < int(1), "{p:?}");
+            assert!(f.in_river(f.local(*p).0));
+        }
+        // thickest on the line to the sun: in the inner third of the
+        // path's half width, over twice as many as in the outer third
+        let off = |p: &V3| {
+            let d = p.flat().sub(eye.flat());
+            let t = d.dot(dir).max(1);
+            fx::div(d.dot(right_of(dir)).abs(), t / 8)
+        };
+        let inner = glints.iter().filter(|p| off(p) < ONE / 3).count();
+        let outer = glints.iter().filter(|p| off(p) > ONE * 2 / 3).count();
+        assert!(inner > outer * 2, "{inner} inner, {outer} outer");
+        assert!(glints.iter().all(|p| off(p) <= ONE + ONE / 10));
+        // they twinkle
+        let (later, _) = sun_from(&c, eye, 300 + TWINKLE * 2);
+        assert_ne!(later, solid);
+        // away from the river (the start street) only the sun is drawn
+        let street = c.point(int(40)).add(v3(0, int(8), 0));
+        let (solid, sheen) = sun_from(&c, street, 300);
+        assert_eq!(sheen.count(), 0);
+        assert!(solid.iter().all(|(m, _)| *m == Mesh::Sphere), "{solid:?}");
+    }
+
+    #[test]
+    fn the_backdrop_is_calmer_than_the_wires_and_the_apes() {
+        // the person (2026-10-12): the City was hard to read. The buildings,
+        // their windows and signs, and the skyline are calmed: less
+        // saturated and less contrasted, so the wires stand out
+        let sat = |c: Rgb| c.iter().max().unwrap() - c.iter().min().unwrap();
+        for c in BILLBOARDS.into_iter().chain(LIT) {
+            let k = calm(c, ONE);
+            assert!(
+                sat(k) < sat(c) * 2 / 3 || sat(c) < ONE / 8,
+                "{c:?} -> {k:?}"
+            );
+        }
+        assert!(sat(calm(rgb(140, 64, 50), 0)) < sat(rgb(140, 64, 50)) * 2 / 3);
+        // nothing left in the scenery as saturated as the wires' glow
+        let c = Map::City.course();
+        let s = scenery(&c, c.city.as_ref().unwrap());
+        let loudest = shapes(&s.values)
+            .iter()
+            .filter(|(_, colour, glow)| {
+                *glow > 0 && BILLBOARDS.iter().any(|b| calm(*b, *glow) == *colour)
+            })
+            .map(|(_, colour, _)| sat(*colour))
+            .max()
+            .unwrap();
+        assert!(loudest < sat(WIRE_VIVID) * 2 / 3, "{loudest}");
     }
 }

@@ -1158,6 +1158,9 @@ pub struct VineLook {
     pub colour: Rgb,
     pub glow: i32,
     pub width: i32,
+    /// the width of a soft glow round the vine in its colour (0: none; the
+    /// City's wires, so they read against its busy streets)
+    pub halo: i32,
 }
 
 /// The look of a vine, in reach of the local ape or not, in the ordinary
@@ -1169,21 +1172,25 @@ pub fn vine_look(in_reach: bool, vivid: bool, tick: u32) -> VineLook {
             colour: VINE,
             glow: ONE / 5,
             width: VINE_WIDTH,
+            halo: 0,
         },
         (false, true) => VineLook {
             colour: VINE_REACH,
             glow: ONE * 7 / 10,
             width: VINE_WIDTH,
+            halo: 0,
         },
         (true, false) => VineLook {
             colour: VINE_VIVID,
             glow: ONE / 2,
             width: VINE_WIDTH_VIVID,
+            halo: 0,
         },
         (true, true) => VineLook {
             colour: VINE_REACH_VIVID,
             glow: ONE,
             width: VINE_WIDTH_VIVID * 3 / 2 + mul(sin(tick as i32 * 600).abs(), cm(14)),
+            halo: 0,
         },
     }
 }
@@ -1194,16 +1201,20 @@ pub fn vine_look(in_reach: bool, vivid: bool, tick: u32) -> VineLook {
 /// or the same pulsing white in the colourblind mode.
 pub fn vine_look_on(map: Map, in_reach: bool, vivid: bool, tick: u32) -> VineLook {
     let look = vine_look(in_reach, vivid, tick);
+    let halo = look.width * crate::cityscape::WIRE_HALO;
     match (map, in_reach, vivid) {
         (Map::City, false, false) => VineLook {
             colour: crate::cityscape::WIRE,
             glow: ONE * 9 / 20,
+            halo,
             ..look
         },
         (Map::City, false, true) => VineLook {
             colour: crate::cityscape::WIRE_VIVID,
+            halo,
             ..look
         },
+        (Map::City, true, _) => VineLook { halo, ..look },
         _ => look,
     }
 }
@@ -1253,7 +1264,7 @@ pub fn dynamic(f: &Frame) -> (Batch, Batch) {
     if let Some(city) = &c.city {
         crate::cityscape::hangers_dynamic(&mut b, c, city, eye, f.tick, tick);
         crate::cityscape::cars_dynamic(&mut b, c, city, eye, tick);
-        crate::cityscape::sun(&mut b, c, eye);
+        crate::cityscape::sun(&mut b, c, eye, tick);
     }
     for (k, r) in race.racers.iter().enumerate() {
         // Floor is Lava (TRIAGE T37): the jaguar, and the ape until the bite
@@ -1507,15 +1518,18 @@ fn vine(b: &mut Batch, a: V3, length: i32, hands: Option<V3>, look: VineLook, t:
         colour,
         glow,
         width,
+        halo,
     } = look;
     match hands {
         Some(h) => {
             let rope = h.sub(a).len().min(length);
             b.push(Mesh::Cyl, &rod(a, h, width), colour, glow);
+            glow_round(b, a, h, halo, colour);
             let rest = length - rope;
             if rest > cm(30) {
                 let end = h.sub(v3(0, rest, 0));
                 b.push(Mesh::Cyl, &rod(h, end, width), colour, glow);
+                glow_round(b, h, end, halo, colour);
             }
             if leafy {
                 leaves(b, a, h, t);
@@ -1529,6 +1543,8 @@ fn vine(b: &mut Batch, a: V3, length: i32, hands: Option<V3>, look: VineLook, t:
             let mid = a.lerp(bottom, ONE / 2).add(v3(mul(s, cm(15)), 0, 0));
             b.push(Mesh::Cyl, &rod(a, mid, width), colour, glow);
             b.push(Mesh::Cyl, &rod(mid, bottom, width), colour, glow);
+            glow_round(b, a, mid, halo, colour);
+            glow_round(b, mid, bottom, halo, colour);
             // a knot at the bottom to grab
             let knot = width + cm(14);
             b.push(
@@ -1558,6 +1574,7 @@ fn chain_vine(
         colour,
         glow,
         width,
+        halo,
     } = look;
     let mut pts = chain.pts;
     if let Some(h) = hands {
@@ -1568,6 +1585,7 @@ fn chain_vine(
     }
     for w in pts.windows(2) {
         b.push(Mesh::Cyl, &rod(w[0], w[1], width), colour, glow);
+        glow_round(b, w[0], w[1], halo, colour);
         // a joint, so the bends read smooth
         b.push(
             Mesh::Sphere,
@@ -1606,6 +1624,17 @@ fn chain_vine(
         );
     }
 }
+
+/// A soft glow `width` across round a vine's length from `a` to `b`, in
+/// its colour (`Batch::push_halo`), when it has one.
+fn glow_round(b: &mut Batch, a: V3, end: V3, width: i32, colour: Rgb) {
+    if width > 0 {
+        b.push_halo(Mesh::Cyl, &rod(a, end, width), colour, HALO_GLOW);
+    }
+}
+
+/// How strongly a vine's halo adds its colour, at its middle.
+pub const HALO_GLOW: i32 = ONE * 2 / 5;
 
 fn leaves(b: &mut Batch, a: V3, end: V3, t: u32) {
     let n = 4;
@@ -1794,7 +1823,7 @@ pub fn flyover_dynamic(c: &Course, tick: u32, vivid: bool, eye: V3) -> (Batch, B
     if let Some(city) = &c.city {
         crate::cityscape::hangers_dynamic(&mut rest, c, city, eye, tick, tick);
         crate::cityscape::cars_dynamic(&mut rest, c, city, eye, tick);
-        crate::cityscape::sun(&mut rest, c, eye);
+        crate::cityscape::sun(&mut rest, c, eye, tick);
     }
     (b, rest)
 }
@@ -1995,9 +2024,13 @@ mod tests {
         assert_eq!(wire.colour, crate::cityscape::WIRE);
         assert!(wire.glow > 0 && wire.glow < ONE / 2);
         for (reach, vivid, t) in [(true, false, 0), (true, true, 0), (true, true, 40)] {
+            let jungle = vine_look(reach, vivid, t);
             assert_eq!(
                 vine_look_on(Map::City, reach, vivid, t),
-                vine_look(reach, vivid, t)
+                VineLook {
+                    halo: jungle.width * crate::cityscape::WIRE_HALO,
+                    ..jungle
+                }
             );
         }
         let vivid = vine_look_on(Map::City, false, true, 0);
@@ -2026,6 +2059,81 @@ mod tests {
             true,
         );
         assert!(b.count_of(Mesh::Blob) > 0);
+    }
+
+    #[test]
+    fn city_wires_glow_softly_and_jungle_vines_do_not() {
+        // the person (2026-10-12): the City's wires were hard to pick out;
+        // each wire, in reach or not, ordinary or colourblind, carries a soft
+        // glow several times its width, in its own colour, drawn as a halo
+        let mut lit = 0;
+        for (reach, vivid) in [(false, false), (true, false), (false, true), (true, true)] {
+            let w = vine_look_on(Map::City, reach, vivid, 9);
+            assert!(w.halo >= w.width * 3, "{reach} {vivid}: {w:?}");
+            let mut b = Batch::new();
+            vine(&mut b, v3(0, int(40), 0), int(25), None, w, 0, false);
+            let halos = b.take_halos();
+            assert_eq!(halos.count(), 2, "one glow round each half of the wire");
+            assert_eq!(b.take_halos().count(), 0, "taken out of the batch");
+            lit += halos.count();
+            // a held wire glows too
+            let mut b = Batch::new();
+            vine(
+                &mut b,
+                v3(0, int(40), 0),
+                int(25),
+                Some(v3(int(3), int(25), 0)),
+                w,
+                0,
+                false,
+            );
+            assert!(b.take_halos().count() > 0);
+        }
+        assert_eq!(lit, 8);
+        // the Jungle's vines have none
+        for (reach, vivid) in [(false, false), (true, false), (false, true), (true, true)] {
+            let v = vine_look_on(Map::Jungle, reach, vivid, 9);
+            assert_eq!(v.halo, 0);
+            let mut b = Batch::new();
+            vine(&mut b, v3(0, int(40), 0), int(25), None, v, 0, true);
+            assert_eq!(b.take_halos().count(), 0);
+        }
+    }
+
+    #[test]
+    fn the_jungles_look_is_unchanged_and_the_citys_dusk_is_warm() {
+        // the Jungle at midday, exactly as it was
+        assert_eq!(
+            look(Map::Jungle),
+            Look {
+                sky: rgb(150, 206, 196),
+                fog: rgb(120, 178, 150),
+                fog_range: (int(60), int(170)),
+                light_dir: v3(cm(55), cm(80), cm(35)).norm(),
+                light: rgb(255, 244, 214),
+                ground: rgb(70, 110, 50),
+            }
+        );
+        // the person (2026-10-12): an orange sunset, not purple. The City's
+        // sky, haze, light and bounce are all warm: red well above blue
+        let c = look(Map::City);
+        for (name, col) in [
+            ("sky", c.sky),
+            ("fog", c.fog),
+            ("light", c.light),
+            ("ground", c.ground),
+        ] {
+            assert!(col[0] > col[2] + ONE / 8, "{name} is not warm: {col:?}");
+            assert!(col[0] >= col[1], "{name} leans green: {col:?}");
+        }
+        // the haze is orange, the sky above it deeper
+        assert!(c.fog[0] > c.fog[2] + ONE / 3);
+        let luma = |c: Rgb| (c[0] * 30 + c[1] * 59 + c[2] * 11) / 100;
+        assert!(luma(c.sky) < luma(c.fog));
+        // and the sun's halo shades from gold to the haze's orange
+        for (_, col, _) in crate::cityscape::HALO {
+            assert!(col[0] > col[2] + ONE / 8, "{col:?}");
+        }
     }
 
     #[test]
