@@ -395,7 +395,7 @@ body[data-screen="race"] .menus:has(.panel.spectate) {
   background: none;
   justify-content: flex-end;
   align-content: center;
-  padding: 7rem 1rem 17rem;
+  padding: 5.5rem 1rem 16rem;
 }
 .panel.spectate {
   min-width: 0;

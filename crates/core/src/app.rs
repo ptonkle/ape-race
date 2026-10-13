@@ -1478,6 +1478,8 @@ impl App {
                 _ => String::new(),
             },
         };
+        // place, time and item are the followed ape's (TRIAGE T24, T34)
+        let me = &race.racers[p.focus.racer];
         let shown_clock = me.finish.unwrap_or(race.clock);
         let item = me
             .item

@@ -18,7 +18,8 @@ The design is in [`BRIEF.md`](BRIEF.md) and the build decisions in [`PLAN.md`](P
 | Online | **Online → Host** gives a room code to share; others **Join** with it. Everyone picks an ape and readies up; the host adds AI apes and starts. |
 | Best time | Your fastest finish is kept on this device and shown in the HUD and results. |
 | Time Trial | Race alone (crates give only the Speed Boost) for Bronze, Silver and Gold target times; the Author time shows once you earn Gold. Your best Time Trial races beside you as a pale-blue ghost. |
-| Replays | **Watch Replay** on the results (or the pause menu) replays the race: play, pause, ½×/1×/2×, chase, orbit or trackside cameras, and a seek bar. Your fastest run per course and mode and your last 10 others are kept on this device under **Replays**. |
+| Spectating | Once you finish, the camera pans to the leading ape still racing; the results wait in a smaller panel at the side. **A / D** (or ‹ ›) watch another racer. The full results come up when everyone is in. |
+| Replays | **Watch Replay** on the results (or the pause menu) replays the race: play, pause, ½×/1×/2×, chase, orbit or trackside cameras, and a seek bar. **A / D** (or ‹ › in the panel) follow another racer. Drag the view to steer the orbit camera, and use the wheel to zoom. Online races can be replayed too, once everyone is in. Your fastest run per course and mode and your last 10 others (at most 3 online) are kept on this device under **Replays**. |
 
 ### Controls
 
@@ -31,6 +32,8 @@ The design is in [`BRIEF.md`](BRIEF.md) and the build decisions in [`PLAN.md`](P
 | Look | Mouse (click the 3D view to capture the mouse) |
 | Pause | Esc (online, Esc shows the menu but the race goes on) |
 | Quick restart | R twice quickly (offline races and Time Trials) |
+| Watch another racer | A / D or ← / → (after you finish, and in replays) |
+| Replay orbit camera | Drag the view to turn it, mouse wheel to zoom |
 
 Settings: Volume, Mouse Sensitivity, Invert Mouse Y, Camera Follows (the camera swings back behind you when the mouse rests). They are kept in browser storage.
 
@@ -58,7 +61,7 @@ Needs Rust with the `wasm32-unknown-unknown` target, `wasm-bindgen-cli` 0.2.127,
 | `crates/core/src/rules.rs` | every tuning number, and the six apes' stats |
 | `crates/core/src/course.rs` | the jungle course: centreline, vines, logs, crates, platforms, scenery placement |
 | `crates/core/src/race.rs`, `items.rs`, `ai.rs` | the race loop, items, and the AI driver |
-| `crates/core/src/camera.rs`, `scene.rs`, `models.rs`, `mesh.rs`, `render.rs` | the chase camera, the drawn world, the six ape models, unit meshes, the instance-draw contract |
+| `crates/core/src/camera.rs`, `focus.rs`, `scene.rs`, `models.rs`, `mesh.rs`, `render.rs` | the chase, orbit and pan cameras, which racer the camera follows, the drawn world, the six ape models, unit meshes, the instance-draw contract |
 | `crates/core/src/sound.rs` | every sound, synthesised by the core as a WAV file |
 | `crates/core/src/online.rs`, `app/online_play.rs` | online play: lobby, state sync, hits and results; its wiring into the app |
 | `crates/core/src/app.rs`, `api.rs` | screens, settings, input, the view model; the one door the shim calls |
