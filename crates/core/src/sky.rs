@@ -71,9 +71,29 @@ pub fn world(speed: i32, metres: i32) -> (i32, [Rgb; 3]) {
     )
 }
 
+/// How far the colourblind mode takes the sky and fog toward grey (TRIAGE
+/// T33: the world goes muted, so the vines stand out by brightness).
+pub const MUTE: i32 = ONE * 7 / 10;
+
+/// A colour taken `t` of the way to its own grey (its brightness kept).
+pub fn grey(c: Rgb, t: i32) -> Rgb {
+    let luma = (c[0] * 30 + c[1] * 59 + c[2] * 11) / 100;
+    mix(c, [luma; 3], t)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn grey_keeps_the_brightness() {
+        let c = rgb(150, 206, 196);
+        let g = grey(c, ONE);
+        assert_eq!(g[0], g[1]);
+        assert_eq!(g[1], g[2]);
+        assert!((g[0] - grey(c, MUTE)[1]).abs() < ONE / 10);
+        assert_eq!(grey(c, 0), c);
+    }
 
     #[test]
     fn the_sky_changes_only_at_the_top_of_the_dial() {

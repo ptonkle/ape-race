@@ -14,10 +14,12 @@ const FOV_REST: i32 = deg(68);
 const FOV_FAST: i32 = deg(92);
 /// The speed at which the view is widest.
 const FAST: i32 = int(42);
-/// Distance behind and height above the ape.
-const BACK_REST: i32 = cm(650);
-const BACK_FAST: i32 = cm(900);
-const RISE: i32 = cm(180);
+/// Distance behind and height above the ape (TRIAGE T40: further back and
+/// higher since the apes are drawn at twice life size, so the view still
+/// sees past your own ape).
+const BACK_REST: i32 = cm(1000);
+const BACK_FAST: i32 = cm(1300);
+const RISE: i32 = cm(280);
 /// Pitch limits.
 const PITCH_MIN: i32 = -deg(70);
 const PITCH_MAX: i32 = deg(40);

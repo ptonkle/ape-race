@@ -39,6 +39,7 @@
   "ape.lemur": "Lemur",
   "settings.heading": "Settings",
   "settings.volume": "Volume",
+  "settings.colourblind": "Colourblind Mode",
   "settings.sensitivity": "Mouse Sensitivity",
   "settings.invert": "Invert Mouse Y",
   "settings.auto_camera": "Camera Follows",

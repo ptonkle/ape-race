@@ -76,6 +76,8 @@ pub struct Settings {
     pub ghost: bool,
     /// the items crates may give in a race (TRIAGE T42)
     pub items: crate::items::ItemSet,
+    /// the colourblind mode (TRIAGE T33): the world muted, the vines vivid
+    pub colourblind: bool,
 }
 
 impl Default for Settings {
@@ -96,6 +98,7 @@ impl Default for Settings {
             trial_best: None,
             ghost: true,
             items: crate::items::ItemSet::ALL,
+            colourblind: false,
         }
     }
 }
@@ -652,6 +655,10 @@ impl App {
                 self.settings.speed_colours = value == "on";
                 self.save = true;
             }
+            "settings.colourblind" => {
+                self.settings.colourblind = value == "on";
+                self.save = true;
+            }
             "settings.auto_camera" => {
                 self.settings.auto_camera = value == "on";
                 self.save = true;
@@ -941,10 +948,28 @@ impl App {
             (_, Stage::Flyover) if self.celebrate => (int(60), (self.ticks as i32) * (ONE / 2)),
             _ => (0, 0),
         };
-        let colours = crate::sky::colours(scene::SKY, scene::FOG, speed, metres);
+        let vivid = self.settings.colourblind;
+        // the colourblind mode mutes the sky and the fog as well (TRIAGE T33)
+        let (sky, fog) = if vivid {
+            (
+                crate::sky::grey(scene::SKY, crate::sky::MUTE),
+                crate::sky::grey(scene::FOG, crate::sky::MUTE),
+            )
+        } else {
+            (scene::SKY, scene::FOG)
+        };
+        let colours = crate::sky::colours(sky, fog, speed, metres);
         let world = crate::sky::world(speed, metres);
-        let view = render::view_values(&cam, self.aspect(), scene::fog_range(), colours, world);
-        let batch = match self.stage {
+        let mute = if vivid { ONE } else { 0 };
+        let view = render::view_values(
+            &cam,
+            self.aspect(),
+            scene::fog_range(),
+            colours,
+            world,
+            mute,
+        );
+        let (vines, batch) = match self.stage {
             Stage::Race => match &self.play {
                 Some(p) => {
                     let apes: Vec<V3> = p
@@ -961,24 +986,29 @@ impl App {
                         local: Some(p.local),
                         tick: self.ticks,
                         chains: &p.chains,
+                        vivid,
                     })
                 }
-                None => Batch::new(),
+                None => (Batch::new(), Batch::new()),
             },
-            Stage::Flyover => scene::flyover_dynamic(&self.course, self.ticks),
+            Stage::Flyover => (
+                scene::flyover_dynamic(&self.course, self.ticks, vivid),
+                Batch::new(),
+            ),
             Stage::Showcase => {
                 let mut b = Batch::new();
                 models::showcase(&mut b, self.settings.kind, self.ticks);
-                b
+                (Batch::new(), b)
             }
             Stage::Lineup => {
                 let mut b = Batch::new();
                 models::lineup(&mut b, self.ticks);
-                b
+                (Batch::new(), b)
             }
         };
         let mut draws = self.scenery().draws_near(cam.eye);
         let mut values = Vec::new();
+        draws.extend(vines.finish_as(render::DYNAMIC_BUFFER, Some(render::VINES), &mut values));
         draws.extend(batch.finish_into(render::DYNAMIC_BUFFER, &mut values));
         if let (Stage::Race, Some(p)) = (self.stage, &self.play) {
             draws.extend(ghost_draws(p, self.alpha, self.ticks, &mut values));
@@ -1244,6 +1274,8 @@ impl App {
                   "value": self.settings.invert_y },
                 { "type": "toggle", "id": "settings.auto_camera", "label": self.t("settings.auto_camera"),
                   "value": self.settings.auto_camera },
+                { "type": "toggle", "id": "settings.colourblind", "label": self.t("settings.colourblind"),
+                  "value": self.settings.colourblind },
             ]}),
         ];
         // Speed Colours shows once unlocked (TRIAGE row 26)
@@ -1504,7 +1536,15 @@ impl App {
             .enumerate()
             .map(|(i, r)| {
                 let (x, y) = to(r.ape.pos);
-                json!({ "x": x, "y": y, "me": i == p.local, "colour": colour_of(r.ape.kind) })
+                let me = i == p.local;
+                let mut dot = json!({ "x": x, "y": y, "me": me, "colour": colour_of(r.ape.kind) });
+                // the colourblind mode tells the apes apart by shape too
+                // (TRIAGE T33)
+                if self.settings.colourblind {
+                    let size = if me { MINIMAP_ME_DOT } else { MINIMAP_DOT };
+                    dot["shape"] = json!(minimap_shape(r.ape.kind, x, y, size * 5 / 4));
+                }
+                dot
             })
             .collect();
         let mut apes = apes;
@@ -1518,7 +1558,7 @@ impl App {
         let (fx_, fy) = to(*c.path.last().unwrap_or(&V3::ZERO));
         json!({
             "size": 1000, "stride": 2, "line": line, "apes": apes, "finish": [fx_, fy],
-            "dot": 24, "me_dot": 36, "width": 22, "ring_width": 8,
+            "dot": MINIMAP_DOT, "me_dot": MINIMAP_ME_DOT, "width": 22, "ring_width": 8,
             "track": "rgba(240, 230, 190, 0.75)", "finish_colour": "#ffffff",
             "ring": "rgba(0, 0, 0, 0.6)", "me_ring": "#ffe066",
             "circle": decimal("6.2832"),
@@ -1631,6 +1671,32 @@ fn replay_camera(p: &Play, view: replay::View, alpha: i32) -> Camera {
     }
 }
 
+/// The minimap's dots' radii, in its 0–1000 box.
+const MINIMAP_DOT: i32 = 24;
+const MINIMAP_ME_DOT: i32 = 36;
+
+/// A kind's minimap marker in the colourblind mode (TRIAGE T33), as the
+/// corners of a polygon round (`x`, `y`) of radius `r`: a triangle, a
+/// square, a pentagon, a hexagon, a diamond or a star, one per kind.
+fn minimap_shape(kind: crate::rules::Kind, x: i32, y: i32, r: i32) -> Vec<i32> {
+    // (corners, turn of the first corner, inner radius percent for a star)
+    let (n, turn, inner) = match kind.index() {
+        0 => (3, 0, 100),
+        1 => (4, fx::TURN / 8, 100),
+        2 => (5, 0, 100),
+        3 => (6, 0, 100),
+        4 => (4, 0, 70),
+        _ => (10, 0, 50),
+    };
+    (0..n)
+        .flat_map(|k| {
+            let a = turn + k * fx::TURN / n;
+            let rr = if k % 2 == 1 { r * inner / 100 } else { r };
+            [x + fx::sin(a) * rr / ONE, y - fx::cos(a) * rr / ONE]
+        })
+        .collect()
+}
+
 /// The ghost ape, drawn into `values` tinted and glowing (the renderer
 /// has no transparency); its draws.
 fn ghost_draws(p: &Play, alpha: i32, ticks: u32, values: &mut Vec<i32>) -> Vec<u32> {
@@ -1640,19 +1706,7 @@ fn ghost_draws(p: &Play, alpha: i32, ticks: u32, values: &mut Vec<i32>) -> Vec<u
     let r = &g.race.racers[0];
     let at = g.prev.lerp(r.ape.pos, alpha);
     let mut b = Batch::new();
-    let pose = models::Pose {
-        hands: at,
-        yaw: r.ape.yaw,
-        rope: r
-            .ape
-            .swinging()
-            .map(|v| g.race.course.anchor(v, g.race.tick).sub(at).norm()),
-        vel: r.ape.vel,
-        grounded: r.ape.mode == crate::ape::Mode::Grounded,
-        stunned: r.ape.stun > 0,
-        tick: ticks,
-        scale: 100,
-    };
+    let pose = scene::racer_pose(&g.race, 0, at, ticks);
     models::draw(&mut b, r.ape.kind, &pose);
     let start = values.len();
     let draws = b.finish_into(render::DYNAMIC_BUFFER, values);
@@ -1991,6 +2045,60 @@ mod tests {
     }
 
     #[test]
+    fn the_colourblind_mode_mutes_the_world_and_keeps_the_vines_vivid() {
+        // TRIAGE T33: a setting, kept; the frame tells the shader to mute
+        // and marks the vines' draws so they stay vivid
+        let mut a = app();
+        let vine_draws = |a: &App| {
+            let (view, _, draws) = a.frame();
+            let marked = draws
+                .chunks(render::DRAW_VALUES)
+                .filter(|d| d[6] == render::VINES)
+                .count();
+            (view[37], marked)
+        };
+        let (mute, marked) = vine_draws(&a);
+        assert_eq!(mute, 0);
+        assert!(marked > 0, "the title's vines are drawn as vines");
+        a.act("settings.colourblind", "on");
+        assert!(a.settings.colourblind);
+        let ui: Value = serde_json::from_str(&a.ui()).unwrap();
+        assert!(ui["save"]
+            .as_str()
+            .unwrap()
+            .contains("\"colourblind\":true"));
+        assert_eq!(vine_draws(&a).0, ONE);
+        a.act("menu.race", "");
+        a.act("menu.start", "");
+        let (mute, marked) = vine_draws(&a);
+        assert_eq!(mute, ONE);
+        assert!(marked > 0);
+        // the minimap's apes are told apart by shape, each kind its own
+        let ui: Value = serde_json::from_str(&a.ui()).unwrap();
+        let apes = ui["hud"]["minimap"]["apes"].as_array().unwrap();
+        let corners: Vec<usize> = apes
+            .iter()
+            .map(|d| d["shape"].as_array().map_or(0, |s| s.len()))
+            .collect();
+        assert!(corners.iter().all(|n| *n >= 6), "{corners:?}");
+        let shapes: Vec<Vec<i32>> = crate::rules::Kind::ALL
+            .iter()
+            .map(|k| minimap_shape(*k, 0, 0, 30))
+            .collect();
+        for (i, s) in shapes.iter().enumerate() {
+            assert!(!shapes[..i].contains(s), "kind {i} shares a shape");
+        }
+        // the sky is greyer
+        let (view, _, _) = a.frame();
+        let sky = &view[24..27];
+        assert!(sky[1] - sky[0] < (scene::SKY[1] - scene::SKY[0]) / 2);
+        // and the setting shows on the settings screen
+        a.act("menu.quit", "");
+        a.screen = Screen::Settings;
+        assert!(a.ui().contains("settings.colourblind"));
+    }
+
+    #[test]
     fn every_screen_has_a_view_model_and_a_frame() {
         let mut a = app();
         for id in [
@@ -2004,7 +2112,7 @@ mod tests {
             let ui: Value = serde_json::from_str(&a.ui()).unwrap();
             assert!(ui["screen"].is_string());
             let (view, _, _) = a.frame();
-            assert_eq!(view.len(), 37);
+            assert_eq!(view.len(), 38);
             let (statics, _, _) = a.static_scene();
             assert!(!statics.is_empty());
         }
@@ -2169,7 +2277,7 @@ mod tests {
         // the cameras all give a view
         for v in ["orbit", "trackside", "chase"] {
             a.act("replay.camera", v);
-            assert_eq!(a.frame().0.len(), 37);
+            assert_eq!(a.frame().0.len(), 38);
         }
         // leaving goes back to the race it came from
         a.act("replay.exit", "");

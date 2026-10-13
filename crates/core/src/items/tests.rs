@@ -266,15 +266,11 @@ fn items_left_out_of_the_set_never_come_out() {
 }
 
 #[test]
-fn with_no_items_the_crates_give_nothing_and_are_not_drawn() {
+fn with_no_items_the_crates_give_nothing() {
+    // (their flowers are not drawn either: `scene` test
+    // item_vines_carry_flowers_up_their_middle)
     let mut r = crate_race(1);
-    let mut b = Batch::new();
-    draw(&mut b, &r);
-    let with = b.count();
     r.items = ItemSet::NONE;
-    let mut b = Batch::new();
-    draw(&mut b, &r);
-    assert!(b.count() < with, "{} of {with} drawn", b.count());
     assert_eq!(roll_for(&mut r, 0), None);
     hang_on(&mut r, 0, 0);
     step(&mut r);
@@ -467,18 +463,15 @@ fn a_hit_from_another_browser_applies_to_a_local_ape() {
 }
 
 #[test]
-fn crates_vanish_while_they_respawn_and_shots_are_drawn() {
+fn crates_are_not_drawn_and_shots_are() {
+    // TRIAGE T46: an item vine is marked by flowers, drawn with the vines
+    // (`scene::item_flowers`); there is no crate to draw
     let mut r = race(2);
     assert_eq!(
         r.crate_vines,
         vec![0],
         "the test course: a crate on its one vine"
     );
-    let mut b = Batch::new();
-    draw(&mut b, &r);
-    let with_crate = b.count();
-    assert!(with_crate > 0);
-    r.crates = vec![5];
     let mut b = Batch::new();
     draw(&mut b, &r);
     assert_eq!(b.count(), 0);
