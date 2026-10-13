@@ -1176,9 +1176,9 @@ pub fn dynamic(f: &Frame) -> (Batch, Batch) {
     for (k, r) in race.racers.iter().enumerate() {
         // Floor is Lava (TRIAGE T37): the jaguar, and the ape until the bite
         if let Some(e) = r.eaten {
-            if let Some(j) = e.jaguar(tick, 0) {
+            if let Some(j) = e.jaguar(c, tick, 0) {
                 models::jaguar(&mut b, &j, RACE_SCALE);
-                let ground = crate::course::ground(j.feet.x, j.feet.z);
+                let ground = c.floor(j.feet.x, j.feet.z);
                 let high = (j.feet.y - ground).clamp(0, int(4));
                 let size = (cm(150) - high / 8) * RACE_SCALE / 100;
                 b.push(

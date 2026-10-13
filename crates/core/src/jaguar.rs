@@ -7,7 +7,7 @@
 //! function of the [`Eaten`] record and the race tick, so a replay, a seek
 //! and every browser of an online race draw the same jaguar.
 
-use crate::course::{ground, Course};
+use crate::course::Course;
 use crate::fx::{self, cm, int, mul, ONE};
 use crate::geom::{facing, right_of, v3, yaw_of, V3};
 use crate::rules::{BODY_DROP, TICKS_PER_SECOND};
@@ -27,12 +27,13 @@ pub const EATEN: u32 = BITE + secs(90);
 /// Then a trot back into the trees; the jaguar is gone at this tick.
 pub const GONE: u32 = EATEN + secs(160);
 
-/// Where the jaguar waits in the trees: this far to the side of the ape,
-/// out past the course's edge ...
-const FROM_SIDE: i32 = int(26);
-/// ... and this far ahead of it, so the chase camera behind the ape sees
-/// it come.
-const FROM_AHEAD: i32 = int(10);
+/// Where the jaguar waits: at the course's edge (this far inside it, so the
+/// way to the ape is open on any map: the Jungle's trees or the City's
+/// walls stand beyond the edge) on the side the ape is on ...
+const FROM_EDGE: i32 = int(1);
+/// ... and this far ahead of it along the centreline, so the chase camera
+/// behind the ape sees it come.
+const FROM_AHEAD: i32 = int(18);
 /// The leap starts this far short of the ape.
 const LEAP_FROM: i32 = int(5);
 /// How high the leap goes.
@@ -51,19 +52,23 @@ pub struct Eaten {
 
 impl Eaten {
     /// The ape at `at` (its hands), near centreline sample `hint`, eaten at
-    /// race tick `tick`: the jaguar comes from the side of the course the
-    /// ape is on (the right on the centreline).
+    /// race tick `tick`: the jaguar comes from the edge of the course on the
+    /// side the ape is on (the right on the centreline), a little ahead.
+    /// Only the shared course data is used (centreline, half width, floor),
+    /// so it works on every map.
     pub fn new(course: &Course, at: V3, hint: usize, tick: u32) -> Eaten {
         let hint = hint.min(course.heading.len().saturating_sub(1));
-        let heading = course.heading.get(hint).copied().unwrap_or(v3(0, 0, ONE));
-        let (_, side) = course.progress(at, hint);
+        let (s, side) = course.progress(at, hint);
+        let ahead = (s + FROM_AHEAD).min(course.length);
+        let heading = course.heading_at(ahead);
         let right = right_of(heading);
         let way = if side >= 0 { right } else { right.neg() };
-        let p = at.add(way.scale(FROM_SIDE)).add(heading.scale(FROM_AHEAD));
+        let edge = (course.half_width - FROM_EDGE).max(0);
+        let p = course.point(ahead).add(way.scale(edge));
         Eaten {
             tick,
             at,
-            from: v3(p.x, ground(p.x, p.z), p.z),
+            from: v3(p.x, course.floor(p.x, p.z), p.z),
         }
     }
 
@@ -78,14 +83,14 @@ impl Eaten {
     }
 
     /// Where the ape's feet are: the jaguar's goal.
-    pub fn feet(&self) -> V3 {
+    pub fn feet(&self, course: &Course) -> V3 {
         let f = self.at.sub(v3(0, BODY_DROP, 0));
-        v3(f.x, ground(f.x, f.z).max(f.y), f.z)
+        v3(f.x, course.floor(f.x, f.z).max(f.y), f.z)
     }
 
     /// The jaguar at race tick `tick` (`None` once it is gone). `blend` is
     /// the share of the way to the next tick (Q16), for smooth drawing.
-    pub fn jaguar(&self, tick: u32, blend: i32) -> Option<Jaguar> {
+    pub fn jaguar(&self, course: &Course, tick: u32, blend: i32) -> Option<Jaguar> {
         let ago = self.ago(tick);
         if ago >= GONE {
             return None;
@@ -93,7 +98,7 @@ impl Eaten {
         // in Q16 ticks
         let t = ago as i32 * ONE + blend.clamp(0, ONE - 1);
         let ticks = |n: u32| n as i32 * ONE;
-        let goal = self.feet();
+        let goal = self.feet(course);
         let to_goal = goal.sub(self.from).flat();
         let way = if to_goal.len() > ONE {
             to_goal.norm()
@@ -101,7 +106,7 @@ impl Eaten {
             v3(0, 0, ONE)
         };
         let leap_at = goal.sub(way.scale(LEAP_FROM));
-        let on_ground = |p: V3| v3(p.x, ground(p.x, p.z), p.z);
+        let on_ground = |p: V3| v3(p.x, course.floor(p.x, p.z), p.z);
         let toward = yaw_of(way);
         let j = if t < ticks(RUN) {
             // the run: quick from the start, easing a little into the crouch
@@ -194,9 +199,12 @@ mod tests {
     use super::*;
 
     fn eaten() -> (Course, Eaten) {
-        let c = Course::test_line(&[]);
+        eaten_on(Course::test_line(&[]))
+    }
+
+    fn eaten_on(c: Course) -> (Course, Eaten) {
         let p = c.point(int(100));
-        let at = v3(p.x + int(3), ground(p.x, p.z) + BODY_DROP, p.z);
+        let at = v3(p.x + int(3), c.floor(p.x, p.z) + BODY_DROP, p.z);
         let hint = c.nearest_anywhere(at);
         let e = Eaten::new(&c, at, hint, 1000);
         (c, e)
@@ -205,30 +213,39 @@ mod tests {
     #[test]
     fn the_jaguar_comes_from_the_trees_leaps_and_leaves() {
         let (c, e) = eaten();
-        // from the side the ape is on, out past the course's edge
-        let hint = c.nearest_anywhere(e.from);
-        let (_, side) = c.progress(e.from, hint);
-        let (_, ape_side) = c.progress(e.at, c.nearest_anywhere(e.at));
-        assert!(side.abs() > c.half_width, "{} m", side / ONE);
-        assert_eq!(side.signum(), ape_side.signum());
+        // from the course's edge on the side the ape is on, ahead of it:
+        // inside the course, so its way in is open on any map
+        for (c, e) in [eaten(), {
+            let mut narrow = Course::test_line(&[]);
+            narrow.half_width = int(7);
+            eaten_on(narrow)
+        }] {
+            let (s, side) = c.progress(e.from, c.nearest_anywhere(e.from));
+            let (ape_s, ape_side) = c.progress(e.at, c.nearest_anywhere(e.at));
+            assert!(side.abs() <= c.half_width, "{} m", side / ONE);
+            assert!(side.abs() >= c.half_width - int(2), "{} m", side / ONE);
+            assert_eq!(side.signum(), ape_side.signum());
+            assert!(s > ape_s + int(10), "ahead, where the camera looks");
+            assert!(e.from.dist(e.at) > int(10), "a run, not a pop");
+        }
         // it runs in: nearer the ape all the way to the bite
         let mut last = i32::MAX;
         for k in (0..BITE).step_by(10) {
-            let j = e.jaguar(e.tick + k, 0).expect("there");
-            let d = j.feet.flat().sub(e.feet().flat()).len();
+            let j = e.jaguar(&c, e.tick + k, 0).expect("there");
+            let d = j.feet.flat().sub(e.feet(&c).flat()).len();
             assert!(d <= last, "at {k}: {d} after {last}");
             last = d;
         }
         // in the air mid-leap, on the ape at the bite
-        let mid = e.jaguar(e.tick + RUN + LEAP / 2, 0).unwrap();
-        assert!(mid.feet.y > e.feet().y + cm(100));
-        let bite = e.jaguar(e.tick + BITE, 0).unwrap();
-        assert!(bite.feet.flat().sub(e.feet().flat()).len() < cm(5));
+        let mid = e.jaguar(&c, e.tick + RUN + LEAP / 2, 0).unwrap();
+        assert!(mid.feet.y > e.feet(&c).y + cm(100));
+        let bite = e.jaguar(&c, e.tick + BITE, 0).unwrap();
+        assert!(bite.feet.flat().sub(e.feet(&c).flat()).len() < cm(5));
         assert!(e.whole(e.tick + BITE - 1) && !e.whole(e.tick + BITE));
         // and back into the trees, gone
-        let late = e.jaguar(e.tick + GONE - 1, 0).unwrap();
+        let late = e.jaguar(&c, e.tick + GONE - 1, 0).unwrap();
         assert!(late.feet.flat().sub(e.from.flat()).len() < int(1));
-        assert_eq!(e.jaguar(e.tick + GONE, 0), None);
+        assert_eq!(e.jaguar(&c, e.tick + GONE, 0), None);
         // the whole eating is about two seconds, as asked
         assert!((secs(150)..=secs(250)).contains(&EATEN));
     }

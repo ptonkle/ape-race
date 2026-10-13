@@ -174,6 +174,9 @@ pub struct Course {
     /// where the four starters stand, and the way they face
     pub starts: [V3; 4],
     pub start_yaw: i32,
+    /// the City's buildings, cars, river, bridge and hangers (`city.rs`);
+    /// `None` on the Jungle
+    pub city: Option<Box<crate::city::CityLayout>>,
 }
 
 /// A straight (`turn` 0) or a bend of the centreline: metres, degrees.
@@ -318,8 +321,15 @@ impl Course {
     /// Whether a body at `p` (the hands) stands on the jungle floor itself,
     /// not on a platform (Floor is Lava, TRIAGE T37).
     pub fn on_floor(&self, p: V3) -> bool {
-        let floor = ground(p.x, p.z);
+        let floor = self.floor(p.x, p.z);
         self.support(p) <= floor && p.y - BODY_DROP <= floor + cm(10)
+    }
+
+    /// The open floor's height at (`x`, `z`): what Floor is Lava counts as
+    /// the ground and the jaguar runs on (TRIAGE T37). Every map's floor
+    /// today is `ground`; a map with another floor changes only this.
+    pub fn floor(&self, x: i32, z: i32) -> i32 {
+        ground(x, z)
     }
 
     /// The highest surface under a point: the ground, or a platform's top.
@@ -467,6 +477,7 @@ fn centreline(name: &'static str, legs: &[Leg]) -> Course {
         props: Vec::new(),
         starts: [V3::ZERO; 4],
         start_yaw: 0,
+        city: None,
     }
 }
 
