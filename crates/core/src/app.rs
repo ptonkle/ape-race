@@ -2031,6 +2031,7 @@ fn cue_for(e: &Event, local: usize) -> Option<Cue> {
 #[cfg(test)]
 #[path = "app/items_hype_tests.rs"]
 mod items_hype_tests;
+#[cfg(test)]
 mod spectate_tests;
 
 #[cfg(test)]
