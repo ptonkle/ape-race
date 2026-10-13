@@ -587,6 +587,9 @@ async function start() {
   resize();
   bindInput();
   if (new URLSearchParams(location.search).has("lineup")) game.act("screen.lineup", "");
+  // `?map=city`: a look at another map (a test hook until the map selector)
+  const map = new URLSearchParams(location.search).get("map");
+  if (map) game.act("flag.map", map);
   // This browser's id for online play, and `?codes`: the pasted-code path,
   // for the automated online check only.
   game.act("flag.client", crypto.randomUUID());

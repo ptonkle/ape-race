@@ -8,6 +8,7 @@ use crate::course::{
 };
 use crate::fx::{self, cm, deg, int, mul, sin, ONE};
 use crate::geom::{right_of, v3, Affine, V3};
+use crate::map::Map;
 use crate::mesh::{Mesh, VERTEX_VALUES};
 use crate::models::{self, Pose};
 use crate::race::Race;
@@ -87,16 +88,50 @@ const BANNER: Rgb = rgb(240, 236, 220);
 const BANNER_DARK: Rgb = rgb(40, 40, 46);
 const SHADOW: Rgb = rgb(34, 40, 30);
 
+/// How a map is lit: the sky's and the fog's colours, where the fog
+/// starts and ends, the light's direction (toward the sun) and colour, and
+/// the ground's bounce. The Jungle at midday; the City at dusk.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Look {
+    pub sky: Rgb,
+    pub fog: Rgb,
+    pub fog_range: (i32, i32),
+    pub light_dir: V3,
+    pub light: Rgb,
+    pub ground: Rgb,
+}
+
+/// The look of a map.
+pub fn look(map: Map) -> Look {
+    match map {
+        Map::Jungle => Look {
+            sky: SKY,
+            fog: FOG,
+            // PLAN P10: about 150 m
+            fog_range: (int(60), int(170)),
+            light_dir: v3(cm(55), cm(80), cm(35)).norm(),
+            light: rgb(255, 244, 214),
+            ground: rgb(70, 110, 50),
+        },
+        Map::City => crate::cityscape::look(),
+    }
+}
+
+/// The look of the map a course was built for.
+pub fn look_of(c: &Course) -> Look {
+    look(Map::of(c))
+}
+
 /// The light: its direction (toward the sun), its colour; the sky's and the
-/// fog's colours; the ground's bounce. Uploaded with the scene.
+/// fog's colours; the ground's bounce. Uploaded with the scene (the
+/// Jungle's; each frame then sends its own map's light, `Look`).
 pub fn uniforms() -> Vec<i32> {
-    let dir = v3(cm(55), cm(80), cm(35)).norm();
-    let light = rgb(255, 244, 214);
-    let mut v = vec![dir.x, dir.y, dir.z];
-    v.extend(light);
-    v.extend(SKY);
-    v.extend(FOG);
-    v.extend(rgb(70, 110, 50));
+    let l = look(Map::Jungle);
+    let mut v = vec![l.light_dir.x, l.light_dir.y, l.light_dir.z];
+    v.extend(l.light);
+    v.extend(l.sky);
+    v.extend(l.fog);
+    v.extend(l.ground);
     v
 }
 
@@ -106,7 +141,7 @@ pub fn clear_colour() -> Vec<i32> {
 
 /// The fog's start and end, in metres from the eye (PLAN P10: about 150 m).
 pub fn fog_range() -> (i32, i32) {
-    (int(60), int(170))
+    look(Map::Jungle).fog_range
 }
 
 /// The ground under the course: a strip of faceted triangles following the
@@ -119,7 +154,7 @@ pub fn terrain(c: &Course) -> Vec<i32> {
 
 /// The course's chunks: one per `CHUNK` centreline samples, and one more
 /// for the clearing past the finish.
-fn chunk_count(c: &Course) -> usize {
+pub(crate) fn chunk_count(c: &Course) -> usize {
     c.path.len().div_ceil(CHUNK) + 1
 }
 
@@ -214,7 +249,7 @@ fn terrain_chunked(c: &Course, n: usize) -> (Vec<i32>, Vec<(usize, u32, u32)>) {
 }
 
 /// One flat-shaded ground facet, turned to face up.
-fn push_ground(o: &mut Vec<i32>, p: [V3; 3], t: Rgb) {
+pub(crate) fn push_ground(o: &mut Vec<i32>, p: [V3; 3], t: Rgb) {
     let up = p[1].sub(p[0]).cross(p[2].sub(p[0]));
     let p = if up.y < 0 { [p[0], p[2], p[1]] } else { p };
     let n = p[1].sub(p[0]).cross(p[2].sub(p[0])).norm();
@@ -271,19 +306,26 @@ impl Scenery {
     }
 }
 
-/// Builds the course's scenery and ground, chunked.
+/// The chunk a scenery shape at `p` goes in, of `n`.
+pub(crate) fn chunk_of(c: &Course, p: V3, n: usize) -> usize {
+    let last = c.path.len() - 1;
+    let i = c.nearest_anywhere(p);
+    if i == last && p.flat().sub(c.path[last]).dot(c.heading[last]) > 0 {
+        n - 1
+    } else {
+        (i / CHUNK).min(n - 2)
+    }
+}
+
+/// Builds the course's scenery and ground, chunked. The City has its own
+/// (`cityscape.rs`).
 pub fn scenery(c: &Course) -> Scenery {
+    if let Some(city) = &c.city {
+        return crate::cityscape::scenery(c, city);
+    }
     let n = chunk_count(c);
     let mut batches: Vec<Batch> = (0..n).map(|_| Batch::new()).collect();
-    let last = c.path.len() - 1;
-    let chunk_of = |p: V3| {
-        let i = c.nearest_anywhere(p);
-        if i == last && p.flat().sub(c.path[last]).dot(c.heading[last]) > 0 {
-            n - 1
-        } else {
-            (i / CHUNK).min(n - 2)
-        }
-    };
+    let chunk_of = |p: V3| chunk_of(c, p, n);
     for p in &c.props {
         let at = match *p {
             Prop::Tree { at, .. } | Prop::Bush { at, .. } | Prop::Fern { at, .. } => at,
@@ -307,12 +349,25 @@ pub fn scenery(c: &Course) -> Scenery {
     }
     finish_arch(&mut batches[n - 2], c);
     outro(&mut batches[n - 1], c);
-    // the terrain's one instance comes first; its draws name vertex ranges
+    let (terrain, ranges) = terrain_chunked(c, n);
+    assemble(c, batches, terrain, ranges)
+}
+
+/// The scenery from its chunks' shapes and the ground with each chunk's
+/// vertex ranges: the terrain's one instance first, each chunk's draws
+/// naming its own ranges.
+pub(crate) fn assemble(
+    c: &Course,
+    batches: Vec<Batch>,
+    terrain: Vec<i32>,
+    ranges: Vec<(usize, u32, u32)>,
+) -> Scenery {
+    let last = c.path.len() - 1;
+    let n = batches.len();
     let mut values = Vec::new();
     let mut identity = Batch::new();
     identity.push(Mesh::Terrain, &Affine::IDENTITY, [ONE; 3], 0);
     identity.finish_into(crate::render::STATIC_BUFFER, &mut values);
-    let (terrain, ranges) = terrain_chunked(c, n);
     let mut chunks = Vec::new();
     for (k, b) in batches.into_iter().enumerate() {
         let mut draws = b.finish_into(crate::render::STATIC_BUFFER, &mut values);
@@ -352,7 +407,7 @@ fn slab(a: V3, b: V3, width: i32, thick: i32) -> Affine {
 }
 
 /// A point `r` out from `at` at angle `a` round it, `up` above it.
-fn around(at: V3, a: i32, r: i32, up: i32) -> V3 {
+pub(crate) fn around(at: V3, a: i32, r: i32, up: i32) -> V3 {
     at.add(v3(mul(fx::sin(a), r), up, mul(fx::cos(a), r)))
 }
 

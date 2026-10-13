@@ -616,8 +616,28 @@ impl App {
             .filter(|r| r.fits(&self.course))
     }
 
+    /// A look at another map before the map selector (group Y's test hook,
+    /// `?map=city` on the page; `citydemo` is a hand-filled City layout).
+    fn preview_map(&mut self, key: &str) {
+        let course = if key == "citydemo" {
+            crate::cityscape::demo()
+        } else {
+            match crate::map::Map::from_key(key) {
+                Some(m) => m.course(),
+                None => return,
+            }
+        };
+        self.jungle = scene::scenery(&course);
+        self.course = course;
+        self.scene_version += 1;
+    }
+
     /// A button or field: `id` names it, `value` is its new value.
     pub fn act(&mut self, id: &str, value: &str) {
+        if id == "flag.map" {
+            self.preview_map(value);
+            return;
+        }
         if id.starts_with("flag.") {
             self.online_flag(id, value);
             return;
@@ -1066,14 +1086,19 @@ impl App {
             _ => (0, 0),
         };
         let vivid = self.settings.colourblind;
+        // each map has its own sky, fog and light (the City at dusk)
+        let look = match (&self.play, self.stage) {
+            (Some(p), Stage::Race) => scene::look_of(&p.race.course),
+            _ => scene::look_of(&self.course),
+        };
         // the colourblind mode mutes the sky and the fog as well (TRIAGE T33)
         let (sky, fog) = if vivid {
             (
-                crate::sky::grey(scene::SKY, crate::sky::MUTE),
-                crate::sky::grey(scene::FOG, crate::sky::MUTE),
+                crate::sky::grey(look.sky, crate::sky::MUTE),
+                crate::sky::grey(look.fog, crate::sky::MUTE),
             )
         } else {
-            (scene::SKY, scene::FOG)
+            (look.sky, look.fog)
         };
         let colours = crate::sky::colours(sky, fog, speed, metres);
         let world = crate::sky::world(speed, metres);
@@ -1081,10 +1106,11 @@ impl App {
         let view = render::view_values(
             &cam,
             self.aspect(),
-            scene::fog_range(),
+            look.fog_range,
             colours,
             world,
             mute,
+            (look.light_dir, look.light, look.ground),
         );
         let (vines, batch) = match self.stage {
             Stage::Race => match &self.play {
