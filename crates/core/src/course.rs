@@ -177,10 +177,44 @@ pub struct Course {
     /// the City's buildings, cars, river, bridge and hangers (`city.rs`);
     /// `None` on the Jungle
     pub city: Option<Box<crate::city::CityLayout>>,
+    /// a course with sharp corners (the City): its streets, whose union is
+    /// the corridor the walls keep an ape in. Empty on the Jungle, whose
+    /// walls are `half_width` either side of the centreline.
+    pub streets: Vec<Street>,
+}
+
+/// A straight street of a course with sharp corners (the City). The
+/// corridor is the union of the streets: each is a box `half_width` either
+/// side of its line from `from` (on the ground, y 0) along `dir` for `len`,
+/// carried on past each end by `ext` metres plus the mitre of the corner
+/// there (the half width times `tan`, the tangent of half the turn), so two
+/// streets meet in a sharp corner: square at 90°, the outside wall's two
+/// faces meeting in a point.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Street {
+    pub from: V3,
+    pub dir: V3,
+    pub len: i32,
+    pub tan0: i32,
+    pub tan1: i32,
+    pub ext0: i32,
+    pub ext1: i32,
+}
+
+impl Street {
+    /// How far the street's box runs, along it, for a wall `w` from the
+    /// line: from the first value to the second.
+    pub fn span(&self, w: i32) -> (i32, i32) {
+        (
+            -(self.ext0 + mul(w, self.tan0)),
+            self.len + self.ext1 + mul(w, self.tan1),
+        )
+    }
 }
 
 /// A straight (`turn` 0) or a bend of the centreline: metres, degrees.
-struct Leg(i32, i32);
+/// A positive turn is to the left.
+pub(crate) struct Leg(pub i32, pub i32);
 
 /// The jungle course. 1,800 m: straights and bends turning both ways.
 const JUNGLE: &[Leg] = &[
@@ -320,7 +354,11 @@ impl Course {
 
     /// The highest surface under a point: the ground, or a platform's top.
     pub fn support(&self, p: V3) -> i32 {
-        let mut top = ground(p.x, p.z);
+        // the City's river: its bed is below the water (city.rs)
+        let mut top = match self.city {
+            None => ground(p.x, p.z),
+            Some(_) => self.floor(p),
+        };
         let feet = p.y - BODY_DROP;
         for pl in &self.platforms {
             let d = p.sub(pl.centre);
@@ -387,7 +425,9 @@ impl Course {
         let mut pos = pos;
         let mut vel = vel;
         let mut hit = false;
-        if side.abs() > limit {
+        if !self.streets.is_empty() {
+            (pos, vel, hit) = self.contain_streets(pos, vel);
+        } else if side.abs() > limit {
             let right = right_of(self.heading[i]);
             let out = if side > 0 { right } else { right.neg() };
             pos = pos.sub(out.scale(side.abs() - limit));
@@ -425,10 +465,47 @@ impl Course {
         }
         (pos, vel, hit)
     }
+
+    /// The walls of a course with streets: a body outside every street's
+    /// box (less its radius) goes back to the nearest point inside one.
+    fn contain_streets(&self, pos: V3, vel: V3) -> (V3, V3, bool) {
+        let lim = self.half_width - BODY_RADIUS;
+        let flat = pos.flat();
+        let mut best: Option<(i64, V3)> = None;
+        for st in &self.streets {
+            let d = flat.sub(st.from);
+            let r = right_of(st.dir);
+            let (along, side) = (d.dot(st.dir), d.dot(r));
+            let (lo, hi) = st.span(lim);
+            let a = along.clamp(lo, hi);
+            let s = side.clamp(-lim, lim);
+            if a == along && s == side {
+                return (pos, vel, false);
+            }
+            let q = st.from.add(st.dir.scale(a)).add(r.scale(s));
+            let push = flat.sub(q);
+            let dd = push.dot64(push);
+            if best.is_none_or(|(b, _)| dd < b) {
+                best = Some((dd, q));
+            }
+        }
+        let Some((_, q)) = best else {
+            return (pos, vel, false);
+        };
+        let out = flat.sub(q).norm();
+        let pos = v3(q.x, pos.y, q.z);
+        let into = vel.dot(out);
+        let vel = if into > 0 {
+            vel.sub(out.scale(into + mul(into, WALL_BOUNCE)))
+        } else {
+            vel
+        };
+        (pos, vel, true)
+    }
 }
 
 /// The centreline alone.
-fn centreline(name: &'static str, legs: &[Leg]) -> Course {
+pub(crate) fn centreline(name: &'static str, legs: &[Leg]) -> Course {
     let mut path = Vec::new();
     let mut heading = Vec::new();
     let mut p = V3::ZERO;
@@ -464,6 +541,7 @@ fn centreline(name: &'static str, legs: &[Leg]) -> Course {
         starts: [V3::ZERO; 4],
         start_yaw: 0,
         city: None,
+        streets: Vec::new(),
     }
 }
 
