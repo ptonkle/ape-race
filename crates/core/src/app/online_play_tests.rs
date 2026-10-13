@@ -314,6 +314,36 @@ fn an_online_race_is_recorded_as_a_track_and_replays() {
 }
 
 #[test]
+fn the_hosts_map_shows_in_every_lobby_and_the_race_runs_on_it() {
+    use crate::map::Map;
+    let mut p = Pair::lobby();
+    // the joiner's own last map does not count
+    p.apps[1].settings.map = Map::Jungle;
+    let v = p.apps[1].scene_version();
+    p.apps[0].act("lobby.map", "city");
+    assert_eq!(p.apps[0].settings.map, Map::City);
+    p.run(200);
+    let jv = p.apps[1].online.session.as_ref().unwrap().lobby();
+    assert_eq!(jv.map, Map::City);
+    assert_eq!(p.apps[1].map(), Map::City);
+    // the joiner's ape preview moves onto the City at once
+    assert!(p.apps[1].scene_version() > v);
+    let ui: Value = serde_json::from_str(&p.apps[1].ui()).unwrap();
+    let shown = ui["panels"].to_string();
+    assert!(shown.contains("City"), "{shown}");
+    // a joiner cannot choose
+    p.apps[1].act("lobby.map", "jungle");
+    p.run(200);
+    assert_eq!(p.apps[0].map(), Map::City);
+    p.race();
+    for (k, a) in p.apps.iter().enumerate() {
+        let race = &a.play.as_ref().unwrap().race;
+        assert_eq!(race.course.name, "city", "app {k}");
+    }
+    assert_eq!(p.apps[1].settings.map, Map::Jungle);
+}
+
+#[test]
 fn floor_is_lava_online_the_jaguar_eats_on_every_browser() {
     // TRIAGE T37: the host's checkbox reaches the joiner (shown in its
     // lobby, and in its race); an ape eaten in its owner's browser is

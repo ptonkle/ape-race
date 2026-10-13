@@ -78,6 +78,7 @@ impl App {
             Online::join(&id, &name, kind, self.now_ms)
         };
         if host {
+            let _ = o.set_map(self.settings.map, self.now_ms);
             let _ = o.set_ai_count(self.settings.ai_count as usize, self.now_ms);
             let _ = o.set_equal_stats(self.settings.equal_stats, self.now_ms);
             let _ = o.set_lava(self.settings.lava, self.now_ms);
@@ -199,6 +200,16 @@ impl App {
                     self.save = true;
                 }
             }
+            "lobby.map" => {
+                if let (Some(m), Some(o)) =
+                    (crate::map::Map::from_key(value), &mut self.online.session)
+                {
+                    if o.set_map(m, now).is_ok() {
+                        self.settings.map = m;
+                        self.save = true;
+                    }
+                }
+            }
             "lobby.equal" => {
                 let on = value == "on";
                 if let Some(o) = &mut self.online.session {
@@ -296,12 +307,13 @@ impl App {
             self.sounds.push(crate::sound::SCREECH.to_string());
         }
         if let Some(start) = o.take_race_start() {
-            let mut race = Race::new(
-                self.course.clone(),
-                &start.entries,
-                start.equal_stats,
-                start.seed,
-            );
+            // the host's map, built here if this browser has not shown it
+            self.ensure_world(start.map);
+            let course = self
+                .course_of(start.map)
+                .cloned()
+                .unwrap_or_else(|| start.map.course());
+            let mut race = Race::new(course, &start.entries, start.equal_stats, start.seed);
             // only the host runs the AI apes, at its own difficulty
             race.ai_level = self.settings.ai_level;
             // the host's items (TRIAGE T42) and Floor is Lava (T37)
@@ -489,6 +501,7 @@ impl App {
             json!({ "type": "stats", "label": self.t("setup.stats"), "rows": self.stats_rows(&stats) }),
         ];
         if view.is_host {
+            mine.insert(0, self.map_select("lobby.map"));
             let options: Vec<Value> = (0..=view.max_ai)
                 .map(|n| json!({ "value": n.to_string(), "text": n.to_string() }))
                 .collect();
@@ -506,6 +519,11 @@ impl App {
             start["disabled"] = json!(!view.can_start);
             mine.push(start);
         } else {
+            mine.insert(
+                0,
+                json!({ "type": "list", "id": "lobby.map",
+                "rows": [[self.t("setup.map"), self.map_name(view.map)]] }),
+            );
             mine.push(json!({ "type": "list", "rows": [[self.t("setup.equal"),
                 self.t(if view.equal_stats { "on" } else { "off" })]] }));
             mine.push(json!({ "type": "list", "rows": [[self.t("setup.lava"),

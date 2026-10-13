@@ -926,7 +926,11 @@ fn hangers(c: &Course, blocks: &[Block], hangs: &[(usize, Hang)], dice: &mut Dic
             Hang::Cable => (HangerKind::BridgeCable, a, a),
             Hang::Lamp => {
                 // its mast at the deck's edge on the near side
-                let side = if a.flat().sub(on_line).dot(r) >= 0 { 1 } else { -1 };
+                let side = if a.flat().sub(on_line).dot(r) >= 0 {
+                    1
+                } else {
+                    -1
+                };
                 let p = on_line.add(r.scale(side * DECK_HALF));
                 (HangerKind::StreetLight, v3(p.x, a.y - int(27), p.z), a)
             }

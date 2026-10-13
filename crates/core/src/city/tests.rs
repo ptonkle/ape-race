@@ -4,9 +4,7 @@ use super::*;
 use crate::ape::{Ape, Controls, Happening, Mode};
 use crate::course::{Street, Vine, OUTRO};
 use crate::fx::{int, ONE};
-use crate::rules::{
-    Kind, GRAVITY, MUSHROOM_BOUNCE, SWIM_SINK, TICKS_PER_SECOND,
-};
+use crate::rules::{Kind, GRAVITY, MUSHROOM_BOUNCE, SWIM_SINK, TICKS_PER_SECOND};
 
 fn hw(c: &Course) -> i32 {
     c.half_width
@@ -27,7 +25,11 @@ fn in_corridor(c: &Course, p: V3, margin: i32) -> bool {
 /// turn in degrees (left positive).
 fn corner(c: &Course, k: usize) -> (V3, Street, Street, i32) {
     let (a, b) = (c.streets[k], c.streets[k + 1]);
-    let degrees = if a.dir.dot(b.dir).abs() < ONE / 5 { 90 } else { 45 };
+    let degrees = if a.dir.dot(b.dir).abs() < ONE / 5 {
+        90
+    } else {
+        45
+    };
     // a left turn (positive) has the cross product pointing up
     let sign = if a.dir.cross(b.dir).y > 0 { 1 } else { -1 };
     (b.from, a, b, sign * degrees)
@@ -69,13 +71,17 @@ fn a_90_degree_corner_is_square_outside_and_sharp_inside() {
         for q in [outside, inside, p] {
             assert!(in_corridor(&c, q, int(0)), "corner {k}");
             let (back, _, hit) = c.contain(q, V3::ZERO, c.nearest_anywhere(q));
-            assert!(!hit && back == q, "corner {k}: a body at a crossing's corner is pushed");
+            assert!(
+                !hit && back == q,
+                "corner {k}: a body at a crossing's corner is pushed"
+            );
         }
         // past either wall of the outside corner is a building
         for q in [
             p.add(a.dir.scale(hw(&c) + int(3))),
             p.sub(inward.scale(hw(&c) + int(3))),
-            p.sub(a.dir.scale(hw(&c) + int(3))).add(inward.scale(hw(&c) + int(3))),
+            p.sub(a.dir.scale(hw(&c) + int(3)))
+                .add(inward.scale(hw(&c) + int(3))),
         ] {
             let (back, _, hit) = c.contain(q, a.dir.scale(int(10)), c.nearest_anywhere(q));
             assert!(hit, "corner {k}: no wall");
@@ -192,11 +198,25 @@ fn buildings_line_the_streets_on_the_walls_and_never_in_them() {
             }
         }
     }
-    assert!(open * 20 < faced, "{open} metres-ish of open wall to {faced}");
+    assert!(
+        open * 20 < faced,
+        "{open} metres-ish of open wall to {faced}"
+    );
     // low brownstones to skyscrapers
-    let lo = lay.blocks.iter().map(|b| b.height).filter(|h| *h > int(5)).min().unwrap();
+    let lo = lay
+        .blocks
+        .iter()
+        .map(|b| b.height)
+        .filter(|h| *h > int(5))
+        .min()
+        .unwrap();
     let hi = lay.blocks.iter().map(|b| b.height).max().unwrap();
-    assert!(lo <= int(17) && hi >= int(150), "{} to {} m", lo / ONE, hi / ONE);
+    assert!(
+        lo <= int(17) && hi >= int(150),
+        "{} to {} m",
+        lo / ONE,
+        hi / ONE
+    );
 }
 
 #[test]
@@ -225,7 +245,12 @@ fn the_bridge_deck_holds_an_ape_and_the_river_runs_beside_it() {
     assert!(c.progress(bridge.end, c.nearest_anywhere(bridge.end)).0 > river.to);
     for end in [bridge.start, bridge.end] {
         let g = ground(end.x, end.z);
-        assert!(top <= g && top > g - int(2), "the deck at {} m, the street {}", top, g);
+        assert!(
+            top <= g && top > g - int(2),
+            "the deck at {} m, the street {}",
+            top,
+            g
+        );
     }
     assert_eq!(bridge.towers.len(), 2);
     assert!(river.level < top - int(3));
@@ -244,7 +269,12 @@ fn an_ape_runs_off_the_street_onto_the_deck_and_across() {
     let s = river.from - int(20);
     let h = c.heading_at(s);
     let p = c.point(s);
-    let mut ape = Ape::new(Kind::Gorilla, false, v3(p.x, ground(p.x, p.z) + BODY_DROP, p.z), 0);
+    let mut ape = Ape::new(
+        Kind::Gorilla,
+        false,
+        v3(p.x, ground(p.x, p.z) + BODY_DROP, p.z),
+        0,
+    );
     ape.hint = c.nearest_anywhere(ape.pos);
     let ctl = Controls {
         fwd: 1,
@@ -356,7 +386,10 @@ fn every_car_and_boat_bounces_from_its_own_bouncer() {
         assert_eq!(m.top, boat.at.add(v3(0, top, 0)));
         assert!(c.water(boat.at).is_some(), "a boat out of the river");
         let at = c.progress(boat.at, c.nearest_anywhere(boat.at));
-        assert!(at.1.abs() > DECK_HALF + m.radius - cm(10), "a boat under the deck");
+        assert!(
+            at.1.abs() > DECK_HALF + m.radius - cm(10),
+            "a boat under the deck"
+        );
     }
     // none is taller than the bouncer search's cut-off
     for m in &c.mushrooms {
@@ -364,7 +397,10 @@ fn every_car_and_boat_bounces_from_its_own_bouncer() {
     }
     let parked = lay.cars.iter().filter(|k| k.drive.is_none()).count();
     let moving = lay.cars.len() - parked;
-    assert!(parked >= 15 && moving >= 8, "{parked} parked, {moving} moving");
+    assert!(
+        parked >= 15 && moving >= 8,
+        "{parked} parked, {moving} moving"
+    );
     assert!(lay.boats.len() >= 4);
 }
 
@@ -379,7 +415,8 @@ fn a_bounce_off_a_parked_car_reaches_a_vine_ahead() {
     for car in lay.cars.iter().filter(|k| k.drive.is_none()) {
         let m = c.mushrooms[car.bouncer];
         let (along, _) = c.progress(m.top, c.nearest_anywhere(m.top));
-        let peak = m.top.y + BODY_DROP + fx::div(fx::mul(MUSHROOM_BOUNCE, MUSHROOM_BOUNCE), 2 * GRAVITY);
+        let peak =
+            m.top.y + BODY_DROP + fx::div(fx::mul(MUSHROOM_BOUNCE, MUSHROOM_BOUNCE), 2 * GRAVITY);
         // in its own lane: the bounce goes up, not across
         let ahead = c.vines.iter().any(|v| {
             let across = c.progress(v.anchor, c.nearest_anywhere(v.anchor)).1;
@@ -418,7 +455,10 @@ fn moving_cars_drive_their_street_the_same_every_time() {
             assert_eq!(c.bouncer(car.bouncer, t).top.flat(), p.flat());
             if (t + d.phase as u32) % d.period as u32 > 30 {
                 // a cab moves a few metres in a quarter second
-                assert!(p.dist(last) > int(2) && p.dist(last) < int(6), "car {i} at {t}");
+                assert!(
+                    p.dist(last) > int(2) && p.dist(last) < int(6),
+                    "car {i} at {t}"
+                );
             }
         }
     }
@@ -501,7 +541,9 @@ fn vines_are_sparser_than_the_jungles_but_always_offer_a_way_on() {
     let bends: Vec<(i32, i32)> = (0..c.streets.len() - 1)
         .filter(|&k| corner(&c, k).3.abs() == 90)
         .map(|k| {
-            let at = c.progress(corner(&c, k).0, c.nearest_anywhere(corner(&c, k).0)).0;
+            let at = c
+                .progress(corner(&c, k).0, c.nearest_anywhere(corner(&c, k).0))
+                .0;
             (at - int(40), at + int(30))
         })
         .collect();
@@ -520,22 +562,35 @@ fn vines_are_sparser_than_the_jungles_but_always_offer_a_way_on() {
         .count() as i64;
     // per 1000 m
     let (cd, jd) = (city_vines * 1000 / metres, jungle_vines * 1000 / 1750);
-    assert!(cd * 100 <= jd * 90, "{cd} vines a km on the streets, the Jungle {jd}");
+    assert!(
+        cd * 100 <= jd * 90,
+        "{cd} vines a km on the streets, the Jungle {jd}"
+    );
     let mut ats: Vec<i32> = c.vines.iter().map(|v| v.at).collect();
     ats.sort();
     for w in ats.windows(2) {
-        assert!(w[1] - w[0] <= int(40), "gap {} m at {}", (w[1] - w[0]) / ONE, w[0] / ONE);
+        assert!(
+            w[1] - w[0] <= int(40),
+            "gap {} m at {}",
+            (w[1] - w[0]) / ONE,
+            w[0] / ONE
+        );
     }
     assert!(c.length - ats[ats.len() - 1] <= int(50));
     // at least two vines in every 35 m, and a low vine within 60 m (the
     // corners and the bridge have none of their own)
     let mut from = int(30);
     while from < c.length - int(60) {
-        let here = c.vines.iter().filter(|v| v.at >= from && v.at < from + int(35)).count();
+        let here = c
+            .vines
+            .iter()
+            .filter(|v| v.at >= from && v.at < from + int(35))
+            .count();
         assert!(here >= 2, "{} m: {here} vines", from / ONE);
         let low = c.vines.iter().any(|v| {
             (v.at - from).abs() < int(60)
-                && v.anchor.y - v.length - c.support(v3(v.anchor.x, v.anchor.y, v.anchor.z)) < int(4)
+                && v.anchor.y - v.length - c.support(v3(v.anchor.x, v.anchor.y, v.anchor.z))
+                    < int(4)
         });
         assert!(low, "{} m: no low vine near", from / ONE);
         from += int(5);
@@ -570,8 +625,7 @@ fn an_ape_swings_round_a_90_degree_corner_on_its_crane_cable() {
             .iter()
             .enumerate()
             .find(|(i, v)| {
-                v.anchor.flat().dist(p) < int(20)
-                    && lay.hangers[*i].kind == HangerKind::Crane
+                v.anchor.flat().dist(p) < int(20) && lay.hangers[*i].kind == HangerKind::Crane
             })
             .unwrap();
         let speed = int(28);
@@ -624,7 +678,11 @@ fn the_plaza_past_the_finish_is_open_and_closed_by_a_grand_building() {
     let last = c.path.len() - 1;
     let end = c.path[last];
     let fwd = c.heading[last];
-    let terminal = lay.blocks.iter().find(|b| b.style == style::TERMINAL).unwrap();
+    let terminal = lay
+        .blocks
+        .iter()
+        .find(|b| b.style == style::TERMINAL)
+        .unwrap();
     let past = terminal.centre.flat().sub(end).dot(fwd) - terminal.half_len;
     assert!(past >= OUTRO, "{} m past the finish", past / ONE);
     // and a finished ape coasting on is stopped short of it
@@ -681,7 +739,11 @@ fn the_start_streets_end_is_well_behind_the_start_for_the_camera() {
         .map(|b| -(b.centre.flat().sub(c.path[0]).dot(c.heading[0])) - b.half_len)
         .min()
         .unwrap();
-    assert!(back >= int(16), "the start's back wall {} m behind it", back / ONE);
+    assert!(
+        back >= int(16),
+        "the start's back wall {} m behind it",
+        back / ONE
+    );
     // and an ape still cannot run off backwards
     let p = c.path[0].sub(c.heading[0].scale(int(12)));
     let (q, _, _) = c.contain(v3(p.x, int(1), p.z), V3::ZERO, 0);

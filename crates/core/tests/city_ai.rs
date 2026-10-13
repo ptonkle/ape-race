@@ -112,7 +112,12 @@ fn four_ai_apes_with_items_finish_the_city() {
     ];
     let t = trial_at(city(), &kinds, &levels, false, LIMIT);
     for r in &t {
-        assert!(r.finish.is_some(), "{:?} stopped at {} m", r.kind, r.progress / ONE);
+        assert!(
+            r.finish.is_some(),
+            "{:?} stopped at {} m",
+            r.kind,
+            r.progress / ONE
+        );
     }
 }
 

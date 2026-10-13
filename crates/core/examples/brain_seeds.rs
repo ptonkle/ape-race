@@ -29,8 +29,8 @@ fn main() {
                 race.step(&[c]);
             }
             let r = &race.racers[0];
-            sum += r.finish.unwrap_or(150 * TICKS_PER_SECOND as u32) as f64
-                / TICKS_PER_SECOND as f64;
+            sum +=
+                r.finish.unwrap_or(150 * TICKS_PER_SECOND as u32) as f64 / TICKS_PER_SECOND as f64;
             row.push(match r.finish {
                 Some(f) => format!("{:.0}", f as f64 / TICKS_PER_SECOND as f64),
                 None => format!("DNF@{}", r.progress / ONE),
