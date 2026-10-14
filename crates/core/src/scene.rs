@@ -1807,6 +1807,10 @@ pub fn preview(c: &Course) -> Preview {
 /// The title's flyover: a slow glide down the course, starting `from`
 /// metres along. Over the City a little higher, to see over the cars.
 pub fn flyover_camera(c: &Course, ticks: u32, from: i32) -> Camera {
+    let lap = (c.length - int(100)).max(int(1)) as i64;
+    let s = ((ticks as i64 * int(6) as i64 / crate::rules::TICKS_PER_SECOND as i64 + from as i64)
+        % lap) as i32
+        + int(40);
     // on the Ski Slope, down the left branch at each fork (not through the
     // trees on its island)
     let lane = |s: i32| match Map::of(c) {
