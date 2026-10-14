@@ -1454,6 +1454,62 @@ pub fn tether(b: &mut Batch, pts: &[V3], dir: V3, look: scene::VineLook, t: u32)
     }
 }
 
+/// The switch vine (the one that shuts the door): a wide hazard-striped
+/// collar where it leaves its body, yellow and black bands down its upper
+/// part, and a beacon blinking amber, or red while the door is shut.
+pub fn switch_marker(b: &mut Batch, pts: &[V3], dir: V3, shut: bool, t: u32) {
+    let Some(&a) = pts.first() else {
+        return;
+    };
+    for k in 0..4 {
+        let at = a.add(dir.scale(cm(20) + k * cm(22)));
+        let collar = Affine::translate(at)
+            .then(&Affine::along(dir))
+            .then(&Affine::scale(v3(cm(170), cm(20), cm(170))));
+        b.push(
+            Mesh::Hex,
+            &collar,
+            if k % 2 == 0 { HAZARD } else { PLATE_DARK },
+            ONE / 3,
+        );
+    }
+    for k in 0..6 {
+        let from = point_along(pts, fx::div(k * 2 + 1, 30));
+        let to = point_along(pts, fx::div(k * 2 + 2, 30));
+        b.push(
+            Mesh::Cyl,
+            &rod(from, to, cm(42)),
+            if k % 2 == 0 { HAZARD } else { PLATE_DARK },
+            ONE / 2,
+        );
+    }
+    let on = (t / 30).is_multiple_of(2) || shut;
+    let colour = if shut {
+        rgb(255, 50, 40)
+    } else {
+        rgb(255, 170, 30)
+    };
+    let beacon = a.sub(dir.scale(cm(60)));
+    b.push(
+        Mesh::Octa,
+        &placed(
+            beacon,
+            (t as i32).wrapping_mul(600),
+            v3(cm(70), cm(90), cm(70)),
+        ),
+        if on { colour } else { PLATE_DARK },
+        if on { SKY_GLOW } else { 0 },
+    );
+    if on {
+        b.push_halo(
+            Mesh::Sphere,
+            &placed(beacon, 0, v3(int(3), int(3), int(3))),
+            colour,
+            ONE / 2,
+        );
+    }
+}
+
 /// The point `t` (0..=ONE) of the way along a polyline, by length.
 fn point_along(pts: &[V3], t: i32) -> V3 {
     let total: i32 = pts.windows(2).map(|w| w[1].sub(w[0]).len()).sum();
@@ -1493,44 +1549,106 @@ pub fn crystal(b: &mut Batch, at: V3, spin: i32, open: bool) {
 /// How long a flash shows (race ticks).
 pub const FLASH_TICKS: u32 = 60;
 
+/// Something to flash for a moment: where, the race tick it happened, and
+/// what it was.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Flash {
+    pub at: V3,
+    pub tick: u32,
+    pub kind: FlashKind,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FlashKind {
+    /// an ape put back on a deck past the boundary
+    Reset,
+    /// the switch door shutting
+    Door,
+    /// an ape bouncing off a bouncy body (with its boost)
+    Rebound,
+}
+
 /// This tick's flashes on Sector Ape (`None` on every other map): where
-/// each ape put back on a deck now stands, and the door when it shuts.
-pub fn flash_of(race: &crate::race::Race) -> Option<Vec<(V3, u32)>> {
+/// each ape put back on a deck now stands, the door when it shuts, and
+/// where an ape bounces off a body.
+pub fn flash_of(race: &crate::race::Race) -> Option<Vec<Flash>> {
     let s = race.course.sector.as_deref()?;
     let tick = race.tick;
+    let at = |who: usize| race.racers.get(who).map(|r| r.ape.pos);
     Some(
         race.events
             .iter()
-            .filter_map(|e| match *e {
-                crate::race::Event::Reset { who, .. } => {
-                    race.racers.get(who).map(|r| (r.ape.pos, tick))
-                }
-                crate::race::Event::Door { .. } => Some((s.door.frame.t, tick)),
-                _ => None,
+            .filter_map(|e| {
+                let (p, kind) = match *e {
+                    crate::race::Event::Reset { who, .. } => (at(who)?, FlashKind::Reset),
+                    crate::race::Event::Door { .. } => (s.door.frame.t, FlashKind::Door),
+                    crate::race::Event::Body {
+                        who,
+                        what: crate::ape::Happening::Rebound,
+                    } => (at(who)?, FlashKind::Rebound),
+                    _ => return None,
+                };
+                Some(Flash { at: p, tick, kind })
             })
             .collect(),
     )
 }
 
 /// The flashes: an ape warps back onto its deck in a burst of mint light
-/// and sparkles; the door's shutting flashes red-white.
-pub fn flashes(b: &mut Batch, flashes: &[(V3, u32)], race_tick: u32, tick: u32) {
-    for &(at, when) in flashes {
-        let age = race_tick.saturating_sub(when);
-        if age < POP_FLASH {
-            pop_burst(b, at, age, tick);
-            // a column of light where it lands
-            let t = fx::div(age as i32, POP_FLASH as i32);
-            b.push_halo(
-                Mesh::Cyl,
-                &rod(
-                    at.sub(v3(0, int(2), 0)),
-                    at.add(v3(0, int(6), 0)),
-                    cm(140) + mul(t, int(2)),
-                ),
-                TETHER,
-                ONE - t,
-            );
+/// and sparkles with a column of light; the door's shutting flashes; a
+/// rebound sends a ripple of shield light out from where it struck.
+pub fn flashes(b: &mut Batch, flashes: &[Flash], race_tick: u32, tick: u32) {
+    for f in flashes {
+        let age = race_tick.saturating_sub(f.tick);
+        if age >= POP_FLASH {
+            continue;
+        }
+        let t = fx::div(age as i32, POP_FLASH as i32);
+        match f.kind {
+            FlashKind::Reset | FlashKind::Door => {
+                pop_burst(b, f.at, age, tick);
+                let colour = if f.kind == FlashKind::Door {
+                    rgb(255, 80, 60)
+                } else {
+                    TETHER
+                };
+                b.push_halo(
+                    Mesh::Cyl,
+                    &rod(
+                        f.at.sub(v3(0, int(2), 0)),
+                        f.at.add(v3(0, int(6), 0)),
+                        cm(140) + mul(t, int(2)),
+                    ),
+                    colour,
+                    ONE - t,
+                );
+            }
+            FlashKind::Rebound => {
+                let r = cm(120) + mul(t, int(5));
+                b.push_halo(
+                    Mesh::Sphere,
+                    &placed(f.at, 0, v3(r * 2, r * 2, r * 2)),
+                    SHIELD,
+                    mul(ONE - t, ONE - t),
+                );
+                let mut dice = Dice(0xB0_17);
+                for k in 0..8 {
+                    let dir = v3(
+                        dice.range(-ONE, ONE),
+                        dice.range(-ONE, ONE),
+                        dice.range(-ONE, ONE),
+                    )
+                    .norm();
+                    let p = f.at.add(dir.scale(mul(t, int(4))));
+                    let size = mul(cm(25), ONE - t) + cm(3);
+                    b.push(
+                        Mesh::Octa,
+                        &placed(p, k * 9_000, v3(size, size * 2, size)),
+                        SHIELD,
+                        SKY_GLOW,
+                    );
+                }
+            }
         }
     }
 }

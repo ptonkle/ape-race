@@ -1188,7 +1188,7 @@ pub struct Frame<'a> {
     pub gear: Option<models::Gear>,
     /// Sector Ape: flashes of light where something just happened (an ape
     /// put back on a deck, the door shutting), and the race tick of each
-    pub flashes: &'a [(V3, u32)],
+    pub flashes: &'a [crate::sectorscape::Flash],
 }
 
 /// How a vine is drawn: its colour, glow and width.
@@ -1350,6 +1350,17 @@ pub fn dynamic(f: &Frame) -> (Batch, Batch) {
         if map == Map::Sector {
             let pts = vine_points(f, i, held[i]);
             crate::sectorscape::tether(&mut vines, &pts, c.hang(i), look, t);
+            // the switch vine: hazard bands and a beacon, red while the
+            // door it shuts is shut
+            if let Some(s) = c.sector.as_deref().filter(|s| s.door.switch == i) {
+                crate::sectorscape::switch_marker(
+                    &mut vines,
+                    &pts,
+                    c.hang(i),
+                    s.door.shut(tick),
+                    t,
+                );
+            }
         }
     }
     item_flowers(&mut vines, f, &held);
@@ -2119,6 +2130,9 @@ pub fn flyover_dynamic(c: &Course, tick: u32, vivid: bool, eye: V3) -> (Batch, B
         if map == Map::Sector {
             let end = a.add(c.hang(i).scale(c.vines[i].length));
             crate::sectorscape::tether(&mut b, &[a, end], c.hang(i), look, t);
+            if c.sector.as_deref().is_some_and(|s| s.door.switch == i) {
+                crate::sectorscape::switch_marker(&mut b, &[a, end], c.hang(i), false, t);
+            }
         }
     }
     // the City's helicopters and crane hooks, near the flyover's eye

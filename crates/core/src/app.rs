@@ -294,7 +294,7 @@ pub struct Play {
     pub chains: Vec<crate::vinesim::Chain>,
     /// Sector Ape: where an ape was just put back on a deck or the door
     /// just shut, and the race tick (drawn as a flash for a moment)
-    pub flashes: Vec<(V3, u32)>,
+    pub flashes: Vec<crate::sectorscape::Flash>,
     /// a Time Trial (TRIAGE T1)
     pub trial: bool,
     /// what the local player does each tick, for the replay (offline only)
@@ -1331,7 +1331,7 @@ impl App {
             p.flashes.extend(at);
             let tick = p.race.tick;
             p.flashes
-                .retain(|f| tick.saturating_sub(f.1) < crate::sectorscape::FLASH_TICKS);
+                .retain(|f| tick.saturating_sub(f.tick) < crate::sectorscape::FLASH_TICKS);
         }
     }
 
