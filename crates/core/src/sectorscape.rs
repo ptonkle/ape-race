@@ -1052,7 +1052,9 @@ pub fn dynamic(b: &mut Batch, c: &Course, s: &SectorLayout, eye: V3, tick: u32, 
         set_piece(b, p, eye, tick, race_tick);
     }
     if s.wreck.frame.t.dist(eye) < int(700) && s.wreck.frame != Affine::IDENTITY {
-        sc::wreck(b, &s.wreck.frame, tick, s.wreck.gap);
+        // (without the debris tumbling between its halves: the way between
+        // them runs there, and that debris is not solid)
+        sc::wreck_with(b, &s.wreck.frame, tick, s.wreck.gap, false);
     }
     door(b, c, s, eye, race_tick);
     for (k, (kind, f)) in landmarks(c, s).into_iter().enumerate() {
@@ -2439,5 +2441,35 @@ mod tests {
                 );
             }
         }
+    }
+
+    #[test]
+    fn every_tether_leaves_the_face_of_the_body_it_hangs_from() {
+        // (a vine whose body is drawn short of its anchor hangs from
+        // nothing; one whose anchor is deep inside starts in the hull)
+        let c = Map::Sector.course();
+        let s = c.sector.as_ref().unwrap();
+        let mut seen = 0;
+        for (i, h) in s.hangers.iter().enumerate() {
+            let b = match *h {
+                crate::sector::Hanger::Body(b) | crate::sector::Hanger::Switch(b) => b,
+                _ => continue,
+            };
+            let body = &s.bodies[b];
+            let ax = body.axes();
+            let d = c.vines[i].anchor.sub(body.frame.t);
+            let half = [body.half.x, body.half.y, body.half.z];
+            // how far outside the box (negative: inside, by the nearest face)
+            let out: Vec<i32> = (0..3).map(|k| d.dot(ax[k]).abs() - half[k]).collect();
+            let past = out.iter().copied().max().unwrap();
+            assert!(
+                past.abs() <= cm(30),
+                "vine {i} leaves {:?} body {b} {} cm off its face",
+                body.model,
+                past * 100 / ONE
+            );
+            seen += 1;
+        }
+        assert!(seen > 200, "{seen}");
     }
 }

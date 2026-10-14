@@ -576,6 +576,13 @@ pub fn wreck_passage(f: &Affine, gap: (i32, i32)) -> Passage {
 /// `gap` is the opening (see `wreck_passage` for where it is). 121 shapes
 /// and 2 soft glows; about 266 m long overall.
 pub fn wreck(b: &mut Batch, f: &Affine, tick: u32, gap: (i32, i32)) {
+    wreck_with(b, f, tick, gap, true)
+}
+
+/// `wreck`, with the debris tumbling between its halves left out when
+/// `tumbling` is false (Sector Ape: a route runs between the halves, and
+/// the debris is not solid: an ape would fly through what it sees).
+pub fn wreck_with(b: &mut Batch, f: &Affine, tick: u32, gap: (i32, i32), tumbling: bool) {
     let (stern, bow) = halves(f);
     // the port wing, torn off, drifting below and aft
     let wing_off = Affine::translate(m3(-14, -16, -18))
@@ -635,7 +642,7 @@ pub fn wreck(b: &mut Batch, f: &Affine, tick: u32, gap: (i32, i32)) {
         }
     }
     // debris tumbling between the halves
-    for k in 0..8u32 {
+    for k in 0..if tumbling { 8u32 } else { 0 } {
         let t = tumble(tick, k);
         let at = m3(
             -14 + (k as i32 * 9) % 28,
