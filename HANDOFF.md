@@ -26,6 +26,8 @@ A fresh session starts from this file, not from memory.
 
 ## What passed
 
+- Ski Slope gear and weather branch `ski-gear` (group X: skis, helmets and goggles on the Ski Slope; Weather Clear/Snowing; PROTOCOL 6), 2026-10-13: `cargo fmt`, `cargo clippy --workspace --all-targets -D warnings` clean; `cargo test --release --workspace` 309 core, 4 AI (5 ignored), 13 boundary, 3 City AI (2 ignored), 2 Jungle-unchanged, 19 online; `BUILDER_ENGINES=chromium ./scripts/check.sh` BUILDER CHECK PASSED; `BUILDER_ENGINES=chromium ./scripts/check-online.sh` ONLINE CHECK PASSED (Chromium only). SECOND-ORDER X1–X9.
+
 - City course branch (group C: layout, water, moving bouncers, AI and medals per map; main merged in), 2026-10-12: `cargo fmt --check`, `cargo clippy --workspace --all-targets -D warnings`, `cargo test --workspace` (287 core, 4 Jungle AI, 3 City AI, 2 Jungle-unchanged, 13 boundary, 17 online), `./scripts/build.sh`, and `BUILDER_ENGINES=chromium ./scripts/check.sh`: BUILDER CHECK PASSED (Chromium only). City AI and medals: SECOND-ORDER C11–C13.
 
 - Group Y branch (the City's drawing, merged with main and the City course branch at 76f2279), 2026-10-12: `BUILDER_ENGINES=chromium ./scripts/check.sh` BUILDER CHECK PASSED (Chromium only); `cargo clippy --workspace --all-targets -D warnings` clean; `cargo test --workspace` 250 core, 4 AI (5 ignored), 13 boundary, 2 jungle-unchanged, 16 online.
