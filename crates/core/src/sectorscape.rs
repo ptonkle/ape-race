@@ -161,7 +161,7 @@ fn sun(b: &mut Batch, at: V3, r: i32, tick: u32) {
     let t = tick as i32;
     let d = r * 2;
     b.push(
-        Mesh::Geo,
+        Mesh::Sphere,
         &Affine::translate(at).then(&Affine::scale(v3(d, d, d))),
         rgb(255, 250, 236),
         SKY_GLOW,
@@ -193,6 +193,7 @@ fn sun(b: &mut Batch, at: V3, r: i32, tick: u32) {
         );
     }
     for (size, c, s) in [
+        (ratio(12, 10), rgb(255, 244, 220), ONE * 9 / 10),
         (ratio(15, 10), rgb(255, 236, 190), ONE * 7 / 10),
         (ratio(24, 10), rgb(255, 170, 80), ONE * 2 / 5),
         (ratio(38, 10), rgb(255, 110, 40), ONE / 5),

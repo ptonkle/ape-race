@@ -1814,6 +1814,8 @@ const DISC_IN: i32 = ratio(16, 10);
 const DISC_OUT: i32 = ratio(62, 10);
 /// The event horizon's ring of bananas, in radii.
 pub const HORIZON_AT: i32 = ratio(12, 10);
+/// The black ball's radius, in radii (`r`).
+const CORE: i32 = ratio(3, 4);
 /// The dust round it all, in radii: from and to.
 const DUST: (i32, i32) = (ratio(66, 10), int(11));
 
@@ -1831,7 +1833,10 @@ const DUST: (i32, i32) = (ratio(66, 10), int(11));
 /// turns with the tick. About 1,270 shapes, 4 soft glows.
 pub fn black_hole(b: &mut Batch, f: &Affine, r: i32, tick: u32) {
     let t = tick as i32;
-    let core = r * 2;
+    // the ball is smaller than the horizon (`HORIZON_AT`): an ape floats
+    // at the horizon with the chase camera a dozen metres off, which must
+    // never be inside the ball (SECOND-ORDER SA12)
+    let core = mul(r * 2, CORE);
     b.push(
         Mesh::Sphere,
         &f.then(&Affine::scale(v3(core, core, core))),
@@ -2447,7 +2452,7 @@ mod tests {
         // the ball is black, and small inside a wide, flat disc
         assert!(s
             .iter()
-            .any(|x| x.colour == [0, 0, 0] && x.axes[0].len() == r * 2));
+            .any(|x| x.colour == [0, 0, 0] && x.axes[0].len() == mul(r * 2, CORE)));
         let disc: Vec<&Shape> = s.iter().filter(|x| x.colour == DISC[15]).collect();
         assert!(disc.iter().all(|x| x.at.len() > mul(r, int(5))));
         assert!(disc.iter().all(|x| x.at.y.abs() < r / 10), "flat");

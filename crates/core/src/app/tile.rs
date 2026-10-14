@@ -17,7 +17,9 @@
 //! joined by `+` (a space, as a URL may decode it, works too), TRIAGE
 //! T49; classic for the rest) and `gear` (`none`, `ski` or `space`: what
 //! the racers wear instead of the map's own; `space` previews the Sector
-//! Ape costumes before their map exists).
+//! Ape costumes before their map exists), and for Sector Ape's pictures
+//! `door` (ticks since the switch door shut, held at `at`) and `eat`
+//! (the watched ape eaten by the jaguar this many ticks before `at`).
 
 use crate::ai::Difficulty;
 use crate::camera::Orbit;
@@ -57,6 +59,10 @@ pub struct Tile {
     /// what the racers wear instead of the map's gear (`gear=space`: the
     /// Sector Ape costumes on any map)
     pub gear: Option<crate::models::Gear>,
+    /// Sector Ape: the door shut this many ticks before `at`
+    pub door: Option<u32>,
+    /// the watched ape eaten this many ticks before `at` (the jaguar)
+    pub eat: Option<u32>,
 }
 
 impl Tile {
@@ -82,6 +88,8 @@ impl Tile {
             aura: true,
             palettes: Vec::new(),
             gear: None,
+            door: None,
+            eat: None,
         };
         for pair in text.split(',') {
             let Some((k, v)) = pair.split_once('=') else {
@@ -111,6 +119,8 @@ impl Tile {
                 "snow" => t.snow = v == "on",
                 "aura" => t.aura = v != "off",
                 "gear" => t.gear = crate::models::Gear::from_key(v).or(t.gear),
+                "door" => t.door = v.parse().ok(),
+                "eat" => t.eat = v.parse().ok(),
                 "pal" => {
                     t.palettes = v
                         .split(['+', ' '])
@@ -175,8 +185,16 @@ impl App {
         let Some(mut p) = self.play.take() else {
             return;
         };
-        for _ in 0..t.at {
+        for k in 0..t.at {
+            if t.eat.is_some_and(|e| k + e == t.at) {
+                p.race.eat(focus);
+            }
             self.step_race(&mut p);
+        }
+        // Sector Ape's door, shut a moment ago (for its picture)
+        let now = p.race.tick;
+        if let (Some(ago), Some(s)) = (t.door, p.race.course.sector.as_deref_mut()) {
+            s.door.shut_at = Some(now.saturating_sub(ago));
         }
         // held: nothing between ticks, the camera where it is
         p.prev = p.race.racers.iter().map(|r| r.ape.pos).collect();
@@ -233,6 +251,9 @@ mod tests {
             Some(crate::models::Gear::Space)
         );
         assert_eq!(Tile::parse("gear=bogus").gear, None);
+        let d = Tile::parse("door=30,eat=50");
+        assert_eq!((d.door, d.eat), (Some(30), Some(50)));
+        assert_eq!((t.door, t.eat), (None, None));
         assert_eq!((t.at, t.focus, t.view), (600, 1, View::Orbit));
         assert_eq!((t.yaw, t.pitch, t.dist), (deg(90), -deg(20), int(85) / 10));
         assert!(t.hud && t.lava);
