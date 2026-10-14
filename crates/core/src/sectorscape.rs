@@ -499,11 +499,14 @@ fn slab_body(b: &mut Batch, body: &Body) {
     );
 }
 
-/// The boundary shown: every `GATE_EVERY` metres along the course, a frame
-/// of faint glowing dashes on the edge an ape is reset past (sides, below
-/// and above). Far apart and dim, so they read as space lanes and never
-/// compete with the vines.
-const GATE_EVERY: i32 = int(90);
+/// The boundary shown: every `GATE_EVERY` metres along the course, a
+/// glowing bracket at each corner of the edge an ape is reset past (the
+/// sides, below and above), with a warm light at its point. Far apart and
+/// dim, they read as the lane through space and never compete with the
+/// vines.
+const GATE_EVERY: i32 = int(110);
+/// How far each bracket's arms run along the edges.
+const BRACKET: i32 = int(7);
 
 fn gates(s: &mut Sink, c: &Course, l: &SectorLayout) {
     let bd = l.boundary;
@@ -514,31 +517,21 @@ fn gates(s: &mut Sink, c: &Course, l: &SectorLayout) {
         let right = right_of(fwd);
         let b = s.at(p);
         let corner = |sx: i32, y: i32| p.add(right.scale(sx * bd.side)).add(v3(0, y, 0));
-        let edges = [
-            (corner(-1, bd.below), corner(1, bd.below)),
-            (corner(1, bd.below), corner(1, bd.above)),
-            (corner(1, bd.above), corner(-1, bd.above)),
-            (corner(-1, bd.above), corner(-1, bd.below)),
-        ];
-        for (a, z) in edges {
-            let len = z.sub(a).len();
-            let dashes = (len / int(9)).max(1);
-            for k in 0..dashes {
-                let t0 = fx::div(k * 2, dashes * 2);
-                let t1 = fx::div(k * 2 + 1, dashes * 2);
-                b.push(
-                    Mesh::Cube,
-                    &rod(a.lerp(z, t0), a.lerp(z, t1), cm(30)),
-                    GATE,
-                    ONE,
-                );
+        for (sx, y, sy) in [
+            (-1, bd.below, 1),
+            (1, bd.below, 1),
+            (1, bd.above, -1),
+            (-1, bd.above, -1),
+        ] {
+            let k = corner(sx, y);
+            let along_side = k.add(right.scale(-sx * BRACKET));
+            let along_up = k.add(v3(0, sy * BRACKET, 0));
+            for end in [along_side, along_up] {
+                b.push(Mesh::Cube, &rod(k, end, cm(40)), GATE, ONE);
             }
-        }
-        // a corner light at each corner
-        for (sx, y) in [(-1, bd.below), (1, bd.below), (1, bd.above), (-1, bd.above)] {
             b.push(
                 Mesh::Octa,
-                &placed(corner(sx, y), 0, v3(cm(120), cm(120), cm(120))),
+                &placed(k, 0, v3(cm(130), cm(130), cm(130))),
                 NEON_WARM,
                 SKY_GLOW,
             );
@@ -632,7 +625,6 @@ fn shield(b: &mut Batch, body: &Body, tick: u32, k: usize) {
         pulse,
     );
 }
-
 
 /// The black hole's frame: its disc tilted toward the start, so an ape
 /// coming in sees it from a little above.

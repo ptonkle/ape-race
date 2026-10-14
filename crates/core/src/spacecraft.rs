@@ -1780,13 +1780,48 @@ fn banana(b: &mut Batch, f: &Affine, p: V3, t: V3, n: V3, len: i32) {
     );
 }
 
+/// The accretion disc's bands, inside out: a dark violet-blue gap round
+/// the ball, then pastel pink, peach, cream, lavender and soft blue with
+/// banana yellow among them, paling to white toward the outer edge
+/// (TRIAGE T79, after the person's example).
+const DISC: [Rgb; 16] = [
+    rgb(58, 40, 130),
+    rgb(74, 52, 160),
+    rgb(96, 70, 190),
+    rgb(170, 140, 255),
+    rgb(255, 160, 200),
+    rgb(255, 218, 64),
+    rgb(255, 190, 160),
+    rgb(176, 196, 255),
+    rgb(255, 218, 64),
+    rgb(255, 176, 214),
+    rgb(255, 226, 190),
+    rgb(205, 180, 255),
+    rgb(255, 222, 70),
+    rgb(255, 214, 232),
+    rgb(255, 238, 220),
+    rgb(255, 246, 246),
+];
+/// The disc's inner and outer edge, in radii of the ball.
+const DISC_IN: i32 = ratio(16, 10);
+const DISC_OUT: i32 = ratio(62, 10);
+/// The event horizon's ring of bananas, in radii.
+pub const HORIZON_AT: i32 = ratio(12, 10);
+/// The dust round it all, in radii: from and to.
+const DUST: (i32, i32) = (ratio(66, 10), int(11));
+
 /// The black hole at the finish, radius `r` (its dark ball's), in frame `f`
-/// (the accretion disc lies in the frame's xz plane): a black ball, its
-/// event horizon a ring of 24 bananas round it with two more rings of 18
-/// tilted across it, two spiral arms of bananas falling in
-/// (each shrinking as it nears the ring), and three bands of glowing
-/// streaks swirling round, the inner ones faster. Everything turns with
-/// the tick. 349 shapes (240 of them in 80 bananas) and 1 soft glow.
+/// (the accretion disc lies in the frame's xz plane), after the person's
+/// example (TRIAGE T79): a small black ball with a thin bright rim (the
+/// photon ring), in a wide, flat accretion disc of many thin concentric
+/// streaky bands (a dark violet gap round the ball, then pastel pink,
+/// peach, cream, lavender, blue and banana yellow, whitest at the outer
+/// edge, the inner bands turning fastest), a thin bright arc along the
+/// disc's outer rim, two narrow white-lilac jets from the poles with
+/// sparkles riding out, and a wide dark halo of speckled dust with a few
+/// coloured glints. The event horizon is a ring of bananas hugging the
+/// ball (`HORIZON_AT`), with two arms of bananas spiralling in. Everything
+/// turns with the tick. About 1,270 shapes, 4 soft glows.
 pub fn black_hole(b: &mut Batch, f: &Affine, r: i32, tick: u32) {
     let t = tick as i32;
     let core = r * 2;
@@ -1796,81 +1831,148 @@ pub fn black_hole(b: &mut Batch, f: &Affine, r: i32, tick: u32) {
         rgb(0, 0, 0),
         SKY_GLOW,
     );
+    // the photon ring: a glow round the ball's outline
+    let ring = mul(core, ratio(115, 100));
+    b.push_halo(
+        Mesh::Sphere,
+        &f.then(&Affine::scale(v3(ring, ring, ring))),
+        rgb(255, 236, 255),
+        -ONE * 2,
+    );
     let flat = |a: i32| (v3(sin(a), 0, fx::cos(a)), v3(fx::cos(a), 0, -sin(a)));
-    // the event horizon: one ring in the disc's plane, two tilted across
-    let rings: [(Affine, i32, i32, i32); 3] = [
-        (Affine::IDENTITY, 24, ratio(114, 100), 120),
-        (Affine::rot_x(deg(62)), 18, ratio(122, 100), -90),
-        (
-            Affine::rot_x(-deg(62)).then(&Affine::rot_y(deg(90))),
-            18,
-            ratio(122, 100),
-            75,
-        ),
-    ];
-    for (tilt, n, at, speed) in rings {
-        let g = f.then(&tilt);
-        let len = mul(r, ratio(24, 100));
-        for k in 0..n {
-            let a = k * TURN / n + t.wrapping_mul(speed);
+    // the disc: thin concentric bands of streaks
+    let bands = DISC.len() as i32;
+    for (k, colour) in DISC.into_iter().enumerate() {
+        let k = k as i32;
+        let rad = mul(r, DISC_IN + (DISC_OUT - DISC_IN) * k / (bands - 1));
+        let n = 30 + k * 3;
+        let speed = 1_200 / (k + 4);
+        let len = mul(rad, ratio(6_283, 1_000)) / n * 3 / 2;
+        let glow = if k < 3 { ONE * 3 / 4 } else { SKY_GLOW };
+        let mut wobble = fx::Dice(0xD15C + k as u64);
+        for j in 0..n {
+            let a = j * TURN / n + t.wrapping_mul(speed) + wobble.range(0, TURN / n / 2);
             let (out, along) = flat(a);
-            banana(b, &g, out.scale(mul(r, at)), along, out, len);
-        }
-    }
-    // two arms of bananas spiralling in
-    for arm in 0..2 {
-        for k in 0..10 {
-            let frac = (k * ONE / 10 + t.wrapping_mul(40)) & (ONE - 1);
-            let rad = mul(r, ratio(115, 100) + mul(ratio(19, 10), ONE - frac));
-            let a = arm * HALF + mul(frac, TURN) + t.wrapping_mul(60);
-            let (out, along) = flat(a);
-            let len = mul(
-                mul(r, ratio(3, 10)),
-                ONE * 3 / 5 + mul(ONE - frac, ONE * 2 / 5),
-            );
-            banana(
-                b,
-                f,
-                out.scale(rad).add(v3(0, mul(sin(a * 3), r / 10), 0)),
-                along,
-                out,
-                len,
-            );
-        }
-    }
-    // the accretion disc: white-hot, orange and violet bands of streaks
-    let bands = [
-        (28, ratio(150, 100), rgb(255, 244, 214), 260),
-        (36, ratio(210, 100), rgb(255, 140, 40), 150),
-        (44, ratio(290, 100), rgb(150, 70, 230), 80),
-    ];
-    for (n, at, c, speed) in bands {
-        let rad = mul(r, at);
-        let len = mul(rad, ratio(6, 10)) * 10 / n;
-        for k in 0..n {
-            let a = k * TURN / n + t.wrapping_mul(speed) + (k % 3) * 600;
-            let (out, along) = flat(a);
-            let p = out.scale(rad + (k % 4 - 2) * (r / 12));
+            let p = out.scale(rad + wobble.range(-r / 8, r / 8));
             b.push(
                 Mesh::Shard,
                 &f.then(&axes(
                     p,
-                    out.scale(len / 4),
+                    out.scale(r / 4),
                     along.scale(len),
-                    V3::UP.scale(r / 30),
+                    V3::UP.scale(r / 40),
                 )),
-                c,
+                colour,
+                glow,
+            );
+        }
+    }
+    // a thin bright arc tracing the outer rim, round most of it
+    let arc = 72;
+    let rim = mul(r, DISC_OUT + ratio(3, 10));
+    let seg = mul(rim, ratio(6_283, 1_000)) / arc;
+    for j in 0..arc * 3 / 4 {
+        let a = j * TURN / arc + t.wrapping_mul(40);
+        let (out, along) = flat(a);
+        b.push(
+            Mesh::Cube,
+            &f.then(&axes(
+                out.scale(rim),
+                out.scale(r / 30),
+                V3::UP.scale(r / 50),
+                along.scale(seg),
+            )),
+            rgb(255, 232, 244),
+            SKY_GLOW,
+        );
+    }
+    // the event horizon: a ring of bananas hugging the ball
+    let len = mul(r, ratio(34, 100));
+    for k in 0..26 {
+        let a = k * TURN / 26 + t.wrapping_mul(150);
+        let (out, along) = flat(a);
+        banana(b, f, out.scale(mul(r, HORIZON_AT)), along, out, len);
+    }
+    // two arms of bananas spiralling in, shrinking as they near it
+    for arm in 0..2 {
+        for k in 0..8 {
+            let frac = (k * ONE / 8 + t.wrapping_mul(40)) & (ONE - 1);
+            let rad = mul(r, HORIZON_AT + mul(ratio(28, 10), ONE - frac));
+            let a = arm * HALF + mul(frac, TURN) + t.wrapping_mul(60);
+            let (out, along) = flat(a);
+            let len = mul(
+                mul(r, ratio(4, 10)),
+                ONE * 2 / 5 + mul(ONE - frac, ONE * 3 / 5),
+            );
+            banana(b, f, out.scale(rad), along, out, len);
+        }
+    }
+    // the jets: narrow white-lilac beams from the poles, soft round a
+    // bright core, with sparkles riding out along them
+    for sy in [1, -1] {
+        let from = V3::UP.scale(sy * r);
+        let to = V3::UP.scale(sy * mul(r, ratio(80, 10)));
+        b.push(
+            Mesh::Spike,
+            &f.then(&rod(from, to, r / 5)),
+            rgb(246, 240, 255),
+            SKY_GLOW,
+        );
+        b.push_halo(
+            Mesh::Sphere,
+            &f.then(&Affine::translate(from.lerp(to, ONE / 2)))
+                .then(&Affine::scale(v3(r, to.sub(from).len(), r))),
+            rgb(200, 170, 255),
+            ONE * 3 + ONE / 3,
+        );
+        for k in 0..12 {
+            let frac = (k * ONE / 12 + t.wrapping_mul(90)) & (ONE - 1);
+            let spread = mul(r / 3, frac);
+            let a = k * 23_000;
+            let p = from
+                .lerp(to, frac)
+                .add(v3(mul(sin(a), spread), 0, mul(fx::cos(a), spread)));
+            let size = r / 12;
+            b.push(
+                Mesh::Octa,
+                &f.then(&Affine::translate(p))
+                    .then(&Affine::scale(v3(size, size * 2, size))),
+                rgb(236, 226, 255),
                 SKY_GLOW,
             );
         }
     }
-    // a faint violet glow round the whole
-    let glow = mul(r, ratio(40, 10));
+    // the dust: a wide, flat halo of dark specks turning slowly round it
+    // all, a few of them coloured glints, over a faint violet haze
+    let mut dust = fx::Dice(0xD057);
+    let turn = Affine::rot_y(t.wrapping_mul(8));
+    let g = f.then(&turn);
+    for k in 0..220 {
+        let a = dust.range(0, TURN);
+        let rad = mul(r, DUST.0) + dust.range(0, mul(r, DUST.1 - DUST.0));
+        let y = mul(dust.range(-ONE, ONE), mul(r, ratio(16, 10)));
+        let p = v3(mul(sin(a), rad), y, mul(fx::cos(a), rad));
+        let size = mul(r, ratio(5, 100)) + dust.range(0, mul(r, ratio(7, 100)));
+        let (c, glow) = if k % 11 == 0 {
+            let glint = [rgb(255, 150, 200), rgb(120, 230, 210), rgb(255, 224, 90)];
+            (glint[(k / 11) % 3], SKY_GLOW)
+        } else {
+            (rgb(52, 44, 72), ONE / 2)
+        };
+        b.push(
+            Mesh::Octa,
+            &g.then(&Affine::translate(p))
+                .then(&Affine::scale(v3(size, size, size))),
+            c,
+            glow,
+        );
+    }
+    let haze = mul(r, int(22));
     b.push_halo(
         Mesh::Sphere,
-        &f.then(&Affine::scale(v3(glow, glow / 3, glow))),
-        rgb(120, 60, 200),
-        ONE / 6,
+        &f.then(&Affine::scale(v3(haze, haze / 3, haze))),
+        rgb(110, 70, 190),
+        ONE / 8,
     );
 }
 
@@ -2313,30 +2415,41 @@ mod tests {
 
     #[test]
     fn the_black_holes_event_horizon_is_made_of_bananas() {
+        // TRIAGE T79: after the person's example, a small ball in a wide,
+        // flat disc of streaky pastel bands, jets and dust; the horizon is
+        // a ring of bananas
         let f = Affine::IDENTITY;
         let r = int(20);
         let (n, halos) = count(|b| black_hole(b, &f, r, 0));
-        in_range(n, 300, 400, "black hole");
-        assert_eq!(halos, 1);
+        in_range(n, 1_150, 1_400, "black hole");
+        assert_eq!(halos, 4);
         let s = draw(|b| black_hole(b, &f, r, 0));
         let bananas: Vec<&Shape> = s.iter().filter(|x| x.colour == BANANA).collect();
-        // 80 bananas, two shapes each, plus a stalk
-        assert_eq!(bananas.len(), 160);
-        assert_eq!(s.iter().filter(|x| x.colour == BANANA_TIP).count(), 80);
-        // the horizon: 60 of them in a shell just outside the dark ball
+        // 26 on the horizon and 16 spiralling in, two shapes each
+        assert_eq!(bananas.len(), 2 * (26 + 16));
+        assert_eq!(s.iter().filter(|x| x.colour == BANANA_TIP).count(), 26 + 16);
+        // the horizon: just outside the dark ball
         let on_horizon = bananas
             .iter()
             .filter(|x| {
                 let d = x.at.len();
-                d > r && d < mul(r, ratio(125, 100))
+                d > r && d < mul(r, ratio(135, 100))
             })
             .count();
-        assert!(on_horizon >= 120, "{on_horizon}");
-        // the ball is black
+        assert!(on_horizon >= 52, "{on_horizon}");
+        // the ball is black, and small inside a wide, flat disc
         assert!(s
             .iter()
             .any(|x| x.colour == [0, 0, 0] && x.axes[0].len() == r * 2));
-        // and it swirls
+        let disc: Vec<&Shape> = s.iter().filter(|x| x.colour == DISC[15]).collect();
+        assert!(disc.iter().all(|x| x.at.len() > mul(r, int(5))));
+        assert!(disc.iter().all(|x| x.at.y.abs() < r / 10), "flat");
+        // banana yellow among the disc's bands
+        assert!(s
+            .iter()
+            .filter(|x| x.colour == DISC[5])
+            .all(|x| x.at.len() > mul(r, DISC_IN)));
+        // and it swirls, the inner bands faster
         let moved = draw(|b| black_hole(b, &f, r, 30));
         assert!(s
             .iter()

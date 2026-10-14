@@ -104,7 +104,7 @@ impl Gallery {
             "chunk" | "asteroid" => (V3::ZERO, int(8)),
             "girder" => (V3::ZERO, int(13)),
             "debris" => (V3::ZERO, int(22)),
-            "blackhole" => (V3::ZERO, int(62)),
+            "blackhole" => (V3::ZERO, int(250)),
             "sun" => (V3::ZERO, int(90)),
             "planet" => (V3::ZERO, int(120)),
             "cat" => (v3(0, fx::cm(60), 0), int(1)),
