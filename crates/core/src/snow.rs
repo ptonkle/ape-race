@@ -78,7 +78,7 @@ fn hash(cx: i64, cz: i64, k: u64) -> u64 {
 
 /// A value in `lo..hi` from bits of `h`.
 fn pick(h: u64, shift: u32, lo: i32, hi: i32) -> i32 {
-    lo + ((h >> shift) & 0xFFFF) as i32 * (hi - lo) / 0x1_0000
+    lo + (((h >> shift) & 0xFFFF) as i64 * (hi - lo) as i64 / 0x1_0000) as i32
 }
 
 /// `a` wrapped into `0..m` (both Q16, as i64).
@@ -221,7 +221,11 @@ mod tests {
     #[test]
     fn the_snow_surrounds_the_eye_wherever_it_goes() {
         // every side of the eye has flakes, near and far, at any place
-        for eye in [V3::ZERO, v3(int(-700), int(-90), int(1234)), v3(int(5), 0, int(-9))] {
+        for eye in [
+            V3::ZERO,
+            v3(int(-700), int(-90), int(1234)),
+            v3(int(5), 0, int(-9)),
+        ] {
             let f = flakes_at(eye, 9_000);
             for (dx, dz) in [(1, 0), (-1, 0), (0, 1), (0, -1)] {
                 let side = f
@@ -243,10 +247,7 @@ mod tests {
         // a flake seen from two eyes a few metres apart is the same flake
         let a = flakes_at(V3::ZERO, 777);
         let b = flakes_at(v3(int(4), int(1), int(-3)), 777);
-        let shared = a
-            .iter()
-            .filter(|f| b.contains(f))
-            .count();
+        let shared = a.iter().filter(|f| b.contains(f)).count();
         assert!(shared * 10 > a.len() * 6, "{shared} of {} kept", a.len());
     }
 

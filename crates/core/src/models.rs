@@ -1002,14 +1002,7 @@ fn skis(rig: &mut Rig, kind: Kind, m: &Dims, s: &Skel) {
         let flat = pct(SKI_LEN, 74);
         let back = pct(w, 40) - pct(SKI_LEN, 42);
         let tail = f.at(0, y, back);
-        let nose = board(
-            rig,
-            &f,
-            tail,
-            0,
-            v3(SKI_WIDE, SKI_THICK, flat),
-            shell,
-        );
+        let nose = board(rig, &f, tail, 0, v3(SKI_WIDE, SKI_THICK, flat), shell);
         // the tip curls up in two steps; the tail kicks up a little
         let bend1 = board(
             rig,
@@ -1076,11 +1069,7 @@ fn helmet(rig: &mut Rig, kind: Kind, l: &Look, h: &Frame) {
     let p = |x: i32, y: i32, z: i32| v3(pct(d, x), pct(d, y), pct(d, z));
     rig.put(Mesh::Geo, h.shape(p(0, 26, -4), p(114, 88, 116)), shell);
     // a raised ridge from front to back, and a short peak over the goggles
-    rig.put(
-        Mesh::Bevel,
-        h.shape(p(0, 66, -6), p(22, 12, 90)),
-        stripe,
-    );
+    rig.put(Mesh::Bevel, h.shape(p(0, 66, -6), p(22, 12, 90)), stripe);
     rig.put(
         Mesh::Wedge,
         h.shape(p(0, 30, 52), p(70, 8, 16)),
@@ -1090,7 +1079,11 @@ fn helmet(rig: &mut Rig, kind: Kind, l: &Look, h: &Frame) {
     let a = h.at(0, pct(d, 4), -pct(d, 4));
     rig.put(
         Mesh::Hex,
-        rod(a.sub(h.y.scale(pct(d, 9))), a.add(h.y.scale(pct(d, 9))), pct(d, 120)),
+        rod(
+            a.sub(h.y.scale(pct(d, 9))),
+            a.add(h.y.scale(pct(d, 9))),
+            pct(d, 120),
+        ),
         STRAP,
     );
     // the frame and the lens, glowing a little like a mirror in the sun
@@ -2162,11 +2155,24 @@ mod tests {
             let (shell, _, lens) = gear_colours(kind);
             for pose in ski_poses() {
                 let s = drawn(kind, &pose);
-                let bare = drawn(kind, &Pose { gear: Gear::None, ..pose });
-                assert!(s.len() > bare.len() + 15, "{kind:?} {} vs {}", s.len(), bare.len());
+                let bare = drawn(
+                    kind,
+                    &Pose {
+                        gear: Gear::None,
+                        ..pose
+                    },
+                );
+                assert!(
+                    s.len() > bare.len() + 15,
+                    "{kind:?} {} vs {}",
+                    s.len(),
+                    bare.len()
+                );
                 assert!((50..=280).contains(&s.len()), "{kind:?} {} shapes", s.len());
                 // the helmet's shell over the head, and the mirrored lens
-                assert!(s.iter().any(|x| x.mesh == Mesh::Geo as u32 && x.colour == shell));
+                assert!(s
+                    .iter()
+                    .any(|x| x.mesh == Mesh::Geo as u32 && x.colour == shell));
                 assert!(s.iter().any(|x| x.colour == lens), "{kind:?}: no goggles");
                 // two long boards, pointing the way the ape faces
                 let b = boards(kind, &pose);
@@ -2205,7 +2211,11 @@ mod tests {
                     at.y - feet
                 );
             }
-            assert!(low >= feet, "{kind:?}: sunk {} cm", (feet - low) * 100 / ONE);
+            assert!(
+                low >= feet,
+                "{kind:?}: sunk {} cm",
+                (feet - low) * 100 / ONE
+            );
             // the two skis side by side, a hip's width apart
             let b = boards(kind, &pose);
             let apart = b[0].0.dist(b[1].0);

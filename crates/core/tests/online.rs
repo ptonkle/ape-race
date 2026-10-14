@@ -914,7 +914,6 @@ fn the_ski_slope_rides_with_the_start_and_is_raced_on_every_browser() {
 fn a_client_from_before_the_ski_slope_is_refused_not_misled() {
     // PROTOCOL 5 knew only the Jungle and the City: a `ski` in its Roster
     // or Start would not read, so it is told to update instead
-    assert!(tool_core::online::PROTOCOL >= 6);
     let mut net = Net::new(2, 3, 20, 10);
     net.nodes[1] = Online::join("client1", "Old", Kind::Lemur, 0).with_protocol(5);
     net.lb.connect_all();

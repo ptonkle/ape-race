@@ -71,7 +71,10 @@ fn the_ski_slopes_setup_offers_the_weather_under_the_map_and_no_other_map_does()
         assert_eq!(all[1]["label"], "Weather");
         a.act("setup.weather", "snowing");
         assert_eq!(a.settings.weather, Weather::Snowing);
-        assert_eq!(item(&ui_of(&mut a), "setup.weather").unwrap()["value"], "snowing");
+        assert_eq!(
+            item(&ui_of(&mut a), "setup.weather").unwrap()["value"],
+            "snowing"
+        );
     }
 }
 
@@ -129,7 +132,11 @@ fn snow_changes_nothing_in_a_race_but_the_drawing() {
     let at = |a: &App| -> Vec<(V3, V3)> {
         let p = a.play.as_ref().unwrap();
         assert_eq!(p.race.course.name, "ski");
-        p.race.racers.iter().map(|r| (r.ape.pos, r.ape.vel)).collect()
+        p.race
+            .racers
+            .iter()
+            .map(|r| (r.ape.pos, r.ape.vel))
+            .collect()
     };
     assert_eq!(at(&clear), at(&snow), "the same race in any weather");
     assert!(snow.snowing());
