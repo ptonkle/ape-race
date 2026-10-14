@@ -1901,6 +1901,49 @@ const JAG_NOSE: Rgb = rgb(120, 70, 60);
 const JAG_MOUTH: Rgb = rgb(150, 40, 46);
 const JAG_FANG: Rgb = rgb(250, 248, 236);
 
+/// The big cat's coat and build: the jaguar's, or on the Ski Slope a snow
+/// leopard's (the person, 2026-10-13).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct BigCat {
+    pub coat: Rgb,
+    pub deep: Rgb,
+    pub cream: Rgb,
+    pub spot: Rgb,
+    pub eye: Rgb,
+    /// the tail's thickness, percent of the jaguar's
+    pub tail: i32,
+}
+
+pub const JAGUAR: BigCat = BigCat {
+    coat: JAG_COAT,
+    deep: JAG_DEEP,
+    cream: JAG_CREAM,
+    spot: JAG_SPOT,
+    eye: JAG_EYE,
+    tail: 100,
+};
+
+/// Smoky grey-white with charcoal rosettes round grey middles, pale
+/// green-grey eyes and a very thick tail.
+pub const SNOW_LEOPARD: BigCat = BigCat {
+    coat: rgb(214, 214, 206),
+    deep: rgb(168, 168, 162),
+    cream: rgb(246, 246, 240),
+    spot: rgb(54, 56, 60),
+    eye: rgb(176, 204, 178),
+    tail: 150,
+};
+
+impl BigCat {
+    /// The big cat that hunts on a map.
+    pub fn on(map: crate::map::Map) -> BigCat {
+        match map {
+            crate::map::Map::Ski => SNOW_LEOPARD,
+            _ => JAGUAR,
+        }
+    }
+}
+
 /// Where the rosettes sit on the body: centimetres along the spine from its
 /// middle, and degrees round it from the top toward the side.
 const ROSETTES: [(i32, i32); 22] = [
@@ -1931,7 +1974,7 @@ const ROSETTES: [(i32, i32); 22] = [
 /// Draws the jaguar posed as `j`, at `scale` percent of life size (the
 /// racers' `scene::RACE_SCALE`, so it reads beside them): the same faceted
 /// low-poly style as the apes, on four legs with a long ringed tail.
-pub fn jaguar(b: &mut Batch, j: &crate::jaguar::Jaguar, scale: i32) {
+pub fn jaguar(b: &mut Batch, j: &crate::jaguar::Jaguar, scale: i32, cat: &BigCat) {
     let k = (ONE as i64 * scale.max(1) as i64 / 100) as i32;
     let mut rig = Rig {
         b,
@@ -1950,14 +1993,14 @@ pub fn jaguar(b: &mut Batch, j: &crate::jaguar::Jaguar, scale: i32) {
     rig.put(
         Mesh::Barrel,
         body.shape(p(0, 0, 0), p(44, 112, 48)),
-        JAG_COAT,
+        cat.coat,
     );
-    rig.put(Mesh::Geo, body.shape(p(0, 38, -1), p(46, 46, 52)), JAG_COAT);
-    rig.put(Mesh::Geo, body.shape(p(0, -40, 2), p(44, 46, 50)), JAG_COAT);
+    rig.put(Mesh::Geo, body.shape(p(0, 38, -1), p(46, 46, 52)), cat.coat);
+    rig.put(Mesh::Geo, body.shape(p(0, -40, 2), p(44, 46, 50)), cat.coat);
     rig.put(
         Mesh::Geo,
         body.shape(p(0, 0, -14), p(34, 82, 26)),
-        JAG_CREAM,
+        cat.cream,
     );
     // the rosettes: dark rings round deeper tawny middles
     for (along, round) in ROSETTES {
@@ -1967,16 +2010,16 @@ pub fn jaguar(b: &mut Batch, j: &crate::jaguar::Jaguar, scale: i32) {
         rig.put(
             Mesh::Hex,
             rod(at.sub(n.scale(cm(1))), at.add(n.scale(cm(2))), cm(11)),
-            JAG_SPOT,
+            cat.spot,
         );
-        rig.put(Mesh::Hex, rod(at, at.add(n.scale(cm(3))), cm(5)), JAG_DEEP);
+        rig.put(Mesh::Hex, rod(at, at.add(n.scale(cm(3))), cm(5)), cat.deep);
     }
-    jaguar_legs(&mut rig, j, &body, fwd);
-    jaguar_head(&mut rig, j, &body, fwd);
-    jaguar_tail(&mut rig, j, &body);
+    jaguar_legs(&mut rig, j, &body, fwd, cat);
+    jaguar_head(&mut rig, j, &body, fwd, cat);
+    jaguar_tail(&mut rig, j, &body, cat);
 }
 
-fn jaguar_legs(rig: &mut Rig, j: &crate::jaguar::Jaguar, body: &Frame, fwd: V3) {
+fn jaguar_legs(rig: &mut Rig, j: &crate::jaguar::Jaguar, body: &Frame, fwd: V3, cat: &BigCat) {
     let up = V3::UP;
     let flat = Frame::upright(V3::ZERO, up, fwd);
     // front left and right, hind left and right: a gallop's order
@@ -2017,20 +2060,20 @@ fn jaguar_legs(rig: &mut Rig, j: &crate::jaguar::Jaguar, body: &Frame, fwd: V3) 
             .lerp(eat, if front { j.head_down } else { 0 });
         let hint = if front { fwd.neg() } else { fwd };
         let (mid, end) = bend(root, target, len, hint);
-        rig.bone(root, mid, w, JAG_COAT);
-        rig.bone(mid, end, pct(w, 72), shade(JAG_COAT, 94));
+        rig.bone(root, mid, w, cat.coat);
+        rig.bone(mid, end, pct(w, 72), shade(cat.coat, 94));
         // a spot or two on the upper leg
         rig.ball(
             root.lerp(mid, ONE / 2).add(flat.x.scale(side * pct(w, 40))),
             cm(5),
-            JAG_SPOT,
+            cat.spot,
         );
         // the paw
         let paw = Frame::upright(end, up, fwd);
         rig.put(
             Mesh::Bevel,
             paw.shape(v3(0, 0, cm(3)), p3(12, 7, 15)),
-            JAG_CREAM,
+            cat.cream,
         );
     }
 }
@@ -2040,23 +2083,23 @@ fn p3(x: i32, y: i32, z: i32) -> V3 {
     v3(cm(x), cm(y), cm(z))
 }
 
-fn jaguar_head(rig: &mut Rig, j: &crate::jaguar::Jaguar, body: &Frame, fwd: V3) {
+fn jaguar_head(rig: &mut Rig, j: &crate::jaguar::Jaguar, body: &Frame, fwd: V3, cat: &BigCat) {
     let up = V3::UP;
     // up and ahead of the shoulders; down to the ground, eating
     let high = body.at(0, cm(76), cm(14));
     let low = v3(0, cm(20), 0).add(fwd.scale(cm(98)));
     let at = high.lerp(low, j.head_down);
     let neck = body.at(0, cm(46), cm(6));
-    rig.put(Mesh::Taper, rod(neck, at, cm(28)), JAG_COAT);
+    rig.put(Mesh::Taper, rod(neck, at, cm(28)), cat.coat);
     let a = mul(j.head_down, deg(55));
     let head_up = up.scale(fx::cos(a)).add(fwd.scale(fx::sin(a)));
     let head_fwd = fwd.scale(fx::cos(a)).sub(up.scale(fx::sin(a)));
     let h = Frame::upright(at, head_up, head_fwd);
-    rig.put(Mesh::Geo, h.shape(V3::ZERO, p3(30, 26, 32)), JAG_COAT);
+    rig.put(Mesh::Geo, h.shape(V3::ZERO, p3(30, 26, 32)), cat.coat);
     rig.put(
         Mesh::Bevel,
         h.shape(p3(0, -5, 16), p3(17, 12, 14)),
-        JAG_CREAM,
+        cat.cream,
     );
     rig.put(Mesh::Octa, h.shape(p3(0, -1, 23), p3(7, 4, 5)), JAG_NOSE);
     // the lower jaw, hinged under the cheeks, open by `jaw`
@@ -2072,7 +2115,7 @@ fn jaguar_head(rig: &mut Rig, j: &crate::jaguar::Jaguar, body: &Frame, fwd: V3) 
             c2: jaw_fwd.scale(cm(15)),
             t: hinge.add(jaw_fwd.scale(cm(8))),
         },
-        JAG_CREAM,
+        cat.cream,
     );
     if j.jaw > ONE / 5 {
         // the open mouth and its fangs
@@ -2098,26 +2141,26 @@ fn jaguar_head(rig: &mut Rig, j: &crate::jaguar::Jaguar, body: &Frame, fwd: V3) 
     }
     for s in SIDES {
         // eyes, round ears with pale insides, spots on the brow
-        rig.put(Mesh::Ico, h.shape(p3(s * 7, 4, 13), p3(6, 5, 5)), JAG_EYE);
+        rig.put(Mesh::Ico, h.shape(p3(s * 7, 4, 13), p3(6, 5, 5)), cat.eye);
         rig.put(Mesh::Octa, h.shape(p3(s * 7, 4, 15), p3(2, 4, 2)), BLACK);
         let ear = h.at(s * cm(10), cm(13), -cm(3));
         rig.put(
             Mesh::Hex,
             rod(ear, ear.add(h.z.scale(cm(3))), cm(10)),
-            JAG_SPOT,
+            cat.spot,
         );
         let inner = ear.add(h.z.scale(cm(2)));
         rig.put(
             Mesh::Hex,
             rod(inner, inner.add(h.z.scale(cm(2))), cm(6)),
-            JAG_CREAM,
+            cat.cream,
         );
-        rig.ball(h.at(s * cm(6), cm(11), cm(6)), cm(3), JAG_SPOT);
+        rig.ball(h.at(s * cm(6), cm(11), cm(6)), cm(3), cat.spot);
     }
-    rig.ball(h.at(0, cm(13), cm(2)), cm(3), JAG_SPOT);
+    rig.ball(h.at(0, cm(13), cm(2)), cm(3), cat.spot);
 }
 
-fn jaguar_tail(rig: &mut Rig, j: &crate::jaguar::Jaguar, body: &Frame) {
+fn jaguar_tail(rig: &mut Rig, j: &crate::jaguar::Jaguar, body: &Frame, cat: &BigCat) {
     let back = body.y.neg();
     let side = body.x;
     let mut at = body.at(0, -cm(60), cm(8));
@@ -2133,16 +2176,16 @@ fn jaguar_tail(rig: &mut Rig, j: &crate::jaguar::Jaguar, body: &Frame) {
             back,
         );
         let next = at.add(way.scale(cm(9)));
-        let w = cm(8) - cm(4) * i / count;
+        let w = pct(cm(8) - cm(4) * i / count, cat.tail);
         let c = if i >= 5 && i % 2 == 1 {
-            JAG_SPOT
+            cat.spot
         } else {
-            JAG_COAT
+            cat.coat
         };
         rig.put(Mesh::Hex, rod(at, next, w), c);
         at = next;
     }
-    rig.ball(at, cm(5), JAG_SPOT);
+    rig.ball(at, cm(5), cat.spot);
 }
 
 // ---------------------------------------------------------------------------
@@ -2321,7 +2364,7 @@ mod tests {
         };
         for j in [base, leap, eat] {
             let mut b = Batch::new();
-            jaguar(&mut b, &j, 200);
+            jaguar(&mut b, &j, 200, &JAGUAR);
             let s = shapes(b);
             assert!((80..=250).contains(&s.len()), "{} shapes", s.len());
             let spots = s.iter().filter(|x| x.colour == JAG_SPOT).count();
@@ -2340,7 +2383,7 @@ mod tests {
         // the leap reaches out further than the run
         let reach = |j: &crate::jaguar::Jaguar| {
             let mut b = Batch::new();
-            jaguar(&mut b, j, 200);
+            jaguar(&mut b, j, 200, &JAGUAR);
             shapes(b)
                 .iter()
                 .map(|x| x.at.sub(j.feet).dot(j.fwd()))
@@ -2348,6 +2391,44 @@ mod tests {
                 .unwrap()
         };
         assert!(reach(&leap) > reach(&base));
+    }
+
+    #[test]
+    fn on_the_ski_slope_the_big_cat_is_a_snow_leopard() {
+        // the person, 2026-10-13: a snow leopard on the snow, the jaguar
+        // everywhere else
+        use crate::map::Map;
+        assert_eq!(BigCat::on(Map::Ski), SNOW_LEOPARD);
+        assert_eq!(BigCat::on(Map::Jungle), JAGUAR);
+        assert_eq!(BigCat::on(Map::City), JAGUAR);
+        let j = crate::jaguar::Jaguar {
+            feet: V3::ZERO,
+            yaw: 0,
+            gait: 0,
+            stride: ONE,
+            leap: 0,
+            head_down: 0,
+            jaw: 0,
+        };
+        let draw = |cat: &BigCat| {
+            let mut b = Batch::new();
+            jaguar(&mut b, &j, 200, cat);
+            shapes(b)
+        };
+        let (leopard, jag) = (draw(&SNOW_LEOPARD), draw(&JAGUAR));
+        assert!(
+            leopard.iter().all(|x| x.colour != JAG_COAT),
+            "no tawny on the snow"
+        );
+        assert!(
+            leopard
+                .iter()
+                .filter(|x| x.colour == SNOW_LEOPARD.spot)
+                .count()
+                >= 20
+        );
+        // the same cat, in another coat
+        assert_eq!(leopard.len(), jag.len());
     }
 
     #[test]

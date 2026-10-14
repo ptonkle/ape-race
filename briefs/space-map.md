@@ -41,7 +41,7 @@ Given by the person on 2026-10-13, to be built in a later session (after their u
 - **Gravity per debris piece: sets the vines' direction only.** Each ship sets which way its vines hang (sideways, upward, at angles). The ape always feels only the weak pull toward the sun below (lessened gravity in open space). No walking on the sides of ships.
 - **Great Fox pass and distant battles: scenery only,** big moving set pieces timed to the race.
 - **Floor is Lava on this map:** there is no floor, so **hitting the invisible boundary is the kill condition**: crossing it in Floor is Lava means the jaguar gets you, instead of the normal reset to the nearest ground. Without Floor is Lava, the boundary resets as above. (`Course::floor` / `on_floor` and `jaguar.rs` assume a floor today; this map's "touched the floor" becomes "crossed the boundary".)
-- **The jaguar on this map wears a classic cartoon bubble space helmet** (a clear glass dome over its head), **but no spacesuit**. It has to reach the ape somewhere sensible in space (e.g. it leaps out from the nearest debris or drifts in).
+- **The jaguar on this map wears a classic cartoon bubble space helmet** (a clear glass dome over its head), **but no spacesuit**. **The person (2026-10-13): it's funnier if the space jaguar appears out of nowhere** (pops into being right beside the ape, no run-in).
 
 ## Integrator's notes and open questions (for the building session)
 
