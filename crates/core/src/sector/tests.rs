@@ -210,31 +210,34 @@ fn nothing_goes_faster_than_the_cap() {
 }
 
 #[test]
-fn crossing_the_boundary_puts_the_ape_back_on_the_deck_behind() {
+fn crossing_the_boundary_puts_the_ape_back_on_the_nearest_deck() {
     let c = space(&[], vec![], false);
     let mut r = Race::new(c, &entries(2), false, 1);
     r.phase = crate::race::Phase::Running;
-    // 150 m along, flying out past the side
+    // 90 m along, flying out past the side
     let a = &mut r.racers[0].ape;
-    a.pos = v3(int(41), int(5), int(150));
+    a.pos = v3(int(41), int(5), int(90));
     a.hint = r.course.nearest_anywhere(a.pos);
     a.vel = v3(int(10), 0, int(20));
     a.mode = Mode::Flying;
     r.step(&[Controls::default(); 2]);
     assert!(r.events.contains(&Event::Reset { who: 0, pad: 0 }));
     let a = &r.racers[0].ape;
-    // on the start's deck (the one at 200 m is ahead), standing still,
-    // facing on down the course
+    // on the start's deck (85 m back; the one at 200 m is 110 m on),
+    // standing still, facing on down the course
     assert_eq!(a.mode, Mode::Grounded);
     assert_eq!(a.vel, V3::ZERO);
     assert_eq!(a.pos, v3(0, BODY_DROP, int(5)));
     assert_eq!(a.yaw, 0);
     assert!(r.racers[0].eaten.is_none());
-    // and past the 200 m deck, it is that one; below and above count too
+    // the nearest either way (of two as near, the one behind); below
+    // and above count too
     for (pos, pad) in [
         (v3(0, -int(31), int(250)), 1),
         (v3(0, int(61), int(250)), 1),
-        (v3(0, -int(31), int(199)), 0),
+        (v3(0, -int(31), int(110)), 1),
+        (v3(0, -int(31), int(100)), 0),
+        (v3(0, -int(31), int(102)), 0),
     ] {
         let a = &mut r.racers[1].ape;
         a.pos = pos;
@@ -295,9 +298,10 @@ fn a_bouncy_body_throws_an_ape_off_elastically_with_a_boost() {
         v3(0, -int(20), int(20)),
         &c,
     );
-    let before = a.speed();
+    let mut before = a.vel;
     let mut hit = false;
     for t in 0..30 {
+        before = a.vel;
         a.step(&Controls::default(), &c, t);
         if a.happened.contains(&Happening::Rebound) {
             hit = true;
@@ -305,16 +309,16 @@ fn a_bouncy_body_throws_an_ape_off_elastically_with_a_boost() {
         }
     }
     assert!(hit, "never hit");
-    // the part into the face is turned round, the rest kept, and the
-    // whole sped up by the boost
-    assert!(a.vel.y > int(15), "{}", a.vel.y / ONE);
-    assert!(a.vel.z > int(15), "{}", a.vel.z / ONE);
-    let gain = a.speed() - before;
+    // the part into the face is turned round (elastic), the rest kept, and
+    // the boost added on along the course (+z)
+    let near = |a: i32, b: i32| (a - b).abs() < ONE / 4;
+    assert!(near(a.vel.y, -before.y), "{} vs {}", a.vel.y, before.y);
     assert!(
-        (gain - REBOUND_BOOST).abs() < ONE,
-        "{} m/s more",
-        gain as f64 / ONE as f64
+        near(a.vel.z, before.z + REBOUND_BOOST),
+        "{} m/s on",
+        a.vel.z as f64 / ONE as f64
     );
+    assert!(a.speed() > before.len() + REBOUND_BOOST / 2);
 }
 
 /// How far above the hands' point the ball's bottom is not: the hands sit

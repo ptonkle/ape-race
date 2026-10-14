@@ -118,7 +118,14 @@ fn main() {
             } else {
                 Vec::new()
             };
-            line = format!("side {side:+} {held} -> {aim} {line} {}", cands.join(" "));
+            let expect = brain
+                .expect
+                .map(|e| format!(" expect #{e}"))
+                .unwrap_or_default();
+            line = format!(
+                "side {side:+} {held} -> {aim}{expect} {line} {}",
+                cands.join(" ")
+            );
             println!(
                 "{:>5.1}s {:>5} m {:<5} y{:>4} v{:>3} {}",
                 race.clock as f64 / TICKS_PER_SECOND as f64,

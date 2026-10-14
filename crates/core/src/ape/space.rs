@@ -5,7 +5,7 @@
 
 use super::*;
 use crate::fx::int;
-use crate::sector::{sweep, Model, Touch, REBOUND_BOOST, SECTOR_TOP, SLING};
+use crate::sector::{sweep, Hanger, Model, Touch, REBOUND_BOOST, SECTOR_TOP, SLING};
 
 /// The ape's ball for hits with ships and debris: round the middle of its
 /// body (the hands are `BODY_DROP / 2` above, the feet as far below).
@@ -105,7 +105,16 @@ impl Ape {
                 best = Some((t, bouncy));
             }
         };
+        // a swing never runs into the piece of debris its own vine hangs
+        // from (the vine holds the ape off it); a ship's hull still stops it
+        let own = self.swinging().and_then(|v| match s.hangers.get(v) {
+            Some(Hanger::Body(k)) if s.bodies[*k].model != Model::Hidden => Some(*k),
+            _ => None,
+        });
         for &b in s.bodies_near(self.hint) {
+            if Some(b as usize) == own {
+                continue;
+            }
             let body = &s.bodies[b as usize];
             let c = body.frame.t;
             let r = body.reach() + HIT_RADIUS + span;
@@ -137,20 +146,19 @@ impl Ape {
         let into = self.vel.dot(n);
         if into < 0 {
             if bouncy {
-                // elastic: v - 2(v·n)n, then the boost along the new way
-                let speed = self.vel.len();
-                let out = self.vel.sub(n.scale(2 * into));
-                let top = (speed + REBOUND_BOOST).min(SECTOR_TOP).max(speed);
-                let mut out = out.with_len(top);
-                // a head-on hit is a crash, not a boost back down the
-                // course: no more than `REBOUND_BACK` of it backward
+                // elastic: v - 2(v·n)n, then the boost on along the
+                // course (along the new way, a hit from below threw apes
+                // down out of the boundary: SECOND-ORDER SC rows)
                 let (s, _) = course.progress(self.pos, self.hint);
                 let on = course.heading_at(s);
+                let mut out = self.vel.sub(n.scale(2 * into)).add(on.scale(REBOUND_BOOST));
+                // a head-on hit is a crash, not a boost back down the
+                // course: no more than `REBOUND_BACK` of it backward
                 let back = -out.dot(on);
                 if back > REBOUND_BACK {
                     out = out.add(on.scale(back - REBOUND_BACK));
                 }
-                self.vel = out;
+                self.vel = out.clamp_len(SECTOR_TOP);
             } else {
                 self.vel = self.vel.sub(n.scale(into + mul(into, WALL_BOUNCE)));
             }

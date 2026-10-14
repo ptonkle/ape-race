@@ -267,12 +267,21 @@ impl B {
         };
         let len = match way {
             Way::Down => int(self.dice.range(23, 30)),
-            _ => int(self.dice.range(20, 27)),
+            Way::Up => int(self.dice.range(18, 22)),
+            _ => int(self.dice.range(20, 26)),
         };
         let tip = self.pt(s, int(off), h);
         let anchor = tip.sub(dir.scale(len));
         let b = self.debris(s, anchor, dir, way);
         self.vine(tip, dir, len, Hanger::Body(b))
+    }
+
+    /// A vine straight down to `tip`, `len` long, from debris over it.
+    fn down_vine(&mut self, tip: V3, len: i32) -> usize {
+        let s = self.c.progress(tip, self.c.nearest_anywhere(tip)).0;
+        let anchor = tip.add(v3(0, len, 0));
+        let b = self.debris(s, anchor, DOWN, Way::Down);
+        self.vine(tip, DOWN, len, Hanger::Body(b))
     }
 
     /// A deck (a platform and its solid slab), `half` (across, along) about
@@ -315,10 +324,10 @@ impl B {
     /// The way a station's vine hangs: about half of them straight down.
     fn way(&mut self) -> Way {
         match self.dice.below(20) {
-            0..=9 => Way::Down,
-            10..=12 => Way::Up,
-            13..=15 => Way::Side,
-            16..=17 => Way::SlantDown,
+            0..=6 => Way::Down,
+            7..=9 => Way::Up,
+            10..=13 => Way::Side,
+            14..=16 => Way::SlantDown,
             _ => Way::SlantUp,
         }
     }
@@ -358,11 +367,13 @@ impl B {
             // well below the line: a fallen ape's way back
             let off = lanes[self.dice.below(n as u32) as usize];
             let h = base - int(self.dice.range(30, 36));
-            let tip = self.pt(s + int(7), int(off), h);
-            let len = int(self.dice.range(13, 16));
-            let anchor = tip.add(v3(0, len, 0));
-            let b = self.debris(s + int(7), anchor, DOWN, Way::Down);
-            self.vine(tip, DOWN, len, Hanger::Body(b));
+            // level, in from outside the lanes (its debris out there)
+            let from = if off < 0 || (off == 0 && self.dice.below(2) == 0) {
+                -1
+            } else {
+                1
+            };
+            self.lane_vine(s + int(7), off, h, Way::Side, from);
         }
         here
     }
@@ -378,7 +389,7 @@ impl B {
                 s = p + 12 + 26;
                 continue;
             }
-            let catch = self.stations.len() % 2 == 1;
+            let catch = false;
             let here = self.station(int(s), lanes, base, catch);
             self.stations.push(here);
             s += self.dice.range(23, 29);
@@ -390,7 +401,7 @@ impl B {
     fn pad(&mut self, s: i32, off: i32) -> usize {
         let k = self.deck(int(s), int(off), PAD_TOP, PAD_HALF, true);
         let edge = int(s) + PAD_HALF.1 + cm(150);
-        let row = self.deck_row(edge, off, PAD_TOP, 5);
+        let row = self.deck_row(edge, off, PAD_TOP, 3);
         self.stations.push(row);
         self.lay.pads.push(k);
         k
@@ -537,14 +548,14 @@ fn hulk(b: &mut B) {
         b.pt(mid_s, -(cx + wall), HULK_Y),
         v3(wall, hy, len),
         Model::Hidden,
-        false,
+        true,
     );
-    let right = b.boxed(
+    b.boxed(
         mid_s,
         b.pt(mid_s, cx + wall, HULK_Y),
         v3(wall, hy, len),
         Model::Hidden,
-        false,
+        true,
     );
     let slab = (hy - cy) / 2;
     let roof = b.boxed(
@@ -552,7 +563,7 @@ fn hulk(b: &mut B) {
         b.pt(mid_s, 0, HULK_Y + cy + slab),
         v3(cx, slab, len),
         Model::Hidden,
-        false,
+        true,
     );
     // the corridor's floor: a deck (an ape that drops in there runs on and
     // jumps for the vines)
@@ -571,24 +582,13 @@ fn hulk(b: &mut B) {
         let si = int(s);
         let side = if k % 2 == 0 { -1 } else { 1 };
         let mut here = Vec::new();
-        // a vine from the ceiling over one lane ...
-        let len = int(b.dice.range(24, 26));
-        let tip = b.pt(si, int(6) * side, ceiling - len);
-        here.push(b.vine(tip, DOWN, len, Hanger::Body(roof)));
-        // ... and one in from the wall by the other (now and then down)
-        let wall_body = if side < 0 { right } else { left };
-        let other = -side;
-        let h = HULK_Y + int(b.dice.range(-2, 4));
-        let v = if b.dice.below(3) == 0 {
+        // a vine from the ceiling over each lane, to within a jump of
+        // the floor (a vine in from a wall only whirled the ape into it)
+        for (k, lane) in [side, -side].into_iter().enumerate() {
             let len = int(b.dice.range(24, 26));
-            let tip = b.pt(si + int(6), int(6) * other, ceiling - len);
-            b.vine(tip, DOWN, len, Hanger::Body(roof))
-        } else {
-            let tip = b.pt(si + int(6), int(3) * other, h);
-            let dir = b.right(si).scale(-other * ONE);
-            b.vine(tip, dir, cx - int(3), Hanger::Body(wall_body))
-        };
-        here.push(v);
+            let tip = b.pt(si + int(6) * k as i32, int(6) * lane, ceiling - len);
+            here.push(b.vine(tip, DOWN, len, Hanger::Body(roof)));
+        }
         corridor.extend(here.iter().copied());
         b.stations.push(here);
         s += b.dice.range(23, 27);
@@ -602,7 +602,7 @@ fn hulk(b: &mut B) {
         switch: 0,
         shut_at: None,
     };
-    let sw_len = int(18);
+    let sw_len = int(24);
     let tip = b.pt(int(SWITCH_AT), 0, ceiling - sw_len);
     let switch = b.vine(tip, DOWN, sw_len, Hanger::Switch(roof));
     b.lay.door.switch = switch;
@@ -617,7 +617,10 @@ fn hulk(b: &mut B) {
         b.stations.push(vec![v]);
     }
 
-    // over the top: vines standing up off its deck
+    // over the top: vines from debris drifting high over it, their swings
+    // clear of its deck (vines standing up off the deck whirled apes down
+    // onto it, held there)
+    let _ = top_body;
     let mut over = Vec::new();
     // up there first: a high vine before the Hulk
     let rise = b.lane_vine(int(HULK.0 - 20), 0, int(30), Way::Down, 1);
@@ -627,9 +630,10 @@ fn hulk(b: &mut B) {
     while s < HULK.1 - 6 {
         let si = int(s);
         let off = if k % 2 == 0 { -7 } else { 7 };
-        let len = int(b.dice.range(20, 24));
-        let tip = b.pt(si, int(off), top + len);
-        let v = b.vine(tip, V3::UP, len, Hanger::Body(top_body));
+        let len = int(b.dice.range(22, 24));
+        let h = top + int(10) + int(b.dice.range(0, 3));
+        let tip = b.pt(si, int(off), h);
+        let v = b.down_vine(tip, len);
         over.push(v);
         b.stations.push(vec![v]);
         s += b.dice.range(24, 28);
@@ -672,7 +676,7 @@ fn hulk(b: &mut B) {
         k += 1;
     }
     // the way out there from the spine, and a deck on it
-    let out_in = b.lane_vine(int(HULK.0 - 30), -32, 0, Way::Down, -1);
+    let out_in = b.lane_vine(int(HULK.0 - 30), -42, 0, Way::Down, -1);
     outside.push(out_in);
     let k = b.deck(
         int(FEATURE_PADS[0].0),
@@ -725,7 +729,8 @@ fn wreck(b: &mut B) {
     let gap = WRECK_GAP;
     // the wreck's frame: turned so the passage runs along the course, and
     // moved so its middle is on the spine
-    let f0 = pose(V3::ZERO, yaw, 0, 0, ONE);
+    // (rolled back by the bow's own 9°, so the passage runs level)
+    let f0 = pose(V3::ZERO, yaw, 0, -fx::deg(9), ONE);
     let p0 = wreck_passage(&f0, gap);
     let want = b.pt(at_s, 0, WRECK_Y);
     let f = Affine {
@@ -754,81 +759,73 @@ fn wreck(b: &mut B) {
     let (x, y) = (int(17), int(16));
     let aft = hull(b, &bow, v3(-x, -y, -int(10)), v3(x, y, pz - gw));
     hull(b, &bow, v3(-x, -y, pz + gw), v3(x, y, int(110)));
-    let top = hull(b, &bow, v3(-x, gh, pz - gw), v3(x, y, pz + gw));
+    hull(b, &bow, v3(-x, gh, pz - gw), v3(x, y, pz + gw));
     hull(b, &bow, v3(-x, -y, pz - gw), v3(x, -gh, pz + gw));
-    let stern_body = hull(b, &stern, v3(-x, -y, -int(92)), v3(x, y, -int(10)));
+    hull(b, &stern, v3(-x, -y, -int(92)), v3(x, y, -int(10)));
+    // (no vine's swing reaches the hull, but the one off its torn face: a
+    // swing into it is a dead stop, `the_hull_stops_no_swing` in the tests)
 
-    // the hidden route: in line with the passage, up to its mouth and on
+    // a deck before it all (on the spine, well short of the hull): its row
+    // is where all three ways start
+    b.pad(FEATURE_PADS[1].0, FEATURE_PADS[1].1);
+
+    // the hidden route: the snipe vine, on the passage's line 39 m short of
+    // its mouth (let go on the level and the ape threads the gap), and two
+    // vines on in line beyond the far mouth
     let mut hidden = Vec::new();
-    let axis = pass.axis;
-    let into = |s: i32| pass.middle.add(axis.scale(s));
-    // before: an up vine off debris below, its end in line 30 m short of
-    // the mouth, and a slanted one 14 m short
-    for (back, way) in [(-int(60), Way::Up), (-int(36), Way::SlantUp)] {
-        let tip = into(back);
-        let (s, off) = b.c.progress(tip, b.c.nearest_anywhere(tip));
-        let v = b.lane_vine(s, off / ONE, tip.y, way, -1);
-        hidden.push(v);
-        b.stations.push(vec![v]);
-    }
-    // after: on in line beyond the far mouth
-    for fwd in [int(46), int(72)] {
-        let tip = into(fwd);
-        let (s, off) = b.c.progress(tip, b.c.nearest_anywhere(tip));
-        let v = b.lane_vine(s, off / ONE, tip.y, Way::Down, 1);
-        hidden.push(v);
+    let into = |d: i32| pass.middle.add(pass.axis.scale(d));
+    for (d, len) in [(-int(56), int(22)), (int(48), int(24)), (int(74), int(24))] {
+        let v = b.down_vine(into(d), len);
+        // (only the snipe vine is the hidden route's own: the two past the
+        // far mouth are on every route's way back in)
+        if d < 0 {
+            hidden.push(v);
+        }
         b.stations.push(vec![v]);
     }
 
-    // between the halves: the gap's middle, and vines off the torn faces
-    // (level, across the gap) and from debris over it
+    // between the halves: out to the gap, a level vine off the bow's torn
+    // face across it, and back in
     let mut through = Vec::new();
     let gap_mid = f.apply(v3(0, 0, -int(8)));
     let (gs, goff) = b.c.progress(gap_mid, b.c.nearest_anywhere(gap_mid));
     let goff = goff / ONE;
-    for (ds, way) in [
-        (-int(84), Way::Down),
-        (-int(58), Way::Down),
-        (-int(30), Way::SlantDown),
+    for (ds, off, len) in [
+        (-int(92), -26, 24),
+        (-int(68), goff + 14, 22),
+        (-int(44), goff + 2, 20),
     ] {
-        let v = b.lane_vine(gs + ds, goff, WRECK_Y, way, 1);
+        let v = b.down_vine(b.pt(gs + ds, int(off), WRECK_Y), int(len));
         through.push(v);
         b.stations.push(vec![v]);
     }
-    // off the bow's torn face, across toward the stern, inside the gap
-    let face = bow.apply(v3(0, int(4), -int(10)));
-    let dir = stern.apply(v3(0, int(4), -int(10))).sub(face).norm();
-    let len = int(12);
-    let tip = face.add(dir.scale(len));
-    let v = b.vine(tip, dir, len, Hanger::Body(aft));
+    let face = bow.apply(v3(0, int(2), -int(10)));
+    let dir = stern.apply(v3(0, int(2), -int(10))).sub(face).norm();
+    let len = int(13);
+    let v = b.vine(face.add(dir.scale(len)), dir, len, Hanger::Body(aft));
     through.push(v);
     b.stations.push(vec![v]);
-    for ds in [int(28), int(56)] {
-        let v = b.lane_vine(gs + ds, goff + 8, WRECK_Y, Way::Down, 1);
+    for (ds, off, len) in [(int(46), goff + 8, 20), (int(70), -30, 24)] {
+        let v = b.down_vine(b.pt(gs + ds, int(off), WRECK_Y), int(len));
         through.push(v);
         b.stations.push(vec![v]);
     }
-    let _ = stern_body;
 
-    // over the bow: up there first, then vines standing up off its top
+    // over the bow, on its fore side (away from the gap): vines from debris
+    // drifting high over it, their swings clear of its top
     let mut over = Vec::new();
-    let v = b.lane_vine(at_s - int(48), 18, int(26), Way::Down, 1);
-    over.push(v);
-    b.stations.push(vec![v]);
-    for (bx, bz) in [(-int(12), pz - int(16)), (int(10), pz - int(26))] {
-        let anchor = bow.apply(v3(bx, y, bz));
-        let up = bow.apply_dir(v3(0, ONE, 0)).norm();
-        let len = int(22);
-        let v = b.vine(anchor.add(up.scale(len)), up, len, Hanger::Body(top));
+    let top = WRECK_Y + y;
+    for (ds, off, h, len) in [
+        (-int(52), 20, int(24), 24),
+        (-int(26), 16, top + int(9), 24),
+        (0, 14, top + int(9), 24),
+        (int(26), 16, top + int(8), 24),
+        (int(52), 18, int(10), 26),
+    ] {
+        let v = b.down_vine(b.pt(at_s + ds, int(off), h), int(len));
         over.push(v);
         b.stations.push(vec![v]);
     }
-    let v = b.lane_vine(at_s + int(36), 14, int(10), Way::Down, 1);
-    over.push(v);
-    b.stations.push(vec![v]);
-
-    // a deck before it all (on the spine, well short of the hull)
-    b.pad(FEATURE_PADS[1].0, FEATURE_PADS[1].1);
 
     b.lay.routes.push(Route {
         name: "wreck passage",
