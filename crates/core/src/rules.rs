@@ -122,10 +122,10 @@ pub const LADDER_EVERY: i32 = int(20);
 /// On the Ski Slope an ape on the snow is on skis: gravity pulls it down
 /// the hill, and the snow and the skis hold it back this much (a constant
 /// friction, m/s²) ...
-pub const SKI_FRICTION: i32 = cm(60);
+pub const SKI_FRICTION: i32 = cm(80);
 /// ... plus this share of its speed a second, on top of the air's drag, so
 /// skiing tops out well below a good swing.
-pub const SKI_DRAG: i32 = ratio(6, 100);
+pub const SKI_DRAG: i32 = ratio(9, 100);
 /// WASD across the motion carve the skis round this hard (no faster).
 pub const SKI_STEER: i32 = int(14);
 /// W along the motion pushes this hard (poling), fading to nothing at
