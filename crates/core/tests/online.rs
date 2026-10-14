@@ -883,3 +883,50 @@ fn the_hosts_map_reaches_every_lobby_and_rides_with_the_start() {
         assert_eq!(net.maps[i], Some(Map::Jungle), "node {i}");
     }
 }
+
+#[test]
+fn the_ski_slope_rides_with_the_start_and_is_raced_on_every_browser() {
+    // the Ski Slope (2026-10-13): the start carries its key, `ski`
+    let mut net = Net::lobby(3);
+    let now = net.now;
+    net.nodes[0].set_map(Map::Ski, now).unwrap();
+    net.run(1000);
+    for i in 0..3 {
+        assert_eq!(net.nodes[i].lobby().map, Map::Ski, "node {i}");
+    }
+    net.course = Map::Ski.course();
+    net.ready_all();
+    let now = net.now;
+    net.nodes[0].start(5, now).unwrap();
+    net.run(6000);
+    for i in 0..3 {
+        assert_eq!(net.maps[i], Some(Map::Ski), "node {i}");
+        assert_eq!(net.race(i).course.name, "ski");
+    }
+    // the host's ape moved down the hill on a joiner's screen too
+    let real = net.race(0).racers[0].ape.pos;
+    let seen = net.race(1).racers[0].ape.pos;
+    assert_ne!(seen, net.course.starts[0]);
+    assert!(real.dist(seen) < tool_core::fx::int(4));
+}
+
+#[test]
+fn a_client_from_before_the_ski_slope_is_refused_not_misled() {
+    // PROTOCOL 5 knew only the Jungle and the City: a `ski` in its Roster
+    // or Start would not read, so it is told to update instead
+    assert!(tool_core::online::PROTOCOL >= 6);
+    let mut net = Net::new(2, 3, 20, 10);
+    net.nodes[1] = Online::join("client1", "Old", Kind::Lemur, 0).with_protocol(5);
+    net.lb.connect_all();
+    net.run(1000);
+    assert_eq!(
+        *net.nodes[1].status(),
+        Status::Refused {
+            reason: Refusal::WrongVersion {
+                host: tool_core::online::PROTOCOL,
+                mine: 5
+            }
+        }
+    );
+    assert_eq!(net.nodes[0].lobby().seats.len(), 1);
+}

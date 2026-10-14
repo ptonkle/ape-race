@@ -100,7 +100,9 @@ use crate::rules::{Kind, TICKS_PER_SECOND};
 /// 4: Floor is Lava (TRIAGE T37): `lava` in the Roster and the Start, the
 /// `Eaten` message and `Fin::Eaten`.
 /// 5: the map (the City, 2026-10-12) in `Roster` and `Start`.
-pub const PROTOCOL: u32 = 5;
+/// 6: the Ski Slope (2026-10-13): the map `ski`, which a client of 5
+/// could not read in a Roster or a Start.
+pub const PROTOCOL: u32 = 6;
 /// The most apes in a race, humans and AI together.
 pub const MAX_APES: usize = 4;
 /// The most AI apes the host may add.

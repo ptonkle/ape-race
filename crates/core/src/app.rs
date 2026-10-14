@@ -2388,6 +2388,8 @@ mod items_hype_tests;
 mod lava_tests;
 #[cfg(test)]
 mod spectate_tests;
+#[cfg(test)]
+mod weather_tests;
 
 #[cfg(test)]
 mod tests {
