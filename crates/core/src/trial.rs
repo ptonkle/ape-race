@@ -92,6 +92,24 @@ pub const SKI: [u32; 4] = [
     secs(SKI_AUTHOR),
 ];
 
+/// Sector Ape's target times in hundredths of a second (2026-10-13, set as
+/// the others' were: King Kong alone as a Time Trial runs finishes in
+/// 47.3–88.1 s by kind, the Gibbon best; `sector_time_trial_report` in
+/// `tests/sector_ai.rs`, SECOND-ORDER SC rows). Author: just under the
+/// best kind; then the Jungle's steps above it (7, 10, 15 s).
+pub const SECTOR_AUTHOR: u32 = 4_700;
+pub const SECTOR_GOLD: u32 = 5_400;
+pub const SECTOR_SILVER: u32 = 6_400;
+pub const SECTOR_BRONZE: u32 = 7_900;
+
+/// Sector Ape's target times, in race ticks, slowest first.
+pub const SECTOR: [u32; 4] = [
+    secs(SECTOR_BRONZE),
+    secs(SECTOR_SILVER),
+    secs(SECTOR_GOLD),
+    secs(SECTOR_AUTHOR),
+];
+
 /// A map's target times, in race ticks, slowest first (Bronze, Silver,
 /// Gold, Author).
 pub fn medals(map: Map) -> [u32; 4] {
@@ -99,8 +117,7 @@ pub fn medals(map: Map) -> [u32; 4] {
         Map::Jungle => JUNGLE,
         Map::City => CITY,
         Map::Ski => SKI,
-        // STAND-IN: the Jungle's until measured
-        Map::Sector => JUNGLE,
+        Map::Sector => SECTOR,
     }
 }
 
