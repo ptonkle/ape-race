@@ -312,7 +312,7 @@ fn a_bouncy_body_throws_an_ape_off_elastically_with_a_boost() {
     let near = |a: i32, b: i32| (a - b).abs() < ONE / 4;
     assert!(near(a.vel.y, -before.y), "{} vs {}", a.vel.y, before.y);
     assert!(
-        near(a.vel.z, before.z + REBOUND_BOOST),
+        near(a.vel.z, before.z + int(8)),
         "{} cm/s on",
         a.vel.z * 100 / ONE
     );
@@ -380,6 +380,22 @@ fn no_tunnelling_through_thin_debris_at_top_speed() {
             );
         }
     }
+    // a move far longer than the plate (and the ball) is thick, straight
+    // through it, still touches its near face (swept, not where it ends)
+    let plate = wall(cm(30), false);
+    let touch = sweep(
+        plate.frame.t,
+        &plate.axes(),
+        plate.half,
+        crate::ape::HIT_RADIUS,
+        v3(0, int(5), int(97)),
+        v3(0, int(5), int(104)),
+    );
+    let t = touch.expect("the move through the plate touches it");
+    assert!(
+        t.t > 0 && t.t < ONE / 2 && t.normal == v3(0, 0, -ONE),
+        "{t:?}"
+    );
     // and a head-on hit on a bouncy body never throws it back down the
     // course fast
     let c = space(&[], vec![wall(int(2), true)], false);
@@ -413,7 +429,8 @@ fn swing_it(r: &mut Race, ticks: u32) -> Option<u32> {
     let mut shut = None;
     for _ in 0..ticks {
         r.step(&[go]);
-        if r.events.contains(&Event::Door { who: 0 }) {
+        // (the first time it shuts: while shut it must not shut again)
+        if shut.is_none() && r.events.contains(&Event::Door { who: 0 }) {
             shut = Some(r.tick);
         }
     }
