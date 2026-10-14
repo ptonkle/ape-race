@@ -11,4 +11,5 @@ Decisions I made while you were asleep, that you may want to change. Each has a 
 7. **Mechs are not solid**: you pass through them; only their vines matter.
 8. **The finish**: a big deck under the black hole where finished apes land and dance; one that floats into the hole sits at its banana horizon.
 9. **Medal times** (Author 0:56, Gold 1:03, Silver 1:13, Bronze 1:28) come from one King Kong run per ape; runs on this map vary more than elsewhere. Worth checking against your own times.
-10. **Step cost**: worst frame about 5.7 ms on a busy machine (the Jungle 4.3 ms in the same run); not yet the 2 ms target. Most frames are well under.
+10. **Step cost**: now done (SP rows): worst frame 3.9 → 1.4 ms on a quiet machine (the Jungle 3.4 → 1.4, the City 5.0 → 2.7, the Ski Slope 4.4 → 2.0), every race exactly as before. The speed-ups to shared sums (the square root, `nearest`, `progress`) touch every map but change no value; the tests that pin the other maps still pass. Fine to leave ungated (SP3)?
+11. **Finishers falling past the deck** (SF7, SP8): one in four did. Now a finisher whose feet go 2 m under the finish deck is put on the deck at the nearest place, standing: a jump, not a glide up. Want it smoother (a slow lift round the deck's edge)?

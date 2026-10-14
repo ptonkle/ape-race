@@ -24,7 +24,7 @@ fn finishers(seed: u64) -> Vec<(usize, Kind, i32, i32)> {
             palette: 0,
         })
         .collect();
-    let mut race = Race::new(Map::Sector.course(), &entries, seed % 3 == 0, seed);
+    let mut race = Race::new(Map::Sector.course(), &entries, seed.is_multiple_of(3), seed);
     let mut brains: Vec<Brain> = Difficulty::ALL
         .iter()
         .enumerate()
