@@ -156,6 +156,18 @@ fn every_lift_is_one_straight_line_and_they_chain_down_the_hill() {
             assert_eq!(t.y, c.terrain(t.x, t.z), "on the ground");
         }
         assert!(last < l.length());
+        // no tower or terminal stands in a lane (apes would pass through)
+        for (j, foot) in l.towers.iter().chain([&l.top, &l.bottom]).enumerate() {
+            let (s, off) = c.progress(*foot, c.nearest_anywhere(*foot));
+            for (m, h) in c.lanes(s) {
+                assert!(
+                    (off - m).abs() > h + int(1),
+                    "lift {k}: support {j} in a lane at {} m, {} m right",
+                    s / ONE,
+                    off / ONE
+                );
+            }
+        }
         // chained: its bottom terminal near the next lift's top terminal
         if let Some(next) = lay.lifts.get(k + 1) {
             let gap = l.bottom.flat().dist(next.top.flat());
@@ -340,6 +352,23 @@ fn one_of_each_landmark_in_order_down_the_hill_outside_the_run() {
     let forks = &c.ski.as_ref().unwrap().forks;
     for (m, f) in [(&marks[1], forks[0]), (&marks[4], forks[1])] {
         assert!(m.s > f.from && m.s < f.to, "{:?} on its fork", m.kind);
+    }
+    // and no conifer on their island for 40 m in front of them
+    for c in courses() {
+        let lay = c.ski.as_ref().unwrap();
+        for m in [&lay.landmarks[1], &lay.landmarks[4]] {
+            for t in &lay.trees {
+                let (s, off) = c.progress(t.at, c.nearest_anywhere(t.at));
+                let [(m0, h0), (m1, h1)] = c.lanes(s);
+                let on_island = off > m0 + h0 && off < m1 - h1;
+                assert!(
+                    !(on_island && s > m.s - int(40) && s < m.s),
+                    "a tree {} m in front of the {:?}",
+                    (m.s - s) / ONE,
+                    m.kind
+                );
+            }
+        }
     }
     // none in a lane, with room to be drawn big (5 m clear of the lanes)
     for m in marks
