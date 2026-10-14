@@ -6,7 +6,8 @@ person at the keys (and for the home page thumbnail).
         [--click id ...] [--hold KeyW,Mouse:1.5 ...] [--size 1280x720]
 
 --click presses the menu button with that element id, in order (`id=value`
-chooses that value in a select, e.g. `setup.map=city`);
+chooses that value in a select, or presses that card in a grid of
+pictures, e.g. `setup.map=city`);
 --hold presses keys (comma-separated) for some seconds, in order.
 """
 import argparse
@@ -57,8 +58,10 @@ def main():
         for c in a.click:
             c, _, value = c.partition("=")
             page.wait_for_selector(f"[id='{c}']", timeout=10000)
-            if value:
+            if value and page.eval_on_selector(f"[id='{c}']", "e => e.tagName") == "SELECT":
                 page.select_option(f"[id='{c}']", value)
+            elif value:
+                page.click(f"[id='{c}.{value}']")
             else:
                 page.click(f"[id='{c}']")
             page.wait_for_timeout(300)

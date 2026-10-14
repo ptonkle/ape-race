@@ -52,22 +52,44 @@ fn settings_from_before_the_city_read_as_the_jungle_and_the_map_is_kept() {
     assert_eq!(a.settings.map, Map::City);
 }
 
+/// The keys of a map grid's cards, in order, and the ones marked chosen.
+fn cards(grid: &Value) -> (Vec<String>, Vec<String>) {
+    let options = grid["options"].as_array().unwrap();
+    let key = |o: &Value| o["value"].as_str().unwrap().to_string();
+    let all = options.iter().map(key).collect();
+    let chosen = options
+        .iter()
+        .filter(|o| o["chosen"] == true)
+        .map(key)
+        .collect();
+    (all, chosen)
+}
+
 #[test]
-fn race_setup_and_time_trial_offer_every_map() {
+fn race_setup_and_time_trial_offer_every_map_as_a_grid_of_pictures() {
+    // TRIAGE T54: a card per map, with its picture and name, the chosen
+    // one marked; pressing a card chooses its map
     for menu in ["menu.race", "menu.trial"] {
         let mut a = app();
         a.act(menu, "");
-        let ui = ui_of(&mut a);
-        let select = item(&ui, "setup.map").expect("a map select");
-        let values: Vec<&str> = select["options"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .map(|o| o["value"].as_str().unwrap())
-            .collect();
-        assert_eq!(values, ["jungle", "city", "ski"]);
-        assert_eq!(select["value"], "jungle");
-        assert_eq!(select["options"][1]["text"], "City");
+        let grid = item(&ui_of(&mut a), "setup.map").expect("a map grid");
+        assert_eq!(grid["type"], "tiles");
+        assert_eq!(grid["read_only"], false);
+        assert_eq!(grid["value"], "jungle");
+        let (all, chosen) = cards(&grid);
+        let keys: Vec<&str> = Map::ALL.iter().map(|m| m.key()).collect();
+        assert_eq!(all, keys);
+        assert_eq!(chosen, ["jungle"]);
+        for (o, m) in grid["options"].as_array().unwrap().iter().zip(Map::ALL) {
+            assert_eq!(o["picture"], format!("data/maps/{}.webp", m.key()));
+            assert_eq!(o["id"], format!("setup.map.{}", m.key()));
+            assert_eq!(o["text"], a.map_name(m));
+        }
+        assert_eq!(grid["options"][1]["text"], "City");
+        a.act("setup.map", "city");
+        let grid = item(&ui_of(&mut a), "setup.map").unwrap();
+        assert_eq!(cards(&grid).1, ["city"], "the City's card is marked");
+        assert_eq!(grid["value"], "city");
     }
 }
 
