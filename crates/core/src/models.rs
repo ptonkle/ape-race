@@ -2131,4 +2131,110 @@ mod tests {
             assert!((end.dist(root) - cm(80)).abs() < cm(1), "{target:?}");
         }
     }
+
+    /// The poses on skis.
+    fn ski_poses() -> Vec<Pose> {
+        poses()
+            .into_iter()
+            .map(|p| Pose {
+                gear: Gear::Ski,
+                ..p
+            })
+            .collect()
+    }
+
+    /// A pose's ski boards: the long boxes in the kind's gear colour, each
+    /// (its middle, its long axis).
+    fn boards(kind: Kind, pose: &Pose) -> Vec<(V3, V3)> {
+        let (shell, _, _) = gear_colours(kind);
+        drawn(kind, pose)
+            .into_iter()
+            .filter(|s| s.mesh == Mesh::Cube as u32 && s.colour == shell)
+            .map(|s| (s.at, s.axes[2]))
+            .filter(|(_, along)| along.len() > cm(40))
+            .collect()
+    }
+
+    #[test]
+    fn on_skis_every_kind_wears_skis_a_helmet_and_goggles_in_every_pose() {
+        // the Ski Slope (2026-10-13)
+        for kind in Kind::ALL {
+            let (shell, _, lens) = gear_colours(kind);
+            for pose in ski_poses() {
+                let s = drawn(kind, &pose);
+                let bare = drawn(kind, &Pose { gear: Gear::None, ..pose });
+                assert!(s.len() > bare.len() + 15, "{kind:?} {} vs {}", s.len(), bare.len());
+                assert!((50..=280).contains(&s.len()), "{kind:?} {} shapes", s.len());
+                // the helmet's shell over the head, and the mirrored lens
+                assert!(s.iter().any(|x| x.mesh == Mesh::Geo as u32 && x.colour == shell));
+                assert!(s.iter().any(|x| x.colour == lens), "{kind:?}: no goggles");
+                // two long boards, pointing the way the ape faces
+                let b = boards(kind, &pose);
+                assert_eq!(b.len(), 2, "{kind:?} {pose:?}");
+                let face = facing(pose.yaw, 0);
+                for (_, along) in &b {
+                    let d = along.norm().dot(face);
+                    assert!(d > ONE * 4 / 5, "{kind:?} a ski {d} off the facing");
+                }
+                // sensible sizes, near the ape
+                for x in &s {
+                    for a in x.axes {
+                        assert!(a.len() >= ONE / 500 && a.len() <= int(2));
+                    }
+                    assert!(x.at.dist(pose.hands) <= int(3));
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn skis_go_under_the_feet_and_the_ape_stands_on_them() {
+        for kind in Kind::ALL {
+            let pose = Pose {
+                gear: Gear::Ski,
+                ..at_rest()
+            };
+            let feet = pose.hands.y - BODY_DROP;
+            let s = drawn(kind, &pose);
+            let low = s.iter().map(|x| x.at.y).min().unwrap();
+            // the boards rest on the ground, not in it, and nothing is lower
+            for (at, _) in boards(kind, &pose) {
+                assert!(
+                    at.y >= feet && at.y <= feet + cm(8),
+                    "{kind:?}: a ski at {}",
+                    at.y - feet
+                );
+            }
+            assert!(low >= feet, "{kind:?}: sunk {} cm", (feet - low) * 100 / ONE);
+            // the two skis side by side, a hip's width apart
+            let b = boards(kind, &pose);
+            let apart = b[0].0.dist(b[1].0);
+            assert!((cm(5)..=cm(60)).contains(&apart), "{kind:?}: {apart}");
+        }
+    }
+
+    #[test]
+    fn in_the_air_the_skis_splay_into_a_v() {
+        for kind in Kind::ALL {
+            let fly = ski_poses()[3];
+            let b = boards(kind, &fly);
+            let d = b[0].1.norm().dot(b[1].1.norm());
+            assert!(d < ONE - ONE / 100, "{kind:?}: parallel in the air");
+            let stand = boards(kind, &ski_poses()[0]);
+            let d = stand[0].1.norm().dot(stand[1].1.norm());
+            assert!(d > ONE - ONE / 500, "{kind:?}: splayed on the ground");
+        }
+    }
+
+    #[test]
+    fn without_gear_nothing_is_worn() {
+        for kind in Kind::ALL {
+            for pose in poses() {
+                assert!(boards(kind, &pose).is_empty(), "{kind:?}");
+            }
+        }
+        assert_eq!(Gear::on(crate::map::Map::Ski), Gear::Ski);
+        assert_eq!(Gear::on(crate::map::Map::Jungle), Gear::None);
+        assert_eq!(Gear::on(crate::map::Map::City), Gear::None);
+    }
 }

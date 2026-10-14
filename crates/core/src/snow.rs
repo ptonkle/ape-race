@@ -155,7 +155,7 @@ pub fn flakes(b: &mut Batch, eye: V3, tick: u32) {
             .then(&Affine::rot_y(spin))
             .then(&Affine::rot_x(spin / 2))
             .then(&Affine::scale(v3(size, size, size)));
-        b.push(Mesh::Cube, &a, FLAKE, ONE * 2 / 5);
+        b.push(Mesh::Cube, &a, FLAKE, ONE * 7 / 10);
     }
 }
 
