@@ -115,6 +115,7 @@ pub fn look(map: Map) -> Look {
         },
         Map::City => crate::cityscape::look(),
         Map::Ski => crate::skiscape::look(),
+        Map::Sector => crate::spacecraft::look(),
     }
 }
 
@@ -126,6 +127,7 @@ pub fn look_of(c: &Course) -> Look {
         Map::Jungle => look(Map::Jungle),
         // the sun stands behind the skiers, from the hill's fall line
         Map::Ski => crate::skiscape::look_for(c),
+        Map::Sector => crate::spacecraft::look(),
     }
 }
 
@@ -1877,7 +1879,7 @@ pub fn preview(c: &Course) -> Preview {
     let (feet, yaw, camera) = match Map::of(c) {
         Map::City => crate::cityscape::preview(c),
         Map::Ski => crate::skiscape::preview(c),
-        Map::Jungle => {
+        Map::Jungle | Map::Sector => {
             let pl = c.platforms.first();
             let feet = pl.map_or(c.point(int(4)), |p| {
                 v3(p.centre.x, p.top, p.centre.z).add(p.fwd.scale(p.half_len / 2))
@@ -1921,6 +1923,7 @@ pub fn flyover_camera(c: &Course, ticks: u32, from: i32) -> Camera {
         Map::City => int(18),
         // over the hill, high enough to see down it
         Map::Ski => int(16),
+        Map::Sector => int(20),
     };
     let eye = v3(p.x, c.terrain(p.x, p.z) + lift, p.z);
     // down the Ski Slope's hill, the glide looks down it too

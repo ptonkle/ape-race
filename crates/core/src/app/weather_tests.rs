@@ -153,10 +153,10 @@ fn on_the_ski_slope_the_racers_wear_their_gear_and_elsewhere_none() {
         a.tick();
         let p = a.play.as_ref().unwrap();
         let pose = scene::racer_pose(&p.race, 0, p.race.racers[0].ape.pos, 0);
-        let want = if map == Map::Ski {
-            models::Gear::Ski
-        } else {
-            models::Gear::None
+        let want = match map {
+            Map::Ski => models::Gear::Ski,
+            Map::Sector => models::Gear::Space,
+            _ => models::Gear::None,
         };
         assert_eq!(pose.gear, want, "{map:?}");
     }

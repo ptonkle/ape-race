@@ -188,6 +188,9 @@ pub struct Course {
     /// and the City, the ski hill's slope on the Ski Slope. The centreline
     /// (`path`) stays at height 0 on every map; heights come from here.
     pub terrain: crate::ski::Terrain,
+    /// Sector Ape's bodies, vine directions, boundary, door, mechs and set
+    /// pieces (`sector.rs`); `None` on the other maps
+    pub sector: Option<Box<crate::sector::SectorLayout>>,
 }
 
 /// A straight street of a course with sharp corners (the City). The
@@ -341,6 +344,24 @@ impl Course {
                 let phase = ((tick as i64 * fx::TURN as i64) / s.period as i64) as i32;
                 v.anchor.add(s.reach.scale(sin(phase + i as i32 * 9_001)))
             }
+        }
+    }
+
+    /// The unit direction vine `i` hangs from its anchor: straight down on
+    /// every map but Sector Ape, whose bodies each pull their vines their
+    /// own way.
+    pub fn hang(&self, i: usize) -> V3 {
+        match &self.sector {
+            Some(s) => s.hangs.get(i).copied().unwrap_or(crate::sector::DOWN),
+            None => crate::sector::DOWN,
+        }
+    }
+
+    /// The downward pull on an ape: `rules::GRAVITY`, less on Sector Ape.
+    pub fn gravity(&self) -> i32 {
+        match self.sector {
+            Some(_) => crate::sector::SECTOR_GRAVITY,
+            None => crate::rules::GRAVITY,
         }
     }
 
@@ -605,6 +626,7 @@ pub(crate) fn centreline(name: &'static str, legs: &[Leg]) -> Course {
         streets: Vec::new(),
         ski: None,
         terrain: crate::ski::Terrain::Hills,
+        sector: None,
     }
 }
 

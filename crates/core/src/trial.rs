@@ -99,6 +99,8 @@ pub fn medals(map: Map) -> [u32; 4] {
         Map::Jungle => JUNGLE,
         Map::City => CITY,
         Map::Ski => SKI,
+        // STAND-IN: the Jungle's until measured
+        Map::Sector => JUNGLE,
     }
 }
 

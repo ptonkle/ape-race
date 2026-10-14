@@ -75,6 +75,7 @@ impl Gear {
     pub fn on(map: crate::map::Map) -> Gear {
         match map {
             crate::map::Map::Ski => Gear::Ski,
+            crate::map::Map::Sector => Gear::Space,
             _ => Gear::None,
         }
     }
@@ -2215,6 +2216,7 @@ impl BigCat {
     pub fn on(map: crate::map::Map) -> BigCat {
         match map {
             crate::map::Map::Ski => SNOW_LEOPARD,
+            crate::map::Map::Sector => SPACE_JAGUAR,
             _ => JAGUAR,
         }
     }
@@ -2751,7 +2753,7 @@ mod tests {
         // bubble space helmet and no spacesuit; the others are unchanged
         use crate::map::Map;
         for map in Map::ALL {
-            assert!(!BigCat::on(map).helmet, "{map:?}");
+            assert_eq!(BigCat::on(map).helmet, map == Map::Sector, "{map:?}");
         }
         const { assert!(!JAGUAR.helmet && !SNOW_LEOPARD.helmet && SPACE_JAGUAR.helmet) };
         let j = crate::jaguar::Jaguar {
@@ -3154,9 +3156,13 @@ mod tests {
         assert_eq!(Gear::on(crate::map::Map::Ski), Gear::Ski);
         assert_eq!(Gear::on(crate::map::Map::Jungle), Gear::None);
         assert_eq!(Gear::on(crate::map::Map::City), Gear::None);
-        // the Sector Ape costume waits for its map
+        // the Sector Ape costume, on its map only
         for map in crate::map::Map::ALL {
-            assert_ne!(Gear::on(map), Gear::Space, "{map:?}");
+            assert_eq!(
+                Gear::on(map) == Gear::Space,
+                map == crate::map::Map::Sector,
+                "{map:?}"
+            );
         }
     }
 
