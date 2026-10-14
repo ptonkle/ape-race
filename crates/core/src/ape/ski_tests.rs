@@ -145,4 +145,28 @@ fn a_landing_on_the_snow_keeps_the_speed_along_the_slope() {
         want / ONE
     );
     assert!(kept > int(19));
+    // and a straight drop onto the slope starts it sliding downhill (on
+    // the Jungle's ground a drop straight down stops dead)
+    let mut d = Ape::new(
+        Kind::Chimpanzee,
+        true,
+        v3(p.x, c.terrain(p.x, p.z) + BODY_DROP + int(3), p.z),
+        0,
+    );
+    d.hint = c.nearest_anywhere(d.pos);
+    d.mode = Mode::Flying;
+    d.vel = v3(0, -int(15), 0);
+    for t in 0..120 {
+        d.step(&Controls::default(), &c, t);
+        if d.mode == Mode::Grounded {
+            break;
+        }
+    }
+    assert_eq!(d.mode, Mode::Grounded);
+    let downhill = d.vel.dot(fwd);
+    assert!(
+        downhill > int(1),
+        "slides on at {} cm/s",
+        downhill * 100 / ONE
+    );
 }
