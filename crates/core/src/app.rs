@@ -330,6 +330,10 @@ pub struct App {
     /// the kept replays, saved under their own storage key
     pub library: Library,
     save_replays: bool,
+    /// how many recent replays the saved text holds: fewer each time the
+    /// page reports that storage would not take it (TRIAGE T55; the bests
+    /// are always in it)
+    replay_room: usize,
     /// when R last went down (`ticks`), for the double tap
     last_r: Option<u32>,
     /// the finished race whose replay is being watched, to go back to
@@ -380,6 +384,7 @@ impl App {
             trial: false,
             library: Library::default(),
             save_replays: false,
+            replay_room: replay::RECENT,
             last_r: None,
             stash: None,
             replay_exit: Screen::Title,
@@ -750,6 +755,18 @@ impl App {
         self.library = Library::parse(text);
     }
 
+    /// The page could not store the last `save_replays` text (storage full
+    /// or blocked; what was stored before is still there). Asks to save
+    /// again with one recent replay fewer, down to the bests alone, which
+    /// are never shed (TRIAGE T55). The library itself keeps them all.
+    pub fn replays_not_saved(&mut self) {
+        let room = self.replay_room.min(self.library.recent.len());
+        if room > 0 {
+            self.replay_room = room - 1;
+            self.save_replays = true;
+        }
+    }
+
     /// Starts watching `rec`; leaving goes back to `exit` (or to the
     /// stashed race's results).
     fn watch(&mut self, rec: Recording, exit: Screen) -> bool {
@@ -759,7 +776,7 @@ impl App {
         self.ensure_world(map);
         let Some(race) = self
             .course_of(map)
-            .filter(|c| rec.fits(c))
+            .filter(|c| rec.watchable(c))
             .map(|c| rec.race(c))
         else {
             return false;
@@ -830,9 +847,7 @@ impl App {
     /// map's course as it is now.
     fn best_replay(&self) -> Option<&Recording> {
         let course = self.course_of(self.settings.map)?;
-        self.library
-            .best_of(course.name, self.mode())
-            .filter(|r| r.fits(course))
+        self.library.best_for(course, self.mode())
     }
 
     /// A look at another map before the map selector (group Y's test hook,
@@ -1452,7 +1467,7 @@ impl App {
             v["save"] = json!(serde_json::to_string(&self.settings).unwrap_or_default());
         }
         if std::mem::take(&mut self.save_replays) {
-            v["save_replays"] = json!(self.library.text());
+            v["save_replays"] = json!(self.library.text_keeping(self.replay_room));
         }
         let w = self.wind_gain();
         v["wind"] = decimal(&format!("{}.{:02}", w / 100, w % 100));
@@ -1679,9 +1694,14 @@ impl App {
                     None if r.eaten => self.t("results.eaten"),
                     None => String::new(),
                 });
+                let course = map.and_then(|m| self.course_of(m));
+                // a run of an older layout or version: watch-only, noted (T55)
+                if let Some(note) = course.and_then(|c| r.older(c)) {
+                    words.push(self.t(note));
+                }
                 json!({ "type": "button", "id": format!("replays.watch.{k}"),
                         "text": words.join(" · "), "quiet": !*best,
-                        "disabled": !map.and_then(|m| self.course_of(m)).is_some_and(|c| r.fits(c)) })
+                        "disabled": !course.is_some_and(|c| r.watchable(c)) })
             })
             .collect();
         if items.is_empty() {
@@ -3011,6 +3031,76 @@ mod tests {
         c.act("menu.start", "");
         c.act("menu.main", "");
         assert!(ui_of(&mut c)["save_replays"].is_null());
+    }
+
+    /// A Time Trial run on the Jungle finished in `t` ticks, kept.
+    fn trial_run(a: &mut App, t: u32) {
+        a.act("menu.trial", "");
+        a.act("menu.start", "");
+        play_for(a, 300, &[]);
+        a.play.as_mut().unwrap().race.racers[0].finish = Some(t);
+        a.act("menu.main", "");
+    }
+
+    #[test]
+    fn a_best_of_an_older_layout_is_kept_watch_only_and_never_a_ghost() {
+        // TRIAGE T55: the map was retuned since the best was made
+        let mut a = app();
+        trial_run(&mut a, 9000);
+        a.library.best[0].layout ^= 1;
+        let mut b = app();
+        b.load_replays(&a.library.text());
+        b.act("menu.replays", "");
+        let shown = texts(&ui_of(&mut b)["panels"]);
+        assert!(
+            shown.contains("★ Best · Jungle · Time Trial · Chimpanzee · 1:15.00 · older layout"),
+            "{shown}"
+        );
+        assert!(shown.contains(r#""disabled":false"#), "{shown}");
+        b.act("replays.watch.0", "");
+        assert!(b.play.as_ref().unwrap().replay.is_some(), "watchable");
+        b.act("replay.exit", "");
+        // not offered as the best to watch or race on the setup
+        b.act("menu.trial", "");
+        assert!(!texts(&ui_of(&mut b)["panels"]).contains("replay.best"));
+        b.act("menu.start", "");
+        assert!(b.play.as_ref().unwrap().ghost.is_none());
+        b.act("menu.main", "");
+        // a slower run on the layout as it is now: both kept, the new one
+        // the ghost
+        trial_run(&mut b, 12_000);
+        let times: Vec<Option<u32>> = b.library.best.iter().map(|r| r.finish).collect();
+        assert_eq!(times, vec![Some(9000), Some(12_000)]);
+        b.act("menu.trial", "");
+        b.act("menu.start", "");
+        assert_eq!(
+            b.play.as_ref().unwrap().ghost.as_ref().unwrap().finish,
+            Some(12_000)
+        );
+    }
+
+    #[test]
+    fn when_storage_is_full_recent_runs_are_shed_never_a_best() {
+        // TRIAGE T55: the page reports each write storage would not take
+        let mut a = app();
+        trial_run(&mut a, 9000);
+        for k in 1..=4 {
+            let mut r = a.library.best[0].clone();
+            r.finish = Some(9000 + k);
+            a.library.add(r);
+        }
+        let mut recents = Vec::new();
+        a.save_replays = true;
+        while let Some(text) = ui_of(&mut a)["save_replays"].as_str() {
+            let saved = Library::parse(text);
+            assert_eq!(saved.best, a.library.best, "a best was shed");
+            recents.push(saved.recent.len());
+            a.replays_not_saved();
+            assert!(recents.len() < 10, "it stops");
+        }
+        assert_eq!(recents, vec![4, 3, 2, 1, 0]);
+        // nothing is lost from this visit's list
+        assert_eq!(a.library.recent.len(), 4);
     }
 
     #[test]

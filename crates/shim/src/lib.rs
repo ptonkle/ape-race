@@ -47,6 +47,10 @@ impl Game {
         self.s.load_replays(text)
     }
 
+    pub fn replays_not_saved(&mut self) {
+        self.s.replays_not_saved()
+    }
+
     pub fn key(&mut self, code: &str, down: bool) {
         self.s.key(code, down)
     }
