@@ -139,7 +139,12 @@ impl App {
         let map = self.map();
         let mut b = Batch::new();
         if map == Map::Jungle {
-            models::showcase(&mut b, self.settings.kind, self.ticks);
+            models::showcase_in(
+                &mut b,
+                self.settings.kind,
+                self.settings.palette(),
+                self.ticks,
+            );
             return (Batch::new(), b);
         }
         let (feet, _) = self.preview_at();
@@ -148,7 +153,7 @@ impl App {
             gear: models::Gear::on(map),
             ..models::Pose::standing(feet, yaw, self.ticks)
         };
-        models::draw(&mut b, self.settings.kind, &pose);
+        models::draw_in(&mut b, self.settings.kind, self.settings.palette(), &pose);
         if let Some(c) = self.course_of(map) {
             crate::scene::backdrop(&mut b, c, self.preview_camera().eye);
         }

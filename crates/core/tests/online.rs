@@ -573,6 +573,41 @@ fn a_screech_plays_for_everyone_in_the_lobby_and_the_sender_too() {
     assert_eq!(heard, [1, 1, 1]);
 }
 
+#[test]
+fn every_seats_colours_reach_every_browser_and_its_race() {
+    // TRIAGE T49: a palette chosen before joining and one changed in the
+    // lobby (its first message lost) show on every browser, and every
+    // race draws each ape in its own
+    let mut net = Net::new(3, 5, 30, 20);
+    net.nodes[2] = Online::join("client2", "Player 2", KINDS[2], 0).with_palette(3);
+    net.arrive_in_order();
+    net.lb.loss_permille = 300;
+    net.lb.drops.push((1, 0, "\"pick\"".into()));
+    let now = net.now;
+    net.nodes[1].set_palette(2, now).unwrap();
+    net.nodes[0].set_palette(1, now).unwrap();
+    net.run(5000);
+    for (i, node) in net.nodes.iter().enumerate() {
+        let worn: Vec<u8> = node.lobby().seats.iter().map(|s| s.palette).collect();
+        assert_eq!(worn, [1, 2, 3], "node {i}");
+    }
+    net.lb.loss_permille = 0;
+    let now = net.now;
+    net.nodes[0].set_ai_count(1, now).unwrap();
+    net.ready_all();
+    let now = net.now;
+    net.nodes[0].start(9, now).unwrap();
+    net.run(500);
+    for i in 0..3 {
+        let worn: Vec<u8> = net.race(i).racers.iter().map(|r| r.palette).collect();
+        assert_eq!(&worn[..3], [1, 2, 3], "node {i}");
+        assert_eq!(
+            worn[3], 0,
+            "the AI ape (a kind no one chose) in its classic"
+        );
+    }
+}
+
 // ---- the race --------------------------------------------------------------
 
 /// A lobby of `humans` with `ai` AI apes, started and running.

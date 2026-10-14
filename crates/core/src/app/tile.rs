@@ -12,7 +12,10 @@
 //! `yaw` and `pitch` (the orbit's, in degrees; the yaw from straight
 //! behind, along the course), `dist` (the orbit's distance, in decimetres)
 //! `hud` (`on` shows the HUD), and `blind`, `jojo` and `snow` (`on`: the
-//! colourblind mode, JOJO MODE, the Ski Slope's snow).
+//! colourblind mode, JOJO MODE, the Ski Slope's snow), `aura` (`off`
+//! hides the racers' auras, TRIAGE T59) and `pal` (each racer's palette,
+//! joined by `+` (a space, as a URL may decode it, works too), TRIAGE
+//! T49; classic for the rest).
 
 use crate::ai::Difficulty;
 use crate::camera::Orbit;
@@ -47,6 +50,8 @@ pub struct Tile {
     pub blind: bool,
     pub jojo: bool,
     pub snow: bool,
+    pub aura: bool,
+    pub palettes: Vec<u8>,
 }
 
 impl Tile {
@@ -69,6 +74,8 @@ impl Tile {
             blind: false,
             jojo: false,
             snow: false,
+            aura: true,
+            palettes: Vec::new(),
         };
         for pair in text.split(',') {
             let Some((k, v)) = pair.split_once('=') else {
@@ -96,6 +103,13 @@ impl Tile {
                 "blind" => t.blind = v == "on",
                 "jojo" => t.jojo = v == "on",
                 "snow" => t.snow = v == "on",
+                "aura" => t.aura = v != "off",
+                "pal" => {
+                    t.palettes = v
+                        .split(['+', ' '])
+                        .map(|p| p.parse().unwrap_or(0))
+                        .collect()
+                }
                 _ => {}
             }
         }
@@ -124,6 +138,7 @@ impl App {
         self.settings.map = t.map;
         self.settings.colourblind = t.blind;
         self.settings.speed_colours = t.jojo;
+        self.settings.aura = t.aura;
         self.settings.weather = if t.snow {
             crate::snow::Weather::Snowing
         } else {
@@ -136,10 +151,12 @@ impl App {
         let entries: Vec<Entry> = t
             .kinds()
             .into_iter()
-            .map(|k| Entry {
+            .enumerate()
+            .map(|(i, k)| Entry {
                 name: self.t(&format!("ape.{}", k.key())),
                 kind: k,
                 driver: Driver::Ai,
+                palette: t.palettes.get(i).copied().unwrap_or(0),
             })
             .collect();
         let focus = t.focus.min(entries.len() - 1);
@@ -199,6 +216,10 @@ mod tests {
         let t = Tile::parse("seed=9,apes=gorilla+lemur,at=600,focus=1,view=orbit,yaw=90,pitch=-20,dist=85,hud=on,bogus=3,lava=on");
         assert_eq!(t.seed, 9);
         assert_eq!(t.apes, [Kind::Gorilla, Kind::Lemur]);
+        assert!(t.aura && t.palettes.is_empty());
+        let p = Tile::parse("pal=1+3,aura=off");
+        assert_eq!((p.palettes.as_slice(), p.aura), ([1, 3].as_slice(), false));
+        assert_eq!(Tile::parse("pal=2 0 1").palettes, [2, 0, 1]);
         assert_eq!((t.at, t.focus, t.view), (600, 1, View::Orbit));
         assert_eq!((t.yaw, t.pitch, t.dist), (deg(90), -deg(20), int(85) / 10));
         assert!(t.hud && t.lava);

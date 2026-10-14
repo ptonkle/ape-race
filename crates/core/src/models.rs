@@ -261,6 +261,164 @@ fn look(kind: Kind) -> Look {
     }
 }
 
+/// How many colour palettes each kind has (TRIAGE T49): 0 is the classic
+/// (`look`'s own colours), then three alternates.
+pub const PALETTES: u8 = 4;
+
+/// A palette's colours, as `Look` names them: fur, limbs, chest, face and
+/// skin.
+type Coat = [Rgb; 5];
+
+/// `kind`'s alternate palette `palette` (1 to 3; the classic and anything
+/// past the last are `None`). Each keeps the kind's marks (the gorilla's
+/// silver back, the lemur's ringed tail, the gibbon's face ring) and is
+/// a coat the kind could have: a darker, a paler and a rarer one.
+fn coat(kind: Kind, palette: u8) -> Option<Coat> {
+    let l = look(kind);
+    let keep = (l.face, l.skin);
+    let c = |fur: Rgb, limb: Rgb, chest: Rgb| Some([fur, limb, chest, keep.0, keep.1]);
+    match (kind, palette) {
+        // copper, strawberry blond, albino
+        (Kind::Orangutan, 1) => c(rgb(150, 56, 30), rgb(138, 50, 26), rgb(128, 52, 32)),
+        (Kind::Orangutan, 2) => Some([
+            rgb(236, 150, 78),
+            rgb(224, 138, 66),
+            rgb(214, 128, 70),
+            rgb(150, 112, 96),
+            rgb(110, 84, 72),
+        ]),
+        (Kind::Orangutan, 3) => Some([
+            rgb(238, 232, 222),
+            rgb(226, 220, 210),
+            rgb(214, 206, 196),
+            rgb(236, 170, 160),
+            rgb(220, 150, 140),
+        ]),
+        // silverback grey, mountain brown, Snowflake (the albino)
+        (Kind::Gorilla, 1) => c(rgb(128, 128, 138), rgb(100, 100, 110), rgb(90, 90, 98)),
+        (Kind::Gorilla, 2) => Some([
+            rgb(82, 60, 46),
+            rgb(72, 52, 40),
+            rgb(96, 74, 58),
+            rgb(70, 58, 54),
+            rgb(34, 28, 26),
+        ]),
+        (Kind::Gorilla, 3) => Some([
+            rgb(240, 238, 232),
+            rgb(228, 226, 220),
+            rgb(218, 214, 206),
+            rgb(236, 178, 166),
+            rgb(222, 160, 150),
+        ]),
+        // bonobo black with a dark face, russet, golden
+        (Kind::Chimpanzee, 1) => Some([
+            rgb(26, 24, 28),
+            rgb(22, 20, 24),
+            rgb(40, 36, 40),
+            rgb(60, 48, 46),
+            rgb(54, 44, 42),
+        ]),
+        (Kind::Chimpanzee, 2) => c(rgb(128, 70, 40), rgb(116, 62, 34), rgb(150, 92, 60)),
+        (Kind::Chimpanzee, 3) => Some([
+            rgb(204, 160, 80),
+            rgb(192, 148, 70),
+            rgb(222, 184, 110),
+            rgb(236, 196, 170),
+            rgb(214, 170, 140),
+        ]),
+        // black with white hands, silver, cinnamon
+        (Kind::Gibbon, 1) => c(rgb(30, 28, 32), rgb(26, 24, 28), rgb(42, 40, 44)),
+        (Kind::Gibbon, 2) => c(rgb(168, 176, 184), rgb(152, 160, 170), rgb(196, 202, 208)),
+        (Kind::Gibbon, 3) => c(rgb(168, 96, 52), rgb(154, 86, 46), rgb(190, 124, 80)),
+        // rust, blond, smoke
+        (Kind::Proboscis, 1) => c(rgb(160, 64, 36), rgb(186, 178, 168), rgb(226, 200, 168)),
+        (Kind::Proboscis, 2) => c(rgb(230, 170, 100), rgb(236, 230, 218), rgb(244, 228, 200)),
+        (Kind::Proboscis, 3) => Some([
+            rgb(96, 96, 106),
+            rgb(176, 176, 184),
+            rgb(214, 210, 204),
+            rgb(220, 150, 120),
+            keep.1,
+        ]),
+        // red ruffed, black-and-white ruffed, golden
+        (Kind::Lemur, 1) => Some([
+            rgb(176, 52, 28),
+            rgb(36, 30, 30),
+            rgb(34, 28, 28),
+            rgb(48, 40, 40),
+            rgb(30, 26, 26),
+        ]),
+        (Kind::Lemur, 2) => Some([
+            rgb(238, 236, 232),
+            rgb(32, 30, 32),
+            rgb(36, 34, 36),
+            rgb(40, 38, 40),
+            rgb(30, 30, 32),
+        ]),
+        (Kind::Lemur, 3) => c(rgb(214, 160, 70), rgb(226, 180, 100), rgb(244, 222, 170)),
+        _ => None,
+    }
+}
+
+/// `kind`'s build in palette `palette` (TRIAGE T49).
+fn look_in(kind: Kind, palette: u8) -> Look {
+    let mut l = look(kind);
+    if let Some([fur, limb, chest, face, skin]) = coat(kind, palette) {
+        l = Look {
+            fur,
+            limb,
+            chest,
+            face,
+            skin,
+            ..l
+        };
+    }
+    l
+}
+
+/// How big `kind` is drawn, percent of the common size.
+pub fn size_of(kind: Kind) -> i32 {
+    look(kind).size
+}
+
+#[cfg(test)]
+mod palette_tests {
+    use super::*;
+
+    fn shapes(kind: Kind, palette: u8) -> (Vec<i32>, Vec<u32>) {
+        let mut b = Batch::new();
+        draw_in(&mut b, kind, palette, &Pose::standing(V3::ZERO, 0, 7));
+        b.finish(crate::render::DYNAMIC_BUFFER)
+    }
+
+    /// The instance values without their colours.
+    fn placed_only(v: &[i32]) -> Vec<i32> {
+        v.chunks(crate::render::INSTANCE_VALUES)
+            .flat_map(|s| s[..12].iter().chain(&s[15..]).copied().collect::<Vec<_>>())
+            .collect()
+    }
+
+    #[test]
+    fn each_palette_recolours_the_same_ape() {
+        for kind in Kind::ALL {
+            let classic = shapes(kind, 0);
+            let mut plain = Batch::new();
+            draw(&mut plain, kind, &Pose::standing(V3::ZERO, 0, 7));
+            assert_eq!(plain.finish(crate::render::DYNAMIC_BUFFER), classic);
+            let mut seen = vec![classic.0.clone()];
+            for p in 1..PALETTES {
+                let alt = shapes(kind, p);
+                assert_eq!(alt.1, classic.1, "{kind:?} {p}: other shapes");
+                assert_eq!(placed_only(&alt.0), placed_only(&classic.0));
+                assert!(!seen.contains(&alt.0), "{kind:?} {p}: colours not its own");
+                seen.push(alt.0);
+            }
+            // past the last palette: the classic
+            assert_eq!(shapes(kind, PALETTES), classic);
+        }
+    }
+}
+
 const BLACK: Rgb = rgb(16, 14, 16);
 const EYE_WHITE: Rgb = rgb(250, 250, 246);
 const LEMUR_EYE: Rgb = rgb(255, 160, 20);
@@ -669,9 +827,14 @@ fn running(l: &Look, m: &Dims, pose: &Pose, face: V3) -> Skel {
 // ---------------------------------------------------------------------------
 // Drawing
 
-/// Draws one ape.
+/// Draws one ape, in its classic colours.
 pub fn draw(b: &mut Batch, kind: Kind, pose: &Pose) {
-    let l = look(kind);
+    draw_in(b, kind, 0, pose);
+}
+
+/// Draws one ape in palette `palette` (TRIAGE T49; 0 is the classic).
+pub fn draw_in(b: &mut Batch, kind: Kind, palette: u8, pose: &Pose) {
+    let l = look_in(kind, palette);
     let m = dims(&l);
     let mut skel = pose_skel(&l, pose);
     if pose.gear == Gear::Ski {
@@ -1718,9 +1881,14 @@ pub fn lineup_camera(aspect: i32) -> Camera {
 
 /// One ape on the selection screen, turning a full circle every 6 s.
 pub fn showcase(b: &mut Batch, kind: Kind, tick: u32) {
+    showcase_in(b, kind, 0, tick);
+}
+
+/// As `showcase`, in palette `palette` (TRIAGE T49).
+pub fn showcase_in(b: &mut Batch, kind: Kind, palette: u8, tick: u32) {
     let yaw = ((tick as i64 % 720) * TURN as i64 / 720) as i32;
     let pose = Pose::standing(V3::ZERO, yaw, tick);
-    draw(b, kind, &pose);
+    draw_in(b, kind, palette, &pose);
 }
 
 /// The selection screen's camera: the ape at the middle, a little from above.

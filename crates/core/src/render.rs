@@ -62,7 +62,10 @@ impl Batch {
     /// A soft glow of colour `c` through the shape, strongest (`strength`)
     /// where it faces the eye and fading to nothing at its outline, added
     /// over what is behind it; drawn last (`take_halos`, `HALO`). A
-    /// `strength` over ONE adds evenly, by the part over ONE.
+    /// `strength` over ONE adds evenly, by the part over ONE. A negative
+    /// one is an aura (TRIAGE T59): only the shape's far side is drawn, at
+    /// `-strength`, so a solid shape inside it hides its middle and it
+    /// glows round that shape's outline.
     pub fn push_halo(&mut self, mesh: Mesh, a: &Affine, c: Rgb, strength: i32) {
         self.halos
             .get_or_insert_with(|| Box::new(Batch::new()))

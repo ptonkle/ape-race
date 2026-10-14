@@ -21,6 +21,7 @@ fn main() {
                 name: String::new(),
                 kind,
                 driver: Driver::Ai,
+                palette: 0,
             }];
             let mut race = Race::new(map.course(), &entries, false, 7 + s);
             let mut brain = Brain::new(level, 0xA9E5 + s * 101);

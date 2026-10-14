@@ -112,6 +112,7 @@ impl Recording {
                     name: r.name.clone(),
                     kind: r.ape.kind,
                     driver: r.driver,
+                    palette: r.palette,
                 })
                 .collect(),
             local,
@@ -1096,6 +1097,7 @@ mod tests {
                 name: format!("P{i}"),
                 kind: Kind::ALL[i],
                 driver: if i == 0 { Driver::Local } else { Driver::Ai },
+                palette: 0,
             })
             .collect()
     }

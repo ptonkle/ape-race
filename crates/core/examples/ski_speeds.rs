@@ -35,6 +35,7 @@ fn main() {
         name: String::new(),
         kind: Kind::Chimpanzee,
         driver: Driver::Ai,
+        palette: 0,
     }];
     let mut race = Race::new(Map::Ski.course(), &entries, true, 7);
     let mut top = 0;

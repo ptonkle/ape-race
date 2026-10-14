@@ -104,6 +104,12 @@ pub struct Settings {
     /// the Ski Slope's weather (2026-10-13): Clear or Snowing, this
     /// player's own view only (no effect on play, not sent online)
     pub weather: crate::snow::Weather,
+    /// each kind's chosen colours (TRIAGE T49), by the kind's key; a kind
+    /// not here wears the classic
+    pub palettes: BTreeMap<String, u8>,
+    /// a soft glow round every racer in its start slot's colour (TRIAGE
+    /// T59: blue, red, green, purple)
+    pub aura: bool,
 }
 
 /// One map's personal bests, in race ticks.
@@ -137,6 +143,8 @@ impl Default for Settings {
             bests: BTreeMap::new(),
             lava: false,
             weather: crate::snow::Weather::Clear,
+            palettes: BTreeMap::new(),
+            aura: true,
         }
     }
 }
@@ -153,7 +161,29 @@ impl Settings {
         // Speed Colours is a secret until unlocked (TRIAGE row 26), even for
         // settings saved while it was on by default
         s.speed_colours &= s.colours_unlocked;
+        s.palettes
+            .retain(|k, p| Kind::from_key(k).is_some() && *p > 0 && *p < models::PALETTES);
         s
+    }
+
+    /// The colours `kind` wears (TRIAGE T49).
+    pub fn palette_of(&self, kind: Kind) -> u8 {
+        self.palettes.get(kind.key()).copied().unwrap_or(0)
+    }
+
+    /// The colours of the chosen ape.
+    pub fn palette(&self) -> u8 {
+        self.palette_of(self.kind)
+    }
+
+    /// Chooses the colours of the chosen ape (out of range: the classic).
+    pub fn set_palette(&mut self, palette: u8) {
+        let key = self.kind.key().to_string();
+        if palette == 0 || palette >= models::PALETTES {
+            self.palettes.remove(&key);
+        } else {
+            self.palettes.insert(key, palette);
+        }
     }
 
     /// The personal best on `map`, of a Time Trial (`trial`) or a race.
@@ -936,6 +966,16 @@ impl App {
                 self.settings.kind = Kind::ALL[j];
                 self.save = true;
             }
+            "setup.palette" => {
+                if let Ok(p) = value.parse::<u8>() {
+                    self.settings.set_palette(p);
+                    self.save = true;
+                }
+            }
+            "settings.aura" => {
+                self.settings.aura = value == "on";
+                self.save = true;
+            }
             "setup.ai_level" => {
                 if let Some(d) = crate::ai::Difficulty::from_key(value) {
                     self.settings.ai_level = d;
@@ -1012,6 +1052,7 @@ impl App {
             name: self.t("player.you"),
             kind: self.settings.kind,
             driver: Driver::Local,
+            palette: self.settings.palette(),
         }];
         let mut d = fx::Dice(self.seed ^ self.ticks as u64);
         // the AI picks kinds other than the player's where it can
@@ -1031,6 +1072,7 @@ impl App {
                 name: self.t(&format!("ape.{}", k.key())),
                 kind: k,
                 driver: Driver::Ai,
+                palette: crate::race::palette_apart(crate::race::worn(&entries), k),
             });
         }
         let map = self.settings.map;
@@ -1365,6 +1407,7 @@ impl App {
                         tick: self.ticks,
                         chains: &p.chains,
                         vivid,
+                        aura: self.settings.aura,
                     })
                 }
                 None => (Batch::new(), Batch::new()),
@@ -1513,6 +1556,25 @@ impl App {
         ])
     }
 
+    /// The chosen ape's colours (TRIAGE T49), as a select with id `id`.
+    pub(crate) fn palette_select(&self, id: &str) -> Value {
+        let kind = self.settings.kind;
+        let options: Vec<Value> = (0..models::PALETTES)
+            .map(|p| json!({ "value": p.to_string(), "text": self.palette_name(kind, p) }))
+            .collect();
+        json!({ "type": "select", "id": id, "label": self.t("setup.palette"),
+          "value": self.settings.palette().to_string(), "options": options })
+    }
+
+    /// The name of `kind`'s palette `p`.
+    pub(crate) fn palette_name(&self, kind: Kind, p: u8) -> String {
+        if p == 0 {
+            self.t("palette.classic")
+        } else {
+            self.t(&format!("palette.{}.{p}", kind.key()))
+        }
+    }
+
     fn setup_panels(&self) -> Vec<Value> {
         let kinds: Vec<Value> = Kind::ALL
             .iter()
@@ -1528,6 +1590,7 @@ impl App {
             json!({ "type": "picker", "id": "setup.ape", "label": self.t("setup.ape"),
               "value": self.settings.kind.key(), "options": kinds,
               "text": self.t(&format!("ape.{}", self.settings.kind.key())) }),
+            self.palette_select("setup.palette"),
             json!({ "type": "stats", "label": self.t("setup.stats"), "rows": self.stats_rows(&stats) }),
         ];
         // the Ski Slope's weather, under the map that has it
@@ -1699,6 +1762,8 @@ impl App {
                   "value": self.settings.auto_camera },
                 { "type": "toggle", "id": "settings.colourblind", "label": self.t("settings.colourblind"),
                   "value": self.settings.colourblind },
+                { "type": "toggle", "id": "settings.aura", "label": self.t("settings.aura"),
+                  "value": self.settings.aura },
             ]}),
         ];
         // Speed Colours shows once unlocked (TRIAGE row 26)
@@ -2032,7 +2097,14 @@ impl App {
             .map(|(i, r)| {
                 let (x, y) = to(r.ape.pos);
                 let me = i == p.local;
-                let mut dot = json!({ "x": x, "y": y, "me": me, "colour": colour_of(r.ape.kind) });
+                // with the auras on, each dot is its ape's aura colour
+                // (TRIAGE T59); else its kind's
+                let colour = if self.settings.aura {
+                    hex(scene::aura_colour(i, self.settings.colourblind))
+                } else {
+                    colour_of(r.ape.kind).to_string()
+                };
+                let mut dot = json!({ "x": x, "y": y, "me": me, "colour": colour });
                 // the colourblind mode tells the apes apart by shape too
                 // (TRIAGE T33)
                 if self.settings.colourblind {
@@ -2277,7 +2349,7 @@ fn ghost_draws(p: &Play, alpha: i32, ticks: u32, values: &mut Vec<i32>) -> Vec<u
     let at = g.prev.lerp(r.ape.pos, alpha);
     let mut b = Batch::new();
     let pose = scene::racer_pose(&g.race, 0, at, ticks);
-    models::draw(&mut b, r.ape.kind, &pose);
+    models::draw_in(&mut b, r.ape.kind, r.palette, &pose);
     let start = values.len();
     let draws = b.finish_into(render::DYNAMIC_BUFFER, values);
     for inst in values[start..].chunks_mut(render::INSTANCE_VALUES) {
@@ -2329,6 +2401,12 @@ fn step_chains(p: &mut Play) {
 /// some (a gain, a full circle in radians), and the core keeps no floats.
 fn decimal(text: &str) -> Value {
     serde_json::from_str(text).unwrap_or(Value::Null)
+}
+
+/// A colour as the page's `#rrggbb`.
+fn hex(c: render::Rgb) -> String {
+    let byte = |v: i32| (v.clamp(0, ONE) * 255 + ONE / 2) / ONE;
+    format!("#{:02x}{:02x}{:02x}", byte(c[0]), byte(c[1]), byte(c[2]))
 }
 
 /// An ape kind's colour on the minimap.
@@ -2404,6 +2482,8 @@ fn cue_for(e: &Event, local: usize) -> Option<Cue> {
 mod items_hype_tests;
 #[cfg(test)]
 mod lava_tests;
+#[cfg(test)]
+mod look_tests;
 #[cfg(test)]
 mod spectate_tests;
 #[cfg(test)]
@@ -2700,6 +2780,8 @@ mod tests {
         assert!(!kinds(&a).contains(&render::HALO), "the Jungle's title");
         a.act("menu.race", "");
         a.act("menu.start", "");
+        // (the racers' auras, TRIAGE T59, are glows too)
+        a.act("settings.aura", "off");
         assert!(!kinds(&a).contains(&render::HALO), "a Jungle race");
         let mut a = app();
         a.act("flag.map", "city");
