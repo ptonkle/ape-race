@@ -41,6 +41,7 @@ pub mod scene;
 pub mod ski;
 pub mod skiscape;
 pub mod sky;
+pub mod snow;
 pub mod sound;
 pub mod speedo;
 pub mod trial;

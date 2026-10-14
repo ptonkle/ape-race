@@ -144,7 +144,10 @@ impl App {
         }
         let (feet, _) = self.preview_at();
         let yaw = ((self.ticks as i64 % 720) * TURN as i64 / 720) as i32;
-        let pose = models::Pose::standing(feet, yaw, self.ticks);
+        let pose = models::Pose {
+            gear: models::Gear::on(map),
+            ..models::Pose::standing(feet, yaw, self.ticks)
+        };
         models::draw(&mut b, self.settings.kind, &pose);
         if let Some(c) = self.course_of(map) {
             crate::scene::backdrop(&mut b, c, self.preview_camera().eye);

@@ -1466,6 +1466,8 @@ pub fn racer_pose(race: &Race, k: usize, at: V3, tick: u32) -> Pose {
         stunned: a.stun > 0,
         tick,
         scale: RACE_SCALE,
+        // the Ski Slope's skis, helmet and goggles
+        gear: models::Gear::on(Map::of(&race.course)),
     }
 }
 
