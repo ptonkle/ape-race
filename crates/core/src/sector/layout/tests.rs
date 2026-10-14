@@ -360,6 +360,22 @@ fn the_armada_has_ten_grunts_and_two_brutes_carrying_moving_vines() {
 }
 
 #[test]
+fn a_mechs_frame_is_its_pose_wherever_it_is() {
+    // (`MechPath::frame` moves the pose it worked out once: the same frame
+    // as posing it afresh)
+    let c = sector();
+    for m in &lay(&c).mechs {
+        for t in (0..20_000).step_by(37) {
+            let period = m.period.max(1);
+            let phase = ((t % period) as i64 * fx::TURN as i64 / period as i64) as i32;
+            let at = m.from.lerp(m.to, (ONE - fx::cos(phase)) / 2);
+            let posed = crate::spacecraft::pose(at, m.yaw, 0, 0, m.scale);
+            assert_eq!(m.frame(t), posed, "tick {t}");
+        }
+    }
+}
+
+#[test]
 fn the_finish_is_the_black_hole_horizon_with_a_deck_under_it() {
     let c = sector();
     let s = lay(&c);

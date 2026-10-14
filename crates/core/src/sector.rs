@@ -123,6 +123,11 @@ pub struct SectorLayout {
     /// `NEAR_SAMPLES` centreline samples, the solid bodies an ape in that
     /// stretch (anywhere inside the boundary) could touch
     pub near: Vec<Vec<u16>>,
+    /// physics only (the scene ignores it): each body's unit axes and the
+    /// radius that holds it (`Body::axes`, `Body::reach`), worked out once
+    /// by `index_bodies` (the AI's copies of the ape test bodies thousands
+    /// of times a tick)
+    pub fits: Vec<([V3; 3], i32)>,
     /// physics only (the scene ignores it): the course's vines by where
     /// along the course they hang (`Vine.at`), for finding the ones near an
     /// ape without looking at all of them
@@ -156,6 +161,15 @@ impl SectorLayout {
             .iter()
             .take_while(move |&&(at, _)| at <= s + VINE_WINDOW)
             .map(|&(_, i)| i as usize)
+    }
+
+    /// Body `b`'s unit axes and reach (from `fits`, or worked out if the
+    /// bodies were not indexed).
+    pub fn fit(&self, b: usize) -> ([V3; 3], i32) {
+        match self.fits.get(b) {
+            Some(&f) => f,
+            None => (self.bodies[b].axes(), self.bodies[b].reach()),
+        }
     }
 
     /// The solid bodies an ape whose nearest centreline sample is `hint`
@@ -209,6 +223,7 @@ impl SectorLayout {
             }
         }
         self.near = near;
+        self.fits = self.bodies.iter().map(|b| (b.axes(), b.reach())).collect();
     }
 }
 
@@ -398,7 +413,7 @@ impl Door {
 /// A mech on its fixed path: built as `mech`, moving from `from` to `to`
 /// and back over `period` ticks (or one way, then holding), facing `yaw`.
 /// Its frame at a tick is `MechPath::frame`, shared by the physics and the
-/// drawing.
+/// drawing. Build one with `MechPath::new`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct MechPath {
     pub mech: Mech,
@@ -407,9 +422,25 @@ pub struct MechPath {
     pub period: u32,
     pub yaw: i32,
     pub scale: i32,
+    /// its frame at the origin, `pose(ZERO, yaw, 0, 0, scale)`, worked out
+    /// once: a pose's axes do not depend on where it is, and the AI's
+    /// copies of the ape ask for a mech's frame thousands of times a tick
+    pub rest: Affine,
 }
 
 impl MechPath {
+    pub fn new(mech: Mech, from: V3, to: V3, period: u32, yaw: i32, scale: i32) -> MechPath {
+        MechPath {
+            mech,
+            from,
+            to,
+            period,
+            yaw,
+            scale,
+            rest: crate::spacecraft::pose(V3::ZERO, yaw, 0, 0, scale),
+        }
+    }
+
     /// The mech's frame at race tick `tick` (as `spacecraft::pose`): it
     /// eases from `from` to `to` and back over `period` ticks, from the
     /// tick alone, so the physics and the drawing agree.
@@ -418,7 +449,9 @@ impl MechPath {
         let phase = ((tick % period) as i64 * fx::TURN as i64 / period as i64) as i32;
         let t = (ONE - fx::cos(phase)) / 2;
         let at = self.from.lerp(self.to, t);
-        crate::spacecraft::pose(at, self.yaw, 0, 0, self.scale)
+        // (exactly `pose(at, yaw, 0, 0, scale)`: its translation comes
+        // last, so it only moves the frame)
+        self.rest.at(at)
     }
 
     /// Its vine anchors at race tick `tick`.
@@ -440,18 +473,12 @@ impl MechPath {
 
     /// A stand-in: a grunt marching nowhere.
     pub fn still(at: V3, yaw: i32) -> MechPath {
-        MechPath {
-            mech: Mech {
-                kind: MechKind::Grunt,
-                gait: Gait::March,
-                phase: 0,
-            },
-            from: at,
-            to: at,
-            period: 1,
-            yaw,
-            scale: ONE,
-        }
+        let mech = Mech {
+            kind: MechKind::Grunt,
+            gait: Gait::March,
+            phase: 0,
+        };
+        MechPath::new(mech, at, at, 1, yaw, ONE)
     }
 }
 

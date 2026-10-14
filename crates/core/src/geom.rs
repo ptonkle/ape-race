@@ -51,24 +51,24 @@ impl V3 {
         )
     }
     pub fn len(self) -> i32 {
-        let s = self.x as i128 * self.x as i128
-            + self.y as i128 * self.y as i128
-            + self.z as i128 * self.z as i128;
-        isqrt(s as u128) as i32
+        isqrt(self.len2() as u128) as i32
+    }
+    /// The squared length, raw (Q32): three squares of `i32`s fit a `u64`.
+    fn len2(self) -> u64 {
+        let sq = |a: i32| (a as i64 * a as i64) as u64;
+        sq(self.x) + sq(self.y) + sq(self.z)
     }
     pub fn len_xz(self) -> i32 {
         v3(self.x, 0, self.z).len()
     }
     /// A vector of length `ONE` the same way, or zero for zero.
     pub fn norm(self) -> V3 {
-        let s = self.x as i128 * self.x as i128
-            + self.y as i128 * self.y as i128
-            + self.z as i128 * self.z as i128;
+        let s = self.len2();
         if s == 0 {
             return V3::ZERO;
         }
         // the length with 32 more bits, so short vectors keep their direction
-        let l = isqrt((s as u128) << 32) as i64;
+        let l = fx::isqrt_shl32(s) as i64;
         // (a component shifted 32 bits fits an `i64`, and so does the
         // length: the same quotient as in 128 bits, far cheaper)
         let c = |a: i32| (((a as i64) << 32) / l) as i32;

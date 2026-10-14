@@ -38,6 +38,7 @@ fn empty() -> SectorLayout {
         finish_deck: 0,
         routes: Vec::new(),
         near: Vec::new(),
+        fits: Vec::new(),
         by_at: Vec::new(),
     }
 }

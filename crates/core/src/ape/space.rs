@@ -155,11 +155,11 @@ impl Ape {
             }
             let body = &s.bodies[b as usize];
             let c = body.frame.t;
-            let r = body.reach() + HIT_RADIUS + span;
+            let (axes, reach) = s.fit(b as usize);
+            let r = reach + HIT_RADIUS + span;
             if (p1.x - c.x).abs() > r || (p1.y - c.y).abs() > r || (p1.z - c.z).abs() > r {
                 continue;
             }
-            let axes = body.axes();
             if let Some(t) = sweep(c, &axes, body.half, HIT_RADIUS, p0, p1) {
                 // a deck's top face is its platform: stood on, not hit
                 if body.model == Model::Deck && t.normal.dot(axes[1]) > ONE / 2 {

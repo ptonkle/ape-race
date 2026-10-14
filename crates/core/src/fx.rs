@@ -140,6 +140,24 @@ pub fn isqrt(n: u128) -> u128 {
     }
 }
 
+/// `isqrt(s << 32)`, the same answer, cheaper (`V3::norm` takes one for
+/// every direction): the root of `s` in 64 bits, then its next 16 bits from
+/// the remainder (a first guess never too small, and at most a few over).
+pub fn isqrt_shl32(s: u64) -> u64 {
+    if s < 1 << 32 {
+        return (s << 32).isqrt();
+    }
+    // s = r² + rem; s·2³² = (r·2¹⁶ + q)² + ... with q·(r·2¹⁷ + q) <= rem·2³²
+    let r = s.isqrt();
+    let rem = s - r * r;
+    let n = (s as u128) << 32;
+    let mut root = (r << 16) + (rem << 15) / r;
+    while root as u128 * root as u128 > n {
+        root -= 1;
+    }
+    root
+}
+
 /// Square root of a non-negative Q16.16 value.
 pub fn sqrt(v: i32) -> i32 {
     if v <= 0 {
@@ -195,6 +213,29 @@ mod tests {
                 return x;
             }
             x = y;
+        }
+    }
+
+    #[test]
+    fn the_shifted_square_root_agrees() {
+        let check = |s: u64| assert_eq!(isqrt_shl32(s) as u128, isqrt((s as u128) << 32), "{s}");
+        for s in 0..70_000u64 {
+            check(s);
+        }
+        for b in 0..64u32 {
+            let p = 1u64 << b;
+            for s in [p - 1, p, p + 1] {
+                check(s);
+            }
+            let r = p.isqrt();
+            for s in [r * r - 1, r * r, r * r + 1, (r + 1) * (r + 1) - 1] {
+                check(s);
+            }
+        }
+        check(u64::MAX);
+        let mut d = Dice(0xA0A0);
+        for k in 0..1_000_000u32 {
+            check(d.next() >> (k % 64));
         }
     }
 

@@ -610,6 +610,7 @@ pub fn sector_seeded(seed: u64) -> Course {
         finish_deck: 0,
         routes: Vec::new(),
         near: Vec::new(),
+        fits: Vec::new(),
         by_at: Vec::new(),
     };
     let mut b = B {
@@ -1033,19 +1034,20 @@ fn armada(b: &mut B) {
                 (int(29), int(21))
             };
             let sway = int(7);
-            let m = MechPath {
-                mech: Mech {
-                    kind,
-                    gait,
-                    phase: (n * 13_001) % fx::TURN,
-                },
-                from: b.pt(si, int(off) - sway, y),
-                to: b.pt(si, int(off) + sway, y),
-                period: (20 + (n % 3) as u32 * 4) * TICKS_PER_SECOND as u32,
-                // facing the apes coming
-                yaw: b.yaw(si) + fx::HALF,
-                scale: MECH_SCALE,
+            let mech = Mech {
+                kind,
+                gait,
+                phase: (n * 13_001) % fx::TURN,
             };
+            let m = MechPath::new(
+                mech,
+                b.pt(si, int(off) - sway, y),
+                b.pt(si, int(off) + sway, y),
+                (20 + (n % 3) as u32 * 4) * TICKS_PER_SECOND as u32,
+                // facing the apes coming
+                b.yaw(si) + fx::HALF,
+                MECH_SCALE,
+            );
             b.lay.mechs.push(m);
             let mi = b.lay.mechs.len() - 1;
             // one fist's vine straight down, the other fist's and an
