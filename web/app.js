@@ -649,6 +649,9 @@ async function start() {
   // `?tile=<spec>`: a home-page screenshot, held still (scripts/tiles.py)
   const tile = new URLSearchParams(location.search).get("tile");
   if (tile) game.act("screen.tile", tile);
+  // `?gallery=<spec>`: Sector Ape's models, one at a time (app/gallery.rs)
+  const gallery = new URLSearchParams(location.search).get("gallery");
+  if (gallery) game.act("screen.gallery", gallery);
   // This browser's id for online play, and `?codes`: the pasted-code path,
   // for the automated online check only.
   game.act("flag.client", crypto.randomUUID());

@@ -26,6 +26,7 @@ use crate::trial;
 
 mod online_play;
 pub use online_play::OnlinePlay;
+mod gallery;
 #[cfg(test)]
 mod map_tests;
 mod medals;
@@ -382,6 +383,8 @@ pub struct App {
     stash: Option<Play>,
     /// where leaving a replay from the menus goes
     replay_exit: Screen,
+    /// Sector Ape's model gallery (`gallery.rs`), shown instead of all else
+    gallery: Option<gallery::Gallery>,
 }
 
 fn s(map: &BTreeMap<String, String>, key: &str) -> String {
@@ -431,6 +434,7 @@ impl App {
             last_r: None,
             stash: None,
             replay_exit: Screen::Title,
+            gallery: None,
         };
         // only the map the title flies over is built now; the others when
         // first chosen
@@ -991,6 +995,7 @@ impl App {
             }
             "screen.lineup" => self.go(Screen::Lineup),
             "screen.tile" => self.tile(value),
+            "screen.gallery" => self.gallery(value),
             "setup.ape" => {
                 if let Some(k) = Kind::from_key(value) {
                     self.settings.kind = k;
@@ -1225,6 +1230,9 @@ impl App {
     }
 
     fn tick(&mut self) {
+        if self.gallery.as_ref().is_some_and(|g| g.hold) {
+            return;
+        }
         if self.play.as_ref().is_some_and(|p| p.still.is_some()) {
             // a tile: every frame the same, animations too
             return;
@@ -1355,6 +1363,9 @@ impl App {
     }
 
     fn camera(&self) -> Camera {
+        if let Some(g) = &self.gallery {
+            return g.camera();
+        }
         match self.stage {
             Stage::Race => match &self.play {
                 Some(p) => {
@@ -1383,6 +1394,9 @@ impl App {
 
     /// This frame's view values, dynamic instances and draws.
     pub fn frame(&self) -> (Vec<i32>, Vec<i32>, Vec<u32>) {
+        if let Some(g) = &self.gallery {
+            return self.gallery_frame(g);
+        }
         let cam = self.camera();
         // the sky swings through colours at top speed (TRIAGE T20)
         let (speed, metres) = match (&self.play, self.stage) {
@@ -1516,7 +1530,8 @@ impl App {
             Screen::Replays => self.replays_panels(),
         };
         let still = self.play.as_ref().and_then(|p| p.still);
-        v["panels"] = Value::Array(if still.is_some() { Vec::new() } else { panels });
+        let bare = still.is_some() || self.gallery.is_some();
+        v["panels"] = Value::Array(if bare { Vec::new() } else { panels });
         if self.screen == Screen::Race && still != Some(false) {
             v["hud"] = self.hud();
         }
