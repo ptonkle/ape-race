@@ -117,6 +117,26 @@ pub const CLIMB_SPEED: i32 = int(6);
 /// The bridge deck's ladders down to the water are this far apart.
 pub const LADDER_EVERY: i32 = int(20);
 
+// ---- the Ski Slope (2026-10-13) ----
+
+/// On the Ski Slope an ape on the snow is on skis: gravity pulls it down
+/// the hill, and the snow and the skis hold it back this much (a constant
+/// friction, m/s²) ...
+pub const SKI_FRICTION: i32 = cm(80);
+/// ... plus this share of its speed a second, on top of the air's drag, so
+/// skiing tops out well below a good swing.
+pub const SKI_DRAG: i32 = ratio(9, 100);
+/// WASD across the motion carve the skis round this hard (no faster).
+pub const SKI_STEER: i32 = int(14);
+/// W along the motion pushes this hard (poling), fading to nothing at
+/// `SKI_PUSH_FADE`; S snowploughs this hard.
+pub const SKI_PUSH: i32 = int(3);
+pub const SKI_PUSH_FADE: i32 = int(14);
+pub const SKI_BRAKE: i32 = int(8);
+/// Slower than this, WASD skate the ape off toward where they point (as
+/// running, up to this speed).
+pub const SKI_SKATE: i32 = int(5);
+
 /// The five stats of a kind of ape, each 1 to 5. Every kind's stats add up
 /// to [`STAT_SUM`], so no kind is simply better (PLAN P8).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

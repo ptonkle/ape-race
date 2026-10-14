@@ -27,7 +27,7 @@
 //! speeds).
 
 use crate::ape::{Ape, Controls, Happening, Mode};
-use crate::course::{ground, Course};
+use crate::course::Course;
 use crate::fx::{cm, int, Dice, ONE};
 use crate::geom::{pitch_of, v3, yaw_of, V3};
 use crate::race::{Driver, Entry, Item, Race};
@@ -59,6 +59,11 @@ const COVER: u32 = 60;
 /// Vines this far ahead are candidates.
 const LOOK: i32 = int(70);
 const MAX_CANDS: usize = 10;
+/// On the Ski Slope the swings run faster downhill (30–40 m/s), and a
+/// release flies further: it looks this far ahead, at this many vines (two
+/// branches at a fork).
+const SKI_LOOK: i32 = int(110);
+const SKI_CANDS: usize = 16;
 /// A search tries steering for this many of them in turn.
 const STEERS: usize = 3;
 /// After this long on one vine with no way on, it lets go forward.
@@ -143,9 +148,24 @@ impl Difficulty {
     /// faster than the Sloth and the Ape barely faster than the Monkey
     /// (sharp corners and sparser vines spread the levels differently), so
     /// the City's Monkey reacts a little sooner and misjudges less, and its
-    /// Ape has stronger arms and reacts sooner.
-    fn tuning_on(self, city: bool) -> Tuning {
+    /// Ape has stronger arms and reacts sooner. On the Ski Slope the swings
+    /// run fast downhill, so a level's reaction time would let the best
+    /// release go by (stuck whirling on a vine): it reacts sooner there
+    /// (`SKI_HESITATE`), and looks further ahead.
+    fn tuning_on(self, city: bool, ski: bool) -> Tuning {
         let t = self.tuning();
+        if ski {
+            let k = self as usize;
+            return Tuning {
+                look: SKI_LOOK,
+                cands: SKI_CANDS,
+                hesitate: SKI_HESITATE[k],
+                jitter: SKI_HESITATE[k],
+                drive: SKI_DRIVE[k],
+                noise: SKI_NOISE[k],
+                ..t
+            };
+        }
         match self {
             Difficulty::Monkey if city => Tuning {
                 hesitate: CITY_MONKEY_HESITATE,
@@ -168,6 +188,8 @@ impl Difficulty {
         match self {
             Difficulty::Sloth => Tuning {
                 ideal_hop: int(22),
+                look: LOOK,
+                cands: MAX_CANDS,
                 hesitate: 14,
                 jitter: 14,
                 noise: int(6),
@@ -176,6 +198,8 @@ impl Difficulty {
             },
             Difficulty::Monkey => Tuning {
                 ideal_hop: int(24),
+                look: LOOK,
+                cands: MAX_CANDS,
                 hesitate: 18,
                 jitter: 14,
                 noise: int(5),
@@ -184,6 +208,8 @@ impl Difficulty {
             },
             Difficulty::Ape => Tuning {
                 ideal_hop: int(26),
+                look: LOOK,
+                cands: MAX_CANDS,
                 hesitate: 4,
                 jitter: 4,
                 noise: int(2),
@@ -192,6 +218,8 @@ impl Difficulty {
             },
             Difficulty::KingKong => Tuning {
                 ideal_hop: int(28),
+                look: LOOK,
+                cands: MAX_CANDS,
                 hesitate: 0,
                 jitter: 0,
                 noise: 0,
@@ -201,6 +229,12 @@ impl Difficulty {
         }
     }
 }
+
+/// The Ski Slope's reaction times, easiest level first (see
+/// [`Difficulty::tuning_on`]).
+const SKI_HESITATE: [u32; 4] = [6, 4, 0, 0];
+const SKI_DRIVE: [u32; 4] = [1, 3, 7, DUTY];
+const SKI_NOISE: [i32; 4] = [int(6), int(5), int(1), 0];
 
 /// The City's Monkey (see [`Difficulty::tuning_on`]).
 const CITY_MONKEY_HESITATE: u32 = 12;
@@ -213,6 +247,9 @@ const CITY_APE_DRIVE: u32 = 6;
 /// A difficulty's handicaps.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct Tuning {
+    /// vines this far ahead are candidates, this many at most (by map)
+    look: i32,
+    cands: usize,
     /// the hop it likes best, metres
     ideal_hop: i32,
     /// on a vine it holds W this many ticks of every [`DUTY`] (weaker arms)
@@ -245,6 +282,8 @@ pub struct Brain {
     pub difficulty: Difficulty,
     /// racing on the City (set by [`think`] each tick)
     city: bool,
+    /// racing on the Ski Slope (set by [`think`] each tick)
+    ski: bool,
     /// its own dice, for the handicaps
     dice: Dice,
     /// the first tick it may let go of the vine it holds
@@ -329,6 +368,7 @@ impl Brain {
         Brain {
             difficulty,
             city: false,
+            ski: false,
             dice: Dice(seed),
             ready: 0,
             grabbed: 0,
@@ -358,9 +398,9 @@ impl Brain {
     /// Its handicaps this tick: its level's, or none while rescued.
     fn tune(&self, tick: u32) -> Tuning {
         if tick < self.rescue_until {
-            Difficulty::KingKong.tuning()
+            Difficulty::KingKong.tuning_on(self.city, self.ski)
         } else {
-            self.difficulty.tuning_on(self.city)
+            self.difficulty.tuning_on(self.city, self.ski)
         }
     }
 
@@ -391,6 +431,7 @@ pub fn think(race: &Race, who: usize, brain: &mut Brain) -> Controls {
     let tick = race.tick + 1;
     let r = &race.racers[who];
     brain.city = race.course.city.is_some();
+    brain.ski = race.course.ski.is_some();
     if race.running() && !r.out() && brain.difficulty != Difficulty::KingKong {
         brain.watch(tick, r.progress);
     }
@@ -517,11 +558,11 @@ fn ahead_from(
     let mut good = Vec::new();
     let mut rest = Vec::new();
     for (i, v) in course.vines.iter().enumerate() {
-        if v.at <= from || v.at > from + LOOK || Some(i) == held {
+        if v.at <= from || v.at > from + tune.look || Some(i) == held {
             continue;
         }
         let an = course.anchor(i, tick);
-        let low = an.y - v.length - ground(an.x, an.z) < int(5);
+        let low = an.y - v.length - course.terrain(an.x, an.z) < int(5);
         if v.at >= from + int(12) && !low {
             good.push(i);
         } else {
@@ -540,7 +581,7 @@ fn ahead_from(
     });
     rest.sort_by_key(|&i| course.vines[i].at);
     good.extend(rest);
-    good.truncate(MAX_CANDS);
+    good.truncate(tune.cands);
     good
 }
 
@@ -966,7 +1007,7 @@ fn on_ground(a: &Ape, course: &Course, tick: u32, brain: &mut Brain) -> Controls
     let tune = brain.tune(tick);
     let prog = progress(course, a);
     let support = course.support(a.pos);
-    let raised = support > ground(a.pos.x, a.pos.z) + int(3);
+    let raised = support > course.terrain(a.pos.x, a.pos.z) + int(3);
     // the highest a jump can reach
     let rise = (JUMP_SPEED as i64 * JUMP_SPEED as i64 / (2 * GRAVITY as i64)) as i32;
     let top = support + BODY_DROP + rise + a.phys.reach - MARGIN;

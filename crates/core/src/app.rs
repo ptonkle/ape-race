@@ -1064,7 +1064,7 @@ impl App {
     /// Starts showing a race in which this browser plays ape `local`.
     pub fn begin(&mut self, race: Race, local: usize) {
         let at = race.racers[local].ape.pos;
-        let chase = Chase::new(at, race.course.start_yaw);
+        let chase = Chase::new(at, race.course.start_yaw, race.course.terrain);
         let prev = race.racers.iter().map(|r| r.ape.pos).collect();
         // each AI ape thinks at the race's difficulty, with its own dice
         // from the race's seed, so a replay rebuilds the same brains
@@ -1993,15 +1993,37 @@ impl App {
                 1000 - pad - ((q.z - lo_z) as i64 * (1000 - 2 * pad) as i64 / span as i64) as i32;
             (x, y)
         };
-        let line: Vec<i32> = c
-            .path
-            .iter()
+        // the run: on the Ski Slope down each fork's left branch, with the
+        // right branches drawn beside (`branches`)
+        let lane = |s: i32, k: usize| {
+            c.point(s)
+                .add(crate::geom::right_of(c.heading_at(s)).scale(c.lanes(s)[k].0))
+        };
+        let line: Vec<i32> = (0..c.path.len())
             .step_by(10)
-            .flat_map(|q| {
-                let (x, y) = to(*q);
+            .flat_map(|i| {
+                let (x, y) = to(lane(i as i32 * crate::course::STEP, 0));
                 [x, y]
             })
             .collect();
+        let branches: Vec<Vec<i32>> = c
+            .ski
+            .as_ref()
+            .map(|ski| {
+                ski.forks
+                    .iter()
+                    .map(|f| {
+                        let step = int(10);
+                        (0..=(f.to - f.from) / step)
+                            .flat_map(|k| {
+                                let (x, y) = to(lane(f.from + k * step, 1));
+                                [x, y]
+                            })
+                            .collect()
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
         let apes: Vec<Value> = p
             .race
             .racers
@@ -2030,7 +2052,7 @@ impl App {
         }
         let (fx_, fy) = to(*c.path.last().unwrap_or(&V3::ZERO));
         json!({
-            "size": 1000, "stride": 2, "line": line, "apes": apes, "finish": [fx_, fy],
+            "size": 1000, "stride": 2, "line": line, "branches": branches, "apes": apes, "finish": [fx_, fy],
             "dot": MINIMAP_DOT, "me_dot": MINIMAP_ME_DOT, "width": 22, "ring_width": 8,
             "track": "rgba(240, 230, 190, 0.75)", "finish_colour": "#ffffff",
             "ring": "rgba(0, 0, 0, 0.6)", "me_ring": "#ffe066",
@@ -2061,7 +2083,7 @@ fn restore(p: &mut Play, save: replay::SavePoint) {
     p.prev = p.race.racers.iter().map(|r| r.ape.pos).collect();
     p.since_out = None;
     let f = &p.race.racers[p.focus.racer];
-    p.chase = Chase::new(f.ape.pos, p.chase.yaw);
+    p.chase = Chase::new(f.ape.pos, p.chase.yaw, p.race.course.terrain);
 }
 
 /// The course's way forward a little ahead of centreline sample `hint`.
@@ -2080,7 +2102,7 @@ fn follow_speed(p: &mut Play) {
 /// The camera moves to the focused racer, gliding from `from`.
 fn refocus(p: &mut Play, from: Camera, ticks: u32) {
     let f = &p.race.racers[p.focus.racer];
-    p.chase = Chase::new(f.ape.pos, p.chase.yaw);
+    p.chase = Chase::new(f.ape.pos, p.chase.yaw, p.race.course.terrain);
     p.prev[p.focus.racer] = f.ape.pos;
     p.out_for = 0;
     p.pan = Some(Pan::new(from, ticks));
@@ -2201,11 +2223,7 @@ fn replay_camera(p: &Play, view: replay::View, alpha: i32) -> Camera {
             let side = crate::geom::right_of(course.heading_at(spot));
             let flip = if (spot / gap) % 2 == 0 { 1 } else { -1 };
             let foot = q.add(side.scale(int(14) * flip));
-            let eye = v3(
-                foot.x,
-                crate::course::ground(foot.x, foot.z) + int(16),
-                foot.z,
-            );
+            let eye = v3(foot.x, course.terrain(foot.x, foot.z) + int(16), foot.z);
             let d = at.sub(eye);
             // zoom in on a far ape
             let fov =
@@ -2217,8 +2235,8 @@ fn replay_camera(p: &Play, view: replay::View, alpha: i32) -> Camera {
             }
         }
         _ => match &p.replay {
-            Some(pb) => pb.orbit.camera(at),
-            None => camera::Orbit::default().camera(at),
+            Some(pb) => pb.orbit.camera(at, p.race.course.terrain),
+            None => camera::Orbit::default().camera(at, p.race.course.terrain),
         },
     }
 }
@@ -2747,6 +2765,50 @@ mod tests {
         assert!(ui["hud"]["minimap"]["apes"].is_array());
         let (_, dynamic, _) = a.frame();
         assert!(!dynamic.is_empty());
+    }
+
+    #[test]
+    fn the_ski_slopes_minimap_shows_both_branches_of_each_fork() {
+        let mut a = app();
+        a.act("menu.race", "");
+        a.act("setup.map", "ski");
+        a.act("menu.start", "");
+        let ui: Value = serde_json::from_str(&a.ui()).unwrap();
+        let m = &ui["hud"]["minimap"];
+        let branches = m["branches"].as_array().unwrap();
+        assert_eq!(branches.len(), 2, "one more branch per fork");
+        let line: Vec<i64> = m["line"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter_map(|v| v.as_i64())
+            .collect();
+        for b in branches {
+            let b: Vec<i64> = b
+                .as_array()
+                .unwrap()
+                .iter()
+                .filter_map(|v| v.as_i64())
+                .collect();
+            assert!(b.len() >= 8);
+            // the branch's middle is apart from every point of the run's line
+            let (x, y) = (b[(b.len() / 2) & !1], b[((b.len() / 2) & !1) + 1]);
+            let near = line
+                .chunks(2)
+                .map(|p| (p[0] - x).abs() + (p[1] - y).abs())
+                .min()
+                .unwrap();
+            assert!(near > 4, "the branch's middle is {near} from the line");
+        }
+        // the other maps have none
+        let mut j = app();
+        j.act("menu.race", "");
+        j.act("menu.start", "");
+        let ui: Value = serde_json::from_str(&j.ui()).unwrap();
+        assert!(ui["hud"]["minimap"]["branches"]
+            .as_array()
+            .unwrap()
+            .is_empty());
     }
 
     fn ui_of(a: &mut App) -> Value {

@@ -197,7 +197,8 @@ impl Ape {
             // so hopping along is no way to keep it (TRIAGE row 25)
             let flat = self.vel.flat();
             let run = self.phys.run_speed;
-            if flat.len() > run {
+            // (on skis a hop keeps it all: the glide is the ground's speed)
+            if flat.len() > run && !self.on_snow(course) {
                 let kept = run + mul(flat.len() - run, HOP_KEEP);
                 let f = flat.with_len(kept);
                 self.vel = v3(f.x, self.vel.y, f.z);
@@ -446,9 +447,19 @@ impl Ape {
         self.hint = course.nearest(self.pos, self.hint);
     }
 
+    /// Whether the ape stands on the Ski Slope's snow (on skis), not on a
+    /// platform or another map's ground.
+    pub fn on_snow(&self, course: &Course) -> bool {
+        course.ski.is_some() && course.support(self.pos) <= course.terrain(self.pos.x, self.pos.z)
+    }
+
     fn run(&mut self, wish: V3, course: &Course) {
         if self.swimming(course) {
             self.swim(wish, course);
+            return;
+        }
+        if self.on_snow(course) {
+            self.ski(wish, course);
             return;
         }
         let flat = self.vel.flat();
@@ -478,6 +489,61 @@ impl Ape {
         };
         self.vel = v3(next.x, 0, next.z);
         self.pos = self.pos.add(self.vel.scale(DT));
+    }
+
+    /// On skis (the Ski Slope): gravity pulls the ape down the hill, the
+    /// snow and the air hold it back, WASD across the motion carve it
+    /// round, W pushes a little and S brakes. It glides on the snow.
+    fn ski(&mut self, wish: V3, course: &Course) {
+        let terrain = course.terrain;
+        let down = terrain.downhill(self.pos.x, self.pos.z);
+        // gravity along the slope, as a pull on the ground: g·grade/(1+grade²)
+        let grade = down.len();
+        let pull = down.scale(div(GRAVITY, ONE + mul(grade, grade)));
+        let mut v = self.vel.flat();
+        let speed = v.len();
+        // (a wish against the motion brakes first, down to a near stop)
+        let against = speed > cm(50) && wish.dot(v) < -mul(speed, ONE / 2);
+        if speed < SKI_SKATE && wish != V3::ZERO && !against {
+            // skating off from a stop, as running
+            let target = wish.scale(SKI_SKATE);
+            let diff = target.sub(v);
+            let step = mul(RUN_ACCEL, DT);
+            v = if diff.len() <= step {
+                target
+            } else {
+                v.add(diff.with_len(step))
+            };
+        } else if speed > ONE / 10 && wish != V3::ZERO {
+            let dir = v.norm();
+            let along = wish.dot(dir);
+            let across = wish.sub(dir.scale(along));
+            if across.len() > ONE / 20 {
+                let turn = across.with_len(mul(SKI_STEER, across.len().min(ONE)));
+                v = v.add(turn.scale(DT)).with_len(speed);
+            }
+            if along > 0 {
+                let push = mul(SKI_PUSH, div((SKI_PUSH_FADE - speed).max(0), SKI_PUSH_FADE));
+                v = v.add(dir.scale(mul(mul(push, along), DT)));
+            } else if along < 0 {
+                let s = v.len();
+                v = v.with_len(fx::approach(s, 0, mul(mul(SKI_BRAKE, -along), DT)));
+            }
+        }
+        v = v.add(pull.scale(DT));
+        let s = v.len();
+        let loss = mul(SKI_FRICTION + mul(SKI_DRAG, s), DT);
+        v = if s > loss {
+            v.with_len(s - loss)
+        } else {
+            V3::ZERO
+        };
+        self.vel = v3(v.x, 0, v.z);
+        self.drag();
+        self.vel.y = 0;
+        let p = self.pos.add(self.vel.scale(DT));
+        // glued to the snow
+        self.pos = v3(p.x, course.terrain(p.x, p.z) + BODY_DROP, p.z);
     }
 
     fn collide(&mut self, course: &Course, tick: u32) {
@@ -523,7 +589,16 @@ impl Ape {
                 // ... or a splash into the City's river, which takes the
                 // speed instead (see `swim`)
                 let splash = course.water(self.pos).is_some();
-                if self.mode == Mode::Flying && flat.len() > ONE && !self.hopped && !splash {
+                if self.mode == Mode::Flying && self.on_snow(course) {
+                    // on skis a landing keeps the speed along the slope
+                    // (only the part into the snow is lost)
+                    let n = course.terrain.normal(self.pos.x, self.pos.z);
+                    let along = self.vel.reject(n);
+                    let f = along.flat();
+                    if f.len() > ONE / 20 {
+                        self.vel = f.with_len(along.len());
+                    }
+                } else if self.mode == Mode::Flying && flat.len() > ONE && !self.hopped && !splash {
                     let roll = mul(-self.vel.y, LANDING_ROLL);
                     self.vel = flat.with_len(flat.len() + roll);
                 }
@@ -589,5 +664,7 @@ pub fn fall_ticks(h: i32) -> i32 {
     mul(t, crate::fx::int(TICKS_PER_SECOND))
 }
 
+#[cfg(test)]
+mod ski_tests;
 #[cfg(test)]
 mod tests;

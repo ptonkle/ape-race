@@ -149,6 +149,9 @@ impl App {
             ..models::Pose::standing(feet, yaw, self.ticks)
         };
         models::draw(&mut b, self.settings.kind, &pose);
+        if let Some(c) = self.course_of(map) {
+            crate::scene::backdrop(&mut b, c, self.preview_camera().eye);
+        }
         let vines = self
             .course_of(map)
             .map(|c| crate::scene::flyover_dynamic(c, self.ticks, vivid, feet).0)

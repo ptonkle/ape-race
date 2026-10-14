@@ -107,6 +107,15 @@ impl Batch {
         }
     }
 
+    /// Sets the glow of every shape pushed since `marks` (`marks`).
+    pub fn reglow_since(&mut self, marks: &[usize], glow: i32) {
+        for (list, from) in self.lists.iter_mut().zip(marks) {
+            for s in list[*from..].chunks_mut(INSTANCE_VALUES) {
+                s[15] = glow;
+            }
+        }
+    }
+
     /// The instance values, and one draw per mesh that has any.
     pub fn finish(self, buffer: u32) -> (Vec<i32>, Vec<u32>) {
         let mut values = Vec::new();
