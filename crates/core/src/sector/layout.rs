@@ -50,13 +50,13 @@ const SEED: u64 = 0x5EC7_02A9_E000;
 /// The spine, metres and degrees (left turns positive): 2,530 m.
 const LEGS: &[Leg] = &[
     Leg(60, 0),
-    Leg(240, 0),
+    Leg(140, 0),
     Leg(240, 30),
     Leg(320, 0),
     Leg(320, -40),
     Leg(350, 0),
     Leg(320, 35),
-    Leg(250, 0),
+    Leg(150, 0),
     Leg(150, -20),
     Leg(280, 0),
 ];
@@ -79,40 +79,38 @@ const LANE: i32 = 13;
 /// Decks to be put back on, on the spine, metres along, each 14 m below
 /// the line (and the start's); the features place three more
 /// (`FEATURE_PADS`).
-pub const PADS: &[i32] = &[
-    240, 480, 990, 1540, 1780, 2105,
-];
+pub const PADS: &[i32] = &[220, 400, 890, 1440, 1640, 1960];
 /// Decks the features place: on the route round the Hulk, before the
 /// wreck, between the armada's ranks (metres along, metres right).
-pub const FEATURE_PADS: &[(i32, i32)] = &[(700, -52), (1262, 0), (2388, 0)];
+pub const FEATURE_PADS: &[(i32, i32)] = &[(600, -52), (1162, 0), (2188, 0)];
 const PAD_TOP: i32 = -int(14);
 const PAD_HALF: (i32, i32) = (int(11), int(12));
 
 /// The Hulk: its corridor's ends (metres along), its middle's height, its
 /// outer half sizes (across, up) and its corridor's (across, up).
-pub const HULK: (i32, i32) = (600, 800);
+pub const HULK: (i32, i32) = (500, 700);
 const HULK_Y: i32 = int(2);
 const HULK_HALF: (i32, i32) = (int(32), int(25));
 const CORRIDOR: (i32, i32) = (int(15), int(17));
 /// The switch door across the corridor, and the switch vine past it.
-pub const DOOR_AT: i32 = 776;
-pub const SWITCH_AT: i32 = 788;
+pub const DOOR_AT: i32 = 676;
+pub const SWITCH_AT: i32 = 688;
 /// The outside route round the Hulk, metres right (left: negative).
 const OUTSIDE: i32 = -52;
 
 /// The wreck: the middle of the passage through its bow, metres along, and
 /// its height.
-pub const WRECK_AT: i32 = 1330;
+pub const WRECK_AT: i32 = 1230;
 const WRECK_Y: i32 = int(2);
 
 /// The armada's ranks: metres along, and its mechs' places across
 /// (metres right) and whether each is a brute.
 pub const ARMADA: &[(i32, &[(i32, bool)])] = &[
-    (2255, &[(-26, false), (0, false), (26, false)]),
-    (2310, &[(-28, false), (0, true), (28, false)]),
-    (2365, &[(-26, false), (0, false), (26, false)]),
-    (2420, &[(-24, false), (24, false)]),
-    (2472, &[(0, true)]),
+    (2055, &[(-26, false), (0, false), (26, false)]),
+    (2110, &[(-28, false), (0, true), (28, false)]),
+    (2165, &[(-26, false), (0, false), (26, false)]),
+    (2220, &[(-24, false), (24, false)]),
+    (2272, &[(0, true)]),
 ];
 /// Mechs are drawn at this many times as built.
 const MECH_SCALE: i32 = ONE * 2;
@@ -121,7 +119,7 @@ const MECH_SCALE: i32 = ONE * 2;
 pub const BLACK_HOLE_R: i32 = int(40);
 
 /// Rows of item crates, metres along.
-const CRATES: [i32; 8] = [150, 390, 960, 1180, 1460, 1650, 1900, 2140];
+const CRATES: [i32; 8] = [150, 380, 860, 1080, 1360, 1550, 1800, 1990];
 
 /// The Sector Ape course.
 pub fn sector() -> Course {
@@ -447,14 +445,14 @@ pub fn sector_seeded(seed: u64) -> Course {
     start(&mut b);
     let lanes3 = [-LANE, 0, LANE];
     // the debris field, to the bend and the Hulk
-    b.stations(57, 565, &lanes3, 0);
+    b.stations(57, 465, &lanes3, 0);
     hulk(&mut b);
-    b.stations(818, 1240, &lanes3, 0);
+    b.stations(718, 1140, &lanes3, 0);
     wreck(&mut b);
-    b.stations(1432, 1800, &lanes3, 0);
+    b.stations(1332, 1700, &lanes3, 0);
     // the asteroid belt: four lanes
-    b.stations(1808, 2030, &[-20, -7, 7, 20], 0);
-    b.stations(2030, 2232, &lanes3, 0);
+    b.stations(1708, 1880, &[-20, -7, 7, 20], 0);
+    b.stations(1880, 2032, &lanes3, 0);
     armada(&mut b);
     finish(&mut b);
     crates(&mut b);
@@ -917,7 +915,7 @@ fn armada(b: &mut B) {
         }
         b.stations.push(here);
         // debris between this rank and the next
-        let next = ARMADA.get(r + 1).map_or(2530 - 2, |x| x.0);
+        let next = ARMADA.get(r + 1).map_or(2330 - 2, |x| x.0);
         let mid = (s + next) / 2;
         if next - s > 30 {
             let here = b.station(int(mid), &[-LANE, 0, LANE], 0, r % 2 == 0);
@@ -965,12 +963,12 @@ fn crates(b: &mut B) {
 fn bumpers(b: &mut B) {
     for (s, off, h) in [
         (130, -20, 6),
-        (350, 22, -4),
-        (1660, -24, 2),
-        (1840, 0, -12),
-        (1890, -28, 10),
-        (1950, 26, -2),
-        (2080, 20, 8),
+        (330, 22, -4),
+        (1560, -24, 2),
+        (1740, 0, -12),
+        (1790, -28, 10),
+        (1850, 26, -2),
+        (1980, 20, 8),
     ] {
         let si = int(s);
         let at = b.pt(si, int(off), int(h));

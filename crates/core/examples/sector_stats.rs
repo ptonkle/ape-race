@@ -86,7 +86,11 @@ fn main() {
                     let a = &race.racers[0].ape;
                     for h in &a.happened {
                         if matches!(h, Happening::Rebound | Happening::Wall) {
-                            let what = if *h == Happening::Rebound { "rebound" } else { "dead hit" };
+                            let what = if *h == Happening::Rebound {
+                                "rebound"
+                            } else {
+                                "dead hit"
+                            };
                             let mode = match held {
                                 Some(_) => "on a vine",
                                 None => "flying",
@@ -118,7 +122,9 @@ fn main() {
                             }
                             let cause = match (&last_hit, last_let_go) {
                                 (Some((h, at)), _) if t - at < 600 => h.clone(),
-                                (_, Some((w, at))) if t - at < 600 => format!("let go of a {w} vine"),
+                                (_, Some((w, at))) if t - at < 600 => {
+                                    format!("let go of a {w} vine")
+                                }
                                 _ => "long flight".to_string(),
                             };
                             *before.entry(cause).or_insert(0) += 1;
@@ -145,7 +151,10 @@ fn main() {
             *causes.entry(k).or_insert(0) += n;
         }
     }
-    println!("{:<12} {:>6} {:>8} {:>7} {:>8}", "vine", "grabs", "held s", "whirls", "resets");
+    println!(
+        "{:<12} {:>6} {:>8} {:>7} {:>8}",
+        "vine", "grabs", "held s", "whirls", "resets"
+    );
     for (k, r) in &total {
         println!(
             "{:<12} {:>6} {:>8.2} {:>7} {:>8}",

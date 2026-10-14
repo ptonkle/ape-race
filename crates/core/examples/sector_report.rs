@@ -22,14 +22,14 @@ fn layout(k: u64) -> Course {
 /// The sections, by where they end (metres along).
 const SECTIONS: [(i32, &str); 9] = [
     (250, "start"),
-    (560, "debris"),
-    (820, "hulk"),
-    (1240, "bend"),
-    (1440, "wreck"),
-    (1800, "belt in"),
-    (2030, "belt"),
-    (2240, "pre-armada"),
-    (2530, "armada"),
+    (460, "debris"),
+    (720, "hulk"),
+    (1140, "bend"),
+    (1340, "wreck"),
+    (1700, "belt in"),
+    (1880, "belt"),
+    (2040, "pre-armada"),
+    (2330, "armada"),
 ];
 
 struct Run {

@@ -967,7 +967,11 @@ fn on_vine(a: &Ape, course: &Course, tick: u32, vine: usize, brain: &mut Brain) 
             true,
             tune,
         );
-        if std::env::var("AI_DEBUG").is_ok() { let d = fl.vel; eprintln!("  t{} vine {} pick {} steer {} rel v({},{},{}) at s{} y{} -> {:?} end s{} y{} side{} mode{:?}", plan.sim_tick, vine, plan.pick, steer, plan.sim.vel.x/ONE, plan.sim.vel.y/ONE, plan.sim.vel.z/ONE, progress(course, &plan.sim)/ONE, plan.sim.pos.y/ONE, hit.map(|h| h.0), progress(course, &fl)/ONE, fl.pos.y/ONE, course.progress(fl.pos, fl.hint).1/ONE, fl.mode); let _ = d; }
+        if std::env::var("AI_DEBUG").is_ok() {
+            let d = fl.vel;
+            eprintln!("  t{} vine {} pick {} steer {} rel v({},{},{}) at s{} y{} -> {:?} end s{} y{} side{} mode{:?}", plan.sim_tick, vine, plan.pick, steer, plan.sim.vel.x/ONE, plan.sim.vel.y/ONE, plan.sim.vel.z/ONE, progress(course, &plan.sim)/ONE, plan.sim.pos.y/ONE, hit.map(|h| h.0), progress(course, &fl)/ONE, fl.pos.y/ONE, course.progress(fl.pos, fl.hint).1/ONE, fl.mode);
+            let _ = d;
+        }
         if let Some(hit) = hit.filter(|_| plan.sim_tick >= brain.ready) {
             // a weaker AI misjudges how good a moment is
             let error = brain.dice.range(-tune.noise, tune.noise) as i64;
