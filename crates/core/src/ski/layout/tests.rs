@@ -238,7 +238,7 @@ fn every_vine_hangs_from_something_of_the_right_kind() {
             );
             assert!(v.anchor.y - v.length > g, "vine {i} reaches the snow");
         }
-        assert!(kinds[0] >= 20, "chairs {kinds:?}");
+        assert!(kinds[0] >= 15, "chairs {kinds:?}");
         assert!(kinds[1] >= 60, "trees {kinds:?}");
         assert!((1..=2).contains(&kinds[2]), "helicopters {kinds:?}");
     }

@@ -452,10 +452,7 @@ pub fn ski_seeded(seed: u64) -> Course {
         .filter(|m| matches!(m.kind, LandmarkKind::Snowman | LandmarkKind::IceApe))
         .map(|m| m.s)
         .collect();
-    b.lay.lifts = LIFTS
-        .iter()
-        .map(|&(t, bt, g)| lift(&c, t, bt, g))
-        .collect();
+    b.lay.lifts = LIFTS.iter().map(|&(t, bt, g)| lift(&c, t, bt, g)).collect();
     let len_m = c.length / ONE;
 
     // the summit platform; the starters stand across it
@@ -575,7 +572,9 @@ pub fn ski_seeded(seed: u64) -> Course {
                         // where its island is kept clear)
                         let v = b
                             .vine(&mut c, along, off, anchor_h, bottom, false)
-                            .or_else(|| b.vine(&mut c, along, 2 * m - off, anchor_h, bottom, false));
+                            .or_else(|| {
+                                b.vine(&mut c, along, 2 * m - off, anchor_h, bottom, false)
+                            });
                         here.extend(v);
                     }
                 }
@@ -596,7 +595,9 @@ pub fn ski_seeded(seed: u64) -> Course {
                 let reach = (h - int(b.dice.range(9, 12))).max(0);
                 let length = int(24) + cm(b.dice.range(0, 40));
                 let (at, off) = (int(s + 7), m + sign * reach);
-                if b.vine(&mut c, at, off, int(27), int(27) - length, true).is_none() {
+                if b.vine(&mut c, at, off, int(27), int(27) - length, true)
+                    .is_none()
+                {
                     b.vine(&mut c, at, 2 * m - off, int(27), int(27) - length, true);
                 }
             }
@@ -643,7 +644,7 @@ fn island_trees(c: &Course, b: &mut Build) {
                 if hi > lo {
                     let off = lo + mul(hi - lo, b.dice.range(0, 100) * ONE / 100);
                     let p = pt(c, s, off);
-                            let clear = marks.iter().all(|m| m.at.flat().dist(p) > int(16));
+                    let clear = marks.iter().all(|m| m.at.flat().dist(p) > int(16));
                     if clear && !b.in_clearing(s) {
                         let y = c.terrain(p.x, p.z) + int(b.dice.range(10, 26));
                         b.tree(c, p, y, None);
@@ -677,10 +678,10 @@ fn landmarks(c: &Course) -> Vec<Landmark> {
     vec![
         // behind the start, clear of the chase camera there
         mark(Summit, -int(46), 0),
-        mark(Snowman, int(420), island(int(420))),
+        mark(Snowman, int(400), island(int(400))),
         mark(Lodge, int(700), -int(72)),
         mark(SkiJump, int(890), int(58)),
-        mark(IceApe, int(1160), island(int(1160))),
+        mark(IceApe, int(1150), island(int(1150))),
         mark(FrozenFalls, int(1420), -int(56)),
         mark(Village, c.length + int(150), 0),
     ]
