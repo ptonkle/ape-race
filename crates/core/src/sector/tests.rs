@@ -577,3 +577,25 @@ fn a_replay_and_a_save_point_keep_the_door() {
     );
     assert_eq!(race.tick, shut + 10);
 }
+
+#[test]
+fn a_summoned_vine_in_space_hangs_over_the_ape_not_far_below() {
+    // (the Vine item caps its anchor under the ceiling over the floor; in
+    // space there is neither)
+    let mut r = Race::new(space(&[], vec![], false), &entries(1), false, 1);
+    r.phase = crate::race::Phase::Running;
+    let a = &mut r.racers[0].ape;
+    a.pos = v3(0, int(10), int(100));
+    a.hint = r.course.nearest_anywhere(a.pos);
+    a.vel = v3(0, 0, int(20));
+    a.mode = Mode::Flying;
+    r.racers[0].item = Some(crate::race::Item::Vine);
+    let c = Controls {
+        item: true,
+        ..Controls::default()
+    };
+    crate::items::use_item(&mut r, 0, &c);
+    let s = r.summons.last().expect("a vine");
+    assert!(s.anchor.y > int(20), "anchor at {} m", s.anchor.y / ONE);
+    assert!(s.anchor.y - s.length < int(10));
+}

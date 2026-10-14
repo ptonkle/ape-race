@@ -159,7 +159,12 @@ fn summon(race: &mut Race, who: usize, c: &Controls) {
     let spot = ape.pos.add(dir.scale(ahead));
     let floor = race.course.support(spot);
     let bottom = (ape.pos.y.min(then) - SUMMON_BELOW).max(floor + ONE);
-    let top = (ape.pos.y.max(bottom) + SUMMON_RISE).min(floor + CEILING - int(2));
+    let top = ape.pos.y.max(bottom) + SUMMON_RISE;
+    // (under the ceiling; Sector Ape has none, and its "floor" is far below)
+    let top = match race.course.sector {
+        Some(_) => top,
+        None => top.min(floor + CEILING - int(2)),
+    };
     let length = (top - bottom).max(int(4));
     let serial = race.summon_count.get(who).copied().unwrap_or(0);
     let slot = race.summon_slot(who, serial);
