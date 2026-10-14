@@ -189,8 +189,8 @@ def run(page, check, engine):
     # ape preview moves onto the chosen map, and the race runs there
     page.click("[id='menu.race']")
     options = page.eval_on_selector_all("[id='setup.map'] .tile", "ts => ts.map(t => t.innerText.trim())")
-    maps = [STRINGS["map.jungle"], STRINGS["map.city"], STRINGS["map.ski"]]
-    check(options == maps, f"Race Setup offers the Jungle, the City and the Ski Slope as cards {options}")
+    maps = [STRINGS["map.jungle"], STRINGS["map.city"], STRINGS["map.ski"], STRINGS["map.sector"]]
+    check(options == maps, f"Race Setup offers the Jungle, the City, the Ski Slope and Sector Ape as cards {options}")
     pictures = page.eval_on_selector_all(
         "[id='setup.map'] .tile-hero img", "is => is.map(i => i.complete && i.naturalWidth > 0)"
     )
