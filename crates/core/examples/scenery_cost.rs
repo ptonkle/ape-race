@@ -41,4 +41,25 @@ fn main() {
     for (part, n) in tool_core::skiscape::parts(&ski) {
         println!("  {part}: {n}");
     }
+    let sector = tool_core::map::Map::Sector.course();
+    report("sector", &sector);
+    for (part, n) in tool_core::sectorscape::parts(&sector) {
+        println!("  {part}: {n}");
+    }
+    // Sector Ape draws much of itself each frame (the backdrop, set
+    // pieces, mechs, the black hole): the most of that at once
+    if let Some(sl) = &sector.sector {
+        let mut most = (0, 0);
+        for k in 0..sector.path.len() / 10 {
+            let eye = sector.path[k * 10].add(tool_core::geom::v3(0, tool_core::fx::int(10), 0));
+            let mut b = tool_core::render::Batch::new();
+            for t in [0u32, 3_000, 9_000] {
+                b = tool_core::render::Batch::new();
+                tool_core::sectorscape::dynamic(&mut b, &sector, sl, eye, t, t);
+            }
+            let halos = b.take_halos().count();
+            most = most.max((b.count(), halos));
+        }
+        println!("  per frame at most: {} shapes, {} glows", most.0, most.1);
+    }
 }

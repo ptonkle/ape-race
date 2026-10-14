@@ -287,7 +287,16 @@ fn build(c: &Course, s: &SectorLayout) -> (Scenery, Vec<(&'static str, usize)>) 
         done = now;
     };
     for (k, pl) in c.platforms.iter().enumerate() {
-        deck(sink.at(pl.centre), pl, k == 0);
+        let kind = if k == 0 {
+            DeckKind::Start
+        } else if k == s.finish_deck {
+            DeckKind::Finish
+        } else if s.pads.contains(&k) {
+            DeckKind::Pad
+        } else {
+            DeckKind::Plain
+        };
+        deck(sink.at(pl.centre), pl, kind);
     }
     tally(&sink, "decks");
     for (k, body) in s.bodies.iter().enumerate() {
@@ -311,7 +320,7 @@ fn build(c: &Course, s: &SectorLayout) -> (Scenery, Vec<(&'static str, usize)>) 
 /// lit orange from below, glowing edge strips, hazard chevrons at its
 /// ends, and engine pods holding it in place. The start deck has a launch
 /// gantry over its front.
-fn deck(b: &mut Batch, pl: &Platform, start: bool) {
+fn deck(b: &mut Batch, pl: &Platform, kind: DeckKind) {
     let fwd = pl.fwd.flat().norm();
     let right = right_of(fwd);
     let top = v3(pl.centre.x, pl.top, pl.centre.z);
@@ -425,37 +434,107 @@ fn deck(b: &mut Batch, pl: &Platform, start: bool) {
             SKY_GLOW,
         );
     }
-    if start {
-        // a launch gantry over the front: two posts and a lit bar
-        for sx in [-1, 1] {
-            part(
-                b,
+    let ring = |b: &mut Batch, r: i32, n: i32, colour: Rgb, glow: i32| {
+        for k in 0..n {
+            let a = k * TURN / n;
+            let out = v3(sin(a), 0, fx::cos(a));
+            let along = v3(fx::cos(a), 0, -sin(a));
+            let seg = mul(r, ratio(6_283, 1_000)) / n * 7 / 10;
+            b.push(
                 Mesh::Cube,
-                v3(sx * (hw - cm(30)), int(3), hl - cm(40)),
-                v3(cm(50), int(6), cm(50)),
-                PLATE_LIGHT,
-                0,
+                &frame.then(&Affine {
+                    c0: out.scale(cm(60)),
+                    c1: V3::UP.scale(cm(8)),
+                    c2: along.scale(seg),
+                    t: out.scale(r).add(v3(0, cm(6), 0)),
+                }),
+                colour,
+                glow,
             );
         }
-        part(
-            b,
-            Mesh::Cube,
-            v3(0, int(6), hl - cm(40)),
-            v3(hw * 2, cm(60), cm(60)),
-            PLATE_LIGHT,
-            0,
-        );
-        for k in 0..5 {
-            part(
-                b,
-                Mesh::Cube,
-                v3(-hw + (k * 2 + 1) * hw / 5, cm(560), hl - cm(40)),
-                v3(cm(70), cm(30), cm(70)),
-                if k % 2 == 0 { NEON } else { HAZARD },
-                SKY_GLOW,
-            );
+    };
+    match kind {
+        DeckKind::Start => {
+            // launch arrows painted down the middle, pointing on
+            for k in 0..3 {
+                let z = -hl / 2 + k * hl / 2;
+                for sx in [-1, 1] {
+                    b.push(
+                        Mesh::Cube,
+                        &frame
+                            .then(&Affine::translate(v3(sx * cm(90), cm(4), z)))
+                            .then(&Affine::rot_y(sx * deg(40)))
+                            .then(&Affine::scale(v3(cm(50), cm(6), int(3)))),
+                        HAZARD,
+                        ONE / 2,
+                    );
+                }
+            }
+            // start lights down both edges
+            for sx in [-1, 1] {
+                for k in 0..4 {
+                    let z = -hl + (k * 2 + 1) * hl / 4;
+                    part(
+                        b,
+                        Mesh::Cube,
+                        v3(sx * (hw - cm(40)), cm(50), z),
+                        v3(cm(30), int(1), cm(30)),
+                        PLATE_LIGHT,
+                        0,
+                    );
+                    part(
+                        b,
+                        Mesh::Octa,
+                        v3(sx * (hw - cm(40)), cm(120), z),
+                        v3(cm(50), cm(50), cm(50)),
+                        if k % 2 == 0 { NEON } else { NEON_WARM },
+                        SKY_GLOW,
+                    );
+                }
+            }
         }
+        // a deck an ape is put back on: a glowing ring where it lands
+        DeckKind::Pad => ring(b, hw.min(hl) * 3 / 5, 16, TETHER, ONE * 3 / 4),
+        // the finish deck, where the apes dance: a banana-yellow ring and a
+        // checkered band across each end
+        DeckKind::Finish => {
+            ring(b, hw.min(hl) * 3 / 5, 36, rgb(255, 214, 56), ONE);
+            ring(b, hw.min(hl) * 2 / 5, 28, rgb(255, 246, 236), ONE / 2);
+            for sz in [-1, 1] {
+                let n = (hw * 2 / int(3)).clamp(4, 40);
+                for k in 0..n {
+                    for row in 0..2 {
+                        let x = -hw + (k * 2 + 1) * hw / n;
+                        let z = sz * (hl - int(3) - row * int(3) / 2);
+                        part(
+                            b,
+                            Mesh::Cube,
+                            v3(x, cm(5), z),
+                            v3(hw * 2 / n, cm(6), int(3) / 2),
+                            if (k + row) % 2 == 0 {
+                                rgb(250, 250, 250)
+                            } else {
+                                rgb(20, 20, 26)
+                            },
+                            ONE / 3,
+                        );
+                    }
+                }
+            }
+        }
+        DeckKind::Plain => {}
     }
+}
+
+/// What a deck is for, which sets its markings.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum DeckKind {
+    Start,
+    /// a deck an ape is put back on past the boundary
+    Pad,
+    /// past the finish, under the black hole: the dance floor
+    Finish,
+    Plain,
 }
 
 /// A body the vines hang from, by its model.
@@ -466,7 +545,8 @@ fn body(b: &mut Batch, body: &Body, k: usize) {
         Model::Girder(len) => sc::girder(b, f, len / ONE),
         Model::Asteroid(v) => sc::asteroid(b, f, v),
         Model::Wing => sc::ape_wing(b, f, 0),
-        Model::Deck => slab_body(b, body),
+        // a deck's slab: drawn with its platform (`deck`)
+        Model::Deck => {}
         Model::Hulk => slab_body(b, body),
         // the walls round the wreck's passage and the hulk's corridor:
         // drawn as part of those
@@ -1211,13 +1291,18 @@ fn shield(b: &mut Batch, body: &Body, tick: u32, k: usize) {
     );
 }
 
-/// The black hole's frame: its disc tilted toward the start, so an ape
-/// coming in sees it from a little above.
-fn black_hole_frame(c: &Course, at: V3) -> Affine {
+/// The black hole's frame: its disc stood up 60° to face the apes coming
+/// in (seen from a little above, as in the person's example), so its wide
+/// disc rises round the finish instead of lying across the course before
+/// it (SECOND-ORDER SA10).
+pub fn black_hole_frame(c: &Course, at: V3) -> Affine {
     Affine::translate(at)
-        .then(&Affine::rot_y(course_yaw(c)))
-        .then(&Affine::rot_x(deg(14)))
+        .then(&Affine::rot_y(yaw_of(c.heading_at(c.length))))
+        .then(&Affine::rot_x(-BLACK_HOLE_TILT))
 }
+
+/// How far the disc is stood up from lying flat.
+const BLACK_HOLE_TILT: i32 = deg(60);
 
 fn set_piece(b: &mut Batch, p: &SetPiece, eye: V3, tick: u32, race_tick: u32) {
     match *p {
@@ -1425,7 +1510,7 @@ pub fn gallery(b: &mut Batch, key: &str, f: &Affine, tick: u32) {
                 half_width: int(6),
                 top: 0,
             };
-            deck(b, &pl, true);
+            deck(b, &pl, DeckKind::Start);
         }
         "station" => station(b, f, tick),
         "tether" => {
