@@ -576,6 +576,13 @@ pub fn wreck_passage(f: &Affine, gap: (i32, i32)) -> Passage {
 /// `gap` is the opening (see `wreck_passage` for where it is). 121 shapes
 /// and 2 soft glows; about 266 m long overall.
 pub fn wreck(b: &mut Batch, f: &Affine, tick: u32, gap: (i32, i32)) {
+    wreck_with(b, f, tick, gap, true)
+}
+
+/// `wreck`, with the debris tumbling between its halves left out when
+/// `tumbling` is false (Sector Ape: a route runs between the halves, and
+/// the debris is not solid: an ape would fly through what it sees).
+pub fn wreck_with(b: &mut Batch, f: &Affine, tick: u32, gap: (i32, i32), tumbling: bool) {
     let (stern, bow) = halves(f);
     // the port wing, torn off, drifting below and aft
     let wing_off = Affine::translate(m3(-14, -16, -18))
@@ -635,7 +642,7 @@ pub fn wreck(b: &mut Batch, f: &Affine, tick: u32, gap: (i32, i32)) {
         }
     }
     // debris tumbling between the halves
-    for k in 0..8u32 {
+    for k in 0..if tumbling { 8u32 } else { 0 } {
         let t = tumble(tick, k);
         let at = m3(
             -14 + (k as i32 * 9) % 28,
@@ -1877,6 +1884,12 @@ const DUST: (i32, i32) = (ratio(66, 10), int(11));
 /// ball (`HORIZON_AT`), with two arms of bananas spiralling in. Everything
 /// turns with the tick. About 1,270 shapes, 4 soft glows.
 pub fn black_hole(b: &mut Batch, f: &Affine, r: i32, tick: u32) {
+    black_hole_jets(b, f, r, tick, true)
+}
+
+/// `black_hole`, its lower jet (down its frame's -y) left off when `lower`
+/// is false (Sector Ape: it would pierce the dance floor under the hole).
+pub fn black_hole_jets(b: &mut Batch, f: &Affine, r: i32, tick: u32, lower: bool) {
     let t = tick as i32;
     // the ball is smaller than the horizon (`HORIZON_AT`): an ape floats
     // at the horizon with the chase camera a dozen metres off, which must
@@ -1967,6 +1980,9 @@ pub fn black_hole(b: &mut Batch, f: &Affine, r: i32, tick: u32) {
     // the jets: narrow white-lilac beams from the poles, soft round a
     // bright core, with sparkles riding out along them
     for sy in [1, -1] {
+        if sy < 0 && !lower {
+            continue;
+        }
         let from = V3::UP.scale(sy * r);
         let to = V3::UP.scale(sy * mul(r, ratio(80, 10)));
         b.push(

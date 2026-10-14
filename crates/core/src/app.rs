@@ -2586,6 +2586,9 @@ fn cue_for(e: &Event, local: usize) -> Option<Cue> {
         Event::Hit { who, by, .. } if who == local || by == local => Some(Cue::Hit),
         Event::Finish { who, .. } if who == local => Some(Cue::Finish),
         Event::Pounce { who } if who == local => Some(Cue::Roar),
+        Event::Reset { who, .. } if who == local => Some(Cue::Reset),
+        // (the door shuts for everyone: every player hears it)
+        Event::Door { .. } => Some(Cue::Door),
         Event::Reward { who, what } if who == local => Some(match what {
             crate::race::Reward::Mushroom => Cue::Bounce,
             crate::race::Reward::Catchup => Cue::Catchup,
@@ -2631,6 +2634,19 @@ mod tests {
         assert!(p.race.racers[1..]
             .iter()
             .all(|r| r.driver == Driver::Ai && r.ape.kind != Kind::Gibbon));
+    }
+
+    #[test]
+    fn a_reset_and_the_door_have_their_own_sounds() {
+        // (Sector Ape, the course agent's SC1: a warp back onto a deck for
+        // the ape put back, and the door's slam for everyone)
+        let reset = Event::Reset { who: 0, pad: 3 };
+        assert_eq!(cue_for(&reset, 0), Some(Cue::Reset));
+        assert_eq!(cue_for(&reset, 1), None);
+        let door = Event::Door { who: 2 };
+        assert_eq!(cue_for(&door, 0), Some(Cue::Door));
+        assert_eq!(cue_for(&door, 2), Some(Cue::Door));
+        assert_ne!(sound::wav(Cue::Reset, 50), sound::wav(Cue::Door, 50));
     }
 
     #[test]
