@@ -383,6 +383,6 @@ mod tests {
         // jaguar would be
         assert!(e.size(e.tick + POP_OUT_AT + POP_OUT - 1) < ONE / 8);
         assert_eq!(e.jaguar(&c, e.tick + POP_OUT_AT + POP_OUT, 0), None);
-        assert!(POP_OUT_AT + POP_OUT < GONE);
+        const { assert!(POP_OUT_AT + POP_OUT < GONE) };
     }
 }
