@@ -29,7 +29,9 @@
 //! The host's Start is repeated to each joiner until it is acknowledged. Every
 //! browser builds the same entries (humans in seat order, then the AI apes),
 //! so ape `i` is the same ape everywhere. A **Rematch** (host only) goes back
-//! to the lobby with the same seats and settings, every Ready mark cleared;
+//! to the lobby with the same seats and settings, everyone who stayed ready
+//! (TRIAGE T56; a newcomer starts not ready; the host's setting changes
+//! keep marks, T61);
 //! each Rematch is a new *round*, and a race message of an old round is
 //! ignored.
 //!
@@ -332,6 +334,9 @@ pub struct LobbyView {
     pub lava: bool,
     /// This browser's Ready mark, as last asked for.
     pub ready: bool,
+    /// Joiner: the host changed a setting since this browser readied
+    /// (TRIAGE T61: setting changes keep Ready marks, so the lobby says so).
+    pub settings_changed: bool,
     /// The host may press Start.
     pub can_start: bool,
 }
@@ -574,6 +579,9 @@ pub struct Online {
     last_name_ms: i64,
     /// Screeches heard (and made) in the lobby, still to play.
     screeches: u32,
+    /// Joiner: the host changed a lobby setting while this browser was
+    /// ready (TRIAGE T61). Cleared by Ready/Cancel and by the next race.
+    settings_changed: bool,
     race: Option<RaceState>,
     /// Host: its own start, held until the joiners have theirs.
     host_start_at: Option<i64>,
@@ -609,6 +617,7 @@ impl Online {
             wanted_name: None,
             last_name_ms: now_ms,
             screeches: 0,
+            settings_changed: false,
             race: None,
             host_start_at: None,
             start: None,
@@ -712,9 +721,10 @@ impl Online {
         MAX_AI.min(MAX_APES.saturating_sub(self.humans.len()))
     }
 
-    fn clear_ready(&mut self) {
-        for h in &mut self.humans {
-            h.ready = false;
+    /// Every seated joiner ready: the seats a rematch keeps (TRIAGE T56).
+    fn ready_all(&mut self) {
+        for h in self.humans.iter_mut().skip(1) {
+            h.ready = true;
         }
     }
 
@@ -1083,6 +1093,22 @@ impl Online {
             }
             _ => return,
         }
+        // a setting changed under this joiner's Ready mark (TRIAGE T61)
+        let was_ready = self.status == Status::Lobby
+            && round == self.round
+            && self
+                .humans
+                .iter()
+                .any(|h| h.id == self.client_id && h.ready);
+        let changed = ai != self.ai_count
+            || equal != self.equal_stats
+            || map != self.map
+            || lava != self.lava;
+        if round > self.round {
+            self.settings_changed = false;
+        } else if was_ready && changed {
+            self.settings_changed = true;
+        }
         self.round = round;
         self.humans = humans;
         self.ai_count = ai;
@@ -1245,6 +1271,7 @@ impl Online {
         }
         self.wanted_ready = Some(ready);
         self.last_ready_ms = now_ms;
+        self.settings_changed = false;
         if let Some(host) = self.host_peer.clone() {
             self.send(&host, &Msg::Ready { ready });
         }
@@ -1262,39 +1289,36 @@ impl Online {
     }
 
     /// Host: the number of AI apes, clamped to 0–3 and to four apes in all.
-    /// Clears every Ready mark.
+    /// Ready marks stay (TRIAGE T61); joiners see the change at once.
     pub fn set_ai_count(&mut self, count: usize, now_ms: i64) -> Result<(), OnlineError> {
         self.host_lobby()?;
         self.ai_count = count.min(self.max_ai());
-        self.clear_ready();
         self.roster_changed(now_ms);
         Ok(())
     }
 
-    /// Host: Floor is Lava on or off (TRIAGE T37). Clears every Ready mark.
+    /// Host: Floor is Lava on or off (TRIAGE T37). Ready marks stay (T61).
     pub fn set_lava(&mut self, lava: bool, now_ms: i64) -> Result<(), OnlineError> {
         self.host_lobby()?;
         self.lava = lava;
-        self.clear_ready();
         self.roster_changed(now_ms);
         Ok(())
     }
 
-    /// Host: Equal Stats on or off. Clears every Ready mark.
+    /// Host: Equal Stats on or off. Ready marks stay (TRIAGE T61).
     pub fn set_equal_stats(&mut self, equal: bool, now_ms: i64) -> Result<(), OnlineError> {
         self.host_lobby()?;
         self.equal_stats = equal;
-        self.clear_ready();
         self.roster_changed(now_ms);
         Ok(())
     }
 
-    /// Host: the map. Clears every Ready mark; the joiners see it at once.
+    /// Host: the map. Ready marks stay (TRIAGE T61); the joiners see it at
+    /// once.
     pub fn set_map(&mut self, map: Map, now_ms: i64) -> Result<(), OnlineError> {
         self.host_lobby()?;
         if self.map != map {
             self.map = map;
-            self.clear_ready();
             self.roster_changed(now_ms);
         }
         Ok(())
@@ -1431,6 +1455,7 @@ impl Online {
         });
         self.start = Some(start);
         self.status = Status::Racing;
+        self.settings_changed = false;
         self.wanted_ready = None;
         self.wanted_kind = None;
     }
@@ -1478,7 +1503,9 @@ impl Online {
     }
 
     /// Host, during or after a race: back to the lobby with the same seats
-    /// (players who left are gone) and settings, every Ready mark cleared.
+    /// (players who left are gone) and settings. Everyone who stayed comes
+    /// back ready (TRIAGE T56) and may un-ready; a player who joins between
+    /// rounds starts not ready.
     pub fn rematch(&mut self, now_ms: i64) -> Result<(), OnlineError> {
         if !self.is_host {
             return Err(OnlineError::NotHost);
@@ -1491,7 +1518,7 @@ impl Online {
         let me = self.client_id.clone();
         self.humans
             .retain(|h| h.id == me || connected.contains(&h.id));
-        self.clear_ready();
+        self.ready_all();
         self.round += 1;
         self.race = None;
         self.start = None;
@@ -1666,6 +1693,7 @@ impl Online {
             map: self.map,
             lava: self.lava,
             ready,
+            settings_changed: self.settings_changed,
             can_start: self.is_host && self.in_lobby() && self.all_ready() && self.apes() >= 2,
         }
     }

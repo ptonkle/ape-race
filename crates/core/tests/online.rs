@@ -450,7 +450,7 @@ fn a_fifth_player_is_refused_and_so_is_another_protocol() {
 }
 
 #[test]
-fn ready_up_gates_the_start_and_a_settings_change_clears_it() {
+fn ready_up_gates_the_start_and_a_settings_change_keeps_it() {
     let mut net = Net::lobby(3);
     let now = net.now;
     assert_eq!(net.nodes[0].start(1, now), Err(OnlineError::NotReady));
@@ -465,15 +465,49 @@ fn ready_up_gates_the_start_and_a_settings_change_clears_it() {
         net.nodes[2].lobby().seats[1].ready,
         "joiners see each other's marks"
     );
+    assert!(!net.nodes[1].lobby().settings_changed);
+    // TRIAGE T61: no setting the host changes clears a Ready mark
+    let now = net.now;
     net.nodes[0].set_equal_stats(true, now).unwrap();
+    net.nodes[0].set_lava(true, now).unwrap();
+    net.nodes[0].set_ai_count(1, now).unwrap();
+    net.nodes[0].set_map(Map::City, now).unwrap();
     net.run(500);
     assert!(
-        !net.nodes[0].lobby().can_start,
-        "a new setting clears Ready"
+        net.nodes[0].lobby().can_start,
+        "a new setting keeps Ready: {:?}",
+        net.nodes[0].lobby().seats
     );
-    assert!(net.nodes[1].lobby().equal_stats);
+    for i in 1..3 {
+        let view = net.nodes[i].lobby();
+        assert!(view.ready, "node {i} still ready");
+        assert!(view.equal_stats && view.lava, "node {i} sees the settings");
+        assert_eq!((view.ai_count, view.map), (1, Map::City), "node {i}");
+        assert!(view.settings_changed, "node {i} is told they changed");
+    }
+    assert!(!net.nodes[0].lobby().settings_changed, "not the host");
+    // cancelling (or readying again) clears the note
+    let now = net.now;
+    net.nodes[1].set_ready(false, now).unwrap();
+    net.run(500);
+    assert!(!net.nodes[1].lobby().settings_changed);
+    assert!(!net.nodes[0].lobby().can_start);
+    // a joiner who is not ready is not told
+    let now = net.now;
+    net.nodes[0].set_lava(false, now).unwrap();
+    net.run(500);
+    assert!(!net.nodes[1].lobby().settings_changed);
+    assert!(net.nodes[2].lobby().settings_changed);
     net.ready_all();
     assert!(net.nodes[0].lobby().can_start);
+    // the race starts on the settings the joiners saw
+    let now = net.now;
+    net.nodes[0].start(3, now).unwrap();
+    net.run(1000);
+    for i in 0..3 {
+        assert_eq!(net.maps[i], Some(Map::City), "node {i}");
+        assert_eq!(net.nodes[i].entries().len(), 4, "node {i}: three and an AI");
+    }
 }
 
 #[test]
@@ -813,15 +847,63 @@ fn rematch_returns_everyone_to_the_lobby_for_a_new_round() {
         assert_eq!(*net.nodes[i].status(), Status::Lobby);
         assert_eq!(net.nodes[i].round(), 1);
         assert_eq!(view.seats.len(), 3, "two humans who stayed, and the AI");
-        assert!(view.seats.iter().all(|s| s.ai || !s.ready), "Ready cleared");
+        // TRIAGE T56: everyone who raced comes back ready
+        assert!(
+            view.seats.iter().all(|s| s.ready || s.host),
+            "node {i}: {:?}",
+            view.seats
+        );
+        assert!(view.ready || view.is_host, "node {i}'s own mark");
         assert!(net.races[i].is_none());
     }
+    assert!(net.nodes[0].lobby().can_start, "Start at once");
+    // and may un-ready
+    let now = net.now;
+    net.nodes[1].set_ready(false, now).unwrap();
+    net.run(500);
+    assert!(!net.nodes[0].lobby().can_start);
+    assert!(!net.nodes[1].lobby().ready);
     net.ready_all();
     let now = net.now;
     net.nodes[0].start(9, now).unwrap();
     net.run(4000);
     assert_eq!(net.race(1).racers.len(), 3);
     assert_ne!(net.race(1).racers[0].ape.pos, net.course.starts[0]);
+}
+
+#[test]
+fn a_player_who_joins_between_rounds_starts_not_ready() {
+    // TRIAGE T56: only those who raced come back ready
+    let mut net = Net::new(3, 7, 30, 20);
+    net.lb.connect(0, 1);
+    net.run(1300);
+    let now = net.now;
+    net.nodes[1].set_ready(true, now).unwrap();
+    net.run(500);
+    let now = net.now;
+    net.nodes[0].start(4, now).unwrap();
+    net.run(1000);
+    assert!(net.races[1].is_some());
+    let now = net.now;
+    net.nodes[0].rematch(now).unwrap();
+    net.run(1000);
+    net.lb.connect(0, 2);
+    net.lb.connect(1, 2);
+    net.run(1500);
+    let seats = net.nodes[0].lobby().seats;
+    let ready: Vec<(&str, bool)> = seats.iter().map(|s| (s.name.as_str(), s.ready)).collect();
+    assert_eq!(
+        ready,
+        [("Player 0", false), ("Player 1", true), ("Player 2", false)],
+        "the host's own seat has no mark"
+    );
+    assert!(!net.nodes[2].lobby().ready);
+    assert!(
+        !net.nodes[0].lobby().can_start,
+        "the newcomer must ready up"
+    );
+    net.ready_all();
+    assert!(net.nodes[0].lobby().can_start);
 }
 
 #[test]
@@ -861,7 +943,7 @@ fn the_hosts_map_reaches_every_lobby_and_rides_with_the_start() {
     for i in 0..3 {
         assert_eq!(net.nodes[i].lobby().map, Map::City, "node {i}");
     }
-    // the map clears every Ready mark, as any lobby change does
+    // nobody has readied yet (a map change keeps marks, TRIAGE T61)
     assert!(!net.nodes[0].lobby().can_start);
     // back to the Jungle, every roster to node 2 lost: its Start still
     // carries the host's map
