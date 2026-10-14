@@ -39,6 +39,7 @@ pub mod replay;
 pub mod rules;
 pub mod scene;
 pub mod ski;
+pub mod snow;
 pub mod sky;
 pub mod sound;
 pub mod speedo;

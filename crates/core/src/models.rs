@@ -41,6 +41,28 @@ pub struct Pose {
     pub tick: u32,
     /// 100 is life size; the selection screen draws bigger
     pub scale: i32,
+    /// what the ape wears (the map's: skis on the Ski Slope)
+    pub gear: Gear,
+}
+
+/// What an ape wears (2026-10-13): nothing, as on the Jungle and the City,
+/// or on the Ski Slope a pair of skis, a ski helmet and goggles. Only the
+/// drawing changes.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum Gear {
+    #[default]
+    None,
+    Ski,
+}
+
+impl Gear {
+    /// What the apes wear on `map`.
+    pub fn on(map: crate::map::Map) -> Gear {
+        match map {
+            crate::map::Map::Ski => Gear::Ski,
+            _ => Gear::None,
+        }
+    }
 }
 
 impl Pose {
@@ -55,6 +77,7 @@ impl Pose {
             stunned: false,
             tick,
             scale: 100,
+            gear: Gear::None,
         }
     }
 }
@@ -409,6 +432,8 @@ struct Skel {
     head: Frame,
     /// the axes the hands and feet are drawn along
     feet_frame: Frame,
+    /// on skis, each foot's axes: along its ski (`Gear::Ski`)
+    skis: Option<[Frame; 2]>,
     hands: [V3; 2],
     feet: [V3; 2],
     arm_hint: [V3; 2],
@@ -527,6 +552,7 @@ fn swinging(m: &Dims, pose: &Pose, face: V3, up: V3) -> Skel {
         body,
         head: body,
         feet_frame: body,
+        skis: None,
         hands,
         feet,
         arm_hint: SIDES.map(|s| body.dir(s * 60, 0, -40)),
@@ -568,6 +594,7 @@ fn flying(m: &Dims, pose: &Pose, face: V3) -> Skel {
         body,
         head: body,
         feet_frame: body,
+        skis: None,
         hands,
         feet,
         arm_hint: SIDES.map(|s| body.dir(s * 30, -60, -40)),
@@ -628,6 +655,7 @@ fn running(l: &Look, m: &Dims, pose: &Pose, face: V3) -> Skel {
         body,
         head: body,
         feet_frame: flat,
+        skis: None,
         hands,
         feet,
         arm_hint: SIDES.map(|s| flat.dir(s * 40, 0, -60)),
@@ -645,16 +673,26 @@ fn running(l: &Look, m: &Dims, pose: &Pose, face: V3) -> Skel {
 pub fn draw(b: &mut Batch, kind: Kind, pose: &Pose) {
     let l = look(kind);
     let m = dims(&l);
-    let skel = pose_skel(&l, pose);
+    let mut skel = pose_skel(&l, pose);
+    if pose.gear == Gear::Ski {
+        skel.skis = Some(ski_frames(pose));
+    }
     let k = (ONE as i64 * l.size as i64 * pose.scale.max(1) as i64 / 10_000) as i32;
-    let mut rig = Rig {
-        b,
-        base: Affine::translate(skel.anchor).then(&Affine::scale(v3(k, k, k))),
-    };
+    let mut base = Affine::translate(skel.anchor).then(&Affine::scale(v3(k, k, k)));
+    if pose.gear == Gear::Ski && pose.grounded && pose.rope.is_none() {
+        // on the ground the skis are under the feet, so the ape stands on
+        // them, not in the snow
+        base = base.then(&Affine::translate(v3(0, SKI_THICK, 0)));
+    }
+    let mut rig = Rig { b, base };
     torso(&mut rig, kind, &l, &m, &skel);
     limbs(&mut rig, kind, &l, &m, &skel);
     head(&mut rig, kind, &l, &skel.head, pose);
     tail(&mut rig, kind, &m, &skel, pose.tick);
+    if pose.gear == Gear::Ski {
+        skis(&mut rig, kind, &m, &skel);
+        helmet(&mut rig, kind, &l, &skel.head);
+    }
     if pose.stunned {
         stars(&mut rig, &skel.head, m.head, pose.tick);
     }
@@ -867,8 +905,209 @@ fn limbs(rig: &mut Rig, kind: Kind, l: &Look, m: &Dims, s: &Skel) {
         rig.ball(hip, pct(m.leg_w, 150), l.limb);
         rig.bone(hip, knee, pct(m.leg_w, 130), l.limb);
         rig.bone(knee, ankle, pct(m.leg_w, 110), l.limb);
-        foot(rig, ff, ankle, m.leg_w, side, l.skin);
+        let on = s.skis.map_or(*ff, |f| f[i]);
+        foot(rig, &on, ankle, m.leg_w, side, l.skin);
     }
+}
+
+// ---------------------------------------------------------------------------
+// The Ski Slope's gear (2026-10-13): skis, a ski helmet and goggles
+
+/// A ski's thickness, length and width (the model's metres, so a bigger
+/// kind has longer skis); twice that as drawn in a race.
+const SKI_THICK: i32 = cm(3);
+const SKI_LEN: i32 = cm(112);
+const SKI_WIDE: i32 = cm(9);
+
+/// Each kind's gear colours: the helmet and the skis, the skis' stripe,
+/// and the goggles' mirrored lens (gold on the cool helmets, blue on the
+/// warm ones), all bright against the snow and the ape's own fur.
+fn gear_colours(kind: Kind) -> (Rgb, Rgb, Rgb) {
+    const GOLD: Rgb = rgb(255, 176, 30);
+    const BLUE: Rgb = rgb(70, 170, 255);
+    match kind {
+        Kind::Orangutan => (rgb(30, 110, 235), rgb(255, 255, 255), GOLD),
+        Kind::Gorilla => (rgb(230, 34, 40), rgb(255, 230, 60), BLUE),
+        Kind::Chimpanzee => (rgb(255, 204, 20), rgb(30, 30, 36), BLUE),
+        Kind::Gibbon => (rgb(170, 60, 215), rgb(255, 255, 255), GOLD),
+        Kind::Proboscis => (rgb(20, 180, 130), rgb(255, 255, 255), GOLD),
+        Kind::Lemur => (rgb(255, 110, 20), rgb(30, 30, 36), BLUE),
+    }
+}
+
+const BINDING: Rgb = rgb(40, 40, 46);
+const STRAP: Rgb = rgb(24, 24, 28);
+
+/// Each foot's axes on skis: along the way the ape faces, pitched with its
+/// velocity (on the ground that follows the slope; in the air the skis ride
+/// the flight, nose a little up), and in the air splayed into a V.
+fn ski_frames(pose: &Pose) -> [Frame; 2] {
+    let face = facing(pose.yaw, 0);
+    let side = V3::UP.cross(face);
+    let airborne = !pose.grounded || pose.rope.is_some();
+    let pitch = if pose.vel.len() < ONE {
+        0
+    } else if airborne {
+        (crate::geom::pitch_of(pose.vel) * 3 / 5 + deg(6)).clamp(-deg(30), deg(25))
+    } else {
+        crate::geom::pitch_of(pose.vel).clamp(-deg(20), deg(20))
+    };
+    SIDES.map(|s| {
+        let splay = if airborne { s * deg(8) } else { 0 };
+        let fwd = face.scale(fx::cos(splay)).add(side.scale(fx::sin(splay)));
+        let z = fwd.scale(fx::cos(pitch)).add(V3::UP.scale(fx::sin(pitch)));
+        let y = V3::UP.scale(fx::cos(pitch)).sub(fwd.scale(fx::sin(pitch)));
+        Frame::upright(V3::ZERO, y, z)
+    })
+}
+
+/// A box along a frame's axes, turned up about its x by `tilt` (an `fx`
+/// angle): the length runs from `from` along the frame's z, tipped up.
+fn board(rig: &mut Rig, f: &Frame, from: V3, tilt: i32, size: V3, c: Rgb) -> V3 {
+    let z = f.z.scale(fx::cos(tilt)).add(f.y.scale(fx::sin(tilt)));
+    let y = f.y.scale(fx::cos(tilt)).sub(f.z.scale(fx::sin(tilt)));
+    let mid = from.add(z.scale(size.z / 2));
+    rig.put(
+        Mesh::Cube,
+        Affine {
+            c0: f.x.scale(size.x),
+            c1: y.scale(size.y),
+            c2: z.scale(size.z),
+            t: mid,
+        },
+        c,
+    );
+    from.add(z.scale(size.z))
+}
+
+/// Two skis, one under each foot, pointing the way the feet point (along
+/// the feet's frame); in the air they splay a little.
+fn skis(rig: &mut Rig, kind: Kind, m: &Dims, s: &Skel) {
+    let (shell, stripe, _) = gear_colours(kind);
+    for (i, side) in SIDES.into_iter().enumerate() {
+        let hip = hip_of(&s.body, m, side);
+        let (_, ankle) = bend(hip, s.feet[i], m.leg, s.leg_hint[i]);
+        let Some(frames) = s.skis else {
+            return;
+        };
+        let f = Frame {
+            o: ankle,
+            ..frames[i]
+        };
+        let w = m.leg_w;
+        // the sole of the foot, then the ski under it, its binding a bit
+        // behind its middle
+        let top = -pct(w, 40);
+        let y = top - SKI_THICK / 2;
+        let flat = pct(SKI_LEN, 74);
+        let back = pct(w, 40) - pct(SKI_LEN, 42);
+        let tail = f.at(0, y, back);
+        let nose = board(
+            rig,
+            &f,
+            tail,
+            0,
+            v3(SKI_WIDE, SKI_THICK, flat),
+            shell,
+        );
+        // the tip curls up in two steps; the tail kicks up a little
+        let bend1 = board(
+            rig,
+            &f,
+            nose,
+            deg(18),
+            v3(SKI_WIDE, SKI_THICK, pct(SKI_LEN, 10)),
+            shell,
+        );
+        board(
+            rig,
+            &f,
+            bend1,
+            deg(48),
+            v3(pct(SKI_WIDE, 92), SKI_THICK, pct(SKI_LEN, 9)),
+            stripe,
+        );
+        let back_f = Frame {
+            x: f.x.neg(),
+            z: f.z.neg(),
+            ..f
+        };
+        board(
+            rig,
+            &back_f,
+            tail,
+            deg(14),
+            v3(SKI_WIDE, SKI_THICK, pct(SKI_LEN, 9)),
+            shell,
+        );
+        // a stripe down the top, and the binding round the foot
+        rig.put(
+            Mesh::Cube,
+            f.shape(
+                v3(0, top + SKI_THICK / 10, back + flat / 2),
+                v3(pct(SKI_WIDE, 34), SKI_THICK / 4, pct(flat, 96)),
+            ),
+            stripe,
+        );
+        rig.put(
+            Mesh::Bevel,
+            f.shape(
+                v3(0, top + pct(w, 12), -pct(w, 10)),
+                v3(pct(SKI_WIDE, 110), pct(w, 34), pct(w, 70)),
+            ),
+            BINDING,
+        );
+        rig.put(
+            Mesh::Bevel,
+            f.shape(
+                v3(0, top + pct(w, 8), pct(w, 120)),
+                v3(pct(SKI_WIDE, 104), pct(w, 22), pct(w, 40)),
+            ),
+            BINDING,
+        );
+    }
+}
+
+/// A ski helmet over the top of the head in the kind's colour, and goggles:
+/// a dark strap round the helmet and a big mirrored lens over the eyes.
+fn helmet(rig: &mut Rig, kind: Kind, l: &Look, h: &Frame) {
+    let (shell, stripe, lens) = gear_colours(kind);
+    let d = cm(l.head);
+    let p = |x: i32, y: i32, z: i32| v3(pct(d, x), pct(d, y), pct(d, z));
+    rig.put(Mesh::Geo, h.shape(p(0, 26, -4), p(114, 88, 116)), shell);
+    // a raised ridge from front to back, and a short peak over the goggles
+    rig.put(
+        Mesh::Bevel,
+        h.shape(p(0, 66, -6), p(22, 12, 90)),
+        stripe,
+    );
+    rig.put(
+        Mesh::Wedge,
+        h.shape(p(0, 30, 52), p(70, 8, 16)),
+        shade(shell, 86),
+    );
+    // the strap, round the helmet's rim at the eyes
+    let a = h.at(0, pct(d, 4), -pct(d, 4));
+    rig.put(
+        Mesh::Hex,
+        rod(a.sub(h.y.scale(pct(d, 9))), a.add(h.y.scale(pct(d, 9))), pct(d, 120)),
+        STRAP,
+    );
+    // the frame and the lens, glowing a little like a mirror in the sun
+    rig.put(Mesh::Bevel, h.shape(p(0, 10, 48), p(102, 48, 18)), STRAP);
+    rig.glow(
+        Mesh::Bevel,
+        h.shape(p(0, 10, 56), p(92, 38, 8)),
+        lens,
+        ONE / 3,
+    );
+    // a glint across the lens
+    rig.glow(
+        Mesh::Cube,
+        h.shape(p(-22, 19, 60), p(26, 6, 2)),
+        rgb(255, 255, 240),
+        ONE / 2,
+    );
 }
 
 /// The proboscis monkey's nose: four points from its root on the face to its
@@ -937,6 +1176,7 @@ fn disc(rig: &mut Rig, h: &Frame, at: V3, across: i32, thick: i32, c: Rgb) {
 fn head(rig: &mut Rig, kind: Kind, l: &Look, h: &Frame, pose: &Pose) {
     let d = cm(l.head);
     let p = |x: i32, y: i32, z: i32| v3(pct(d, x), pct(d, y), pct(d, z));
+    let helmeted = pose.gear == Gear::Ski;
     // the skull, and the bare face on its front
     rig.put(Mesh::Geo, h.shape(V3::ZERO, p(100, 94, 96)), l.fur);
     let face_size = match kind {
@@ -966,7 +1206,13 @@ fn head(rig: &mut Rig, kind: Kind, l: &Look, h: &Frame, pose: &Pose) {
                 shade(l.fur, 90),
             );
             rig.put(Mesh::Geo, h.shape(p(0, -58, 16), p(74, 54, 64)), l.skin);
-            for (x, tilt) in [(-30, -30), (-10, -10), (12, 12), (30, 32)] {
+            // (under a ski helmet the hair stays flat)
+            let tufts: &[(i32, i32)] = if helmeted {
+                &[]
+            } else {
+                &[(-30, -30), (-10, -10), (12, 12), (30, 32)]
+            };
+            for &(x, tilt) in tufts {
                 let root = h.at(pct(d, x), pct(d, 34), -pct(d, 6));
                 let tip = h.at(pct(d, x + tilt), pct(d, 84), -pct(d, 26));
                 rig.blade(root, tip, h.x, pct(d, 26), pct(d, 10), shade(l.fur, 104));
@@ -975,7 +1221,12 @@ fn head(rig: &mut Rig, kind: Kind, l: &Look, h: &Frame, pose: &Pose) {
         Kind::Gibbon => {
             // the white ring round the black face, and a tufted crown
             disc(rig, h, p(0, -2, 22), pct(d, 100), pct(d, 10), FACE_RING);
-            for (x, tilt) in [(-20, -14), (0, 0), (20, 14)] {
+            let crown: &[(i32, i32)] = if helmeted {
+                &[]
+            } else {
+                &[(-20, -14), (0, 0), (20, 14)]
+            };
+            for &(x, tilt) in crown {
                 let root = h.at(pct(d, x), pct(d, 36), -pct(d, 4));
                 let tip = h.at(pct(d, x + tilt), pct(d, 66), -pct(d, 18));
                 rig.blade(root, tip, h.x, pct(d, 26), pct(d, 10), shade(l.fur, 96));
@@ -1444,9 +1695,12 @@ fn lineup_spot(i: usize) -> V3 {
 
 /// All six apes standing side by side, turned a little toward the camera's
 /// right so their faces, noses and tails all show.
-pub fn lineup(b: &mut Batch, tick: u32) {
+pub fn lineup(b: &mut Batch, tick: u32, gear: Gear) {
     for (i, kind) in Kind::ALL.into_iter().enumerate() {
-        let pose = Pose::standing(lineup_spot(i), deg(28), tick);
+        let pose = Pose {
+            gear,
+            ..Pose::standing(lineup_spot(i), deg(28), tick)
+        };
         draw(b, kind, &pose);
     }
 }
@@ -1779,7 +2033,7 @@ mod tests {
     #[test]
     fn the_lineup_shows_all_six_apes_in_the_camera() {
         let mut b = Batch::new();
-        lineup(&mut b, 30);
+        lineup(&mut b, 30, Gear::None);
         let all = shapes(b);
         let one_each: usize = Kind::ALL
             .iter()
