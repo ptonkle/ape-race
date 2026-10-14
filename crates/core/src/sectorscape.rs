@@ -1478,6 +1478,120 @@ pub fn crystal(b: &mut Batch, at: V3, spin: i32, open: bool) {
     }
 }
 
+// ---- flashes: an ape put back on a deck, the door shutting ----
+
+/// How long a flash shows (race ticks).
+pub const FLASH_TICKS: u32 = 60;
+
+/// This tick's flashes on Sector Ape (`None` on every other map): where
+/// each ape put back on a deck now stands, and the door when it shuts.
+pub fn flash_of(race: &crate::race::Race) -> Option<Vec<(V3, u32)>> {
+    let s = race.course.sector.as_deref()?;
+    let tick = race.tick;
+    Some(
+        race.events
+            .iter()
+            .filter_map(|e| match *e {
+                crate::race::Event::Reset { who, .. } => {
+                    race.racers.get(who).map(|r| (r.ape.pos, tick))
+                }
+                crate::race::Event::Door { .. } => Some((s.door.frame.t, tick)),
+                _ => None,
+            })
+            .collect(),
+    )
+}
+
+/// The flashes: an ape warps back onto its deck in a burst of mint light
+/// and sparkles; the door's shutting flashes red-white.
+pub fn flashes(b: &mut Batch, flashes: &[(V3, u32)], race_tick: u32, tick: u32) {
+    for &(at, when) in flashes {
+        let age = race_tick.saturating_sub(when);
+        if age < POP_FLASH {
+            pop_burst(b, at, age, tick);
+            // a column of light where it lands
+            let t = fx::div(age as i32, POP_FLASH as i32);
+            b.push_halo(
+                Mesh::Cyl,
+                &rod(
+                    at.sub(v3(0, int(2), 0)),
+                    at.add(v3(0, int(6), 0)),
+                    cm(140) + mul(t, int(2)),
+                ),
+                TETHER,
+                ONE - t,
+            );
+        }
+    }
+}
+
+// ---- the finish: apes drawn into the black hole ----
+
+/// How a finished ape near the black hole is drawn (`None`: as ever): it
+/// stretches toward the hole and thins across as it nears the banana
+/// horizon, as if being drawn in. The transform is about the ape's hands
+/// (`at`).
+pub fn stretch(s: &SectorLayout, r: &crate::race::Racer, at: V3) -> Option<Affine> {
+    r.finish?;
+    let (hole, rad) = s.black_hole;
+    let to = hole.sub(at);
+    let d = to.len();
+    let from = mul(rad, int(3));
+    let rim = mul(rad, crate::sector::rules::HORIZON);
+    if d >= from || d == 0 {
+        return None;
+    }
+    let k = fx::div(from - d, (from - rim).max(ONE)).clamp(0, ONE);
+    let dir = to.norm();
+    let along = ONE + mul(k, ONE * 4 / 5);
+    let across = ONE - mul(k, ONE * 2 / 5);
+    // M = across·I + (along − across)·d dᵀ, about `at`
+    let col = |e: V3, di: i32| e.scale(across).add(dir.scale(mul(along - across, di)));
+    let m = Affine {
+        c0: col(v3(ONE, 0, 0), dir.x),
+        c1: col(v3(0, ONE, 0), dir.y),
+        c2: col(v3(0, 0, ONE), dir.z),
+        t: V3::ZERO,
+    };
+    let t = at.sub(m.apply_dir(at));
+    Some(Affine { t, ..m })
+}
+
+/// Every shape in `own`, moved by `warp` into `b`, with banana-yellow
+/// sparkles swirling round the hands (`at`).
+pub fn warped(b: &mut Batch, own: Batch, warp: &Affine, at: V3, tick: u32) {
+    let (values, draws) = own.finish(crate::render::DYNAMIC_BUFFER);
+    for d in draws.chunks(crate::render::DRAW_VALUES) {
+        let mesh = Mesh::ALL[d[1] as usize];
+        let first = d[2] as usize / crate::render::BYTES_PER_VALUE;
+        for i in values[first..first + d[3] as usize * crate::render::INSTANCE_VALUES]
+            .chunks(crate::render::INSTANCE_VALUES)
+        {
+            let a = Affine {
+                c0: v3(i[0], i[4], i[8]),
+                c1: v3(i[1], i[5], i[9]),
+                c2: v3(i[2], i[6], i[10]),
+                t: v3(i[3], i[7], i[11]),
+            };
+            b.push(mesh, &warp.then(&a), [i[12], i[13], i[14]], i[15]);
+        }
+    }
+    for k in 0..6 {
+        let a = (tick as i32).wrapping_mul(900) + k * TURN / 6;
+        let p = at.add(v3(
+            mul(sin(a), int(2)),
+            mul(sin(a * 2), cm(80)),
+            mul(fx::cos(a), int(2)),
+        ));
+        b.push(
+            Mesh::Octa,
+            &placed(p, a, v3(cm(18), cm(40), cm(18))),
+            rgb(255, 220, 70),
+            SKY_GLOW,
+        );
+    }
+}
+
 // ---- the space jaguar ----
 
 /// Floor is Lava on Sector Ape: the space jaguar (in its bubble helmet)
@@ -1891,6 +2005,36 @@ mod tests {
             .filter(|m| m.sub(feet).dot(ahead) > int(150) && m.dist(feet) < int(400))
             .count();
         assert!(beyond > 40, "{beyond}");
+    }
+
+    #[test]
+    fn a_finished_ape_near_the_black_hole_is_drawn_stretching_into_it() {
+        let c = Map::Sector.course();
+        let s = c.sector.as_ref().unwrap();
+        let e = crate::race::Entry {
+            name: "P".into(),
+            kind: crate::rules::Kind::Gorilla,
+            driver: crate::race::Driver::Local,
+            palette: 0,
+        };
+        let mut race = crate::race::Race::new(c.clone(), &[e], false, 1);
+        let (hole, r) = s.black_hole;
+        let at = hole.add(v3(0, 0, -mul(r, int(2))));
+        assert_eq!(stretch(s, &race.racers[0], at), None, "not finished");
+        race.racers[0].finish = Some(100);
+        let w = stretch(s, &race.racers[0], at).expect("drawn in");
+        // the hands stay put; a point toward the hole moves further toward
+        // it; one across moves in
+        assert!(w.apply(at).dist(at) < cm(2));
+        let toward = at.add(hole.sub(at).with_len(ONE));
+        assert!(w.apply(toward).dist(at) > ONE + ONE / 10);
+        let side = at.add(v3(ONE, 0, 0));
+        assert!(w.apply(side).dist(at) < ONE - ONE / 20);
+        // far from it, as ever
+        assert_eq!(
+            stretch(s, &race.racers[0], hole.add(v3(0, 0, -mul(r, int(5))))),
+            None
+        );
     }
 
     #[test]

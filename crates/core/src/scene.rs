@@ -1182,6 +1182,9 @@ pub struct Frame<'a> {
     /// what the racers wear instead of the map's gear (a tile's `gear=`
     /// preview; `None`: the map's, `models::Gear::on`)
     pub gear: Option<models::Gear>,
+    /// Sector Ape: flashes of light where something just happened (an ape
+    /// put back on a deck, the door shutting), and the race tick of each
+    pub flashes: &'a [(V3, u32)],
 }
 
 /// How a vine is drawn: its colour, glow and width.
@@ -1357,6 +1360,7 @@ pub fn dynamic(f: &Frame) -> (Batch, Batch) {
     }
     if let Some(s) = &c.sector {
         crate::sectorscape::dynamic(&mut b, c, s, eye, f.tick, tick);
+        crate::sectorscape::flashes(&mut b, f.flashes, tick, f.tick);
     }
     for (k, r) in race.racers.iter().enumerate() {
         // Floor is Lava (TRIAGE T37): the jaguar, and the ape until the bite
@@ -1389,7 +1393,20 @@ pub fn dynamic(f: &Frame) -> (Batch, Batch) {
         let at = f.apes[k];
         let mut pose = racer_pose(race, k, at, f.tick + k as u32 * 53);
         pose.gear = f.gear.unwrap_or(pose.gear);
-        models::draw_in(&mut b, r.ape.kind, r.palette, &pose);
+        // Sector Ape: a finished ape drawn into the black hole stretches
+        // toward it
+        match c
+            .sector
+            .as_deref()
+            .and_then(|s| crate::sectorscape::stretch(s, r, at))
+        {
+            Some(warp) => {
+                let mut own = Batch::new();
+                models::draw_in(&mut own, r.ape.kind, r.palette, &pose);
+                crate::sectorscape::warped(&mut b, own, &warp, at, f.tick + k as u32 * 31);
+            }
+            None => models::draw_in(&mut b, r.ape.kind, r.palette, &pose),
+        }
         if f.aura {
             let strength = if f.local == Some(k) {
                 AURA_OWN
@@ -2189,6 +2206,7 @@ mod tests {
             vivid: false,
             aura: false,
             gear: None,
+            flashes: &[],
         })
         .1;
         let (v, _) = b.finish(crate::render::DYNAMIC_BUFFER);
@@ -2239,6 +2257,7 @@ mod tests {
             vivid,
             aura: false,
             gear: None,
+            flashes: &[],
         })
         .0
     }
