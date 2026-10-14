@@ -1900,6 +1900,8 @@ const JAG_EYE: Rgb = rgb(206, 196, 58);
 const JAG_NOSE: Rgb = rgb(120, 70, 60);
 const JAG_MOUTH: Rgb = rgb(150, 40, 46);
 const JAG_FANG: Rgb = rgb(250, 248, 236);
+const HELMET_RIM: Rgb = rgb(190, 196, 210);
+const HELMET_GLASS: Rgb = rgb(170, 220, 255);
 
 /// The big cat's coat and build: the jaguar's, or on the Ski Slope a snow
 /// leopard's (the person, 2026-10-13).
@@ -1912,6 +1914,8 @@ pub struct BigCat {
     pub eye: Rgb,
     /// the tail's thickness, percent of the jaguar's
     pub tail: i32,
+    /// a cartoon bubble space helmet (Sector Ape's jaguar, no spacesuit)
+    pub helmet: bool,
 }
 
 pub const JAGUAR: BigCat = BigCat {
@@ -1921,6 +1925,15 @@ pub const JAGUAR: BigCat = BigCat {
     spot: JAG_SPOT,
     eye: JAG_EYE,
     tail: 100,
+    helmet: false,
+};
+
+/// The jaguar in a classic cartoon bubble space helmet and nothing else,
+/// for Sector Ape (the person, 2026-10-13). No map switches it on yet: the
+/// space map's session makes `BigCat::on` return it there.
+pub const SPACE_JAGUAR: BigCat = BigCat {
+    helmet: true,
+    ..JAGUAR
 };
 
 /// Smoky grey-white with charcoal rosettes round grey middles, pale
@@ -1932,6 +1945,7 @@ pub const SNOW_LEOPARD: BigCat = BigCat {
     spot: rgb(54, 56, 60),
     eye: rgb(176, 204, 178),
     tail: 150,
+    helmet: false,
 };
 
 impl BigCat {
@@ -2158,6 +2172,44 @@ fn jaguar_head(rig: &mut Rig, j: &crate::jaguar::Jaguar, body: &Frame, fwd: V3, 
         rig.ball(h.at(s * cm(6), cm(11), cm(6)), cm(3), cat.spot);
     }
     rig.ball(h.at(0, cm(13), cm(2)), cm(3), cat.spot);
+    if cat.helmet {
+        bubble_helmet(rig, &h, at.sub(neck).norm());
+    }
+}
+
+/// A cartoon bubble helmet over the head `h`: a clear glass ball (a soft
+/// pale-blue glow over the head, so the face shows through), a metal collar
+/// round the neck (`neck` points from the shoulders to the head) and two
+/// white glints on the glass.
+fn bubble_helmet(rig: &mut Rig, h: &Frame, neck: V3) {
+    let middle = h.at(0, cm(3), cm(5));
+    let d = cm(66);
+    let collar = middle.sub(neck.scale(cm(30)));
+    rig.put(
+        Mesh::Hex,
+        rod(collar, collar.add(neck.scale(cm(6))), cm(46)),
+        HELMET_RIM,
+    );
+    rig.put(
+        Mesh::Hex,
+        rod(collar.sub(neck.scale(cm(2))), collar, cm(40)),
+        shade(HELMET_RIM, 70),
+    );
+    let glass = rig
+        .base
+        .then(&Affine::translate(middle))
+        .then(&Affine::scale(v3(d, d, d)));
+    rig.b
+        .push_halo(Mesh::Sphere, &glass, HELMET_GLASS, ONE * 2 / 5);
+    for (x, y, z, s) in [(-9, 21, 22, 7), (-15, 12, 25, 3)] {
+        let at = h.at(cm(x), cm(y), cm(z) + cm(5));
+        rig.glow(
+            Mesh::Ico,
+            Affine::translate(at).then(&Affine::scale(v3(cm(s), cm(s) / 2, cm(s) / 2))),
+            rgb(255, 255, 255),
+            ONE,
+        );
+    }
 }
 
 fn jaguar_tail(rig: &mut Rig, j: &crate::jaguar::Jaguar, body: &Frame, cat: &BigCat) {
@@ -2429,6 +2481,42 @@ mod tests {
         );
         // the same cat, in another coat
         assert_eq!(leopard.len(), jag.len());
+    }
+
+    #[test]
+    fn only_the_space_jaguar_wears_a_bubble_helmet() {
+        // the person, 2026-10-13: Sector Ape's jaguar wears a cartoon
+        // bubble space helmet and no spacesuit; the others are unchanged
+        use crate::map::Map;
+        for map in Map::ALL {
+            assert!(!BigCat::on(map).helmet, "{map:?}");
+        }
+        const { assert!(!JAGUAR.helmet && !SNOW_LEOPARD.helmet && SPACE_JAGUAR.helmet) };
+        let j = crate::jaguar::Jaguar {
+            feet: V3::ZERO,
+            yaw: 0,
+            gait: 0,
+            stride: ONE,
+            leap: 0,
+            head_down: 0,
+            jaw: 0,
+        };
+        let draw = |cat: &BigCat| {
+            let mut b = Batch::new();
+            jaguar(&mut b, &j, 100, cat);
+            let glass = b.take_halos().count();
+            (shapes(b), glass)
+        };
+        let ((space, glass), (plain, none)) = (draw(&SPACE_JAGUAR), draw(&JAGUAR));
+        // the glass dome over the head, the collar and two glints; nothing
+        // else changes
+        assert_eq!((glass, none), (1, 0));
+        assert_eq!(space.len(), plain.len() + 4);
+        assert!(space.iter().any(|x| x.colour == HELMET_RIM));
+        assert!(plain.iter().all(|x| x.colour != HELMET_RIM));
+        // no spacesuit: the same coat
+        let coat = |s: &[Shape]| s.iter().filter(|x| x.colour == JAG_COAT).count();
+        assert_eq!(coat(&space), coat(&plain));
     }
 
     #[test]
