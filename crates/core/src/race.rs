@@ -293,7 +293,7 @@ impl Race {
                 Racer {
                     name: e.name.clone(),
                     driver: e.driver,
-                    ape: Ape::new(e.kind, equal_stats, start, course.start_yaw),
+                    ape: Ape::new_on(&course, e.kind, equal_stats, start, course.start_yaw),
                     item: None,
                     progress: 0,
                     finish: None,

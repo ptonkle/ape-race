@@ -117,6 +117,22 @@ impl Ape {
         }
     }
 
+    /// An ape for a race on `course`: as `new`, with the map's own reach
+    /// (Sector Ape's is longer: grabs at its speeds would need precision).
+    pub fn new_on(
+        course: &Course,
+        kind: crate::rules::Kind,
+        equal: bool,
+        pos: V3,
+        yaw: i32,
+    ) -> Ape {
+        let mut a = Ape::new(kind, equal, pos, yaw);
+        if course.sector.is_some() {
+            a.phys.reach = mul(a.phys.reach, crate::sector::SECTOR_REACH);
+        }
+        a
+    }
+
     pub fn speed(&self) -> i32 {
         self.vel.len()
     }

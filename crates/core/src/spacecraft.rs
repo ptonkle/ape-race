@@ -546,6 +546,13 @@ fn halves(f: &Affine) -> (Affine, Affine) {
     (stern, bow)
 }
 
+/// The wreck's two halves' frames (stern, bow) for a wreck in frame `f`, in
+/// the ship's own metres (z along it, the break at `BREAK`): for the
+/// course's collision boxes round the passage.
+pub fn wreck_halves(f: &Affine) -> (Affine, Affine) {
+    halves(f)
+}
+
 fn clamp_gap(gap: (i32, i32)) -> (i32, i32) {
     (gap.0.clamp(int(2), int(17)), gap.1.clamp(int(2), int(18)))
 }

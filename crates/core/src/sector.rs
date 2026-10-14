@@ -37,7 +37,7 @@ use crate::fx::{self, deg, int, ONE};
 use crate::geom::{v3, Affine, V3};
 use crate::spacecraft::{Gait, Mech, MechAnchors, MechKind};
 
-pub use layout::sector;
+pub use layout::{sector, sector_seeded};
 
 mod layout;
 pub mod rules;
@@ -55,6 +55,11 @@ pub const SECTOR_TOP: i32 = int(85);
 
 /// The air's drag in open space, as a share of a kind's drag elsewhere.
 pub const SPACE_DRAG: i32 = ONE * 2 / 5;
+
+/// An ape's reach on this map, as a share of its reach elsewhere: flights
+/// here are twice as fast, so a grab would otherwise need precision
+/// (TRIAGE row 9: it should not).
+pub const SECTOR_REACH: i32 = ONE * 3 / 2;
 
 /// On an odd vine (one that does not hang straight down) the swing's drive
 /// fades at this many times the kind's `drive_fade`, so a chain of odd
@@ -125,32 +130,49 @@ impl SectorLayout {
             .map_or(&[][..], |v| &v[..])
     }
 
-    /// Fills `near` from the bodies, the course's centreline and the
-    /// boundary: a body is listed for a stretch if its ball comes within
-    /// the boundary's reach of any sample of it.
+    /// Fills `near` from the bodies and the course's centreline: a body is
+    /// listed for every stretch between the nearest samples of its box's
+    /// corners, and some way either side (a ball's radius, and more for a
+    /// big body, as a bend stretches the samples out on its outside).
     pub fn index_bodies(&mut self, path: &[V3]) {
         let n = path.len().div_ceil(NEAR_SAMPLES);
-        let far = self
-            .boundary
-            .side
-            .max(self.boundary.above.max(-self.boundary.below))
-            + int(4);
-        self.near = (0..n)
-            .map(|k| {
-                let lo = k * NEAR_SAMPLES;
-                let hi = (lo + NEAR_SAMPLES).min(path.len());
-                (0..self.bodies.len())
-                    .filter(|&b| {
-                        let body = &self.bodies[b];
-                        body.solid()
-                            && path[lo..hi]
-                                .iter()
-                                .any(|p| body.frame.t.dist(*p) <= body.reach() + far)
-                    })
-                    .map(|b| b as u16)
-                    .collect()
-            })
-            .collect();
+        let mut near: Vec<Vec<u16>> = vec![Vec::new(); n];
+        let nearest = |p: V3| {
+            let p = p.flat();
+            (0..path.len())
+                .min_by_key(|&i| path[i].sub(p).dot64(path[i].sub(p)))
+                .unwrap_or(0)
+        };
+        let step = crate::course::STEP;
+        for (b, body) in self.bodies.iter().enumerate() {
+            if !body.solid() {
+                continue;
+            }
+            let axes = body.axes();
+            let (mut lo, mut hi) = (usize::MAX, 0);
+            for k in 0..8 {
+                let s = |bit: usize| if k & bit == 0 { ONE } else { -ONE };
+                let corner = body
+                    .frame
+                    .t
+                    .add(axes[0].scale(fx::mul(body.half.x, s(1))))
+                    .add(axes[1].scale(fx::mul(body.half.y, s(2))))
+                    .add(axes[2].scale(fx::mul(body.half.z, s(4))));
+                let i = nearest(corner);
+                lo = lo.min(i);
+                hi = hi.max(i);
+            }
+            let margin = ((int(8) + body.reach() / 4) / step) as usize;
+            let (lo, hi) = (lo.saturating_sub(margin), (hi + margin).min(path.len() - 1));
+            for slot in near
+                .iter_mut()
+                .take(hi / NEAR_SAMPLES + 1)
+                .skip(lo / NEAR_SAMPLES)
+            {
+                slot.push(b as u16);
+            }
+        }
+        self.near = near;
     }
 }
 
