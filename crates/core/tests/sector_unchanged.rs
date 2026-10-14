@@ -2,7 +2,7 @@
 //! was to make the AI's copies of the ape cheaper without changing a race:
 //! races of four AI apes (one at each level, items on), hashed tick by tick
 //! over several seeds, plain and with Floor is Lava, must come out as they
-//! did before it. A deliberate change to Sector Ape's physics or AI takes
+//! did before it, up to each ape's finish. A deliberate change to Sector Ape's physics or AI takes
 //! new hashes (say so in SECOND-ORDER); a speed-up never does.
 
 use tool_core::ai::{think, Brain, Difficulty};
@@ -39,7 +39,9 @@ fn race_hash(seed: u64, lava: bool) -> u64 {
     while race.clock < limit && race.phase != Phase::Done {
         let c: Vec<_> = (0..4).map(|i| think(&race, i, &mut brains[i])).collect();
         race.step(&c);
-        for r in &race.racers {
+        // (until each finishes: what it does after, braked and drawn to
+        // the black hole, is the finish's, SF7)
+        for r in race.racers.iter().filter(|r| r.finish.is_none()) {
             for v in [
                 r.ape.pos.x,
                 r.ape.pos.y,
@@ -78,11 +80,11 @@ fn sector_ape_plays_out_exactly_as_before_the_speed_ups() {
 
 const LAYOUT: u32 = 2_063_114_272;
 const SEEDS: [u64; 6] = [
-    13_429_847_654_000_318_286,
-    4_980_814_365_964_618_372,
-    9_956_122_176_243_341_526,
-    18_187_769_242_450_866_680,
-    1_062_557_235_219_045_084,
-    16_876_798_273_135_000_165,
+    970_790_375_226_778_214,
+    2_187_390_518_736_720_484,
+    5_108_604_221_190_233_657,
+    9_651_458_741_247_016_414,
+    13_901_648_368_043_051_799,
+    14_699_555_506_358_879_652,
 ];
-const LAVA: [u64; 2] = [15_354_224_398_972_486_079, 9_180_943_159_725_750_702];
+const LAVA: [u64; 2] = [10_393_549_843_376_945_085, 9_180_943_159_725_750_702];

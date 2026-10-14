@@ -17,6 +17,11 @@ pub const FINISH_PULL: i32 = int(2);
 /// An ape drawn in that reaches the black hole floats at its horizon,
 /// this many radii from its middle.
 pub const HORIZON: i32 = ONE * 6 / 5;
+/// A finished ape whose feet are this far under the finish deck's top has
+/// fallen past it: it is carried up onto the deck, this far in from its
+/// edge at the least.
+pub const FINISH_UNDER: i32 = int(2);
+pub const FINISH_INSET: i32 = int(4);
 
 impl Course {
     /// Whether a body at `p` (the hands; `hint` its nearest sample) is out
@@ -137,6 +142,29 @@ impl Race {
             let n = to.norm().neg();
             a.pos = hole.add(n.scale(rim));
             a.vel = a.vel.reject(n);
+        }
+        // one that crossed the line low falls past the deck (gravity beats
+        // the pull) and would dance in empty space for ever: the hole's
+        // pull carries it up onto the deck, at the nearest place on it
+        // (SECOND-ORDER SF7)
+        let deck = &self.course.platforms[s.finish_deck];
+        if a.feet().y < deck.top - FINISH_UNDER {
+            let d = a.pos.sub(deck.centre);
+            let right = crate::geom::right_of(deck.fwd);
+            let inset = |half: i32| (half - FINISH_INSET).max(0);
+            let along = d
+                .dot(deck.fwd)
+                .clamp(-inset(deck.half_len), inset(deck.half_len));
+            let side = d
+                .dot(right)
+                .clamp(-inset(deck.half_width), inset(deck.half_width));
+            let spot = deck
+                .centre
+                .add(deck.fwd.scale(along))
+                .add(right.scale(side));
+            let at = v3(spot.x, deck.top + BODY_DROP, spot.z);
+            let yaw = a.yaw;
+            a.put_on(at, yaw, &self.course);
         }
     }
 }
