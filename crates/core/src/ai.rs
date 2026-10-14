@@ -310,6 +310,9 @@ const SECTOR_DRIVE: [u32; 4] = [2, 5, 7, DUTY];
 const SECTOR_NOISE: [i32; 4] = [int(8), int(5), int(2), 0];
 const SECTOR_HOP: [i32; 4] = [int(28), int(30), int(32), int(34)];
 const SECTOR_AIM: i32 = int(30);
+/// Each reset onto a deck makes it misjudge up to this much more (four at
+/// most).
+const SHAKEN_NOISE: i32 = int(4);
 const SECTOR_HIDDEN: [bool; 4] = [false, false, true, true];
 
 /// The drive pattern's length, ticks.
@@ -346,6 +349,8 @@ pub struct Brain {
     rescue_until: u32,
     /// For tuning: how often it was rescued.
     pub rescues: u32,
+    /// Sector Ape: how often it has been put back on a deck
+    pub shaken: u32,
     /// the tick it got the item it holds
     item_since: Option<u32>,
     /// the vine it is heading for
@@ -426,6 +431,7 @@ impl Brain {
             best_at: 0,
             rescue_until: 0,
             rescues: 0,
+            shaken: 0,
             item_since: None,
             target: None,
             next: None,
@@ -447,11 +453,25 @@ impl Brain {
 impl Brain {
     /// Its handicaps this tick: its level's, or none while rescued.
     fn tune(&self, tick: u32) -> Tuning {
-        if tick < self.rescue_until {
-            Difficulty::KingKong.tuning_on(self.city, self.ski, self.sector)
+        let mut t = if tick < self.rescue_until {
+            // (a rescue never shows it a hidden route its level does not
+            // know)
+            let own = self.difficulty.tuning_on(self.city, self.ski, self.sector);
+            Tuning {
+                hidden: own.hidden,
+                ..Difficulty::KingKong.tuning_on(self.city, self.ski, self.sector)
+            }
         } else {
             self.difficulty.tuning_on(self.city, self.ski, self.sector)
+        };
+        // put back on a deck (Sector Ape), it misjudges a little more each
+        // time: its plans are exact, so from the same deck it would make
+        // the same mistake again
+        if self.shaken > 0 {
+            let more = SHAKEN_NOISE * self.shaken.min(4) as i32;
+            t.noise = t.noise.max(more);
         }
+        t
     }
 
     /// Watches for being stuck, and starts a rescue.
@@ -483,6 +503,14 @@ pub fn think(race: &Race, who: usize, brain: &mut Brain) -> Controls {
     brain.city = race.course.city.is_some();
     brain.ski = race.course.ski.is_some();
     brain.sector = race.course.sector.is_some();
+    // (Sector Ape: put back on a deck, it is shaken: see `Brain::tune`)
+    if race
+        .events
+        .iter()
+        .any(|e| matches!(e, crate::race::Event::Reset { who: w, .. } if *w == who))
+    {
+        brain.shaken += 1;
+    }
     if race.running() && !r.out() && brain.difficulty != Difficulty::KingKong {
         brain.watch(tick, r.progress);
     }
@@ -908,7 +936,7 @@ fn on_vine(a: &Ape, course: &Course, tick: u32, vine: usize, brain: &mut Brain) 
                     // nothing ahead will do: any vine near will, even one
                     // across the course at this station, to come at the next
                     // from a better line
-                    let wide = near(course, a, tick);
+                    let wide = near(course, a, tick, tune);
                     if !wide.is_empty() {
                         brain.cands = wide;
                     }
@@ -1050,12 +1078,16 @@ fn pick(cands: &[usize], pick: usize) -> (usize, bool) {
 
 /// Every vine within 45 m but the one held, from its station on: the one
 /// across the corridor, say.
-fn near(course: &Course, a: &Ape, tick: u32) -> Vec<usize> {
+fn near(course: &Course, a: &Ape, tick: u32, tune: Tuning) -> Vec<usize> {
     let at = progress(course, a);
     let held_at = a.swinging().map_or(at, |v| course.vines[v].at);
     let mut out: Vec<(i32, usize)> = Vec::new();
     for (i, v) in course.vines.iter().enumerate() {
-        if Some(i) == a.swinging() || v.at < held_at || v.at > at + LOOK {
+        if Some(i) == a.swinging()
+            || v.at < held_at
+            || v.at > at + LOOK
+            || off_limits(course, i, tune)
+        {
             continue;
         }
         let d = course.anchor(i, tick).flat().sub(a.pos.flat()).len();
@@ -1081,11 +1113,20 @@ fn on_ground(a: &Ape, course: &Course, tick: u32, brain: &mut Brain) -> Controls
     let top = support + BODY_DROP + rise + a.phys.reach - MARGIN;
     let mut best: Option<(i64, usize)> = None;
     for (i, v) in course.vines.iter().enumerate() {
-        if v.at < prog - int(15) || v.at > prog + int(120) || Some(i) == brain.avoid {
+        if v.at < prog - int(15)
+            || v.at > prog + int(120)
+            || Some(i) == brain.avoid
+            || off_limits(course, i, tune)
+        {
             continue;
         }
         let an = course.anchor(i, tick);
-        if !raised && course.vine_bottom(i, tick) > top {
+        // (Sector Ape: a deck may be under vines out of a jump's reach, or
+        // over vines hanging below it)
+        if (!raised || course.sector.is_some()) && course.vine_bottom(i, tick) > top {
+            continue;
+        }
+        if course.sector.is_some() && an.y.max(course.tip(i, tick).y) < support {
             continue;
         }
         let d = an.flat().sub(a.pos.flat()).len() as i64;

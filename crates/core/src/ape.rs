@@ -712,7 +712,7 @@ pub fn fall_ticks(h: i32) -> i32 {
 }
 
 mod space;
-pub use space::HIT_RADIUS;
+pub use space::{HIT_RADIUS, REBOUND_BACK};
 
 #[cfg(test)]
 mod ski_tests;

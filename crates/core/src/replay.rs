@@ -1050,14 +1050,37 @@ impl View {
 pub struct SavePoint {
     pub race: Race,
     pub brains: Vec<Brain>,
+    /// the one part of the course a race changes besides summoned vines:
+    /// Sector Ape's switch door (when it last shut)
+    pub door: Option<u32>,
 }
 
-/// Makes `race` the save point's state, keeping its course.
+impl SavePoint {
+    /// A save point of `race` as it is, its course swapped for `blank`
+    /// while it is copied.
+    pub fn of(race: &mut Race, brains: &[Brain], blank: &Course) -> SavePoint {
+        let door = race.course.sector.as_ref().and_then(|s| s.door.shut_at);
+        let course = std::mem::replace(&mut race.course, blank.clone());
+        let copy = race.clone();
+        race.course = course;
+        SavePoint {
+            race: copy,
+            brains: brains.to_vec(),
+            door,
+        }
+    }
+}
+
+/// Makes `race` the save point's state, keeping its course (and putting
+/// back the door as it was).
 pub fn put_back(save: SavePoint, race: &mut Race, brains: &mut Vec<Brain>) {
     let mut r = save.race;
     std::mem::swap(&mut r.course, &mut race.course);
     *race = r;
     *brains = save.brains;
+    if let Some(s) = race.course.sector.as_deref_mut() {
+        s.door.shut_at = save.door;
+    }
 }
 
 /// A recording being watched. The race itself is the `Play`'s.
@@ -1135,13 +1158,8 @@ impl Playback {
     pub fn keep(&mut self, race: &mut Race, brains: &[Brain]) {
         let t = race.tick as usize;
         if t.is_multiple_of(SAVE_EVERY) && t / SAVE_EVERY == self.saves.len() {
-            let course = std::mem::replace(&mut race.course, self.blank.clone());
-            let copy = race.clone();
-            race.course = course;
-            self.saves.push(SavePoint {
-                race: copy,
-                brains: brains.to_vec(),
-            });
+            let save = SavePoint::of(race, brains, &self.blank);
+            self.saves.push(save);
         }
     }
 

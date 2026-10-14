@@ -41,6 +41,8 @@ pub use layout::{sector, sector_seeded};
 
 mod layout;
 pub mod rules;
+#[cfg(test)]
+mod tests;
 
 /// The pull toward the sun on this map (the other maps: `rules::GRAVITY`,
 /// 17). A first guess; the course tunes it.

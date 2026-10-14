@@ -31,24 +31,24 @@ impl Course {
         side.abs() > b.side || p.y < b.below || p.y > b.above || behind < -b.side
     }
 
-    /// The deck an ape at `p` is put back on: the furthest pad that is not
-    /// ahead of it (the start's, at worst).
-    pub fn pad_behind(&self, p: V3, hint: usize) -> Option<usize> {
+    /// The deck an ape at `p` is put back on: the closest piece of ground
+    /// (the person's words), the pad nearest it along the course; of two as
+    /// near, the one behind. It may be ahead, but the ape starts again from
+    /// a standstill there, so a reset is never a shortcut (SECOND-ORDER
+    /// SC rows).
+    pub fn pad_for(&self, p: V3, hint: usize) -> Option<usize> {
         let s = self.sector.as_deref()?;
         let (along, _) = self.progress(p, hint);
-        let mut behind: Option<(i32, usize)> = None;
-        let mut first: Option<(i32, usize)> = None;
+        let mut best: Option<(i32, i32, usize)> = None;
         for &k in &s.pads {
             let pl = &self.platforms[k];
             let (at, _) = self.progress(pl.centre, self.nearest_anywhere(pl.centre));
-            if at <= along && behind.is_none_or(|(b, _)| at > b) {
-                behind = Some((at, k));
-            }
-            if first.is_none_or(|(b, _)| at < b) {
-                first = Some((at, k));
+            let key = ((at - along).abs(), at);
+            if best.is_none_or(|(d, a, _)| key < (d, a)) {
+                best = Some((key.0, key.1, k));
             }
         }
-        behind.or(first).map(|(_, k)| k)
+        best.map(|(_, _, k)| k)
     }
 
     /// Where an ape put back on pad `k` stands (its hands), and the way it
@@ -82,7 +82,7 @@ impl Race {
                 self.eat(i);
                 return true;
             }
-            if let Some(pad) = self.course.pad_behind(pos, hint) {
+            if let Some(pad) = self.course.pad_for(pos, hint) {
                 let (at, yaw) = self.course.pad_spot(pad);
                 self.racers[i].ape.put_on(at, yaw, &self.course);
                 self.events.push(Event::Reset { who: i, pad });
