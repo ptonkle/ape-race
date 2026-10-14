@@ -14,8 +14,10 @@ pub const HIT_RADIUS: i32 = cm(80);
 /// A hit is put back this far off the face it touched.
 const SKIN: i32 = cm(2);
 
-/// A rebound sends an ape back down the course no faster than this.
+/// A rebound sends an ape back down the course no faster than this, and
+/// down no faster than this.
 pub const REBOUND_BACK: i32 = int(6);
+pub const REBOUND_DOWN: i32 = int(8);
 
 impl Ape {
     /// Puts the ape on a deck at `at` (its hands), standing still, facing
@@ -144,8 +146,13 @@ impl Ape {
         let at = p0.add(step.scale(t.t)).add(n.scale(t.depth + SKIN));
         self.pos = at.add(lift);
         let into = self.vel.dot(n);
+        let swinging = self.swinging().is_some();
         if into < 0 {
-            if bouncy {
+            if bouncy && swinging {
+                // on a vine it holds on: the swing bounces off the debris
+                // (elastic, no boost), back the way it came
+                self.vel = self.vel.sub(n.scale(2 * into));
+            } else if bouncy {
                 // elastic: v - 2(v·n)n, then the boost on along the
                 // course (along the new way, a hit from below threw apes
                 // down out of the boundary: SECOND-ORDER SC rows)
@@ -158,12 +165,18 @@ impl Ape {
                 if back > REBOUND_BACK {
                     out = out.add(on.scale(back - REBOUND_BACK));
                 }
+                // ... nor a dunk: off the underside of a piece of debris
+                // it drops away gently, not out through the boundary
+                if out.y < -REBOUND_DOWN {
+                    out.y = -REBOUND_DOWN;
+                }
                 self.vel = out.clamp_len(SECTOR_TOP);
             } else {
                 self.vel = self.vel.sub(n.scale(into + mul(into, WALL_BOUNCE)));
             }
         }
-        if let Mode::Swinging { vine, .. } = self.mode {
+        // a ship's dead hull knocks it off the vine
+        if let (Mode::Swinging { vine, .. }, false) = (self.mode, bouncy) {
             self.mode = Mode::Flying;
             self.last_vine = Some((vine, 0));
             self.release_bonus = 0;

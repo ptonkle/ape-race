@@ -313,6 +313,9 @@ const SECTOR_AIM: i32 = int(30);
 /// Each reset onto a deck makes it misjudge up to this much more (four at
 /// most).
 const SHAKEN_NOISE: i32 = int(4);
+/// Scoring a landing on Sector Ape (see `score`).
+const SECTOR_SPEED_WORTH: i64 = 2;
+const SECTOR_WAIT_COST: i64 = 40;
 const SECTOR_HIDDEN: [bool; 4] = [false, false, true, true];
 
 /// The drive pattern's length, ticks.
@@ -867,7 +870,13 @@ fn score(course: &Course, now: u32, (v, at_tick, speed, rope): (usize, u32, i32,
     // a metre along is worth a metre per second of speed kept toward the
     // vine after, and a second of waiting costs 20 m; a longer rope makes a
     // bigger swing
-    at + speed as i64 * SPEED_WORTH - wait * WAIT_COST + rope.min(int(12)) as i64 * ROPE_WORTH
+    // (Sector Ape: at twice the speed a second and a metre per second are
+    // worth more)
+    let (speed_worth, wait_cost) = match course.sector {
+        Some(_) => (SECTOR_SPEED_WORTH, SECTOR_WAIT_COST),
+        None => (SPEED_WORTH, WAIT_COST),
+    };
+    at + speed as i64 * speed_worth - wait * wait_cost + rope.min(int(12)) as i64 * ROPE_WORTH
 }
 
 fn on_vine(a: &Ape, course: &Course, tick: u32, vine: usize, brain: &mut Brain) -> Controls {
@@ -958,6 +967,7 @@ fn on_vine(a: &Ape, course: &Course, tick: u32, vine: usize, brain: &mut Brain) 
             true,
             tune,
         );
+        if std::env::var("AI_DEBUG").is_ok() { let d = fl.vel; eprintln!("  t{} vine {} pick {} steer {} rel v({},{},{}) at s{} y{} -> {:?} end s{} y{} side{} mode{:?}", plan.sim_tick, vine, plan.pick, steer, plan.sim.vel.x/ONE, plan.sim.vel.y/ONE, plan.sim.vel.z/ONE, progress(course, &plan.sim)/ONE, plan.sim.pos.y/ONE, hit.map(|h| h.0), progress(course, &fl)/ONE, fl.pos.y/ONE, course.progress(fl.pos, fl.hint).1/ONE, fl.mode); let _ = d; }
         if let Some(hit) = hit.filter(|_| plan.sim_tick >= brain.ready) {
             // a weaker AI misjudges how good a moment is
             let error = brain.dice.range(-tune.noise, tune.noise) as i64;
@@ -1161,6 +1171,12 @@ fn on_ground(a: &Ape, course: &Course, tick: u32, brain: &mut Brain) -> Controls
         brain.cands.insert(0, t);
     }
     if brain.last_jump {
+        return c;
+    }
+    // (Sector Ape: a jump floats for seconds in the low gravity; a vine in
+    // reach from the deck is caught running off its edge)
+    let hands = support + BODY_DROP + a.phys.reach - MARGIN;
+    if course.sector.is_some() && raised && course.vine_bottom(t, tick) <= hands {
         return c;
     }
     // would a jump now catch a vine?

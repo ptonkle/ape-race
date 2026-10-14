@@ -51,15 +51,14 @@ const SEED: u64 = 0x5EC7_02A9_E000;
 const LEGS: &[Leg] = &[
     Leg(60, 0),
     Leg(240, 0),
-    Leg(160, 30),
-    Leg(80, 0),
+    Leg(240, 30),
     Leg(320, 0),
-    Leg(200, -45),
-    Leg(500, 0),
-    Leg(200, 40),
-    Leg(300, 0),
-    Leg(140, -25),
-    Leg(330, 0),
+    Leg(320, -40),
+    Leg(350, 0),
+    Leg(320, 35),
+    Leg(250, 0),
+    Leg(150, -20),
+    Leg(280, 0),
 ];
 
 /// The invisible edge round the spine: wide enough for the routes round
@@ -81,7 +80,7 @@ const LANE: i32 = 13;
 /// the line (and the start's); the features place three more
 /// (`FEATURE_PADS`).
 pub const PADS: &[i32] = &[
-    120, 240, 360, 480, 880, 990, 1100, 1445, 1540, 1650, 1780, 1890, 2000, 2105, 2210,
+    240, 480, 990, 1540, 1780, 2105,
 ];
 /// Decks the features place: on the route round the Hulk, before the
 /// wreck, between the armada's ranks (metres along, metres right).
