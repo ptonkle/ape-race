@@ -35,13 +35,27 @@ fn main() {
     let mut race = Race::new(course, &entries, kind == Kind::Chimpanzee, 7 + run);
     let mut brain = Brain::new(level, 0xA9E5 + run * 101);
     let mut line = String::new();
+    let mut island = 0;
     while race.clock < 150 * TICKS_PER_SECOND as u32 && race.phase != Phase::Done {
         let c = think(&race, 0, &mut brain);
         race.step(&[c]);
         let a = &race.racers[0].ape;
         for h in &a.happened {
             match h {
-                Happening::Wall => line += "W",
+                Happening::Wall => {
+                    // an island's wall: the ape put back to a branch's
+                    // inner edge
+                    let c = &race.course;
+                    let (s, side) = c.progress(a.pos, a.hint);
+                    let [(m0, h0), (m1, h1)] = c.lanes(s);
+                    let split = m0 + h0 < m1 - h1;
+                    if split && side > m0 + h0 - ONE && side < m1 - h1 + ONE {
+                        island += 1;
+                        line += "I";
+                    } else {
+                        line += "W";
+                    }
+                }
                 Happening::Land => line += "L",
                 Happening::Bounce => line += "B",
                 Happening::Grab => line += &format!("g{}", a.swinging().unwrap_or(0)),
@@ -94,7 +108,7 @@ fn main() {
         }
     }
     println!(
-        "finish {:?}, rescues {}, give-ups {}",
+        "finish {:?}, rescues {}, give-ups {}, island wall ticks {island}",
         race.racers[0].finish.map(|f| f as f64 / 120.0),
         brain.rescues,
         brain.give_ups

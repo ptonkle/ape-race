@@ -341,7 +341,7 @@ fn one_of_each_landmark_in_order_down_the_hill_outside_the_run() {
     for (m, f) in [(&marks[1], forks[0]), (&marks[4], forks[1])] {
         assert!(m.s > f.from && m.s < f.to, "{:?} on its fork", m.kind);
     }
-    // none in a lane, with room to be drawn big (10 m clear of the lanes)
+    // none in a lane, with room to be drawn big (5 m clear of the lanes)
     for m in marks
         .iter()
         .filter(|m| m.kind != Summit && m.kind != Village)
@@ -355,6 +355,33 @@ fn one_of_each_landmark_in_order_down_the_hill_outside_the_run() {
                 m.kind,
                 ((side - mid).abs() - half) / ONE
             );
+        }
+    }
+}
+
+#[test]
+fn the_jaguar_comes_in_from_the_edge_of_the_branch_an_ape_is_in() {
+    // Floor is Lava at a fork: from the branch's own edge, never the island
+    let c = ski();
+    for f in &c.ski.as_ref().unwrap().forks {
+        let s = (f.from + f.to) / 2;
+        let lanes = c.lanes(s + int(18));
+        for (k, &(m, h)) in c.lanes(s).iter().enumerate() {
+            for d in [-int(5), int(5)] {
+                let p = c.point(s).add(right_of(c.heading_at(s)).scale(m + d));
+                let at = v3(p.x, c.terrain(p.x, p.z) + BODY_DROP, p.z);
+                let hint = c.nearest_anywhere(at);
+                let e = crate::jaguar::Eaten::new(&c, at, hint, 0);
+                let (_, side) = c.progress(e.from, c.nearest_anywhere(e.from));
+                let (lm, lh) = lanes[k];
+                assert!(
+                    (side - lm).abs() <= lh && (side - lm).abs() > lh - int(2),
+                    "branch {k} ({} ± {}): from {}",
+                    m / ONE,
+                    h / ONE,
+                    side / ONE
+                );
+            }
         }
     }
 }
