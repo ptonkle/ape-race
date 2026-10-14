@@ -79,7 +79,7 @@ const LANE: i32 = 13;
 /// Decks to be put back on, on the spine, metres along, each 14 m below
 /// the line (and the start's); the features place three more
 /// (`FEATURE_PADS`).
-pub const PADS: &[i32] = &[220, 400, 890, 1440, 1640, 1960];
+pub const PADS: &[i32] = &[220, 400, 890, 1020, 1440, 1640, 1820, 1960];
 /// Decks the features place: on the route round the Hulk, before the
 /// wreck, between the armada's ranks (metres along, metres right).
 pub const FEATURE_PADS: &[(i32, i32)] = &[(600, -52), (1162, 0), (2188, 0)];
@@ -148,6 +148,8 @@ struct B {
     dice: Dice,
     /// each station's vines, for the banana arcs (down vines only)
     stations: Vec<Vec<usize>>,
+    /// the stations now are over where a deck will be: no vine from below
+    no_up: bool,
 }
 
 impl B {
@@ -255,6 +257,82 @@ impl B {
     /// height `h`, hanging `way`; `from` is the side its anchor is on (for
     /// the ways in from outside: -1 left, 1 right).
     fn lane_vine(&mut self, s: i32, off: i32, h: i32, way: Way, from: i32) -> usize {
+        // (a vine through another's debris, or debris across another vine,
+        // is laid again another way, a little higher or lower)
+        let mut way = way;
+        let mut h = h;
+        for _ in 0..8 {
+            let v = self.lane_vine_once(s, off, h, way, from);
+            if !self.clashes(v) {
+                return v;
+            }
+            self.unlay(v);
+            way = self.way();
+            h += int(self.dice.range(-3, 3));
+        }
+        self.lane_vine_once(s, off, h, Way::Down, from)
+    }
+
+    /// Whether vine `v` (the last laid, with its debris the last body)
+    /// hangs through a solid body but its own, or its debris lies across
+    /// another vine.
+    fn clashes(&self, v: usize) -> bool {
+        let own = self.lay.bodies.len() - 1;
+        let mine = &self.lay.bodies[own];
+        let near = |b: &Body, i: usize| {
+            b.frame.t.dist(self.c.vines[i].anchor) < b.reach() + self.c.vines[i].length
+        };
+        self.lay.bodies[..own]
+            .iter()
+            .any(|b| b.solid() && near(b, v) && self.through(b, v))
+            || self.crosses_a_vine(own, v)
+    }
+
+    /// Whether body `k` lies across any of the first `upto` vines (that hang
+    /// from bodies: a mech's move).
+    fn crosses_a_vine(&self, k: usize, upto: usize) -> bool {
+        let b = &self.lay.bodies[k];
+        (0..upto).any(|i| {
+            matches!(
+                self.lay.hangers[i],
+                Hanger::Body(_) | Hanger::Switch(_) | Hanger::Mech { .. }
+            ) && b.frame.t.dist(self.c.vines[i].anchor) < b.reach() + self.c.vines[i].length
+                && self.through(b, i)
+        })
+    }
+
+    /// Whether vine `i` passes through body `b` (but its first 2 m).
+    fn through(&self, b: &Body, i: usize) -> bool {
+        let (a, h, len) = (
+            self.c.vines[i].anchor,
+            self.lay.hangs[i],
+            self.c.vines[i].length,
+        );
+        let ax = b.axes();
+        let mut t = int(2);
+        while t <= len {
+            let d = a.add(h.scale(t)).sub(b.frame.t);
+            if d.dot(ax[0]).abs() < b.half.x
+                && d.dot(ax[1]).abs() < b.half.y
+                && d.dot(ax[2]).abs() < b.half.z
+            {
+                return true;
+            }
+            t += ONE;
+        }
+        false
+    }
+
+    /// Takes back vine `v` (the last laid) and its debris (the last body).
+    fn unlay(&mut self, v: usize) {
+        debug_assert_eq!(v + 1, self.c.vines.len());
+        self.c.vines.pop();
+        self.lay.hangs.pop();
+        self.lay.hangers.pop();
+        self.lay.bodies.pop();
+    }
+
+    fn lane_vine_once(&mut self, s: i32, off: i32, h: i32, way: Way, from: i32) -> usize {
         let r = self.right(s);
         let inward = r.scale(-from * ONE);
         let up = V3::UP;
@@ -279,9 +357,18 @@ impl B {
     /// A vine straight down to `tip`, `len` long, from debris over it.
     fn down_vine(&mut self, tip: V3, len: i32) -> usize {
         let s = self.c.progress(tip, self.c.nearest_anywhere(tip)).0;
-        let anchor = tip.add(v3(0, len, 0));
-        let b = self.debris(s, anchor, DOWN, Way::Down);
-        self.vine(tip, DOWN, len, Hanger::Body(b))
+        // (as `lane_vine`: laid again shorter or longer if it clashes)
+        for extra in [0, -3, 3, -5, 5] {
+            let len = len + int(extra);
+            let anchor = tip.add(v3(0, len, 0));
+            let b = self.debris(s, anchor, DOWN, Way::Down);
+            let v = self.vine(tip, DOWN, len, Hanger::Body(b));
+            if !self.clashes(v) || extra == 5 {
+                return v;
+            }
+            self.unlay(v);
+        }
+        unreachable!()
     }
 
     /// A deck (a platform and its solid slab), `half` (across, along) about
@@ -328,12 +415,18 @@ impl B {
 
     /// The way a station's vine hangs: about half of them straight down.
     fn way(&mut self) -> Way {
-        match self.dice.below(20) {
-            0..=5 => Way::Down,
-            6..=8 => Way::Up,
-            10..=13 => Way::Side,
-            14..=16 => Way::SlantDown,
+        let way = match self.dice.below(20) {
+            0..=3 => Way::Down,
+            4..=6 => Way::Up,
+            7..=11 => Way::Side,
+            12..=15 => Way::SlantDown,
             _ => Way::SlantUp,
+        };
+        // (over where a deck will be, none from below, through it)
+        match way {
+            Way::Up if self.no_up => Way::Side,
+            Way::SlantUp if self.no_up => Way::SlantDown,
+            w => w,
         }
     }
 
@@ -378,15 +471,22 @@ impl B {
         let mut after_pad = false;
         while s < to {
             // a deck here? (its row off the front edge is the station)
-            if let Some(&p) = PADS.iter().find(|&&p| p >= s && p < s + 26) {
-                self.pad(p, 0);
-                s = p + 12 + 26;
+            if PADS.iter().any(|&p| p >= s && p < s + 29) {
+                // (the deck goes where this station would: the row off its
+                // front edge is the station, so the vines before it are a
+                // station's spacing behind)
+                self.pad(s - 12, 0);
+                s += 26;
                 after_pad = true;
                 continue;
             }
             // (off a deck, from a standstill, plain vines to get going: an
-            // odd one caught slowly only whirled the ape round)
+            // odd one caught slowly only whirled the ape round; and plain
+            // ones over where a deck will be, none hanging up through it)
+            let deck_soon = PADS.iter().any(|&p| p >= s && p < s + 58);
+            self.no_up = deck_soon;
             let here = self.station(int(s), lanes, base, after_pad);
+            self.no_up = false;
             after_pad = false;
             self.stations.push(here);
             s += self.dice.range(23, 29);
@@ -434,12 +534,14 @@ pub fn sector_seeded(seed: u64) -> Course {
         finish_deck: 0,
         routes: Vec::new(),
         near: Vec::new(),
+        by_at: Vec::new(),
     };
     let mut b = B {
         c,
         lay,
         dice: Dice(seed),
         stations: Vec::new(),
+        no_up: false,
     };
 
     start(&mut b);
@@ -474,6 +576,7 @@ pub fn sector_seeded(seed: u64) -> Course {
 
     let mut lay = b.lay;
     lay.index_bodies(&b.c.path);
+    lay.index_vines(&b.c.vines.iter().map(|v| v.at).collect::<Vec<_>>());
     let mut c = b.c;
     c.sector = Some(Box::new(lay));
     c
@@ -623,7 +726,13 @@ fn hulk(b: &mut B) {
         let len = int(b.dice.range(22, 24));
         let h = top + int(10) + int(b.dice.range(0, 3));
         let tip = b.pt(si, int(off), h);
-        let v = b.down_vine(tip, len);
+        // (every other one level, in from debris off the hull's side)
+        let v = if k % 2 == 1 {
+            let from = if off < 0 { -1 } else { 1 };
+            b.lane_vine(si, off, h, Way::Side, from)
+        } else {
+            b.down_vine(tip, len)
+        };
         over.push(v);
         b.stations.push(vec![v]);
         s += b.dice.range(24, 28);
@@ -964,10 +1073,17 @@ fn bumpers(b: &mut B) {
         (1980, 20, 8),
     ] {
         let si = int(s);
-        let at = b.pt(si, int(off), int(h));
-        let half = v3(int(6), int(5), int(5));
-        let frame = pose(at, b.yaw(si) + fx::deg(s), fx::deg(off), 0, ONE);
-        b.body(Model::Asteroid((s % 4) as u32), frame, half, true, DOWN);
+        // (moved up or down off any vine it would lie across, else left out)
+        for dh in [0, 8, -8, 14, -14] {
+            let at = b.pt(si, int(off), int(h + dh));
+            let half = v3(int(6), int(5), int(5));
+            let frame = pose(at, b.yaw(si) + fx::deg(s), fx::deg(off), 0, ONE);
+            let k = b.body(Model::Asteroid((s % 4) as u32), frame, half, true, DOWN);
+            if !b.crosses_a_vine(k, b.c.vines.len()) {
+                break;
+            }
+            b.lay.bodies.pop();
+        }
     }
 }
 
@@ -1003,3 +1119,6 @@ fn set_pieces(b: &mut B) {
         });
     }
 }
+
+#[cfg(test)]
+mod tests;

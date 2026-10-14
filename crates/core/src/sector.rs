@@ -123,12 +123,41 @@ pub struct SectorLayout {
     /// `NEAR_SAMPLES` centreline samples, the solid bodies an ape in that
     /// stretch (anywhere inside the boundary) could touch
     pub near: Vec<Vec<u16>>,
+    /// physics only (the scene ignores it): the course's vines by where
+    /// along the course they hang (`Vine.at`), for finding the ones near an
+    /// ape without looking at all of them
+    pub by_at: Vec<(i32, u16)>,
 }
+
+/// A vine more than this far along the course from an ape is out of its
+/// reach (its length, the reach, a mech's sway and a margin).
+pub const VINE_WINDOW: i32 = int(70);
 
 /// Centreline samples to a stretch of `SectorLayout.near` (20 m).
 pub const NEAR_SAMPLES: usize = 10;
 
 impl SectorLayout {
+    /// Fills `by_at` from the course's vines (`at` for each).
+    pub fn index_vines(&mut self, ats: &[i32]) {
+        let mut v: Vec<(i32, u16)> = ats
+            .iter()
+            .enumerate()
+            .map(|(i, &at)| (at, i as u16))
+            .collect();
+        v.sort();
+        self.by_at = v;
+    }
+
+    /// The course vines that hang within `VINE_WINDOW` of `s` metres along
+    /// (by `by_at`).
+    pub fn vines_near(&self, s: i32) -> impl Iterator<Item = usize> + '_ {
+        let lo = self.by_at.partition_point(|&(at, _)| at < s - VINE_WINDOW);
+        self.by_at[lo..]
+            .iter()
+            .take_while(move |&&(at, _)| at <= s + VINE_WINDOW)
+            .map(|&(_, i)| i as usize)
+    }
+
     /// The solid bodies an ape whose nearest centreline sample is `hint`
     /// could touch.
     pub fn bodies_near(&self, hint: usize) -> &[u16] {
@@ -394,13 +423,14 @@ impl MechPath {
 
     /// Where on it a vine hangs from, at race tick `tick`.
     pub fn point(&self, at: MechPoint, tick: u32) -> V3 {
-        let a = self.anchors(tick);
-        match at {
-            MechPoint::Head => a.head,
-            MechPoint::Hand(k) => a.hands[k as usize & 1],
-            MechPoint::Elbow(k) => a.elbows[k as usize & 1],
-            MechPoint::Shoulder(k) => a.shoulders[k as usize & 1],
-        }
+        // (one of `anchors`, worked out alone: the physics asks often)
+        let which = match at {
+            MechPoint::Head => 0,
+            MechPoint::Hand(k) => 1 + (k & 1),
+            MechPoint::Elbow(k) => 3 + (k & 1),
+            MechPoint::Shoulder(k) => 5 + (k & 1),
+        };
+        crate::spacecraft::mech_anchor(&self.frame(tick), &self.mech, tick, which)
     }
 
     /// A stand-in: a grunt marching nowhere.

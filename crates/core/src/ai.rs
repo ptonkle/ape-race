@@ -306,8 +306,8 @@ const SECTOR_LOOK: i32 = int(130);
 const SECTOR_CANDS: usize = 16;
 const SECTOR_FLIGHT: u32 = 4 * TICKS_PER_SECOND as u32;
 const SECTOR_HESITATE: [u32; 4] = [4, 2, 0, 0];
-const SECTOR_DRIVE: [u32; 4] = [3, 4, 7, DUTY];
-const SECTOR_NOISE: [i32; 4] = [int(12), int(8), int(2), 0];
+const SECTOR_DRIVE: [u32; 4] = [3, 3, 6, DUTY];
+const SECTOR_NOISE: [i32; 4] = [int(12), int(9), int(3), 0];
 const SECTOR_HOP: [i32; 4] = [int(24), int(28), int(28), int(28)];
 const SECTOR_AIM: i32 = int(30);
 /// Each reset onto a deck makes it misjudge up to this much more (four at
@@ -319,6 +319,11 @@ const SECTOR_WAIT_COST: i64 = 40;
 /// On Sector Ape a swing with no way on whirls round its anchor for good
 /// (the low gravity): it gives up on it sooner.
 const SECTOR_GIVE_UP: u32 = 3 * TICKS_PER_SECOND as u32;
+/// Its search for a release on a fresh vine stops for the tick once its
+/// flights have run this many ticks (and goes on the next).
+const SECTOR_SPEND: u32 = 6_000;
+/// Checking a landing has a way on, it tries a release every this many ticks.
+const SECTOR_ONWARD_STEP: u32 = 12;
 
 /// How long it holds a vine with no way on before letting go forward.
 fn give_up(course: &Course) -> u32 {
@@ -679,6 +684,18 @@ fn ahead_from(
     good
 }
 
+/// Where it steers for vine `i`: its anchor, except that on Sector Ape a
+/// mech's moving anchor (costly to find, and steered for every tick of
+/// every planned flight) is taken where it was at the start.
+fn aim_point(course: &Course, i: usize, tick: u32) -> V3 {
+    if let Some(s) = &course.sector {
+        if matches!(s.hangers.get(i), Some(crate::sector::Hanger::Mech { .. })) {
+            return course.vines[i].anchor;
+        }
+    }
+    course.anchor(i, tick)
+}
+
 /// Whether vine `i` is on a hidden route this level does not look for
 /// (Sector Ape's wreck passage).
 fn off_limits(course: &Course, i: usize, tune: Tuning) -> bool {
@@ -691,7 +708,7 @@ fn off_limits(course: &Course, i: usize, tune: Tuning) -> bool {
 
 /// The vine to make for after `target`.
 fn after(course: &Course, a: &Ape, target: usize, tick: u32, tune: Tuning) -> Option<usize> {
-    let at = course.anchor(target, tick);
+    let at = aim_point(course, target, tick);
     let dir = at.flat().sub(a.pos.flat());
     let dir = if dir.len() > int(2) {
         dir.norm()
@@ -712,8 +729,22 @@ fn after(course: &Course, a: &Ape, target: usize, tick: u32, tune: Tuning) -> Op
 }
 
 /// How far the hands at `p` are from vine `i`.
-fn vine_dist(course: &Course, i: usize, tick: u32, p: V3) -> i32 {
-    p.dist(course.vine_point(i, tick, p))
+fn vine_dist_from(course: &Course, i: usize, a: V3, p: V3) -> i32 {
+    p.dist(vine_point_from(course, i, a, p))
+}
+
+/// The point of vine `i` nearest `p`, its anchor this tick `a` already
+/// found (as `Course::vine_point`).
+fn vine_point_from(course: &Course, i: usize, a: V3, p: V3) -> V3 {
+    let len = course.vines[i].length;
+    match course.sector {
+        None => v3(a.x, p.y.clamp(a.y - len, a.y), a.z),
+        Some(_) => {
+            let h = course.hang(i);
+            let t = p.sub(a).dot(h).clamp(0, len);
+            a.add(h.scale(t))
+        }
+    }
 }
 
 /// The first candidate `margin` inside reach, at or beyond `min_at` along
@@ -728,17 +759,37 @@ fn in_reach(
 ) -> Option<usize> {
     let reach = a.phys.reach - margin;
     for &i in cands.iter().filter(|&&i| course.vines[i].at >= min_at) {
-        let an = course.anchor(i, tick);
         // (Sector Ape: a vine may reach out sideways from its anchor)
         let box_ = match course.sector {
             Some(_) => reach + course.vines[i].length,
             None => reach,
         };
+        // (a moving anchor, a mech's, is costly to find: first a test
+        // against where it can be at all)
+        if course.sector.is_some() {
+            let (c0, slack) = course.anchor_bound(i);
+            let lim = box_ + slack;
+            if (a.pos.x - c0.x).abs() > lim || (a.pos.z - c0.z).abs() > lim {
+                continue;
+            }
+        }
+        let an = course.anchor(i, tick);
         if (a.pos.x - an.x).abs() > box_ || (a.pos.z - an.z).abs() > box_ {
             continue;
         }
         // not right up by the anchor: a short rope only whirls round
-        if vine_dist(course, i, tick, a.pos) <= reach && a.pos.dist(an) >= GOOD_ROPE {
+        if course.sector.is_some() {
+            // (Sector Ape: by squared lengths, no square roots: the plans
+            // fly long, and this runs for every candidate every tick)
+            let near = vine_point_from(course, i, an, a.pos).sub(a.pos);
+            let r = reach as i64;
+            let off = a.pos.sub(an);
+            if near.dot64(near) <= r * r && off.dot64(off) >= GOOD_ROPE as i64 * GOOD_ROPE as i64 {
+                return Some(i);
+            }
+            continue;
+        }
+        if vine_dist_from(course, i, an, a.pos) <= reach && a.pos.dist(an) >= GOOD_ROPE {
             return Some(i);
         }
     }
@@ -758,7 +809,7 @@ fn swing_controls(
     coast: bool,
     tune: Tuning,
 ) -> Controls {
-    let to = course.anchor(target, tick).flat().sub(a.pos.flat());
+    let to = aim_point(course, target, tick).flat().sub(a.pos.flat());
     let drive = !coast && tick % DUTY < tune.drive;
     Controls {
         fwd: if drive { 1 } else { 0 },
@@ -787,12 +838,12 @@ fn flight_controls(
         ..Controls::default()
     };
     if target < course.vines.len() {
-        let at = course.anchor(target, tick).flat();
+        let at = aim_point(course, target, tick).flat();
         let mut to = at.sub(a.pos.flat());
         if let Some(n) = next {
             // far out, aim short of the vine, back along the next leg, so the
             // ape comes at it heading on; close in, aim at the vine itself
-            let leg = course.anchor(n, tick).flat().sub(at).norm();
+            let leg = aim_point(course, n, tick).flat().sub(at).norm();
             let d = to.len();
             if d > LEAD_NEAR {
                 to = to.sub(leg.scale((d - LEAD_NEAR) / LEAD));
@@ -827,25 +878,42 @@ fn fly_ahead(
     cands: &[usize],
     mut last_grab: bool,
     tune: Tuning,
+    spent: &mut u32,
 ) -> Option<(usize, u32, i32, i32)> {
     let mut far = cands.iter().map(|&i| course.vines[i].at).max().unwrap_or(0) + int(8);
     if course.length - far < int(50) {
         // the finish line is in range too
         far = course.length + int(1);
     }
+    // (Sector Ape: a long floaty flight that is below every candidate's
+    // lowest point and falling can never come up to one again: stop
+    // following it, as on the ground)
+    let lowest = match course.sector {
+        Some(_) => cands
+            .iter()
+            .map(|&i| course.vine_bottom(i, tick) - int(10))
+            .min()
+            .unwrap_or(i32::MIN),
+        None => i32::MIN,
+    };
     for _ in 0..tune.flight {
+        *spent += 1;
         if progress(course, a) >= course.length {
             // over the line
             return Some((FINISH, tick, a.vel.flat().len(), int(12)));
         }
+        if a.pos.y < lowest && a.vel.y < 0 && far <= course.length {
+            return None;
+        }
         if a.swinging().is_none() {
-            if let Some(v) = in_reach(a, course, tick, cands, MARGIN, aim_at(course, target)) {
+            let hit = in_reach(a, course, tick, cands, MARGIN, aim_at(course, target));
+            if let Some(v) = hit {
                 if !last_grab {
                     let rope = a.pos.dist(course.anchor(v, tick));
                     // the speed that will carry on toward the vine after
                     // (a swing keeps its heading)
                     let on = match after(course, a, v, tick, tune) {
-                        Some(n) => course.anchor(n, tick).flat().sub(a.pos.flat()),
+                        Some(n) => aim_point(course, n, tick).flat().sub(a.pos.flat()),
                         None => course.heading_at(course.vines[v].at),
                     };
                     let useful = a.vel.flat().dot(on.norm()).max(0);
@@ -938,12 +1006,26 @@ fn on_vine(a: &Ape, course: &Course, tick: u32, vine: usize, brain: &mut Brain) 
 
     // search ahead; a fresh plan looks far enough ahead at once to take a
     // moment right away: the best release is often the first upswing
-    let budget = if plan.sim_tick == plan.began {
-        COVER / MOMENT + BUDGET
-    } else {
-        BUDGET
+    // (Sector Ape: its flights are long, so a burst that size cost tens of
+    // milliseconds on one tick: it looks a third as far at once, then two
+    // moments a tick, catching up within a fifth of a second)
+    // (on Sector Ape it goes on searching that hard until it has looked
+    // that far ahead, but stops for the tick once its flights have run
+    // `SECTOR_SPEND` ticks)
+    let budget = match course.sector {
+        Some(_) if plan.sim_tick < plan.began + COVER => COVER / MOMENT + BUDGET,
+        None if plan.sim_tick == plan.began => COVER / MOMENT + BUDGET,
+        _ => BUDGET,
     };
+    let cap = match course.sector {
+        Some(_) => SECTOR_SPEND,
+        None => u32::MAX,
+    };
+    let mut spent = 0;
     for _ in 0..budget {
+        if spent >= cap {
+            break;
+        }
         if plan.sim_tick >= plan.end || plan.sim.swinging() != Some(vine) {
             // this pass is done: if nothing reached a vine, try the next
             // target and way of swinging, from now
@@ -977,6 +1059,7 @@ fn on_vine(a: &Ape, course: &Course, tick: u32, vine: usize, brain: &mut Brain) 
             &brain.cands,
             true,
             tune,
+            &mut spent,
         );
         if let Some(hit) = hit.filter(|_| plan.sim_tick >= brain.ready) {
             // a weaker AI misjudges how good a moment is
@@ -1057,8 +1140,9 @@ fn onward(a: &Ape, course: &Course, tick: u32, m: &Moment, cands: &[usize], tune
         return true;
     }
     let mut s = a.clone();
-    let Some((_, t, _, _)) = fly_ahead(&mut s, course, tick, m.target, m.next, cands, true, tune)
-    else {
+    let Some((_, t, _, _)) = fly_ahead(
+        &mut s, course, tick, m.target, m.next, cands, true, tune, &mut 0,
+    ) else {
         return false;
     };
     let press = Controls {
@@ -1075,9 +1159,15 @@ fn onward(a: &Ape, course: &Course, tick: u32, m: &Moment, cands: &[usize], tune
     };
     let next = after(course, &s, steer, t, tune);
     for (t, k) in (t + 1..).zip(0..ONWARD_TICKS) {
-        if k % ONWARD_STEP == 0 {
+        // (Sector Ape: its flights are long; it tries half as often)
+        let every = if course.sector.is_some() {
+            SECTOR_ONWARD_STEP
+        } else {
+            ONWARD_STEP
+        };
+        if k % every == 0 {
             let mut f = s.clone();
-            if fly_ahead(&mut f, course, t, steer, next, &cands, true, tune).is_some() {
+            if fly_ahead(&mut f, course, t, steer, next, &cands, true, tune, &mut 0).is_some() {
                 return true;
             }
         }
@@ -1195,7 +1285,19 @@ fn on_ground(a: &Ape, course: &Course, tick: u32, brain: &mut Brain) -> Controls
     j.step(&jump, course, tick);
     let next = after(course, a, t, tick, tune);
     brain.next = next;
-    if fly_ahead(&mut j, course, tick + 1, t, next, &brain.cands, false, tune).is_some() {
+    if fly_ahead(
+        &mut j,
+        course,
+        tick + 1,
+        t,
+        next,
+        &brain.cands,
+        false,
+        tune,
+        &mut 0,
+    )
+    .is_some()
+    {
         c.jump = true;
     } else if !raised && to.len() < cm(40) {
         // right under it and still no: jump anyway

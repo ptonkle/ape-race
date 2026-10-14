@@ -1003,6 +1003,51 @@ pub fn mech_anchors(f: &Affine, m: &Mech, tick: u32) -> MechAnchors {
     }
 }
 
+/// One of `mech_anchors`, alone and so cheaply (the course's physics and
+/// the AI ask for one many times a tick): 0 the head, 1 + k hand `k`,
+/// 3 + k elbow `k`, 5 + k shoulder `k`. The same sums as `mech_pose`
+/// (`a_mech_anchor_alone_is_the_same_as_all_of_them`).
+pub fn mech_anchor(f: &Affine, m: &Mech, tick: u32, which: u8) -> V3 {
+    let g = mech_frame(f, m.kind);
+    let t = tick as i32;
+    let tps = crate::rules::TICKS_PER_SECOND;
+    let (march, w) = match m.gait {
+        Gait::March => (true, t.wrapping_mul(TURN / (tps * 2)) + m.phase),
+        Gait::Drift => (false, t.wrapping_mul(TURN / (tps * 6)) + m.phase),
+    };
+    let bob = if march {
+        mul(sin(w * 2).abs(), cm(35))
+    } else {
+        mul(sin(w), cm(60))
+    };
+    if which == 0 {
+        let head = v3(0, cm(590) + bob, cm(310));
+        return g.apply(head.add(v3(0, cm(130), -cm(20))));
+    }
+    let i = ((which - 1) % 2) as usize;
+    let sx = if i == 0 { 1 } else { -1 };
+    let shoulder = v3(sx * cm(370), cm(480) + bob, cm(120));
+    if which >= 5 {
+        return g.apply(shoulder.add(v3(0, cm(120), 0)));
+    }
+    let lw = w + i as i32 * HALF;
+    let hand = if march {
+        let swing = sin(lw);
+        v3(
+            sx * cm(440),
+            -cm(260) + bob + mul(swing.abs(), cm(60)),
+            cm(140) - mul(swing, cm(220)),
+        )
+    } else {
+        v3(sx * cm(460), cm(120) + mul(sin(lw), cm(60)) + bob, cm(440))
+    };
+    if which <= 2 {
+        return g.apply(hand.sub(v3(0, cm(95), 0)));
+    }
+    let elbow = joint(shoulder, hand, cm(390), cm(410), v3(sx * ONE / 2, 0, -ONE));
+    g.apply(elbow)
+}
+
 /// A monkey mech of the enemy armada (after Sector Y, our own design):
 /// bipedal, hunched, with an ape's head (brow ridge, muzzle, round ears,
 /// glowing red eyes), a barrel chest, huge shoulders and long arms ending
@@ -2060,6 +2105,35 @@ pub fn stars(b: &mut Batch, eye: V3, n: u32) {
 mod tests {
     use super::*;
     use crate::render::{DRAW_VALUES, DYNAMIC_BUFFER, INSTANCE_VALUES};
+
+    #[test]
+    fn a_mech_anchor_alone_is_the_same_as_all_of_them() {
+        // (the course's mech vines use the cheap one: it must be where the
+        // drawn mech's fist, elbow, head or shoulder is)
+        let f = pose(v3(int(10), int(30), int(500)), deg(130), 0, 0, ONE * 2);
+        for kind in [MechKind::Grunt, MechKind::Brute] {
+            for gait in [Gait::March, Gait::Drift] {
+                for phase in [0, 13_001, 40_000] {
+                    let m = Mech { kind, gait, phase };
+                    for tick in (0..3000).step_by(7) {
+                        let all = mech_anchors(&f, &m, tick);
+                        let want = [
+                            all.head,
+                            all.hands[0],
+                            all.hands[1],
+                            all.elbows[0],
+                            all.elbows[1],
+                            all.shoulders[0],
+                            all.shoulders[1],
+                        ];
+                        for (k, w) in want.iter().enumerate() {
+                            assert_eq!(mech_anchor(&f, &m, tick, k as u8), *w, "{kind:?} {k}");
+                        }
+                    }
+                }
+            }
+        }
+    }
 
     /// One drawn shape: its three axes, middle, colour and glow.
     struct Shape {

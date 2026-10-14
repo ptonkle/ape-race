@@ -35,6 +35,43 @@ impl Ape {
     /// The nearest vine in reach of the hands, its vine the segment from its
     /// anchor along the way it hangs.
     pub(super) fn reach_any_way(&self, course: &Course, tick: u32) -> Option<usize> {
+        let s = course.sector.as_deref()?;
+        // only the course's vines hanging near along the course (and every
+        // summoned one): the same answer as looking at them all
+        let (here, _) = course.progress(self.pos, self.hint);
+        let summoned = s.by_at.len()..course.vines.len();
+        let mut best: Option<(i32, usize)> = None;
+        for i in s.vines_near(here).chain(summoned) {
+            if let Some((v, ago)) = self.last_vine {
+                if v == i && ago < RELEASE_IGNORE {
+                    continue;
+                }
+            }
+            let reach = best.map_or(self.phys.reach, |(d, _)| d);
+            let a = course.anchor(i, tick);
+            let len = course.vines[i].length;
+            let d = self.pos.sub(a);
+            // quick reject: out of a box round the anchor the vine's length
+            // and the reach wide
+            let lim = len + reach;
+            if d.x.abs() > lim || d.y.abs() > lim || d.z.abs() > lim {
+                continue;
+            }
+            let h = course.hang(i);
+            let t = d.dot(h).clamp(0, len);
+            let dist = self.pos.dist(a.add(h.scale(t)));
+            // (of two as near, the later vine, as a search of them all in
+            // order would find)
+            if dist < reach || (dist == reach && best.is_none_or(|(_, b)| i > b)) {
+                best = Some((dist, i));
+            }
+        }
+        best.map(|(_, i)| i)
+    }
+
+    /// `reach_any_way` by looking at every vine (for the tests).
+    #[cfg(test)]
+    pub(crate) fn reach_any_way_all(&self, course: &Course, tick: u32) -> Option<usize> {
         let mut best = None;
         let mut best_d = self.phys.reach;
         for i in 0..course.vines.len() {
@@ -46,12 +83,6 @@ impl Ape {
             let a = course.anchor(i, tick);
             let len = course.vines[i].length;
             let d = self.pos.sub(a);
-            // quick reject: out of a box round the anchor the vine's length
-            // and the reach wide
-            let lim = len + best_d;
-            if d.x.abs() > lim || d.y.abs() > lim || d.z.abs() > lim {
-                continue;
-            }
             let h = course.hang(i);
             let t = d.dot(h).clamp(0, len);
             let dist = self.pos.dist(a.add(h.scale(t)));

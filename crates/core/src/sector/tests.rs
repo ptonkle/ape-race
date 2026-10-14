@@ -38,6 +38,7 @@ fn empty() -> SectorLayout {
         finish_deck: 0,
         routes: Vec::new(),
         near: Vec::new(),
+        by_at: Vec::new(),
     }
 }
 
@@ -84,6 +85,7 @@ fn space(vines: &[(V3, V3, i32)], bodies: Vec<Body>, door: bool) -> Course {
         };
     }
     lay.index_bodies(&c.path);
+    lay.index_vines(&c.vines.iter().map(|v| v.at).collect::<Vec<_>>());
     c.sector = Some(Box::new(lay));
     c
 }
@@ -163,11 +165,7 @@ fn a_swing_on_a_sideways_vine_turns_the_ape_round_its_anchor() {
     // side (-x)
     assert_eq!(a.swinging(), Some(0));
     assert!((a.pos.dist(anchor) - int(20)).abs() < int(1));
-    assert!(
-        a.vel.x < -int(8),
-        "{} m/s across",
-        a.vel.x as f64 / ONE as f64
-    );
+    assert!(a.vel.x < -int(8), "{} cm/s across", a.vel.x * 100 / ONE);
 }
 
 #[test]
@@ -195,10 +193,10 @@ fn gravity_is_weaker_in_space() {
     let fall = -a.vel.y;
     assert!(
         (fall - SECTOR_GRAVITY).abs() < ONE / 4,
-        "{} m/s after a second",
-        fall as f64 / ONE as f64
+        "{} cm/s after a second",
+        fall * 100 / ONE
     );
-    assert!(SECTOR_GRAVITY < crate::rules::GRAVITY * 2 / 3);
+    const { assert!(SECTOR_GRAVITY < crate::rules::GRAVITY * 2 / 3) };
 }
 
 #[test]
@@ -315,8 +313,8 @@ fn a_bouncy_body_throws_an_ape_off_elastically_with_a_boost() {
     assert!(near(a.vel.y, -before.y), "{} vs {}", a.vel.y, before.y);
     assert!(
         near(a.vel.z, before.z + REBOUND_BOOST),
-        "{} m/s on",
-        a.vel.z as f64 / ONE as f64
+        "{} cm/s on",
+        a.vel.z * 100 / ONE
     );
     assert!(a.speed() > before.len() + REBOUND_BOOST / 2);
 }
@@ -377,8 +375,8 @@ fn no_tunnelling_through_thin_debris_at_top_speed() {
             a.step(&Controls::default(), &c, t);
             assert!(
                 a.pos.z < int(100),
-                "passed through at {} m (bouncy {bouncy})",
-                a.pos.z as f64 / ONE as f64
+                "passed through at {} cm (bouncy {bouncy})",
+                a.pos.z * 100 / ONE
             );
         }
     }

@@ -366,6 +366,30 @@ impl Course {
         }
     }
 
+    /// A point vine `i`'s anchor is never further than the second value
+    /// from, at any tick: its anchor itself, unless it moves (a sliding
+    /// vine, Sector Ape's mechs). For a cheap test before `anchor`.
+    pub fn anchor_bound(&self, i: usize) -> (V3, i32) {
+        let v = &self.vines[i];
+        match v.slide {
+            Some(s) => (v.anchor, s.reach.len()),
+            None => match &self.sector {
+                Some(s) => match s.hangers.get(i) {
+                    // (its walk or drift along its path, plus its limbs' swing)
+                    Some(crate::sector::Hanger::Mech { mech, .. }) => {
+                        let m = &s.mechs[*mech];
+                        // (along each axis: no square root, and never less)
+                        let d = m.to.sub(m.from);
+                        let path = d.x.abs() + d.y.abs() + d.z.abs();
+                        (v.anchor, path + mul(int(16), m.scale))
+                    }
+                    _ => (v.anchor, 0),
+                },
+                None => (v.anchor, 0),
+            },
+        }
+    }
+
     /// Where vine `i` ends at a tick: its anchor plus its length along the
     /// way it hangs.
     pub fn tip(&self, i: usize, tick: u32) -> V3 {
@@ -469,6 +493,12 @@ impl Course {
         let mut top = self.floor(p.x, p.z);
         let feet = p.y - BODY_DROP;
         for pl in &self.platforms {
+            // (quick reject: no platform holds a point further off flat
+            // than its half length and half width together)
+            let reach = pl.half_len + pl.half_width;
+            if (p.x - pl.centre.x).abs() > reach || (p.z - pl.centre.z).abs() > reach {
+                continue;
+            }
             let d = p.sub(pl.centre);
             let along = d.dot(pl.fwd);
             let side = d.dot(right_of(pl.fwd));
