@@ -163,6 +163,9 @@ pub struct Course {
     /// `right_of` each heading, worked out once (the physics and the AI's
     /// copies of the ape ask for it every tick)
     pub right: Vec<V3>,
+    /// no two neighbouring samples of `path` are further apart than this
+    /// (for `nearest` to pass over samples that cannot be the nearest)
+    pub spacing: i32,
     pub length: i32,
     pub half_width: i32,
     pub laps: u32,
@@ -517,20 +520,66 @@ impl Course {
         top
     }
 
-    /// The nearest centreline sample to `p`, searched near `hint`.
+    /// The nearest centreline sample to `p`, searched near `hint` (40
+    /// samples either way; of two as near, the first).
+    ///
+    /// (The physics asks every tick, and the AI's copies of the ape
+    /// thousands of times a tick, so it passes over samples that cannot be
+    /// the nearest: samples `k` on from one `t` away are at least `t - k ×
+    /// spacing` away, and `t` is more than the best's distance by at least
+    /// the difference of their squares over the sum of their sizes along x
+    /// and z. The same answer as looking at them all: `nearest_scan`, the
+    /// tests. The centreline is at height 0, so only x and z count.)
     pub fn nearest(&self, p: V3, hint: usize) -> usize {
         let n = self.path.len();
         let lo = hint.saturating_sub(40);
         let hi = (hint + 40).min(n - 1);
         let mut best = hint.min(n - 1);
-        let mut best_d = i64::MAX;
-        // (the centreline is at height 0, so only across and along count:
-        // the same sums as the flat distance, cheaper, as the physics and
-        // the AI's copies of the ape ask every tick)
+        if lo > hi {
+            return best;
+        }
         let (x, z) = (p.x as i64, p.z as i64);
-        for (i, q) in self.path.iter().enumerate().take(hi + 1).skip(lo) {
+        // its squared distance from `p`, and its distance's x and z summed
+        let off = |q: &V3| {
             let (dx, dz) = (x - q.x as i64, z - q.z as i64);
-            let dd = dx * dx + dz * dz;
+            (dx * dx + dz * dz, dx.abs() + dz.abs())
+        };
+        let (mut best_d, mut best_l) = off(&self.path[best]);
+        let spacing = self.spacing.max(1) as i64;
+        let mut i = lo;
+        while i <= hi {
+            let (dd, l) = off(&self.path[i]);
+            if dd < best_d || (dd == best_d && i < best) {
+                best = i;
+                best_d = dd;
+                best_l = l;
+            }
+            i += 1;
+            // further than the best by more than `m` spacings: the next
+            // `m` samples are all further than the best
+            let (gap, unit) = (dd - best_d, spacing * (l + best_l));
+            if gap > unit {
+                let mut m = 1;
+                while m < 64 && gap > 2 * m * unit {
+                    m *= 2;
+                }
+                i += m as usize;
+            }
+        }
+        best
+    }
+
+    /// `nearest` by looking at every sample in its window (for the tests).
+    #[cfg(test)]
+    pub(crate) fn nearest_scan(&self, p: V3, hint: usize) -> usize {
+        let n = self.path.len();
+        let lo = hint.saturating_sub(40);
+        let hi = (hint + 40).min(n - 1);
+        let mut best = hint.min(n - 1);
+        let mut best_d = i64::MAX;
+        for i in lo..=hi {
+            let d = p.flat().sub(self.path[i]);
+            let dd = d.dot64(d);
             if dd < best_d {
                 best_d = dd;
                 best = i;
@@ -708,11 +757,18 @@ pub(crate) fn centreline(name: &'static str, legs: &[Leg]) -> Course {
     heading.push(facing(yaw, 0));
     let length = (path.len() as i32 - 1) * STEP;
     let right = heading.iter().map(|&h| right_of(h)).collect();
+    // (a floored root, so one more)
+    let spacing = path
+        .windows(2)
+        .map(|w| w[1].dist(w[0]) + 1)
+        .max()
+        .unwrap_or(STEP);
     Course {
         name,
         path,
         heading,
         right,
+        spacing,
         length,
         half_width: int(20),
         laps: 1,
@@ -1136,6 +1192,36 @@ fn scenery(c: &mut Course, dice: &mut Dice) {
 mod tests {
     use super::*;
     use crate::rules::{GRAVITY, MUSHROOM_BOUNCE};
+
+    #[test]
+    fn the_nearest_sample_is_the_one_a_full_scan_finds() {
+        for map in crate::map::Map::ALL {
+            let c = map.course();
+            let mut d = Dice(0x9EA7 + map as u64);
+            let n = c.path.len();
+            for k in 0..60_000u32 {
+                let i = d.below(n as u32) as usize;
+                // near the line, off it, far off it, and at times right on
+                // a sample
+                let off = [int(3), int(40), int(400)][(k % 3) as usize];
+                let p = if k % 17 == 0 {
+                    c.path[i]
+                } else {
+                    let r = |d: &mut Dice| d.range(-off, off);
+                    c.path[i].add(v3(r(&mut d), r(&mut d), r(&mut d)))
+                };
+                let hint = (i as i64 + d.range(-60, 60) as i64).clamp(0, n as i64 + 50) as usize;
+                let (got, want) = (c.nearest(p, hint), c.nearest_scan(p, hint));
+                assert_eq!(got, want, "{map:?} {p:?} {hint}");
+            }
+            // two samples as near: the first
+            for i in 1..n.min(400) {
+                let mid = c.path[i - 1].add(c.path[i]);
+                let p = v3(mid.x / 2, 0, mid.z / 2);
+                assert_eq!(c.nearest(p, i), c.nearest_scan(p, i), "{map:?} tie at {i}");
+            }
+        }
+    }
 
     #[test]
     fn every_centreline_is_at_height_zero() {
