@@ -40,7 +40,7 @@ CARDS = {
     "city": "1000",
     "ski": "330",
     # the armada of mechs against the black hole's banana disc
-    "sector": "2190",
+    "sector": "1960",
 }
 
 SCALE_TO_WEBP = """async ([w, h, q]) => {

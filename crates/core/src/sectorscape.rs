@@ -488,7 +488,7 @@ fn deck(b: &mut Batch, pl: &Platform, kind: DeckKind) {
                         Mesh::Octa,
                         v3(sx * (hw - cm(30)), cm(10), z),
                         v3(cm(22), cm(22), cm(40)),
-                        if k % 2 == 0 { NEON } else { NEON_WARM },
+                        ENGINE,
                         SKY_GLOW,
                     );
                 }
