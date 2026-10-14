@@ -4,6 +4,7 @@
 //! when the course has a `SectorLayout`).
 
 use super::*;
+use crate::fx::int;
 use crate::sector::{sweep, Model, Touch, REBOUND_BOOST, SECTOR_TOP, SLING};
 
 /// The ape's ball for hits with ships and debris: round the middle of its
@@ -12,6 +13,9 @@ pub const HIT_RADIUS: i32 = cm(80);
 
 /// A hit is put back this far off the face it touched.
 const SKIN: i32 = cm(2);
+
+/// A rebound sends an ape back down the course no faster than this.
+pub const REBOUND_BACK: i32 = int(6);
 
 impl Ape {
     /// Puts the ape on a deck at `at` (its hands), standing still, facing
@@ -137,7 +141,16 @@ impl Ape {
                 let speed = self.vel.len();
                 let out = self.vel.sub(n.scale(2 * into));
                 let top = (speed + REBOUND_BOOST).min(SECTOR_TOP).max(speed);
-                self.vel = out.with_len(top);
+                let mut out = out.with_len(top);
+                // a head-on hit is a crash, not a boost back down the
+                // course: no more than `REBOUND_BACK` of it backward
+                let (s, _) = course.progress(self.pos, self.hint);
+                let on = course.heading_at(s);
+                let back = -out.dot(on);
+                if back > REBOUND_BACK {
+                    out = out.add(on.scale(back - REBOUND_BACK));
+                }
+                self.vel = out;
             } else {
                 self.vel = self.vel.sub(n.scale(into + mul(into, WALL_BOUNCE)));
             }

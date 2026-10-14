@@ -152,8 +152,25 @@ impl Difficulty {
     /// run fast downhill, so a level's reaction time would let the best
     /// release go by (stuck whirling on a vine): it reacts sooner there
     /// (`SKI_HESITATE`), and looks further ahead.
-    fn tuning_on(self, city: bool, ski: bool) -> Tuning {
+    fn tuning_on(self, city: bool, ski: bool, sector: bool) -> Tuning {
         let t = self.tuning();
+        if sector {
+            // Sector Ape: low gravity and high speed make long, floaty
+            // hops (see `SECTOR_*`)
+            let k = self as usize;
+            return Tuning {
+                look: SECTOR_LOOK,
+                cands: SECTOR_CANDS,
+                flight: SECTOR_FLIGHT,
+                hesitate: SECTOR_HESITATE[k],
+                jitter: SECTOR_HESITATE[k],
+                drive: SECTOR_DRIVE[k],
+                noise: SECTOR_NOISE[k],
+                ideal_hop: SECTOR_HOP[k],
+                hidden: SECTOR_HIDDEN[k],
+                ..t
+            };
+        }
         if ski {
             let k = self as usize;
             return Tuning {
@@ -196,6 +213,8 @@ impl Difficulty {
                 noise: int(6),
                 drive: 2,
                 item_wait: 6 * second,
+                flight: FLIGHT_TICKS,
+                hidden: true,
             },
             Difficulty::Monkey => Tuning {
                 ideal_hop: int(24),
@@ -206,6 +225,8 @@ impl Difficulty {
                 noise: int(5),
                 drive: 3,
                 item_wait: 3 * second,
+                flight: FLIGHT_TICKS,
+                hidden: true,
             },
             Difficulty::Ape => Tuning {
                 ideal_hop: int(26),
@@ -216,6 +237,8 @@ impl Difficulty {
                 noise: int(2),
                 drive: 4,
                 item_wait: second,
+                flight: FLIGHT_TICKS,
+                hidden: true,
             },
             Difficulty::KingKong => Tuning {
                 ideal_hop: int(28),
@@ -226,6 +249,8 @@ impl Difficulty {
                 noise: 0,
                 drive: DUTY,
                 item_wait: 0,
+                flight: FLIGHT_TICKS,
+                hidden: true,
             },
         }
     }
@@ -265,7 +290,27 @@ struct Tuning {
     noise: i32,
     /// it holds an item this many ticks before it thinks of using it
     item_wait: u32,
+    /// a predicted flight is followed for at most this many ticks (by map)
+    flight: u32,
+    /// it may take a hidden route (Sector Ape's wreck passage)
+    hidden: bool,
 }
+
+/// Sector Ape's tuning (see [`Difficulty::tuning_on`]), easiest level
+/// first: flights at 25–60 m/s under low gravity carry 50–120 m, so it
+/// looks further ahead, at more vines, follows a flight longer, likes
+/// longer hops and reacts sooner (a whirl round an anchor at speed takes
+/// under two seconds). Only the Ape and King Kong look for the hidden
+/// route.
+const SECTOR_LOOK: i32 = int(130);
+const SECTOR_CANDS: usize = 16;
+const SECTOR_FLIGHT: u32 = 4 * TICKS_PER_SECOND as u32;
+const SECTOR_HESITATE: [u32; 4] = [6, 2, 1, 0];
+const SECTOR_DRIVE: [u32; 4] = [2, 5, 7, DUTY];
+const SECTOR_NOISE: [i32; 4] = [int(8), int(5), int(2), 0];
+const SECTOR_HOP: [i32; 4] = [int(28), int(30), int(32), int(34)];
+const SECTOR_AIM: i32 = int(30);
+const SECTOR_HIDDEN: [bool; 4] = [false, false, true, true];
 
 /// The drive pattern's length, ticks.
 const DUTY: u32 = 8;
@@ -286,6 +331,8 @@ pub struct Brain {
     city: bool,
     /// racing on the Ski Slope (set by [`think`] each tick)
     ski: bool,
+    /// racing on Sector Ape (set by [`think`] each tick)
+    sector: bool,
     /// its own dice, for the handicaps
     dice: Dice,
     /// the first tick it may let go of the vine it holds
@@ -371,6 +418,7 @@ impl Brain {
             difficulty,
             city: false,
             ski: false,
+            sector: false,
             dice: Dice(seed),
             ready: 0,
             grabbed: 0,
@@ -400,9 +448,9 @@ impl Brain {
     /// Its handicaps this tick: its level's, or none while rescued.
     fn tune(&self, tick: u32) -> Tuning {
         if tick < self.rescue_until {
-            Difficulty::KingKong.tuning_on(self.city, self.ski)
+            Difficulty::KingKong.tuning_on(self.city, self.ski, self.sector)
         } else {
-            self.difficulty.tuning_on(self.city, self.ski)
+            self.difficulty.tuning_on(self.city, self.ski, self.sector)
         }
     }
 
@@ -434,6 +482,7 @@ pub fn think(race: &Race, who: usize, brain: &mut Brain) -> Controls {
     let r = &race.racers[who];
     brain.city = race.course.city.is_some();
     brain.ski = race.course.ski.is_some();
+    brain.sector = race.course.sector.is_some();
     if race.running() && !r.out() && brain.difficulty != Difficulty::KingKong {
         brain.watch(tick, r.progress);
     }
@@ -560,7 +609,8 @@ fn ahead_from(
     let mut good = Vec::new();
     let mut rest = Vec::new();
     for (i, v) in course.vines.iter().enumerate() {
-        if v.at <= from || v.at > from + tune.look || Some(i) == held {
+        if v.at <= from || v.at > from + tune.look || Some(i) == held || off_limits(course, i, tune)
+        {
             continue;
         }
         let an = course.anchor(i, tick);
@@ -585,6 +635,16 @@ fn ahead_from(
     good.extend(rest);
     good.truncate(tune.cands);
     good
+}
+
+/// Whether vine `i` is on a hidden route this level does not look for
+/// (Sector Ape's wreck passage).
+fn off_limits(course: &Course, i: usize, tune: Tuning) -> bool {
+    !tune.hidden
+        && course
+            .sector
+            .as_ref()
+            .is_some_and(|s| s.routes.iter().any(|r| r.hidden && r.vines.contains(&i)))
 }
 
 /// The vine to make for after `target`.
@@ -731,7 +791,7 @@ fn fly_ahead(
         // the finish line is in range too
         far = course.length + int(1);
     }
-    for _ in 0..FLIGHT_TICKS {
+    for _ in 0..tune.flight {
         if progress(course, a) >= course.length {
             // over the line
             return Some((FINISH, tick, a.vel.flat().len(), int(12)));
@@ -1308,5 +1368,12 @@ fn trial_with(
 /// In a flight aimed at `target` it grabs that vine or one beyond, not one
 /// it passes on the way (a dense stretch would catch it at every station).
 fn aim_at(course: &Course, target: usize) -> i32 {
-    course.vines.get(target).map_or(i32::MIN, |v| v.at - int(2))
+    // (Sector Ape: a floaty flight may come down on a vine short of the
+    // target; any within `SECTOR_AIM` of it will do)
+    let slack = if course.sector.is_some() {
+        SECTOR_AIM
+    } else {
+        int(2)
+    };
+    course.vines.get(target).map_or(i32::MIN, |v| v.at - slack)
 }
