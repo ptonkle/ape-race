@@ -1880,8 +1880,11 @@ mod tests {
         for m in [50, 400, 900] {
             let s = int(m);
             let e = edges(&c, s);
-            let p = spot(&c, s, 0);
-            assert_eq!(snow_height(&c, s, 0), c.terrain(p.x, p.z));
+            // in every lane (on a fork's island the snow is banked up)
+            for (mid, _) in c.lanes(s) {
+                let p = spot(&c, s, mid);
+                assert_eq!(snow_height(&c, s, mid), c.terrain(p.x, p.z), "{m} m");
+            }
             let q = spot(&c, s, e.r + int(60));
             assert!(snow_height(&c, s, e.r + int(60)) > c.terrain(q.x, q.z) + int(5));
         }
