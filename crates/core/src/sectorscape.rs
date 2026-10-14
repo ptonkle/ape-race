@@ -809,6 +809,32 @@ fn pop_burst(b: &mut Batch, at: V3, age: u32, tick: u32) {
     }
 }
 
+// ---- the minimap ----
+
+/// The routes the track splits into, for the minimap: each one's line from
+/// where it splits (on the centreline) through its vines' anchors, in the
+/// order they come along the course, to where it joins. The hidden route
+/// (through the wreck) is left off: it is a secret to find.
+pub fn route_lines(c: &Course, s: &SectorLayout) -> Vec<Vec<V3>> {
+    s.routes
+        .iter()
+        .filter(|r| !r.hidden && !r.vines.is_empty())
+        .map(|r| {
+            let mut vines: Vec<usize> = r
+                .vines
+                .iter()
+                .copied()
+                .filter(|&v| v < c.vines.len())
+                .collect();
+            vines.sort_by_key(|&v| c.vines[v].at);
+            let mut line = vec![c.point(r.from.clamp(0, c.length))];
+            line.extend(vines.iter().map(|&v| c.vines[v].anchor));
+            line.push(c.point(r.to.clamp(0, c.length)));
+            line
+        })
+        .collect()
+}
+
 // ---- the menus' ape preview and the title's flyover ----
 
 /// Round the lobby deck behind the menus: the backdrop, and the mothership
@@ -816,9 +842,10 @@ fn pop_burst(b: &mut Batch, at: V3, age: u32, tick: u32) {
 /// with a pair of ape wings circling it.
 pub fn lobby_backdrop(b: &mut Batch, c: &Course, s: &SectorLayout, eye: V3, tick: u32) {
     backdrop(b, c, eye, tick);
-    let (feet, yaw) = s.lobby;
+    let (hands, yaw) = s.lobby;
+    let feet = hands.sub(v3(0, crate::rules::BODY_DROP, 0));
     let fwd = facing(yaw, 0);
-    let at = feet.add(fwd.scale(LOBBY_SHIP_AT)).add(v3(0, int(14), 0));
+    let at = feet.add(fwd.scale(LOBBY_SHIP_AT)).sub(v3(0, int(26), 0));
     sc::mothership(b, &sc::pose(at, yaw + deg(78), 0, deg(4), ONE), tick);
     for k in 0..2 {
         let a = (tick as i32).wrapping_mul(110) + k * fx::HALF;
@@ -839,11 +866,14 @@ const LOBBY_SHIP_AT: i32 = int(240);
 /// deck), the way it faces and the camera: the sun's glow below, the
 /// mothership behind.
 pub fn preview(c: &Course) -> (V3, i32, Camera) {
-    let (feet, yaw) = c
+    // the lobby is the hands' place: the feet are under it
+    let (hands, yaw) = c
         .sector
         .as_ref()
         .map(|s| s.lobby)
         .unwrap_or((c.starts[0], c.start_yaw));
+    let feet = hands.sub(v3(0, crate::rules::BODY_DROP, 0));
+
     let fwd = facing(yaw, 0);
     let right = right_of(fwd);
     let eye = feet

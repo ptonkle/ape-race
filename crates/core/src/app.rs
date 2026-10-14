@@ -2166,6 +2166,22 @@ impl App {
                     .collect()
             })
             .unwrap_or_default();
+        // Sector Ape's routes through space: each drawn through its vines'
+        // anchors from where it splits to where it joins (the hidden one
+        // through the wreck stays hidden)
+        let mut branches = branches;
+        if let Some(sl) = &c.sector {
+            for path in crate::sectorscape::route_lines(c, sl) {
+                branches.push(
+                    path.into_iter()
+                        .flat_map(|q| {
+                            let (x, y) = to(q);
+                            [x, y]
+                        })
+                        .collect(),
+                );
+            }
+        }
         let apes: Vec<Value> = p
             .race
             .racers
