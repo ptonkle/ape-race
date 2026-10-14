@@ -192,3 +192,10 @@ fn the_replays_list_names_each_runs_map_and_plays_it_there() {
     assert_eq!(b.screen, Screen::Replays);
     assert_eq!(b.shown, Shown::World(Map::Jungle));
 }
+
+#[test]
+fn every_screen_names_the_version() {
+    let mut a = app();
+    let ui: serde_json::Value = serde_json::from_str(&a.ui()).unwrap();
+    assert_eq!(ui["version"], format!("v{}", crate::app::VERSION));
+}

@@ -549,6 +549,7 @@ function handle(view) {
   }
   if (view.remote_moved !== undefined) document.body.dataset.remoteMoved = String(view.remote_moved);
   document.body.dataset.screen = view.screen;
+  el("version").textContent = view.version;
   // where the menus sit beside the previewed ape: the core decides (T47)
   document.body.dataset.dock = view.dock;
   document.body.style.setProperty("--dock-w", view.dock_w);

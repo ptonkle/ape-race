@@ -278,6 +278,12 @@ pub struct Play {
     pub still: Option<bool>,
 }
 
+/// The game's version, shown small in the bottom right corner: major
+/// (1, the first release), minor (one more for each release with new
+/// features or a new map: 1.1 the todo batch, 1.2 the City, 1.3 the Ski
+/// Slope), patch (fixes only).
+pub const VERSION: &str = "1.3.0";
+
 pub struct App {
     strings: BTreeMap<String, String>,
     pub settings: Settings,
@@ -1403,6 +1409,7 @@ impl App {
     pub fn ui(&mut self) -> String {
         let mut v = json!({
             "screen": self.screen,
+            "version": format!("v{VERSION}"),
             "title": self.t("title"),
             "volume": self.settings.volume,
             "no_webgl": self.t("no_webgl"),
