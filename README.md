@@ -43,7 +43,9 @@ The design is in [`BRIEF.md`](BRIEF.md) and the build decisions in [`PLAN.md`](P
 | Watch another racer | A / D or ← / → (after you finish, and in replays) |
 | Replay orbit camera | Drag the view to turn it, mouse wheel to zoom |
 
-Settings: Volume, Colourblind Mode (the world goes grey, the vines stay vivid, the vine in reach turns white and thick, minimap apes get shapes), Mouse Sensitivity, Invert Mouse Y, Camera Follows (the camera swings back behind you when the mouse rests), and JOJO MODE once you find the secret. They are kept in browser storage.
+Settings: Volume, Colourblind Mode (the world goes grey, the vines stay vivid, the vine in reach turns white and thick, minimap apes get shapes, and the auras take colourblind-safe colours), Player Auras (on by default: a soft glow round each racer in its start slot's colour, player 1 blue, 2 red, 3 green, 4 purple, matched by the minimap dots; your own is fainter), Mouse Sensitivity, Invert Mouse Y, Camera Follows (the camera swings back behind you when the mouse rests), and JOJO MODE once you find the secret. They are kept in browser storage.
+
+Colours: beside the ape picker on Race Setup, Time Trial and the online lobby, each ape has four palettes (Classic and three alternates, e.g. the Gorilla's Silverback, Mountain Brown and Snowflake). Each ape remembers its own; online, everyone sees your choice, and replays keep it. An AI ape of a kind already racing wears another palette.
 
 ## Build, test and serve
 

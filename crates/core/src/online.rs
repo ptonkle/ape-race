@@ -104,7 +104,7 @@ use crate::rules::{Kind, TICKS_PER_SECOND};
 /// 5: the map (the City, 2026-10-12) in `Roster` and `Start`.
 /// 6: the Ski Slope (2026-10-13): the map `ski`, which a client of 5
 /// could not read in a Roster or a Start.
-pub const PROTOCOL: u32 = 6;
+pub const PROTOCOL: u32 = 7;
 /// The most apes in a race, humans and AI together.
 pub const MAX_APES: usize = 4;
 /// The most AI apes the host may add.
@@ -188,6 +188,9 @@ pub struct Human {
     pub kind: Kind,
     /// Ready Up. The host's own seat is never marked: its Start is its Ready.
     pub ready: bool,
+    /// its ape's colours (TRIAGE T49, PROTOCOL 7)
+    #[serde(default)]
+    pub palette: u8,
 }
 
 /// The AI apes' kinds: the kinds no human chose first, in the usual order,
@@ -310,6 +313,8 @@ pub struct RemoteApe {
 pub struct SeatView {
     pub name: String,
     pub kind: Kind,
+    /// its ape's colours (TRIAGE T49)
+    pub palette: u8,
     pub ai: bool,
     pub host: bool,
     pub me: bool,
@@ -362,6 +367,9 @@ enum Msg {
         id: String,
         name: String,
         kind: Kind,
+        /// the ape's colours (TRIAGE T49, PROTOCOL 7)
+        #[serde(default)]
+        palette: u8,
     },
     Refuse {
         reason: Refusal,
@@ -380,6 +388,9 @@ enum Msg {
     },
     Pick {
         kind: Kind,
+        /// the ape's colours (TRIAGE T49, PROTOCOL 7)
+        #[serde(default)]
+        palette: u8,
     },
     Ready {
         ready: bool,
@@ -552,6 +563,8 @@ pub struct Online {
     client_id: String,
     name: String,
     kind: Kind,
+    /// this browser's ape's colours (TRIAGE T49)
+    palette: u8,
     is_host: bool,
     host_peer: Option<PeerId>,
     status: Status,
@@ -572,6 +585,8 @@ pub struct Online {
     last_roster_ms: i64,
     last_ping_ms: i64,
     wanted_kind: Option<Kind>,
+    /// colours chosen and not yet in the roster (TRIAGE T49)
+    wanted_palette: Option<u8>,
     last_pick_ms: i64,
     wanted_ready: Option<bool>,
     last_ready_ms: i64,
@@ -595,6 +610,7 @@ impl Online {
             client_id: client_id.to_string(),
             name: clean_name(name),
             kind,
+            palette: 0,
             is_host: false,
             host_peer: None,
             status: Status::Joining,
@@ -611,6 +627,7 @@ impl Online {
             last_roster_ms: now_ms,
             last_ping_ms: now_ms - PING_EVERY_MS,
             wanted_kind: None,
+            wanted_palette: None,
             last_pick_ms: now_ms,
             wanted_ready: None,
             last_ready_ms: now_ms,
@@ -634,8 +651,20 @@ impl Online {
             name: o.name.clone(),
             kind,
             ready: false,
+            palette: 0,
         }];
         o
+    }
+
+    /// Starts with this browser's ape in palette `palette` (TRIAGE T49).
+    pub fn with_palette(mut self, palette: u8) -> Online {
+        self.palette = palette;
+        if self.is_host {
+            if let Some(h) = self.humans.first_mut() {
+                h.palette = palette;
+            }
+        }
+        self
     }
 
     /// Joins a lobby; the Hello goes when the transport connects the host.
@@ -696,6 +725,7 @@ impl Online {
             id: self.client_id.clone(),
             name: self.name.clone(),
             kind: self.kind,
+            palette: self.palette,
         }
     }
 
@@ -838,8 +868,11 @@ impl Online {
                 id,
                 name,
                 kind,
-            } if self.is_host => self.on_hello(&peer, proto, id, &name, kind, now_ms),
-            Msg::Pick { kind } if self.is_host => self.on_pick(&peer, kind, now_ms),
+                palette,
+            } if self.is_host => self.on_hello(&peer, proto, id, &name, (kind, palette), now_ms),
+            Msg::Pick { kind, palette } if self.is_host => {
+                self.on_pick(&peer, (kind, palette), now_ms)
+            }
             Msg::Ready { ready } if self.is_host => self.on_ready(&peer, ready, now_ms),
             Msg::Name { name } if self.is_host => self.on_name(&peer, &name, now_ms),
             Msg::Screech => {
@@ -970,7 +1003,7 @@ impl Online {
         proto: u32,
         id: String,
         name: &str,
-        kind: Kind,
+        (kind, palette): (Kind, u8),
         now: i64,
     ) {
         if proto != PROTOCOL {
@@ -1021,6 +1054,7 @@ impl Online {
             name: clean_name(name),
             kind,
             ready: false,
+            palette,
         });
         self.roster_changed(now);
     }
@@ -1030,13 +1064,16 @@ impl Online {
         self.humans.iter().position(|h| h.id == id)
     }
 
-    fn on_pick(&mut self, peer: &PeerId, kind: Kind, now_ms: i64) {
+    fn on_pick(&mut self, peer: &PeerId, (kind, palette): (Kind, u8), now_ms: i64) {
         if !self.in_lobby() {
             return;
         }
         match self.seat_of_peer(peer) {
-            Some(i) if i != 0 && self.humans[i].kind != kind => {
+            Some(i)
+                if i != 0 && (self.humans[i].kind != kind || self.humans[i].palette != palette) =>
+            {
                 self.humans[i].kind = kind;
+                self.humans[i].palette = palette;
                 self.roster_changed(now_ms);
             }
             _ => {}
@@ -1210,7 +1247,33 @@ impl Online {
         self.last_pick_ms = now_ms;
         if let Some(host) = self.host_peer.clone() {
             if self.status == Status::Lobby {
-                self.send(&host, &Msg::Pick { kind });
+                let palette = self.palette;
+                self.send(&host, &Msg::Pick { kind, palette });
+            }
+        }
+        Ok(())
+    }
+
+    /// Chooses this browser's ape's colours (TRIAGE T49). A joiner's choice
+    /// is repeated until the roster shows it.
+    pub fn set_palette(&mut self, palette: u8, now_ms: i64) -> Result<(), OnlineError> {
+        if !matches!(self.status, Status::Lobby | Status::Joining) {
+            return Err(OnlineError::NotInLobby);
+        }
+        self.palette = palette;
+        if self.is_host {
+            if self.humans[0].palette != palette {
+                self.humans[0].palette = palette;
+                self.roster_changed(now_ms);
+            }
+            return Ok(());
+        }
+        self.wanted_palette = Some(palette);
+        self.last_pick_ms = now_ms;
+        if let Some(host) = self.host_peer.clone() {
+            if self.status == Status::Lobby {
+                let kind = self.kind;
+                self.send(&host, &Msg::Pick { kind, palette });
             }
         }
         Ok(())
@@ -1387,6 +1450,7 @@ impl Online {
                 } else {
                     Driver::Remote
                 },
+                palette: h.palette,
             })
             .collect();
         for (n, kind) in ai_kinds(&self.humans, self.ai_count)
@@ -1402,6 +1466,7 @@ impl Online {
                 } else {
                     Driver::Remote
                 },
+                palette: crate::race::palette_apart(crate::race::worn(&entries), kind),
             });
         }
         let local_index = self
@@ -1587,7 +1652,17 @@ impl Online {
                     self.wanted_kind = None;
                 } else if now_ms - self.last_pick_ms >= RETRY_MS {
                     self.last_pick_ms = now_ms;
-                    self.send(host, &Msg::Pick { kind });
+                    let palette = self.palette;
+                    self.send(host, &Msg::Pick { kind, palette });
+                }
+            }
+            if let (Some(palette), Some(me)) = (self.wanted_palette, &mine) {
+                if me.palette == palette {
+                    self.wanted_palette = None;
+                } else if now_ms - self.last_pick_ms >= RETRY_MS {
+                    self.last_pick_ms = now_ms;
+                    let kind = self.kind;
+                    self.send(host, &Msg::Pick { kind, palette });
                 }
             }
             if let (Some(name), Some(me)) = (self.wanted_name.clone(), &mine) {
@@ -1653,6 +1728,7 @@ impl Online {
             .map(|(i, h)| SeatView {
                 name: h.name.clone(),
                 kind: h.kind,
+                palette: h.palette,
                 ai: false,
                 host: i == 0,
                 me: h.id == self.client_id,
@@ -1668,9 +1744,12 @@ impl Online {
             .into_iter()
             .enumerate()
         {
+            let palette =
+                crate::race::palette_apart(seats.iter().map(|s| (s.kind, s.palette)), kind);
             seats.push(SeatView {
                 name: format!("AI {}", n + 1),
                 kind,
+                palette,
                 ai: true,
                 host: false,
                 me: false,
@@ -2100,6 +2179,7 @@ mod tests {
             name: String::new(),
             kind,
             ready: false,
+            palette: 0,
         };
         let humans = [h(Kind::Orangutan), h(Kind::Gibbon)];
         assert_eq!(ai_kinds(&humans, 2), vec![Kind::Gorilla, Kind::Chimpanzee]);

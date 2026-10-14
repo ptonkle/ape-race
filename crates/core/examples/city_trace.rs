@@ -27,6 +27,7 @@ fn main() {
         name: String::new(),
         kind,
         driver: Driver::Ai,
+        palette: 0,
     }];
     let run: u64 = args.get(3).map(|a| a.parse().unwrap()).unwrap_or(0);
     let mut race = Race::new(course, &entries, kind == Kind::Chimpanzee, 7 + run);

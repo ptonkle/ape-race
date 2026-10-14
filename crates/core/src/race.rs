@@ -133,6 +133,8 @@ pub struct Racer {
     /// Floor is Lava (TRIAGE T37): it touched the ground and the jaguar
     /// came for it
     pub eaten: Option<Eaten>,
+    /// its colours (TRIAGE T49), from its entry
+    pub palette: u8,
 }
 
 impl Racer {
@@ -245,6 +247,29 @@ pub struct Entry {
     pub name: String,
     pub kind: Kind,
     pub driver: Driver,
+    /// its colours (TRIAGE T49): 0 is the classic, as recordings made
+    /// before palettes read
+    #[serde(default, skip_serializing_if = "is_classic")]
+    pub palette: u8,
+}
+
+fn is_classic(p: &u8) -> bool {
+    *p == 0
+}
+
+/// The palette for an AI ape of `kind` joining apes wearing `taken`
+/// (kind and palette, TRIAGE T49): the first no earlier ape of that kind
+/// wears, so two apes of a kind are told apart; the classic when every
+/// one is taken.
+pub fn palette_apart(taken: impl Iterator<Item = (Kind, u8)> + Clone, kind: Kind) -> u8 {
+    (0..crate::models::PALETTES)
+        .find(|p| !taken.clone().any(|t| t == (kind, *p)))
+        .unwrap_or(0)
+}
+
+/// Each entry's kind and palette, for `palette_apart`.
+pub fn worn(entries: &[Entry]) -> impl Iterator<Item = (Kind, u8)> + Clone + '_ {
+    entries.iter().map(|e| (e.kind, e.palette))
 }
 
 impl Race {
@@ -265,6 +290,7 @@ impl Race {
                     reward: None,
                     took: vec![false; course.bananas.len()],
                     eaten: None,
+                    palette: e.palette,
                 }
             })
             .collect();
@@ -655,6 +681,7 @@ mod tests {
                 name: format!("P{i}"),
                 kind: Kind::ALL[i],
                 driver: Driver::Local,
+                palette: 0,
             })
             .collect()
     }

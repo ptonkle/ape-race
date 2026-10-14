@@ -1229,6 +1229,7 @@ fn trial_with(
             name: String::new(),
             kind,
             driver: Driver::Ai,
+            palette: 0,
         })
         .collect();
     let mut race = Race::new(course, &entries, equal, 7);

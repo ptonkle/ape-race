@@ -3182,6 +3182,7 @@ mod tests {
             name: "P".into(),
             kind: crate::rules::Kind::Chimpanzee,
             driver: crate::race::Driver::Local,
+            palette: 0,
         };
         crate::race::Race::new(c, &[e], false, 1)
     }
@@ -3308,6 +3309,7 @@ mod tests {
                 tick: 10,
                 chains: &[],
                 vivid: false,
+                aura: false,
             });
             let (v, _) = vines.finish(DYNAMIC_BUFFER);
             let near = |colour: Rgb| {

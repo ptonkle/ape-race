@@ -82,7 +82,8 @@ impl App {
             Online::host(&id, &name, kind, self.now_ms)
         } else {
             Online::join(&id, &name, kind, self.now_ms)
-        };
+        }
+        .with_palette(self.settings.palette());
         if host {
             let _ = o.set_map(self.settings.map, self.now_ms);
             let _ = o.set_ai_count(self.settings.ai_count as usize, self.now_ms);
@@ -191,6 +192,17 @@ impl App {
                 self.save = true;
                 if let Some(o) = &mut self.online.session {
                     let _ = o.set_kind(k, now);
+                    // the new ape's own colours (TRIAGE T49)
+                    let _ = o.set_palette(self.settings.palette(), now);
+                }
+            }
+            "lobby.palette" => {
+                if let Ok(p) = value.parse::<u8>() {
+                    self.settings.set_palette(p);
+                    self.save = true;
+                    if let Some(o) = &mut self.online.session {
+                        let _ = o.set_palette(self.settings.palette(), now);
+                    }
                 }
             }
             "lobby.ready" => {
@@ -480,7 +492,13 @@ impl App {
                     Some(ms) => format!("{ms} {}", self.t("online.ms")),
                     None => self.t("item.none"),
                 };
-                json!([s.name, ape(s.kind), ready, ping, s.me])
+                // the ape, and its colours when not the classic (TRIAGE T49)
+                let worn = if s.palette == 0 {
+                    ape(s.kind)
+                } else {
+                    format!("{} ({})", ape(s.kind), self.palette_name(s.kind, s.palette))
+                };
+                json!([s.name, worn, ready, ping, s.me])
             })
             .collect();
         let mut seats = vec![
@@ -504,6 +522,7 @@ impl App {
             json!({ "type": "picker", "id": "lobby.ape", "label": self.t("setup.ape"),
                     "value": self.settings.kind.key(), "options": kinds,
                     "text": ape(self.settings.kind) }),
+            self.palette_select("lobby.palette"),
             json!({ "type": "stats", "label": self.t("setup.stats"), "rows": self.stats_rows(&stats) }),
         ];
         if view.is_host {

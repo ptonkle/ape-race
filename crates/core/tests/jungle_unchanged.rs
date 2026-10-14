@@ -23,6 +23,7 @@ fn jungle_race_hash() -> u64 {
             name: String::new(),
             kind,
             driver: Driver::Ai,
+            palette: 0,
         })
         .collect();
     let mut race = Race::new(Course::jungle(), &entries, false, 7);

@@ -1156,6 +1156,8 @@ pub struct Frame<'a> {
     pub chains: &'a [crate::vinesim::Chain],
     /// the colourblind mode (TRIAGE T33): vivid vines, in reach near white
     pub vivid: bool,
+    /// a glowing aura round each racer in its slot's colour (TRIAGE T59)
+    pub aura: bool,
 }
 
 /// How a vine is drawn: its colour, glow and width.
@@ -1317,7 +1319,15 @@ pub fn dynamic(f: &Frame) -> (Batch, Batch) {
         }
         let at = f.apes[k];
         let pose = racer_pose(race, k, at, f.tick + k as u32 * 53);
-        models::draw(&mut b, r.ape.kind, &pose);
+        models::draw_in(&mut b, r.ape.kind, r.palette, &pose);
+        if f.aura {
+            let strength = if f.local == Some(k) {
+                AURA_OWN
+            } else {
+                AURA_GLOW
+            };
+            aura(&mut b, r.ape.kind, &pose, aura_colour(k, f.vivid), strength);
+        }
         // a soft shadow on the ground, so height reads (as big as the
         // drawn ape)
         let support = c.support(at);
@@ -1469,6 +1479,82 @@ pub fn racer_pose(race: &Race, k: usize, at: V3, tick: u32) -> Pose {
         // the Ski Slope's skis, helmet and goggles
         gear: models::Gear::on(Map::of(&race.course)),
     }
+}
+
+/// Each start slot's aura (TRIAGE T59): player 1 blue, 2 red, 3 green,
+/// 4 purple, light and saturated so they read against every map's sky,
+/// ground and vines (Jungle green, City cyan, Ski Slope pink) at the
+/// strength the halo pass adds them.
+pub const AURA: [Rgb; 4] = [
+    rgb(60, 140, 255),
+    rgb(255, 50, 40),
+    rgb(50, 235, 70),
+    rgb(185, 70, 255),
+];
+/// The colourblind mode's (TRIAGE T33): the same four told apart by
+/// brightness and blue as well as hue (after Okabe and Ito's blue,
+/// vermilion, bluish green and reddish purple).
+pub const AURA_BLIND: [Rgb; 4] = [
+    rgb(30, 130, 255),
+    rgb(255, 110, 0),
+    rgb(0, 215, 160),
+    rgb(240, 120, 210),
+];
+
+/// Slot `k`'s aura colour (a fifth ape and on: round again).
+pub fn aura_colour(k: usize, vivid: bool) -> Rgb {
+    let set = if vivid { AURA_BLIND } else { AURA };
+    set[k % set.len()]
+}
+
+/// How strongly the aura adds its colour round another ape, and round the
+/// one the camera follows (subtler: it is always in the middle of the
+/// view, and the glow is there to find the others).
+pub const AURA_GLOW: i32 = ONE * 7 / 10;
+pub const AURA_OWN: i32 = ONE * 3 / 10;
+
+/// A soft aura round the ape posed `pose`, `colour` at `strength` (TRIAGE
+/// T59): the far side of a shell round its body, drawn in the halo pass
+/// (`Batch::push_halo` with a negative strength), so the ape hides the
+/// middle of it and the glow shows round its outline, fading outward. It
+/// follows the body: long down the rope when swinging, round the body in
+/// the air and on the ground.
+pub fn aura(b: &mut Batch, kind: crate::rules::Kind, pose: &Pose, colour: Rgb, strength: i32) {
+    // about the drawn ape's length, hands to feet
+    let h = BODY_DROP * pose.scale / 100 * models::size_of(kind) / 100;
+    let shell = match pose.rope {
+        Some(up) => rod(
+            pose.hands.add(up.scale(h / 4)),
+            pose.hands.sub(up.scale(h * 23 / 20)),
+            h,
+        ),
+        None if pose.grounded => {
+            let centre = pose.hands.sub(v3(0, BODY_DROP - h * 2 / 5, 0));
+            placed(centre, pose.yaw, v3(h * 6 / 5, h * 6 / 5, h * 6 / 5))
+        }
+        None => {
+            // in the air the body leans into its flight as `models` leans
+            // it (up to about 50 degrees), arms reaching ahead
+            let flat = pose.vel.flat();
+            let way = if flat.len() > ONE / 100 {
+                flat.norm()
+            } else {
+                V3::ZERO
+            };
+            let lean = mul(fx::div(flat.len(), int(12)).min(ONE), cm(120));
+            let axis = V3::UP.add(way.scale(lean)).norm();
+            let centre = pose
+                .hands
+                .sub(v3(0, BODY_DROP / 2, 0))
+                .add(way.scale(h / 4));
+            rod(
+                centre.sub(axis.scale(h * 7 / 10)),
+                centre.add(axis.scale(h * 7 / 10)),
+                h * 11 / 10,
+            )
+        }
+    };
+    b.push_halo(Mesh::Sphere, &shell, colour, -strength);
 }
 
 /// The course's bananas (TRIAGE T43) the viewer has not taken, near the
@@ -1892,6 +1978,7 @@ mod tests {
             name: "P".into(),
             kind,
             driver: crate::race::Driver::Local,
+            palette: 0,
         };
         Race::new(Course::jungle(), &[e], false, 1)
     }
@@ -1954,6 +2041,7 @@ mod tests {
             tick: 10,
             chains: &[],
             vivid: false,
+            aura: false,
         })
         .1;
         let (v, _) = b.finish(crate::render::DYNAMIC_BUFFER);
@@ -2002,6 +2090,7 @@ mod tests {
             tick: 10,
             chains: &[],
             vivid,
+            aura: false,
         })
         .0
     }
