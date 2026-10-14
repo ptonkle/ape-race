@@ -2211,6 +2211,36 @@ mod tests {
     }
 
     #[test]
+    fn the_switch_vine_wears_hazard_bands_and_a_beacon() {
+        let c = Map::Sector.course();
+        let sw = c.sector.as_ref().unwrap().door.switch;
+        let a = c.anchor(sw, 0);
+        let len = c.vines[sw].length;
+        let (vines, _) = scene::flyover_dynamic(&c, 0, false, a);
+        let near: Vec<Rgb> = {
+            let (v, _) = vines.finish(crate::render::DYNAMIC_BUFFER);
+            v.chunks(crate::render::INSTANCE_VALUES)
+                .filter(|i| v3(i[3], i[7], i[11]).dist(a) < len / 2)
+                .map(|i| [i[12], i[13], i[14]])
+                .collect()
+        };
+        assert!(
+            near.iter().filter(|c| **c == HAZARD).count() >= 4,
+            "hazard bands"
+        );
+        // an ordinary vine has none
+        let other = (0..c.vines.len())
+            .find(|&i| i != sw && c.anchor(i, 0).dist(a) > int(60))
+            .unwrap();
+        let b = c.anchor(other, 0);
+        let (vines, _) = scene::flyover_dynamic(&c, 0, false, b);
+        let (v, _) = vines.finish(crate::render::DYNAMIC_BUFFER);
+        assert!(!v
+            .chunks(crate::render::INSTANCE_VALUES)
+            .any(|i| v3(i[3], i[7], i[11]).dist(b) < int(3) && [i[12], i[13], i[14]] == HAZARD));
+    }
+
+    #[test]
     fn the_backdrop_stays_inside_the_far_plane() {
         let c = Map::Sector.course();
         let eye = c.point(int(300)).add(v3(0, int(20), 0));
