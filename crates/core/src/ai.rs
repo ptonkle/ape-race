@@ -415,6 +415,51 @@ struct Plan {
     began: u32,
     /// release moments that reach a vine
     moments: Vec<Moment>,
+    /// (Sector Ape) mechs' anchors its flights have asked for
+    anchors: Anchors,
+}
+
+/// Sector Ape: mechs' vine anchors already worked out, by tick, for one
+/// swing's plan. Its flights overlap (one leaves every `MOMENT` ticks and
+/// flies seconds), so each is asked for again and again, and a mech's is
+/// costly. Only sums of `Course::anchor` are kept: any two are equal.
+#[derive(Clone, Default)]
+struct Anchors {
+    /// (tick, vine, anchor), by tick and vine (`ANCHOR_SLOTS` once used)
+    slots: Vec<(u32, u32, V3)>,
+}
+
+const ANCHOR_SLOTS: usize = 4096;
+
+impl Anchors {
+    /// `course.anchor(i, tick)`.
+    fn get(&mut self, course: &Course, i: usize, tick: u32) -> V3 {
+        if self.slots.is_empty() {
+            self.slots = vec![(u32::MAX, u32::MAX, V3::ZERO); ANCHOR_SLOTS];
+        }
+        let k = ((tick as usize & (ANCHOR_SLOTS / 8 - 1)) << 3) | (i & 7);
+        let s = &mut self.slots[k];
+        if s.0 == tick && s.1 == i as u32 {
+            return s.2;
+        }
+        let a = course.anchor(i, tick);
+        *s = (tick, i as u32, a);
+        a
+    }
+}
+
+impl PartialEq for Anchors {
+    fn eq(&self, _: &Anchors) -> bool {
+        true
+    }
+}
+
+impl Eq for Anchors {}
+
+impl std::fmt::Debug for Anchors {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("Anchors")
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -656,35 +701,73 @@ fn ahead_from(
     tick: u32,
     tune: Tuning,
 ) -> Vec<usize> {
-    let mut good = Vec::new();
+    ahead_from_cached(course, held, from, origin, dir, tick, tune, None)
+}
+
+/// `ahead_from`, a mech's anchors from `anchors` (and each vine's anchor
+/// and sort key worked out once: the same order, as the sort is stable).
+#[allow(clippy::too_many_arguments)]
+fn ahead_from_cached(
+    course: &Course,
+    held: Option<usize>,
+    from: i32,
+    origin: V3,
+    dir: V3,
+    tick: u32,
+    tune: Tuning,
+    mut anchors: Option<&mut Anchors>,
+) -> Vec<usize> {
+    let mut good: Vec<(i64, usize)> = Vec::new();
     let mut rest = Vec::new();
     for (i, v) in course.vines.iter().enumerate() {
         if v.at <= from || v.at > from + tune.look || Some(i) == held || off_limits(course, i, tune)
         {
             continue;
         }
-        let an = course.anchor(i, tick);
-        let low = course.vine_bottom(i, tick) - course.terrain(an.x, an.z) < int(5);
+        let an = anchor_cached(course, i, tick, anchors.as_deref_mut());
+        let bottom = bottom_from(course, i, an);
+        let low = bottom - course.terrain(an.x, an.z) < int(5);
         if v.at >= from + int(12) && !low {
-            good.push(i);
+            // off the line costs three times as much as a hop longer or
+            // shorter than the ideal
+            let d = an.flat().sub(origin.flat());
+            let along = d.dot(dir);
+            let lat = d.sub(dir.scale(along)).len();
+            // and a vine that hangs out of reach above costs four times over
+            let above = (bottom - origin.y).max(0);
+            let key = lat as i64 * 3 + (along - tune.ideal_hop).abs() as i64 + above as i64 * 4;
+            good.push((key, i));
         } else {
             rest.push(i);
         }
     }
-    // off the line costs three times as much as a hop longer or shorter
-    // than the ideal
-    good.sort_by_key(|&i| {
-        let d = course.anchor(i, tick).flat().sub(origin.flat());
-        let along = d.dot(dir);
-        let lat = d.sub(dir.scale(along)).len();
-        // and a vine that hangs out of reach above costs four times over
-        let above = (course.vine_bottom(i, tick) - origin.y).max(0);
-        lat as i64 * 3 + (along - tune.ideal_hop).abs() as i64 + above as i64 * 4
-    });
+    good.sort_by_key(|g| g.0);
     rest.sort_by_key(|&i| course.vines[i].at);
-    good.extend(rest);
-    good.truncate(tune.cands);
-    good
+    let mut out: Vec<usize> = good.into_iter().map(|g| g.1).collect();
+    out.extend(rest);
+    out.truncate(tune.cands);
+    out
+}
+
+/// `course.anchor(i, tick)`, from `anchors` when it is a mech's.
+fn anchor_cached(course: &Course, i: usize, tick: u32, anchors: Option<&mut Anchors>) -> V3 {
+    let mech = course
+        .sector
+        .as_ref()
+        .is_some_and(|s| matches!(s.hangers.get(i), Some(crate::sector::Hanger::Mech { .. })));
+    match anchors {
+        Some(cache) if mech => cache.get(course, i, tick),
+        _ => course.anchor(i, tick),
+    }
+}
+
+/// `course.vine_bottom(i, tick)`, its anchor that tick `a` already found.
+fn bottom_from(course: &Course, i: usize, a: V3) -> i32 {
+    let len = course.vines[i].length;
+    match course.sector {
+        None => a.y - len,
+        Some(_) => a.y.min(a.add(course.hang(i).scale(len)).y),
+    }
 }
 
 /// Where it steers for vine `i`: its anchor, except that on Sector Ape a
@@ -711,6 +794,18 @@ fn off_limits(course: &Course, i: usize, tune: Tuning) -> bool {
 
 /// The vine to make for after `target`.
 fn after(course: &Course, a: &Ape, target: usize, tick: u32, tune: Tuning) -> Option<usize> {
+    after_cached(course, a, target, tick, tune, None)
+}
+
+/// `after`, a mech's anchors from `anchors`.
+fn after_cached(
+    course: &Course,
+    a: &Ape,
+    target: usize,
+    tick: u32,
+    tune: Tuning,
+    anchors: Option<&mut Anchors>,
+) -> Option<usize> {
     let at = aim_point(course, target, tick);
     let dir = at.flat().sub(a.pos.flat());
     let dir = if dir.len() > int(2) {
@@ -718,7 +813,7 @@ fn after(course: &Course, a: &Ape, target: usize, tick: u32, tune: Tuning) -> Op
     } else {
         course.heading_at(course.vines[target].at)
     };
-    ahead_from(
+    ahead_from_cached(
         course,
         Some(target),
         course.vines[target].at,
@@ -726,6 +821,7 @@ fn after(course: &Course, a: &Ape, target: usize, tick: u32, tune: Tuning) -> Op
         dir,
         tick,
         tune,
+        anchors,
     )
     .first()
     .copied()
@@ -760,7 +856,7 @@ fn in_reach(
     margin: i32,
     min_at: i32,
 ) -> Option<usize> {
-    in_reach_watched(a, course, tick, cands, margin, min_at, None)
+    in_reach_watched(a, course, tick, cands, margin, min_at, None, None)
 }
 
 /// Sector Ape, over one planned flight: when each candidate is worth
@@ -803,6 +899,7 @@ fn in_reach_watched(
     margin: i32,
     min_at: i32,
     mut watch: Option<&mut Watch>,
+    mut anchors: Option<&mut Anchors>,
 ) -> Option<usize> {
     let reach = a.phys.reach - margin;
     for (k, &i) in cands
@@ -835,7 +932,7 @@ fn in_reach_watched(
                 continue;
             }
         }
-        let an = course.anchor(i, tick);
+        let an = anchor_cached(course, i, tick, anchors.as_deref_mut());
         if (a.pos.x - an.x).abs() > box_ || (a.pos.z - an.z).abs() > box_ {
             continue;
         }
@@ -963,6 +1060,7 @@ fn fly_ahead(
     mut last_grab: bool,
     tune: Tuning,
     spent: &mut u32,
+    mut anchors: Option<&mut Anchors>,
 ) -> Option<(usize, u32, i32, i32)> {
     let mut far = cands.iter().map(|&i| course.vines[i].at).max().unwrap_or(0) + int(8);
     if course.length - far < int(50) {
@@ -1004,13 +1102,14 @@ fn fly_ahead(
                 MARGIN,
                 aim_at(course, target),
                 watch.as_mut(),
+                anchors.as_deref_mut(),
             );
             if let Some(v) = hit {
                 if !last_grab {
                     let rope = a.pos.dist(course.anchor(v, tick));
                     // the speed that will carry on toward the vine after
                     // (a swing keeps its heading)
-                    let on = match after(course, a, v, tick, tune) {
+                    let on = match after_cached(course, a, v, tick, tune, anchors.as_deref_mut()) {
                         Some(n) => aim_point(course, n, tick).flat().sub(a.pos.flat()),
                         None => course.heading_at(course.vines[v].at),
                     };
@@ -1103,6 +1202,7 @@ fn on_vine(a: &Ape, course: &Course, tick: u32, vine: usize, brain: &mut Brain) 
             pick: 0,
             began: tick,
             moments: Vec::new(),
+            anchors: Anchors::default(),
         }));
     }
     if brain.cands.is_empty() {
@@ -1135,6 +1235,7 @@ fn on_vine(a: &Ape, course: &Course, tick: u32, vine: usize, brain: &mut Brain) 
         None => u32::MAX,
     };
     let mut spent = 0;
+    let mut after_steer: Option<(usize, Option<usize>)> = None;
     for _ in 0..budget {
         if spent >= cap {
             break;
@@ -1161,7 +1262,16 @@ fn on_vine(a: &Ape, course: &Course, tick: u32, vine: usize, brain: &mut Brain) 
             break;
         }
         let (steer, coast) = pick(&brain.cands, plan.pick);
-        let next = after(course, a, steer, tick, tune);
+        // (the vine after the one it steers for, from where the real ape
+        // is: the same all this tick, so worked out once)
+        let next = match after_steer {
+            Some((s, n)) if s == steer => n,
+            _ => {
+                let n = after(course, a, steer, tick, tune);
+                after_steer = Some((steer, n));
+                n
+            }
+        };
         let mut fl = plan.sim.clone();
         let hit = fly_ahead(
             &mut fl,
@@ -1173,6 +1283,7 @@ fn on_vine(a: &Ape, course: &Course, tick: u32, vine: usize, brain: &mut Brain) 
             true,
             tune,
             &mut spent,
+            Some(&mut plan.anchors),
         );
         if let Some(hit) = hit.filter(|_| plan.sim_tick >= brain.ready) {
             // a weaker AI misjudges how good a moment is
@@ -1254,7 +1365,7 @@ fn onward(a: &Ape, course: &Course, tick: u32, m: &Moment, cands: &[usize], tune
     }
     let mut s = a.clone();
     let Some((_, t, _, _)) = fly_ahead(
-        &mut s, course, tick, m.target, m.next, cands, true, tune, &mut 0,
+        &mut s, course, tick, m.target, m.next, cands, true, tune, &mut 0, None,
     ) else {
         return false;
     };
@@ -1280,7 +1391,11 @@ fn onward(a: &Ape, course: &Course, tick: u32, m: &Moment, cands: &[usize], tune
         };
         if k % every == 0 {
             let mut f = s.clone();
-            if fly_ahead(&mut f, course, t, steer, next, &cands, true, tune, &mut 0).is_some() {
+            if fly_ahead(
+                &mut f, course, t, steer, next, &cands, true, tune, &mut 0, None,
+            )
+            .is_some()
+            {
                 return true;
             }
         }
@@ -1413,6 +1528,7 @@ fn on_ground(a: &Ape, course: &Course, tick: u32, brain: &mut Brain) -> Controls
         false,
         tune,
         &mut 0,
+        None,
     )
     .is_some()
     {
