@@ -307,7 +307,7 @@ const SECTOR_CANDS: usize = 16;
 const SECTOR_FLIGHT: u32 = 4 * TICKS_PER_SECOND as u32;
 const SECTOR_HESITATE: [u32; 4] = [4, 2, 0, 0];
 const SECTOR_DRIVE: [u32; 4] = [3, 3, 6, DUTY];
-const SECTOR_NOISE: [i32; 4] = [int(16), int(9), int(3), 0];
+const SECTOR_NOISE: [i32; 4] = [int(18), int(7), int(3), 0];
 const SECTOR_HOP: [i32; 4] = [int(24), int(28), int(28), int(28)];
 const SECTOR_AIM: i32 = int(30);
 /// Each reset onto a deck makes it misjudge up to this much more (four at
@@ -321,7 +321,7 @@ const SECTOR_WAIT_COST: i64 = 40;
 const SECTOR_GIVE_UP: u32 = 3 * TICKS_PER_SECOND as u32;
 /// Its search for a release on a fresh vine stops for the tick once its
 /// flights have run this many ticks (and goes on the next).
-const SECTOR_SPEND: u32 = 6_000;
+const SECTOR_SPEND: u32 = 1_500;
 /// Checking a landing has a way on, it tries a release every this many ticks.
 const SECTOR_ONWARD_STEP: u32 = 12;
 
@@ -529,6 +529,9 @@ pub fn think(race: &Race, who: usize, brain: &mut Brain) -> Controls {
         .any(|e| matches!(e, crate::race::Event::Reset { who: w, .. } if *w == who))
     {
         brain.shaken += 1;
+        // (and off the deck it drives at its best a while: from a standstill
+        // a weak swing only whirls)
+        brain.rescue_until = race.tick + 1 + RESCUE;
     }
     if race.running() && !r.out() && brain.difficulty != Difficulty::KingKong {
         brain.watch(tick, r.progress);

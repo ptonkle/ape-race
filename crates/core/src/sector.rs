@@ -221,6 +221,7 @@ pub struct Touch {
     pub t: i32,
     pub normal: V3,
     pub depth: i32,
+    pub end_depth: i32,
 }
 
 /// A swept test of a ball against a box (`Touch`): no tunnelling however
@@ -239,6 +240,9 @@ pub fn sweep(c: V3, axes: &[V3; 3], half: V3, r: i32, p0: V3, p1: V3) -> Option<
             t: 0,
             normal: axes[k].scale(sign),
             depth: hs[k] - s[k].abs(),
+            // (and how far the end of the move is in past that face: it is
+            // put back out from there, so the move is not lost)
+            end_depth: (hs[k] - if s[k] >= 0 { e[k] } else { -e[k] }).max(0),
         });
     }
     let (mut enter, mut exit, mut axis, mut sign) = (i64::MIN, i64::MAX, 0, ONE);
@@ -273,6 +277,7 @@ pub fn sweep(c: V3, axes: &[V3; 3], half: V3, r: i32, p0: V3, p1: V3) -> Option<
         t: enter as i32,
         normal: axes[axis].scale(sign),
         depth: 0,
+        end_depth: 0,
     })
 }
 

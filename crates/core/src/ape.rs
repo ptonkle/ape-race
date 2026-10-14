@@ -93,6 +93,9 @@ pub struct Ape {
     /// climbing out of the City's river: where the hands end up (on the
     /// bank or the bridge deck)
     pub climb: Option<V3>,
+    /// Sector Ape: ticks before a rebound off debris boosts again (a
+    /// rebound with the boost comes once, not every tick of a touch)
+    pub rebound_cool: u8,
 }
 
 impl Ape {
@@ -114,6 +117,7 @@ impl Ape {
             bananas: 0,
             banana_drag: 0,
             climb: None,
+            rebound_cool: 0,
         }
     }
 

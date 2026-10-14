@@ -278,7 +278,7 @@ impl B {
     /// another vine.
     fn clashes(&self, v: usize) -> bool {
         let own = self.lay.bodies.len() - 1;
-        let mine = &self.lay.bodies[own];
+
         let near = |b: &Body, i: usize| {
             b.frame.t.dist(self.c.vines[i].anchor) < b.reach() + self.c.vines[i].length
         };
@@ -323,6 +323,59 @@ impl B {
         false
     }
 
+    /// A vine of the way round the Hulk's left at `s`: level off its wall
+    /// (`wall` the wall's body, its face `wall_x` right), or every other
+    /// one down from a girder out of its side.
+    fn outside_vine(&mut self, s: i32, k: i32, wall_x: i32, wall: usize) -> usize {
+        if k % 2 == 0 {
+            let len = int(OUTSIDE.abs()) - HULK_HALF.0 + int(self.dice.range(-2, 3));
+            let h = HULK_Y + int(self.dice.range(0, 6));
+            let tip = self.pt(s, wall_x - len, h);
+            let dir = self.right(s).scale(-ONE);
+            self.vine(tip, dir, len, Hanger::Body(wall))
+        } else {
+            let glen = int(34);
+            let gmid = self.pt(s, wall_x - glen / 2, int(30));
+            let frame = pose(gmid, self.yaw(s) + fx::QUARTER, 0, 0, ONE);
+            let g = self.body(
+                Model::Girder(glen),
+                frame,
+                v3(ONE, ONE, glen / 2),
+                true,
+                DOWN,
+            );
+            let off = OUTSIDE + if self.dice.below(2) == 0 { -6 } else { 6 };
+            let tip = self.pt(s, int(off), int(29) - int(26));
+            self.vine(tip, DOWN, int(26), Hanger::Body(g))
+        }
+    }
+
+    /// Whether vine `v` hangs through a solid body other than its own.
+    fn hits_body(&self, v: usize) -> bool {
+        let own = match self.lay.hangers[v] {
+            Hanger::Body(k) | Hanger::Switch(k) => Some(k),
+            _ => None,
+        };
+        self.lay
+            .bodies
+            .iter()
+            .enumerate()
+            .any(|(k, b)| Some(k) != own && b.solid() && self.through(b, v))
+    }
+
+    /// Takes back vine `v` (the last laid), and its own girder if it was
+    /// the last body laid for it.
+    fn unlay_vine(&mut self, v: usize) {
+        let girder = matches!(self.lay.hangers[v], Hanger::Body(k) if k + 1 == self.lay.bodies.len()
+            && matches!(self.lay.bodies[k].model, Model::Girder(_)));
+        self.c.vines.pop();
+        self.lay.hangs.pop();
+        self.lay.hangers.pop();
+        if girder {
+            self.lay.bodies.pop();
+        }
+    }
+
     /// Takes back vine `v` (the last laid) and its debris (the last body).
     fn unlay(&mut self, v: usize) {
         debug_assert_eq!(v + 1, self.c.vines.len());
@@ -363,12 +416,24 @@ impl B {
             let anchor = tip.add(v3(0, len, 0));
             let b = self.debris(s, anchor, DOWN, Way::Down);
             let v = self.vine(tip, DOWN, len, Hanger::Body(b));
-            if !self.clashes(v) || extra == 5 {
+            if !self.clashes(v) {
                 return v;
             }
             self.unlay(v);
         }
-        unreachable!()
+        // (debris right under it: shorter, ending above it)
+        let mut len = len;
+        loop {
+            let anchor = tip.add(v3(0, len, 0));
+            let b = self.debris(s, anchor, DOWN, Way::Down);
+            let short = len - int(4);
+            let v = self.vine(anchor.sub(v3(0, short, 0)), DOWN, short, Hanger::Body(b));
+            if !self.clashes(v) || short < int(10) {
+                return v;
+            }
+            self.unlay(v);
+            len -= int(2);
+        }
     }
 
     /// A deck (a platform and its solid slab), `half` (across, along) about
@@ -664,7 +729,9 @@ fn hulk(b: &mut B) {
     let ceiling = HULK_Y + cy;
     // a deck along its top, to land and run on
     let top = HULK_Y + hy + int(2) + cm(30);
-    b.deck(mid_s, 0, top, (hx - int(2), len - int(2)), true);
+    // (as wide as the hull, over its walls' tops: nothing to get caught
+    // between)
+    b.deck(mid_s, 0, top, (hx, len), true);
     let top_body = b.lay.bodies.len() - 1;
 
     // the corridor: from the ceiling and in from the walls, two lanes
@@ -726,13 +793,9 @@ fn hulk(b: &mut B) {
         let len = int(b.dice.range(22, 24));
         let h = top + int(10) + int(b.dice.range(0, 3));
         let tip = b.pt(si, int(off), h);
-        // (every other one level, in from debris off the hull's side)
-        let v = if k % 2 == 1 {
-            let from = if off < 0 { -1 } else { 1 };
-            b.lane_vine(si, off, h, Way::Side, from)
-        } else {
-            b.down_vine(tip, len)
-        };
+        // (all straight down: a level vine off debris by the hull swung apes
+        // down into its walls)
+        let v = b.down_vine(tip, len);
         over.push(v);
         b.stations.push(vec![v]);
         s += b.dice.range(24, 28);
@@ -746,28 +809,13 @@ fn hulk(b: &mut B) {
     let wall_x = -hx;
     while s < HULK.1 + 10 {
         let si = int(s);
-        let v = if k % 2 == 0 {
-            // level, off the wall's face
-            let len = int(OUTSIDE.abs()) - hx + int(b.dice.range(-2, 3));
-            let h = HULK_Y + int(b.dice.range(0, 6));
-            let tip = b.pt(si, wall_x - len, h);
-            let dir = b.right(si).scale(-ONE);
-            b.vine(tip, dir, len, Hanger::Body(left))
+        let v = b.outside_vine(si, k, wall_x, left);
+        // (one through a piece of debris is laid again a few metres on)
+        let v = if b.hits_body(v) {
+            b.unlay_vine(v);
+            b.outside_vine(si + int(5), k + 1, wall_x, left)
         } else {
-            // from a girder out of the side
-            let glen = int(34);
-            let gmid = b.pt(si, wall_x - glen / 2, int(30));
-            let frame = pose(gmid, b.yaw(si) + fx::QUARTER, 0, 0, ONE);
-            let g = b.body(
-                Model::Girder(glen),
-                frame,
-                v3(ONE, ONE, glen / 2),
-                true,
-                DOWN,
-            );
-            let off = OUTSIDE + if b.dice.below(2) == 0 { -6 } else { 6 };
-            let tip = b.pt(si, int(off), int(29) - int(26));
-            b.vine(tip, DOWN, int(26), Hanger::Body(g))
+            v
         };
         outside.push(v);
         b.stations.push(vec![v]);

@@ -18,6 +18,8 @@ const SKIN: i32 = cm(2);
 /// down no faster than this.
 pub const REBOUND_BACK: i32 = int(6);
 pub const REBOUND_DOWN: i32 = int(8);
+/// After a rebound's boost, none again for this many ticks.
+pub const REBOUND_COOL: u8 = 30;
 
 impl Ape {
     /// Puts the ape on a deck at `at` (its hands), standing still, facing
@@ -124,6 +126,9 @@ impl Ape {
     /// the part of the motion into it (as a wall). A hit knocks the ape off
     /// its vine. A deck's top is ground (its platform), not a hit.
     pub(super) fn hit_bodies(&mut self, course: &Course, tick: u32, before: V3) {
+        if self.rebound_cool > 0 {
+            self.rebound_cool -= 1;
+        }
         let Some(s) = course.sector.as_deref() else {
             return;
         };
@@ -174,12 +179,20 @@ impl Ape {
             return;
         };
         let n = t.normal;
-        let at = p0.add(step.scale(t.t)).add(n.scale(t.depth + SKIN));
+        let at = if t.depth > 0 {
+            // (it started the tick inside: the move is kept, and put back
+            // out through the face it was nearest, so it slides on and out
+            // rather than sticking)
+            p1.add(n.scale(t.end_depth + SKIN))
+        } else {
+            p0.add(step.scale(t.t)).add(n.scale(SKIN))
+        };
         self.pos = at.add(lift);
         let into = self.vel.dot(n);
         let swinging = self.swinging().is_some();
+        let pinned = t.depth > 0;
         if into < 0 {
-            if bouncy && swinging {
+            if bouncy && swinging && !pinned {
                 // on a vine it holds on: the swing bounces off the debris
                 // (elastic, no boost), back the way it came
                 self.vel = self.vel.sub(n.scale(2 * into));
@@ -189,7 +202,15 @@ impl Ape {
                 // down out of the boundary: SECOND-ORDER SC rows)
                 let (s, _) = course.progress(self.pos, self.hint);
                 let on = course.heading_at(s);
-                let mut out = self.vel.sub(n.scale(2 * into)).add(on.scale(REBOUND_BOOST));
+                // (the boost once a touch: not again for a quarter second, nor
+                // while pressed in)
+                let boost = if self.rebound_cool > 0 || pinned {
+                    0
+                } else {
+                    REBOUND_BOOST
+                };
+                self.rebound_cool = REBOUND_COOL;
+                let mut out = self.vel.sub(n.scale(2 * into)).add(on.scale(boost));
                 // a head-on hit is a crash, not a boost back down the
                 // course: no more than `REBOUND_BACK` of it backward
                 let back = -out.dot(on);
@@ -207,7 +228,9 @@ impl Ape {
             }
         }
         // a ship's dead hull knocks it off the vine
-        if let (Mode::Swinging { vine, .. }, false) = (self.mode, bouncy) {
+        // a ship's dead hull knocks it off the vine, and so does debris the
+        // rope holds it into (it would only be pressed in and out again)
+        if let (Mode::Swinging { vine, .. }, true) = (self.mode, !bouncy || pinned) {
             self.mode = Mode::Flying;
             self.last_vine = Some((vine, 0));
             self.release_bonus = 0;

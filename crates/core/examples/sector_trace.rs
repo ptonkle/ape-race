@@ -36,6 +36,10 @@ fn main() {
     let run: u64 = args.get(3).map(|a| a.parse().unwrap()).unwrap_or(0);
     let mut race = Race::new(course, &entries, kind == Kind::Chimpanzee, 7 + run);
     race.lava = std::env::var("SECTOR_TRACE_LAVA").is_ok();
+    // (SECTOR_TRACE_TRIAL=1: as a Time Trial, Speed Boosts only)
+    if std::env::var("SECTOR_TRACE_TRIAL").is_ok() {
+        race.items = tool_core::items::ItemSet::only(tool_core::race::Item::Boost);
+    }
     let mut brain = Brain::new(level, 0xA9E5 + run * 101);
     let mut line = String::new();
     let (mut resets, mut rebounds, mut walls, mut top) = (0, 0, 0, 0);

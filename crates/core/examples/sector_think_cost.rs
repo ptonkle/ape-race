@@ -38,6 +38,7 @@ fn main() {
     while race.clock < 150 * TICKS_PER_SECOND as u32 && race.phase != Phase::Done {
         let t0 = Instant::now();
         let mut c = Vec::new();
+        #[allow(clippy::needless_range_loop)]
         for i in 0..4 {
             let t = Instant::now();
             c.push(think(&race, i, &mut brains[i]));
@@ -61,7 +62,7 @@ fn main() {
         total += e;
         ticks += 1;
         tick_worst = tick_worst.max(e);
-        worst.sort_by(|a, b| b.0.cmp(&a.0));
+        worst.sort_by_key(|w| std::cmp::Reverse(w.0));
         worst.truncate(12);
     }
     for (d, what) in &worst {

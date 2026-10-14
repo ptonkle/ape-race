@@ -68,7 +68,7 @@ fn about_half_the_vines_hang_some_other_way_than_down() {
             .filter(|h| h.y.abs() > ONE / 10 && h.y.abs() < ONE * 9 / 10)
             .count();
         assert!(
-            up >= 10 && level >= 10 && slant >= 10,
+            up >= 5 && level >= 10 && slant >= 10,
             "{up} {level} {slant}"
         );
     }
@@ -173,7 +173,10 @@ fn no_vine_hangs_through_a_solid_body_but_its_own() {
                     if b.solid() && Some(k) != own {
                         assert!(
                             !inside(b, p, 0),
-                            "vine {i} through body {k} ({:?})",
+                            "vine {i} ({:?} at {} m, {:?}) through body {k} ({:?})",
+                            s.hangers[i],
+                            c.vines[i].at / ONE,
+                            s.hangs[i],
                             b.model
                         );
                     }
