@@ -449,13 +449,15 @@ impl Course {
     /// Keeps a body inside the corridor and under the ceiling: returns the
     /// corrected position and velocity, and whether a wall was hit.
     pub fn contain(&self, pos: V3, vel: V3, i: usize) -> (V3, V3, bool) {
-        let (_, side) = self.progress(pos, i);
+        let (s, side) = self.progress(pos, i);
         let limit = self.half_width - BODY_RADIUS;
         let mut pos = pos;
         let mut vel = vel;
         let mut hit = false;
         if !self.streets.is_empty() {
             (pos, vel, hit) = self.contain_streets(pos, vel);
+        } else if self.ski.is_some() {
+            (pos, vel, hit) = self.contain_lanes(pos, vel, i, s, side);
         } else if side.abs() > limit {
             let right = right_of(self.heading[i]);
             let out = if side > 0 { right } else { right.neg() };
@@ -493,6 +495,36 @@ impl Course {
             vel.y = vel.y.min(0);
         }
         (pos, vel, hit)
+    }
+
+    /// The walls of the Ski Slope: a body outside every lane at its place
+    /// along the run (`lanes`: the whole run, or a fork's two branches with
+    /// the island between) goes back across to the nearest lane's edge.
+    fn contain_lanes(&self, pos: V3, vel: V3, i: usize, s: i32, side: i32) -> (V3, V3, bool) {
+        let mut best: Option<i32> = None;
+        for (m, h) in self.lanes(s) {
+            let lim = h - BODY_RADIUS;
+            let t = side.clamp(m - lim, m + lim);
+            if t == side {
+                return (pos, vel, false);
+            }
+            if best.is_none_or(|b| (t - side).abs() < (b - side).abs()) {
+                best = Some(t);
+            }
+        }
+        let Some(t) = best else {
+            return (pos, vel, false);
+        };
+        let right = right_of(self.heading[i]);
+        let out = if side > t { right } else { right.neg() };
+        let pos = pos.sub(out.scale((side - t).abs()));
+        let into = vel.dot(out);
+        let vel = if into > 0 {
+            vel.sub(out.scale(into + mul(into, WALL_BOUNCE)))
+        } else {
+            vel
+        };
+        (pos, vel, true)
     }
 
     /// The walls of a course with streets: a body outside every street's
