@@ -70,6 +70,7 @@ mod tests {
             name: "P".into(),
             kind: Kind::Gorilla,
             driver: Driver::Local,
+            palette: 0,
         };
         let mut r = Race::new(Course::jungle(), &[e], false, 1);
         for _ in 0..COUNTDOWN + 100 {
