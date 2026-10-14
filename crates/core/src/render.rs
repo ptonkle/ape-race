@@ -119,6 +119,16 @@ impl Batch {
         }
     }
 
+    /// Gives every shape the glow `f` makes of its glow (a blizzard burying
+    /// the far backdrop in its fog, `snow::bury_backdrop`).
+    pub fn reglow(&mut self, f: impl Fn(i32) -> i32) {
+        for list in &mut self.lists {
+            for s in list.chunks_mut(INSTANCE_VALUES) {
+                s[15] = f(s[15]);
+            }
+        }
+    }
+
     /// The instance values, and one draw per mesh that has any.
     pub fn finish(self, buffer: u32) -> (Vec<i32>, Vec<u32>) {
         let mut values = Vec::new();

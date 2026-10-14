@@ -488,12 +488,20 @@ impl App {
     }
 
     /// Whether snow falls in the 3D view: the Weather setting is Snowing
-    /// and the view is on the Ski Slope (a race, the title's flyover, the
-    /// setup's preview), never on the lineup.
+    /// or a Blizzard and the view is on the Ski Slope (a race, the title's
+    /// flyover, the setup's preview), never on the lineup.
     pub(crate) fn snowing(&self) -> bool {
-        self.settings.weather == crate::snow::Weather::Snowing
-            && self.stage != Stage::Lineup
-            && self.shown_map() == Map::Ski
+        self.weather_shown().falls()
+    }
+
+    /// The weather the 3D view shows: the setting's on the Ski Slope (not
+    /// on the lineup), else clear.
+    pub(crate) fn weather_shown(&self) -> crate::snow::Weather {
+        if self.stage != Stage::Lineup && self.shown_map() == Map::Ski {
+            self.settings.weather
+        } else {
+            crate::snow::Weather::Clear
+        }
     }
 
     /// The map the 3D view is on: a race's own, else the menus'.
@@ -1438,13 +1446,10 @@ impl App {
                 .map(scene::look_of)
                 .unwrap_or_else(|| scene::look(self.shown_map())),
         };
-        // the Ski Slope's snow greys the sky and closes the fog in
-        let snowing = self.snowing();
-        let look = if snowing {
-            crate::snow::overcast(look)
-        } else {
-            look
-        };
+        // the Ski Slope's snow greys the sky and closes the fog in (a
+        // blizzard whitens it and closes it right in)
+        let weather = self.weather_shown();
+        let look = crate::snow::sky_in(weather, look);
         // the colourblind mode mutes the sky and the fog as well (TRIAGE T33)
         let (sky, fog) = if vivid {
             (
@@ -1506,11 +1511,12 @@ impl App {
             }
         };
         let (mut vines, mut batch) = (vines, batch);
-        if snowing {
-            crate::snow::flakes(&mut batch, cam.eye, self.ticks);
+        if weather.falls() {
+            crate::snow::flakes(&mut batch, cam.eye, self.ticks, weather);
+            batch.reglow(|g| crate::snow::bury_backdrop(g, weather));
         }
         let halos = (vines.take_halos(), batch.take_halos());
-        let mut draws = self.scenery().draws_near(cam.eye);
+        let mut draws = self.scenery().draws_in(cam.eye, look.fog_range.1);
         let mut values = Vec::new();
         draws.extend(vines.finish_as(render::DYNAMIC_BUFFER, Some(render::VINES), &mut values));
         draws.extend(batch.finish_into(render::DYNAMIC_BUFFER, &mut values));

@@ -1,5 +1,5 @@
-//! The Ski Slope's weather (2026-10-13): Clear (the default: noon, sunny)
-//! or Snowing. It is each player's own view, a setting like the colourblind
+//! The Ski Slope's weather (2026-10-13): Clear (the default: noon, sunny),
+//! Snowing, or a Blizzard (TRIAGE T63, 2026-10-14). It is each player's own view, a setting like the colourblind
 //! mode: it changes nothing but the drawing (not the physics, not a race's
 //! outcome, not what goes online).
 //!
@@ -11,6 +11,11 @@
 //! of its cell, so the same tick always draws the same snow. They are
 //! sparse, so they never hide the vines. While it snows the sky and the
 //! fog turn grey and the fog comes in a little closer.
+//!
+//! A blizzard is the same fall, thicker and wilder: about twice as many
+//! flakes, driven hard sideways by a gale so each shows as a short streak
+//! along its flight, a near-white sky, the fog close in (the far mountains
+//! gone in it) and the sun dim. It is still only the drawing.
 
 use serde::{Deserialize, Serialize};
 
@@ -27,17 +32,25 @@ pub enum Weather {
     #[default]
     Clear,
     Snowing,
+    Blizzard,
 }
 
 impl Weather {
-    pub const ALL: [Weather; 2] = [Weather::Clear, Weather::Snowing];
+    /// Every weather, in the order the Weather selects offer them.
+    pub const ALL: [Weather; 3] = [Weather::Clear, Weather::Snowing, Weather::Blizzard];
 
     /// The setting's word, and `weather.<key>` in data/strings.json.
     pub fn key(self) -> &'static str {
         match self {
             Weather::Clear => "clear",
             Weather::Snowing => "snowing",
+            Weather::Blizzard => "blizzard",
         }
+    }
+
+    /// Whether snow falls in it.
+    pub fn falls(self) -> bool {
+        self != Weather::Clear
     }
 
     pub fn from_key(key: &str) -> Option<Weather> {
@@ -45,21 +58,52 @@ impl Weather {
     }
 }
 
-/// The side of a column of snow: each holds `PER_CELL` flakes.
-const CELL: i32 = 3;
-const PER_CELL: u64 = 3;
-/// How far round the eye the flakes fall (metres), and how tall a column
-/// is before it repeats (metres): every flake is in each column once.
-const REACH: i32 = 27;
-const SPAN: i32 = 30;
+/// How a weather's snow falls: the side of a column (metres) and the
+/// flakes in each, how far round the eye they fall and how tall a column
+/// is before it repeats (metres: every flake is in each column once), the
+/// falling speed and the wind (centimetres a second; each flake falls at
+/// its own speed in the range), a flake's side (centimetres), and how long
+/// a streak each flake draws along its flight (milliseconds of it; 0: a
+/// tumbling square).
+#[derive(Debug, Clone, Copy)]
+struct Fall {
+    cell: i32,
+    per_cell: u64,
+    reach: i32,
+    span: i32,
+    fall: (i32, i32),
+    wind: (i32, i32),
+    size: (i32, i32),
+    streak: i32,
+}
+
+/// Snowing: about 3 flakes a 3 m column within 27 m, falling steadily on
+/// a light wind.
+const SNOWING: Fall = Fall {
+    cell: 3,
+    per_cell: 3,
+    reach: 27,
+    span: 30,
+    fall: (95, 160),
+    wind: (45, 25),
+    size: (11, 18),
+    streak: 0,
+};
+/// A blizzard: well over twice as thick (4 a 2 m column), a little nearer
+/// in (the fog hides the rest), falling faster and driven along x by a gale (the course
+/// runs down z, so it blows across it) in streaks.
+const BLIZZARD: Fall = Fall {
+    cell: 2,
+    per_cell: 4,
+    reach: 24,
+    span: 24,
+    fall: (220, 340),
+    wind: (1150, 280),
+    size: (6, 10),
+    streak: 70,
+};
 /// No flake nearer the eye than this, so none fills the screen.
 const CLEAR_OF_EYE: i32 = cm(150);
-/// Falling speed, centimetres a second (each flake its own, in this range).
-const FALL: (i32, i32) = (95, 160);
-/// The wind: centimetres a second along x and z.
-const WIND: (i32, i32) = (45, 25);
-/// A flake's side, centimetres (each its own, in this range).
-const SIZE: (i32, i32) = (11, 18);
 const FLAKE: Rgb = rgb(246, 248, 252);
 /// Ticks a second (the app's frame tick).
 const TICKS: i64 = crate::rules::TICKS_PER_SECOND as i64;
@@ -86,34 +130,58 @@ fn wrap(a: i64, m: i64) -> i64 {
     a.rem_euclid(m)
 }
 
-/// Where each flake near `eye` is at `tick`, and its size and spin: the
-/// flakes the frame draws, in no particular order.
+/// The fall of a weather with snow.
+fn fall_of(w: Weather) -> Option<Fall> {
+    match w {
+        Weather::Clear => None,
+        Weather::Snowing => Some(SNOWING),
+        Weather::Blizzard => Some(BLIZZARD),
+    }
+}
+
+/// Where each flake near `eye` is at `tick`, and its size and spin, in
+/// the snow: the flakes the frame draws, in no particular order.
 pub fn flakes_at(eye: V3, tick: u32) -> Vec<(V3, i32, i32)> {
+    flakes_of(SNOWING, eye, tick)
+}
+
+fn flakes_of(f: Fall, eye: V3, tick: u32) -> Vec<(V3, i32, i32)> {
+    let Fall {
+        cell: cell_m,
+        per_cell,
+        reach,
+        span,
+        fall: fall_range,
+        wind,
+        size: size_range,
+        ..
+    } = f;
     let t = tick as i64;
     let one = ONE as i64;
-    let cell = CELL as i64 * one;
-    let span = SPAN as i64 * one;
+    let cell = cell_m as i64 * one;
+    let span_m = span;
+    let span = span as i64 * one;
     // the whole fall drifts with the wind: find the columns in the
     // drifted frame, then move them back
     let wind = (
-        WIND.0 as i64 * one / 100 * t / TICKS,
-        WIND.1 as i64 * one / 100 * t / TICKS,
+        wind.0 as i64 * one / 100 * t / TICKS,
+        wind.1 as i64 * one / 100 * t / TICKS,
     );
     let ex = eye.x as i64 - wind.0;
     let ez = eye.z as i64 - wind.1;
-    let reach = REACH as i64 * one;
+    let reach = reach as i64 * one;
     let (x0, x1) = ((ex - reach).div_euclid(cell), (ex + reach).div_euclid(cell));
     let (z0, z1) = ((ez - reach).div_euclid(cell), (ez + reach).div_euclid(cell));
     let low = eye.y as i64 - span / 2;
     let mut out = Vec::new();
     for cx in x0..=x1 {
         for cz in z0..=z1 {
-            for k in 0..PER_CELL {
+            for k in 0..per_cell {
                 let h = hash(cx, cz, k);
-                let ox = pick(h, 0, 0, ONE) as i64 * CELL as i64;
-                let oz = pick(h, 16, 0, ONE) as i64 * CELL as i64;
-                let fall = pick(h, 32, FALL.0, FALL.1) as i64 * one / 100;
-                let start = pick(h, 48, 0, ONE) as i64 * SPAN as i64;
+                let ox = pick(h, 0, 0, ONE) as i64 * cell_m as i64;
+                let oz = pick(h, 16, 0, ONE) as i64 * cell_m as i64;
+                let fall = pick(h, 32, fall_range.0, fall_range.1) as i64 * one / 100;
+                let start = pick(h, 48, 0, ONE) as i64 * span_m as i64;
                 let h2 = hash(cx, cz, k + 1000);
                 // down the column, wrapped into the span round the eye
                 let drop = start + fall * t / TICKS;
@@ -138,7 +206,7 @@ pub fn flakes_at(eye: V3, tick: u32) -> Vec<(V3, i32, i32)> {
                 if p.dist(eye) < CLEAR_OF_EYE {
                     continue;
                 }
-                let size = cm(pick(h2, 48, SIZE.0, SIZE.1));
+                let size = cm(pick(h2, 48, size_range.0, size_range.1));
                 let spin = (phase as i64 * 3 + rate as i64 * 2 * t) as i32;
                 out.push((p, size, spin));
             }
@@ -147,14 +215,35 @@ pub fn flakes_at(eye: V3, tick: u32) -> Vec<(V3, i32, i32)> {
     out
 }
 
-/// The falling snow round `eye` at `tick`.
-pub fn flakes(b: &mut Batch, eye: V3, tick: u32) {
-    for (p, size, spin) in flakes_at(eye, tick) {
-        // a chunky square, tumbling slowly
-        let a = Affine::translate(p)
-            .then(&Affine::rot_y(spin))
-            .then(&Affine::rot_x(spin / 2))
-            .then(&Affine::scale(v3(size, size, size)));
+/// The falling snow round `eye` at `tick` in weather `w` (none when it
+/// is clear).
+pub fn flakes(b: &mut Batch, eye: V3, tick: u32, w: Weather) {
+    let Some(f) = fall_of(w) else {
+        return;
+    };
+    // a streak lies along the flight: the wind across, the fall down
+    let flight = v3(
+        f.wind.0 * ONE / 100,
+        -(f.fall.0 + f.fall.1) / 2 * ONE / 100,
+        f.wind.1 * ONE / 100,
+    );
+    let length = mul(flight.len(), f.streak * ONE / 1000);
+    let along = Affine::along(flight);
+    for (p, size, spin) in flakes_of(f, eye, tick) {
+        let a = if f.streak > 0 {
+            // a thin streak, each a little longer or shorter
+            Affine::translate(p).then(&along).then(&Affine::scale(v3(
+                size,
+                length * size / cm(8),
+                size,
+            )))
+        } else {
+            // a chunky square, tumbling slowly
+            Affine::translate(p)
+                .then(&Affine::rot_y(spin))
+                .then(&Affine::rot_x(spin / 2))
+                .then(&Affine::scale(v3(size, size, size)))
+        };
         b.push(Mesh::Cube, &a, FLAKE, ONE * 7 / 10);
     }
 }
@@ -175,11 +264,49 @@ pub fn overcast(look: Look) -> Look {
     }
 }
 
+/// The near-white of a blizzard's sky, and of its fog.
+const WHITEOUT_SKY: Rgb = rgb(226, 231, 238);
+const WHITEOUT_FOG: Rgb = rgb(236, 239, 244);
+
+/// A map's look in a blizzard: the sky and the fog near white, the fog
+/// close in (the haze from 12 m, nothing past 130 m), the sun dim.
+pub fn whiteout(look: Look) -> Look {
+    Look {
+        sky: mix(look.sky, WHITEOUT_SKY, ONE * 9 / 10),
+        fog: mix(look.fog, WHITEOUT_FOG, ONE * 9 / 10),
+        fog_range: (fx::int(12), fx::int(130)),
+        light: shade(look.light, 64),
+        ..look
+    }
+}
+
+/// A map's look in weather `w`.
+pub fn sky_in(w: Weather, look: Look) -> Look {
+    match w {
+        Weather::Clear => look,
+        Weather::Snowing => overcast(look),
+        Weather::Blizzard => whiteout(look),
+    }
+}
+
+/// The glow `scene.frag` reads as a far backdrop (the Ski Slope's
+/// mountains), from 2.5 to 3.5: in a blizzard these are hazed all the way
+/// into the fog, so the mountains are lost in it.
+pub fn bury_backdrop(glow: i32, w: Weather) -> i32 {
+    let far = (ONE * 5 / 2..ONE * 7 / 2).contains(&glow);
+    if w == Weather::Blizzard && far {
+        ONE * 7 / 2 - ONE / 100
+    } else {
+        glow
+    }
+}
+
 /// Whether a point is inside the snow's reach of `eye` (for tests).
 #[cfg(test)]
 fn within(eye: V3, p: V3) -> bool {
     use crate::fx::int;
-    p.sub(eye).len_xz() <= int(REACH) + cm(60) && (p.y - eye.y).abs() <= int(SPAN) / 2 + ONE
+    p.sub(eye).len_xz() <= int(SNOWING.reach) + cm(60)
+        && (p.y - eye.y).abs() <= int(SNOWING.span) / 2 + ONE
 }
 
 #[cfg(test)]
@@ -198,7 +325,7 @@ mod tests {
         for (p, size, _) in &a {
             assert!(within(eye, *p), "{p:?} outside the snow round the eye");
             assert!(p.dist(eye) >= CLEAR_OF_EYE);
-            assert!((cm(SIZE.0)..=cm(SIZE.1)).contains(size));
+            assert!((cm(SNOWING.size.0)..=cm(SNOWING.size.1)).contains(size));
         }
         // a second later most flakes are lower than they were, by about a
         // metre (matched by their sideways place, which hardly changes)
@@ -249,6 +376,63 @@ mod tests {
         let b = flakes_at(v3(int(4), int(1), int(-3)), 777);
         let shared = a.iter().filter(|f| b.contains(f)).count();
         assert!(shared * 10 > a.len() * 6, "{shared} of {} kept", a.len());
+    }
+
+    #[test]
+    fn a_blizzard_is_thick_driven_sideways_in_streaks_white_and_close() {
+        // TRIAGE T63
+        let eye = v3(int(40), int(-120), int(300));
+        let snow = flakes_of(SNOWING, eye, 500);
+        let storm = flakes_of(BLIZZARD, eye, 500);
+        assert!(
+            storm.len() > snow.len() * 2,
+            "{} flakes in the blizzard, {} in the snow",
+            storm.len(),
+            snow.len()
+        );
+        // a tenth of a second later the flakes have flown about a metre
+        // sideways (the gale along x) and a few centimetres down
+        let later = flakes_of(BLIZZARD, eye, 512);
+        let mut blown = 0;
+        for (p, _, _) in &storm {
+            let moved = later.iter().any(|(q, _, _)| {
+                let d = q.sub(*p);
+                (cm(80)..cm(160)).contains(&d.x) && d.y < 0 && d.y > -cm(60)
+            });
+            if moved {
+                blown += 1;
+            }
+        }
+        assert!(blown * 2 > storm.len(), "only {blown} blown sideways");
+        // each is drawn as a streak along its flight, long and thin
+        let mut b = Batch::new();
+        flakes(&mut b, eye, 500, Weather::Blizzard);
+        let (values, _) = b.finish(0);
+        let first = &values[..16];
+        let axis = |k: usize| v3(first[k], first[4 + k], first[8 + k]).len();
+        assert!(axis(1) > axis(0) * 5, "{} by {}", axis(1), axis(0));
+        let mut clear = Batch::new();
+        flakes(&mut clear, eye, 500, Weather::Clear);
+        assert_eq!(clear.count(), 0, "no snow in clear air");
+        // the sky near white, the fog far nearer than the snow's
+        let look = crate::scene::look(crate::map::Map::Ski);
+        let (grey, white) = (
+            sky_in(Weather::Snowing, look),
+            sky_in(Weather::Blizzard, look),
+        );
+        assert_eq!(sky_in(Weather::Clear, look), look);
+        assert!(white.fog_range.1 * 2 < grey.fog_range.1);
+        assert!(white.fog_range.0 < grey.fog_range.0);
+        let least = |c: Rgb| *c.iter().min().unwrap();
+        assert!(least(white.sky) > least(grey.sky) && least(white.fog) > least(grey.fog));
+        assert!(least(white.sky) > rgb(215, 0, 0)[0]);
+        // the far mountains are buried in its fog, nothing else
+        assert_eq!(bury_backdrop(ONE * 3, Weather::Snowing), ONE * 3);
+        assert!(bury_backdrop(ONE * 3, Weather::Blizzard) > ONE * 7 / 2 - ONE / 50);
+        assert_eq!(bury_backdrop(ONE / 4, Weather::Blizzard), ONE / 4);
+        assert_eq!(bury_backdrop(ONE * 4, Weather::Blizzard), ONE * 4);
+        assert_eq!(Weather::from_key("blizzard"), Some(Weather::Blizzard));
+        assert!(Weather::Blizzard.falls() && !Weather::Clear.falls());
     }
 
     #[test]
