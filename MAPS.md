@@ -64,7 +64,19 @@ Notes for building the next map, from the Jungle (the first course) and the City
 - **Each map's vine look** (`scene::vine_look_on(map, …)`): the City's are glowing cyan cables. Keep in-reach (yellow, white and thick in colourblind mode), catch-up (coral) and the item marker distinct: Jungle flowers are violet, City item wires get violet sparks, and the marker is hidden when items are off.
 - **Give the map a set piece the person can see from the course:** the City's sunset sits 22° off the course heading over the river, in view while crossing the bridge, and is also where the light comes from. Glow above 1 in `scene.frag` counts as sky (no fog) so the sun stays visible.
 - **A finish set piece** past the arch (the Jungle: a podium clearing; the City: a gantry and a plaza), since a finished ape coasts on (`course::OUTRO`).
-- **Budget:** about 20k scenery shapes and 6–7k drawn at once (Jungle 19,997 / 6,209; City 17,935 / 7,399; Ski Slope 17,487 / 6,156; `examples/scenery_cost.rs`).
+- **Budget:** about 20k scenery shapes and 6–7k drawn at once (Jungle 19,997 / 6,209; City 17,935 / 7,399; Ski Slope 17,487 / 6,156; Sector Ape 5,719 / 2,318 static plus up to about 3k drawn per frame; `examples/scenery_cost.rs`).
+
+### What Sector Ape taught (space, 2026-10-14, SECOND-ORDER SA rows)
+
+- **A light from below needs an edge light.** With the sun under the track, every top faces away from it and reads black on black space. `Look.rim` adds a colour where a surface turns away from the eye (`scene.frag`, `uRim`; black on the other maps, so they add exactly nothing), and the ambient from above becomes a dim indigo instead of the sky's blue: bellies glow sun-orange, tops violet, outlines blue-violet.
+- **No ground changes the drawing's reach.** Space is clear, so a map without fog to hide pop-in draws its chunks further (`Scenery.reach`, 420 m) and its big pieces per frame (the wreck, the set pieces, the mechs). A landmark or goal that must show from anywhere (the black hole) is drawn shrunk toward the eye beyond 300 m by the share it is further (`sectorscape::seen_from`): it looks exactly the same and stays inside the 600 m far plane; drawn at its true distance it showed as clipped arcs.
+- **Glows in the sky:** halos fade with the fog, so a corona or a nebula 500 m off vanished; a halo strength of 3 or more is now a sky glow (unfogged). Make them balls, not flattened discs (a squashed sphere's halo shows its facets as hard edges). Halos write depth and are drawn grouped by mesh (Sphere before Cyl): a big halo drawn first hides later ones behind it, so push them in the order they should add.
+- **Vines in any direction:** draw from the anchor along `Course::hang(i)` (`scene::vine_along`, `vinesim::Chain::hanging_along`) and keep the straight-down case's arithmetic exactly as it was, so the other maps do not change.
+- **A huge set piece must not cut the course, and the camera must never end inside a solid.** The black hole's disc reaches six radii: lying flat it crossed the armada, so it stands up 60° to face the apes coming in. Finished apes float at its horizon with the camera a dozen metres off, so the black ball is smaller than the horizon (3/4 r); at r it filled the screen with black.
+- **An inside lit from below:** a corridor's ceiling faces down, so the sun under the map lights it bright (there are no shadows). Line inside spaces with dark plates and their own light strips.
+- **A faster map:** give it its own speedometer scale (`speedo::Dial`), widen the chase camera with its pace (`Chase.pace`), stretch the speed lines, and read the hype call-outs and JOJO MODE's sky at the same share of the dial (`Dial::standard`), so they still mean the same.
+- **States worth a picture** (the door shut, the jaguar popping in) get tile keys (`door=`, `eat=`), since an AI race rarely shows them at a chosen tick.
+- **A yaw grows to the left** (`geom::facing`: 90° is +x, and `right_of(+z)` is −x). The first notes put the sun on the wrong side.
 
 ## Checklist for a new map
 
