@@ -14,6 +14,12 @@ use crate::rules::Kind;
 /// How long the Copy button reads Copied, in milliseconds.
 const COPIED_MS: i64 = 1500;
 
+/// The lobby's Screech! button (TRIAGE T44) is hidden for now (T57). The
+/// `lobby.screech` action, the online message and the sound stay, so it
+/// comes back by setting this to true with the person's sound file
+/// (SECOND-ORDER L4).
+pub(crate) const SCREECH_BUTTON: bool = false;
+
 /// The online part of the app.
 #[derive(Default)]
 pub struct OnlinePlay {
@@ -525,6 +531,11 @@ impl App {
                 self.t(if view.equal_stats { "on" } else { "off" })]] }));
             mine.push(json!({ "type": "list", "rows": [[self.t("setup.lava"),
                 self.t(if view.lava { "on" } else { "off" })]] }));
+            // setting changes keep Ready marks (TRIAGE T61), so say so
+            if view.settings_changed && view.ready {
+                mine.push(json!({ "type": "list", "id": "lobby.changed",
+                    "rows": [[self.t("online.status"), self.t("online.settings_changed")]] }));
+            }
             let mut ready = self.button("lobby.ready");
             ready["text"] = json!(self.t(if view.ready {
                 "online.cancel_ready"
@@ -534,10 +545,13 @@ impl App {
             ready["disabled"] = json!(view.status != Status::Lobby);
             mine.push(ready);
         }
-        // the screech: anyone, any time in the lobby (TRIAGE T44)
-        let mut screech = self.quiet_button("lobby.screech");
-        screech["disabled"] = json!(view.status != Status::Lobby);
-        mine.push(screech);
+        // the screech: anyone, any time in the lobby (TRIAGE T44); hidden
+        // for now (T57) until the person's sound file arrives (SECOND-ORDER L4)
+        if SCREECH_BUTTON {
+            let mut screech = self.quiet_button("lobby.screech");
+            screech["disabled"] = json!(view.status != Status::Lobby);
+            mine.push(screech);
+        }
         mine.push(self.button("lobby.leave"));
         let mut out = vec![
             json!({ "kind": "setup", "heading": self.t("online.lobby"), "items": seats }),

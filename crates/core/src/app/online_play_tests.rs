@@ -110,6 +110,19 @@ fn rematch_and_leaving() {
     p.run(1500);
     assert_eq!(p.apps[0].screen, Screen::Lobby);
     assert_eq!(p.apps[1].screen, Screen::Lobby, "the joiner follows");
+    // TRIAGE T56: back ready, so the host may start at once; the joiner's
+    // button offers to cancel
+    let ui = p.apps[1].ui();
+    assert!(ui.contains(&p.apps[1].t("online.cancel_ready")), "{ui}");
+    assert!(p.apps[0].online.session.as_ref().unwrap().lobby().can_start);
+    p.apps[0].act("lobby.start", "");
+    p.run(500);
+    for (k, a) in p.apps.iter().enumerate() {
+        assert_eq!(a.screen, Screen::Race, "app {k}: round two");
+    }
+    p.apps[0].act("menu.rematch", "");
+    p.run(1500);
+    assert_eq!(p.apps[1].screen, Screen::Lobby);
     // the host leaves: the joiner is told and goes back to Online
     p.apps[0].act("lobby.leave", "");
     assert_eq!(requests(&mut p.apps[0])[0]["op"], "leave");
@@ -188,7 +201,18 @@ fn the_lobby_offers_a_name_field_and_a_rename_reaches_the_other_app() {
 }
 
 #[test]
-fn the_screech_button_plays_on_both_apps() {
+fn the_screech_button_is_hidden_for_now() {
+    // TRIAGE T57: no button in either lobby; the action stays for later
+    let mut p = Pair::lobby();
+    for (k, a) in p.apps.iter_mut().enumerate() {
+        let ui = a.ui();
+        assert!(!ui.contains("lobby.screech"), "app {k}: {ui}");
+    }
+}
+
+#[test]
+fn the_screech_action_plays_on_both_apps() {
+    // kept behind the hidden button (TRIAGE T57) for the person's sound
     let mut p = Pair::lobby();
     for a in &mut p.apps {
         sounds(a);
@@ -363,6 +387,24 @@ fn the_hosts_map_shows_in_every_lobby_and_the_race_runs_on_it() {
     );
     assert_eq!(chosen(&hg), ["city"]);
     assert_eq!(chosen(&jg), ["city"], "the joiner sees the host's pick");
+    assert!(!shown.contains("lobby.changed"), "not ready: no note");
+    // TRIAGE T61: a ready joiner stays ready when the map changes, and
+    // its lobby says the settings changed
+    p.apps[1].act("lobby.ready", "");
+    p.run(200);
+    p.apps[0].act("lobby.map", "ski");
+    p.run(200);
+    let ui = p.apps[1].ui();
+    assert!(ui.contains(&p.apps[1].t("online.settings_changed")), "{ui}");
+    assert!(p.apps[0].online.session.as_ref().unwrap().lobby().can_start);
+    p.apps[1].act("lobby.ready", "");
+    p.run(200);
+    assert!(
+        !p.apps[1].ui().contains("lobby.changed"),
+        "cancel clears it"
+    );
+    p.apps[0].act("lobby.map", "city");
+    p.run(200);
     // a joiner cannot choose
     p.apps[1].act("lobby.map", "jungle");
     p.run(200);

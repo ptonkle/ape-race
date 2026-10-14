@@ -8,9 +8,11 @@ request is aborted and counted as a failure. For each engine it:
 
 - A opens Online and hosts by code; B joins with A's invite code; A accepts
   B's reply code;
-- B renames itself in the lobby and A sees it; B screeches and both tabs
-  play it;
-- B presses Ready Up; A's Start comes on and A presses it;
+- B renames itself in the lobby and A sees it; neither lobby shows the
+  screech button (hidden for now, TRIAGE T57);
+- B presses Ready Up; A's Start comes on; A picks the City, B's lobby
+  shows it and says the settings changed, and B stays ready (TRIAGE T61);
+  A presses Start;
 - both tabs reach the race screen;
 - with W held on both, each tab sees a remote ape leave its start
   (`body[data-remote-moved="true"]`): A sees B's ape, B sees A's and the
@@ -37,7 +39,9 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 import online as transport  # noqa: E402  (the helpers of the transport check)
 
 WAIT_MS = transport.WAIT_MS
-CITY = json.loads((pathlib.Path(__file__).resolve().parents[2] / "data" / "strings.json").read_text())["map.city"]
+STRINGS = json.loads((pathlib.Path(__file__).resolve().parents[2] / "data" / "strings.json").read_text())
+CITY = STRINGS["map.city"]
+CHANGED = STRINGS["online.settings_changed"]
 check = transport.check
 
 
@@ -140,30 +144,32 @@ def run_engine(p, engine, origin):
     except Exception:
         renamed = False
     check(renamed, "B's new name reaches A's lobby")
-    # TRIAGE T44: B's screech plays on A (and on B)
-    b.click("lobby.screech")
-    try:
-        for t in tabs:
-            t.page.wait_for_selector("body[data-sound='screech']", timeout=WAIT_MS)
-        screeched = True
-    except Exception:
-        screeched = False
-    check(screeched, "B's screech plays on both tabs")
+    # TRIAGE T57: the screech button is hidden for now (T44 kept in code)
+    for t in tabs:
+        n = t.page.locator(by_id("lobby.screech")).count()
+        check(n == 0, f"{t.name}'s lobby shows no screech button ({n})")
+    b.click("lobby.ready")
+    ok = a.enabled("lobby.start")
+    check(ok, "A's Start comes on once B is Ready")
+    if not ok:
+        return finish()
     # The City (2026-10-12): the host picks the map on its grid of cards
-    # (TRIAGE T54); B's lobby shows the pick live on a read-only grid
+    # (TRIAGE T54); B's lobby shows the pick live on a read-only grid.
+    # TRIAGE T61: B stays ready, and its lobby says the settings changed
     check(a.enabled("lobby.map.city"), "A's map cards can be pressed")
     a.click("lobby.map.city")
     try:
         b.page.wait_for_selector(by_id("lobby.map") + ".read-only " + by_id("lobby.map.city") + ".chosen", timeout=WAIT_MS)
         b.page.wait_for_function(
-            "city => document.getElementById('menus').innerText.includes(city)",
-            arg=CITY,
+            "want => { const t = document.getElementById('menus').innerText;"
+            " return want.every(w => t.includes(w)); }",
+            arg=[CITY, CHANGED],
             timeout=WAIT_MS,
         )
         shown = True
     except Exception:
         shown = False
-    check(shown, "A's choice of the City shows in B's lobby")
+    check(shown, "A's choice of the City shows in B's lobby, with a settings-changed note")
     disabled = b.page.eval_on_selector_all(by_id("lobby.map") + " .tile", "ts => ts.map(t => t.disabled)")
     check(disabled and all(disabled), f"B cannot press a map card {disabled}")
     if os.environ.get("ONLINE_SHOTS"):
@@ -171,9 +177,11 @@ def run_engine(p, engine, origin):
         out.mkdir(parents=True, exist_ok=True)
         for t in tabs:
             t.page.screenshot(path=str(out / f"lobby-{engine}-{t.name}.png"))
-    b.click("lobby.ready")
+    # let A's tab build the City behind its lobby before pressing Start
+    # (a click during the build can stall, as in interactions.py)
+    a.page.wait_for_timeout(1000)
     ok = a.enabled("lobby.start")
-    check(ok, "A's Start comes on once B is Ready")
+    check(ok, "A's Start stays on: the map change keeps B ready")
     if not ok:
         return finish()
     a.click("lobby.start")
