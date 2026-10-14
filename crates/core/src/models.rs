@@ -2795,7 +2795,8 @@ mod tests {
         // the glass dome over the head, the collar and two glints; nothing
         // else changes
         assert_eq!((glass, none), (1, 0));
-        assert_eq!(space.len(), plain.len() + 4);
+        // (two collar rings and two glints of three strokes each)
+        assert_eq!(space.len(), plain.len() + 8);
         assert!(space.iter().any(|x| x.colour == HELMET_RIM));
         assert!(plain.iter().all(|x| x.colour != HELMET_RIM));
         // no spacesuit: the same coat
