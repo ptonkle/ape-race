@@ -2777,12 +2777,22 @@ mod tests {
         let m = &ui["hud"]["minimap"];
         let branches = m["branches"].as_array().unwrap();
         assert_eq!(branches.len(), 2, "one more branch per fork");
-        let line: Vec<i64> = m["line"].as_array().unwrap().iter().filter_map(|v| v.as_i64()).collect();
+        let line: Vec<i64> = m["line"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter_map(|v| v.as_i64())
+            .collect();
         for b in branches {
-            let b: Vec<i64> = b.as_array().unwrap().iter().filter_map(|v| v.as_i64()).collect();
+            let b: Vec<i64> = b
+                .as_array()
+                .unwrap()
+                .iter()
+                .filter_map(|v| v.as_i64())
+                .collect();
             assert!(b.len() >= 8);
             // the branch's middle is apart from every point of the run's line
-            let (x, y) = (b[b.len() / 2 & !1], b[(b.len() / 2 & !1) + 1]);
+            let (x, y) = (b[(b.len() / 2) & !1], b[((b.len() / 2) & !1) + 1]);
             let near = line
                 .chunks(2)
                 .map(|p| (p[0] - x).abs() + (p[1] - y).abs())
@@ -2795,7 +2805,10 @@ mod tests {
         j.act("menu.race", "");
         j.act("menu.start", "");
         let ui: Value = serde_json::from_str(&j.ui()).unwrap();
-        assert!(ui["hud"]["minimap"]["branches"].as_array().unwrap().is_empty());
+        assert!(ui["hud"]["minimap"]["branches"]
+            .as_array()
+            .unwrap()
+            .is_empty());
     }
 
     fn ui_of(a: &mut App) -> Value {

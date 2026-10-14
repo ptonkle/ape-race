@@ -311,7 +311,15 @@ fn build(c: &Course, ski: &SkiLayout) -> (Scenery, Vec<(&'static str, usize)>) {
     }
     tally(&s, "lifts");
     for (k, t) in ski.trees.iter().enumerate() {
-        conifer(s.at(t.at), t.at, t.height, t.radius, 4, t.shade, k as i32 * 9000);
+        conifer(
+            s.at(t.at),
+            t.at,
+            t.height,
+            t.radius,
+            4,
+            t.shade,
+            k as i32 * 9000,
+        );
     }
     for h in &ski.hangers {
         hanger(&mut s, c, ski, h);
@@ -411,7 +419,8 @@ fn terrain(c: &Course, n: usize) -> (Vec<i32>, Vec<(usize, u32, u32)>) {
             let (a, b, cc, d) = (p0[k], p0[k + 1], p1[k + 1], p1[k]);
             for (h, tri) in [[a, d, cc], [a, cc, b]].into_iter().enumerate() {
                 let spread: usize = if piste && !on_island { 3 } else { 6 };
-                let wobble = 100 - (spread / 2) as i32 + ((row * 7 + k * 13 + h * 5) % (spread + 1)) as i32;
+                let wobble =
+                    100 - (spread / 2) as i32 + ((row * 7 + k * 13 + h * 5) % (spread + 1)) as i32;
                 scene::push_ground(&mut cells[chunk], tri, shade(base, wobble));
             }
         }
@@ -527,11 +536,7 @@ fn fence_span(s: &mut Sink, from: Option<V3>, p: V3) {
     // the top edge: a darker cord
     b.push(
         Mesh::Cube,
-        &rod(
-            q.add(up(FENCE_HIGH)),
-            p.add(up(FENCE_HIGH)),
-            cm(6),
-        ),
+        &rod(q.add(up(FENCE_HIGH)), p.add(up(FENCE_HIGH)), cm(6)),
         shade(FENCE, 70),
         0,
     );
@@ -541,7 +546,15 @@ fn fence_span(s: &mut Sink, from: Option<V3>, p: V3) {
 
 /// A snowy conifer standing at `foot`: a short trunk and `tiers` skirts
 /// of near-black-green needles, each with snow lying on its upper part.
-pub fn conifer(b: &mut Batch, foot: V3, height: i32, radius: i32, tiers: i32, shade_of: u8, spin: i32) {
+pub fn conifer(
+    b: &mut Batch,
+    foot: V3,
+    height: i32,
+    radius: i32,
+    tiers: i32,
+    shade_of: u8,
+    spin: i32,
+) {
     let tiers = tiers.max(1);
     let colour = NEEDLES[shade_of as usize % NEEDLES.len()];
     if tiers >= 3 {
@@ -553,13 +566,21 @@ pub fn conifer(b: &mut Batch, foot: V3, height: i32, radius: i32, tiers: i32, sh
         );
     }
     // each tier overlaps the next by nearly half
-    let th = mul(height * 17 / 20, fx::div(ONE, ONE + (tiers - 1) * ONE * 11 / 20));
+    let th = mul(
+        height * 17 / 20,
+        fx::div(ONE, ONE + (tiers - 1) * ONE * 11 / 20),
+    );
     for k in 0..tiers {
         let bottom = height * 3 / 20 + k * mul(th, ONE * 11 / 20);
         let r = radius * (100 - k * 60 / tiers) / 100;
         let mid = foot.add(up(bottom + th / 2));
         let yaw = spin + k * deg(23);
-        b.push(Mesh::Spike, &placed(mid, yaw, v3(r * 2, th, r * 2)), colour, 0);
+        b.push(
+            Mesh::Spike,
+            &placed(mid, yaw, v3(r * 2, th, r * 2)),
+            colour,
+            0,
+        );
         // the snow on it: the same point, fatter and shorter
         // (the tier above hides its upper half, so the snow shows as a
         // white band round the tier's middle)
@@ -580,7 +601,7 @@ pub fn conifer(b: &mut Batch, foot: V3, height: i32, radius: i32, tiers: i32, sh
 /// thinning to simpler ones on the banks, and none on the lifts' lines
 /// or round the landmarks.
 fn forest(s: &mut Sink, c: &Course, ski: &SkiLayout) {
-    let mut dice = Dice(0x5C1_F0_2E57);
+    let mut dice = Dice(0x0005_C1F0_2E57);
     let clear = |p: V3| -> bool {
         for l in &ski.lifts {
             if seg_distance(p, l.bottom, l.top) < int(9) {
@@ -686,7 +707,8 @@ fn lift(s: &mut Sink, c: &Course, ski: &SkiLayout, l: &Lift) {
         for w in held.windows(2) {
             let (a, b) = (l.rope(w[0], side), l.rope(w[1], side));
             if a.sub(b).len() > cm(20) {
-                s.at(a.lerp(b, ONE / 2)).push(Mesh::Cyl, &rod(a, b, cm(9)), ROPE, 0);
+                s.at(a.lerp(b, ONE / 2))
+                    .push(Mesh::Cyl, &rod(a, b, cm(9)), ROPE, 0);
             }
         }
     }
@@ -707,7 +729,10 @@ fn lift(s: &mut Sink, c: &Course, ski: &SkiLayout, l: &Lift) {
     for side in [-1, 1] {
         for n in 1..l.chairs() {
             let (grip, seat) = l.chair(n, side);
-            if hung.iter().any(|g| g.flat().sub(grip.flat()).len() < cm(50)) {
+            if hung
+                .iter()
+                .any(|g| g.flat().sub(grip.flat()).len() < cm(50))
+            {
                 continue;
             }
             let face = if side > 0 { fwd } else { fwd.neg() };
@@ -792,19 +817,39 @@ fn terminal(b: &mut Batch, c: &Course, end: V3, toward: V3, l: &Lift, d: i32, co
     let housing = wheel.sub(toward.scale(cm(80))).add(up(cm(40)));
     b.push(
         Mesh::Bevel,
-        &panel(housing, right, V3::UP, toward, l.gauge + int(3), cm(320), l.gauge + int(2)),
+        &panel(
+            housing,
+            right,
+            V3::UP,
+            toward,
+            l.gauge + int(3),
+            cm(320),
+            l.gauge + int(2),
+        ),
         HOUSING,
         0,
     );
     b.push(
         Mesh::Cube,
-        &panel(housing.sub(up(cm(110))), right, V3::UP, toward, l.gauge + cm(320), cm(50), l.gauge + cm(220)),
+        &panel(
+            housing.sub(up(cm(110))),
+            right,
+            V3::UP,
+            toward,
+            l.gauge + cm(320),
+            cm(50),
+            l.gauge + cm(220),
+        ),
         HOUSING_TRIM,
         0,
     );
     b.push(
         Mesh::Cyl,
-        &placed(wheel.sub(up(cm(30))), yaw, v3(l.gauge + cm(40), cm(40), l.gauge + cm(40))),
+        &placed(
+            wheel.sub(up(cm(30))),
+            yaw,
+            v3(l.gauge + cm(40), cm(40), l.gauge + cm(40)),
+        ),
         STEEL_DARK,
         0,
     );
@@ -817,13 +862,29 @@ fn terminal(b: &mut Batch, c: &Course, end: V3, toward: V3, l: &Lift, d: i32, co
     let lower = rise / 3;
     b.push(
         Mesh::Bevel,
-        &panel(mid.add(up(lower / 2 - cm(50))), right, V3::UP, toward, w + int(1), lower + int(1), w + int(1)),
+        &panel(
+            mid.add(up(lower / 2 - cm(50))),
+            right,
+            V3::UP,
+            toward,
+            w + int(1),
+            lower + int(1),
+            w + int(1),
+        ),
         CONCRETE,
         0,
     );
     b.push(
         Mesh::Cube,
-        &panel(mid.add(up(lower + (rise - lower) / 2)), right, V3::UP, toward, w, rise - lower, w),
+        &panel(
+            mid.add(up(lower + (rise - lower) / 2)),
+            right,
+            V3::UP,
+            toward,
+            w,
+            rise - lower,
+            w,
+        ),
         TIMBER,
         0,
     );
@@ -832,7 +893,15 @@ fn terminal(b: &mut Batch, c: &Course, end: V3, toward: V3, l: &Lift, d: i32, co
         let y = lower + (rise - lower) * k / (bands + 1);
         b.push(
             Mesh::Cube,
-            &panel(mid.add(up(y)), right, V3::UP, toward, w + cm(20), cm(120), w + cm(20)),
+            &panel(
+                mid.add(up(y)),
+                right,
+                V3::UP,
+                toward,
+                w + cm(20),
+                cm(120),
+                w + cm(20),
+            ),
             GLASS,
             ONE / 5,
         );
@@ -840,13 +909,23 @@ fn terminal(b: &mut Batch, c: &Course, end: V3, toward: V3, l: &Lift, d: i32, co
     let stair = mid.add(right.scale(w / 2 + cm(80)));
     b.push(
         Mesh::Cube,
-        &panel(stair.add(up(rise / 2)), right, V3::UP, toward, cm(160), rise, cm(220)),
+        &panel(
+            stair.add(up(rise / 2)),
+            right,
+            V3::UP,
+            toward,
+            cm(160),
+            rise,
+            cm(220),
+        ),
         STEEL,
         0,
     );
     // the station hut at its foot: timber, a snowy roof, a window, the
     // lift's banner
-    let hut = foot.sub(toward.scale(l.gauge + int(4))).add(right.scale(l.gauge));
+    let hut = foot
+        .sub(toward.scale(l.gauge + int(4)))
+        .add(right.scale(l.gauge));
     b.push(
         Mesh::Cube,
         &placed(hut.add(up(cm(140))), yaw, v3(int(4), cm(320), int(5))),
@@ -861,13 +940,21 @@ fn terminal(b: &mut Batch, c: &Course, end: V3, toward: V3, l: &Lift, d: i32, co
     );
     b.push(
         Mesh::Cube,
-        &placed(hut.add(up(cm(180))).add(toward.scale(cm(250))), yaw, v3(cm(260), cm(110), cm(10))),
+        &placed(
+            hut.add(up(cm(180))).add(toward.scale(cm(250))),
+            yaw,
+            v3(cm(260), cm(110), cm(10)),
+        ),
         GLASS,
         ONE / 5,
     );
     b.push(
         Mesh::Cube,
-        &placed(hut.add(up(cm(300))).add(toward.scale(cm(255))), yaw, v3(cm(380), cm(40), cm(8))),
+        &placed(
+            hut.add(up(cm(300))).add(toward.scale(cm(255))),
+            yaw,
+            v3(cm(380), cm(40), cm(8)),
+        ),
         colour,
         ONE / 6,
     );
@@ -878,8 +965,18 @@ fn terminal(b: &mut Batch, c: &Course, end: V3, toward: V3, l: &Lift, d: i32, co
 /// the safety bar with its footrest.
 fn chair(b: &mut Batch, grip: V3, seat: V3, face: V3, colour: Rgb) {
     let right = right_of(face);
-    b.push(Mesh::Cube, &rod(grip, seat.add(up(cm(110))), cm(9)), CHAIR_FRAME, 0);
-    b.push(Mesh::Cube, &placed(grip, yaw_of(face), v3(cm(30), cm(24), cm(40))), CHAIR_FRAME, 0);
+    b.push(
+        Mesh::Cube,
+        &rod(grip, seat.add(up(cm(110))), cm(9)),
+        CHAIR_FRAME,
+        0,
+    );
+    b.push(
+        Mesh::Cube,
+        &placed(grip, yaw_of(face), v3(cm(30), cm(24), cm(40))),
+        CHAIR_FRAME,
+        0,
+    );
     // the bar bends back over the seat to the back's top
     let top = seat.add(up(cm(110)));
     let back_top = seat.sub(face.scale(cm(30))).add(up(cm(70)));
@@ -907,8 +1004,12 @@ fn chair(b: &mut Batch, grip: V3, seat: V3, face: V3, colour: Rgb) {
     b.push(
         Mesh::Cube,
         &rod(
-            seat.add(face.scale(cm(40))).add(up(cm(60))).sub(right.scale(cm(90))),
-            seat.add(face.scale(cm(40))).add(up(cm(60))).add(right.scale(cm(90))),
+            seat.add(face.scale(cm(40)))
+                .add(up(cm(60)))
+                .sub(right.scale(cm(90))),
+            seat.add(face.scale(cm(40)))
+                .add(up(cm(60)))
+                .add(right.scale(cm(90))),
             cm(5),
         ),
         CHAIR_FRAME,
@@ -935,14 +1036,16 @@ fn hanger(s: &mut Sink, c: &Course, ski: &SkiLayout, h: &Hanger) {
             });
             chair(s.at(h.from), h.from, h.to, face, colour);
             if anchor.sub(h.to).len() > cm(30) {
-                s.at(h.to).push(Mesh::Cyl, &rod(h.to, anchor, cm(8)), CHAIR_FRAME, 0);
+                s.at(h.to)
+                    .push(Mesh::Cyl, &rod(h.to, anchor, cm(8)), CHAIR_FRAME, 0);
             }
         }
         HangerKind::Tree { tree } => {
             let t: Option<&Conifer> = ski.trees.get(tree);
             branch(s.at(h.to), h.from, h.to, t.map_or(0, |t| t.shade));
             if anchor.sub(h.to).len() > cm(30) {
-                s.at(h.to).push(Mesh::Cyl, &rod(h.to, anchor, cm(6)), ROPE, 0);
+                s.at(h.to)
+                    .push(Mesh::Cyl, &rod(h.to, anchor, cm(6)), ROPE, 0);
             }
         }
         HangerKind::Helicopter => {}
@@ -994,7 +1097,15 @@ fn branch(b: &mut Batch, from: V3, to: V3, shade_of: u8) {
         );
         b.push(
             Mesh::Blob,
-            &panel(at.add(up(cm(18))), side, V3::UP, along, w * 4 / 5, cm(26), cm(150)),
+            &panel(
+                at.add(up(cm(18))),
+                side,
+                V3::UP,
+                along,
+                w * 4 / 5,
+                cm(26),
+                cm(150),
+            ),
             SNOW_ON,
             0,
         );
@@ -1012,13 +1123,21 @@ fn start_deck(s: &mut Sink, c: &Course) {
         let top = pl.top;
         b.push(
             Mesh::Cube,
-            &placed(v3(pl.centre.x, top - cm(30), pl.centre.z), yaw, v3(pl.half_width * 2, cm(60), pl.half_len * 2)),
+            &placed(
+                v3(pl.centre.x, top - cm(30), pl.centre.z),
+                yaw,
+                v3(pl.half_width * 2, cm(60), pl.half_len * 2),
+            ),
             TIMBER,
             0,
         );
         b.push(
             Mesh::Cube,
-            &placed(v3(pl.centre.x, top + cm(2), pl.centre.z), yaw, v3(pl.half_width * 2 - cm(40), cm(6), pl.half_len * 2 - cm(40))),
+            &placed(
+                v3(pl.centre.x, top + cm(2), pl.centre.z),
+                yaw,
+                v3(pl.half_width * 2 - cm(40), cm(6), pl.half_len * 2 - cm(40)),
+            ),
             SNOW,
             0,
         );
@@ -1030,27 +1149,51 @@ fn start_deck(s: &mut Sink, c: &Course) {
             let g = ground_at(c, at);
             b.push(
                 Mesh::Cube,
-                &rod(v3(at.x, g - cm(50), at.z), v3(at.x, top - cm(50), at.z), cm(50)),
+                &rod(
+                    v3(at.x, g - cm(50), at.z),
+                    v3(at.x, top - cm(50), at.z),
+                    cm(50),
+                ),
                 STEEL,
                 0,
             );
         }
         // rails on the sides and the back; the front is open
         for side in [-1, 1] {
-            let a = pl.centre.add(right.scale(side * pl.half_width)).sub(pl.fwd.scale(pl.half_len));
-            let z = pl.centre.add(right.scale(side * pl.half_width)).add(pl.fwd.scale(pl.half_len));
+            let a = pl
+                .centre
+                .add(right.scale(side * pl.half_width))
+                .sub(pl.fwd.scale(pl.half_len));
+            let z = pl
+                .centre
+                .add(right.scale(side * pl.half_width))
+                .add(pl.fwd.scale(pl.half_len));
             b.push(
                 Mesh::Cube,
-                &rod(v3(a.x, top + cm(100), a.z), v3(z.x, top + cm(100), z.z), cm(12)),
+                &rod(
+                    v3(a.x, top + cm(100), a.z),
+                    v3(z.x, top + cm(100), z.z),
+                    cm(12),
+                ),
                 HOUSING_TRIM,
                 0,
             );
         }
-        let a = pl.centre.add(right.scale(-pl.half_width)).sub(pl.fwd.scale(pl.half_len));
-        let z = pl.centre.add(right.scale(pl.half_width)).sub(pl.fwd.scale(pl.half_len));
+        let a = pl
+            .centre
+            .add(right.scale(-pl.half_width))
+            .sub(pl.fwd.scale(pl.half_len));
+        let z = pl
+            .centre
+            .add(right.scale(pl.half_width))
+            .sub(pl.fwd.scale(pl.half_len));
         b.push(
             Mesh::Cube,
-            &rod(v3(a.x, top + cm(100), a.z), v3(z.x, top + cm(100), z.z), cm(12)),
+            &rod(
+                v3(a.x, top + cm(100), a.z),
+                v3(z.x, top + cm(100), z.z),
+                cm(12),
+            ),
             HOUSING_TRIM,
             0,
         );
@@ -1060,14 +1203,22 @@ fn start_deck(s: &mut Sink, c: &Course) {
             let foot = front.add(right.scale(side * pl.half_width));
             b.push(
                 Mesh::Cyl,
-                &rod(v3(foot.x, top, foot.z), v3(foot.x, top + int(13), foot.z), cm(30)),
+                &rod(
+                    v3(foot.x, top, foot.z),
+                    v3(foot.x, top + int(13), foot.z),
+                    cm(30),
+                ),
                 WHITE,
                 0,
             );
         }
         b.push(
             Mesh::Cube,
-            &placed(v3(front.x, top + int(13), front.z), yaw, v3(pl.half_width * 2, cm(90), cm(20))),
+            &placed(
+                v3(front.x, top + int(13), front.z),
+                yaw,
+                v3(pl.half_width * 2, cm(90), cm(20)),
+            ),
             RED,
             ONE / 6,
         );
@@ -1098,11 +1249,20 @@ fn finish_arch(b: &mut Batch, c: &Course) {
     for k in 0..pieces {
         let (p, q) = (point(k), point(k + 1));
         b.push(Mesh::Cyl, &rod(p, q, int(2)), RED, ONE / 8);
-        b.push(Mesh::Sphere, &placed(q, 0, v3(int(2), int(2), int(2))), RED, ONE / 8);
+        b.push(
+            Mesh::Sphere,
+            &placed(q, 0, v3(int(2), int(2), int(2))),
+            RED,
+            ONE / 8,
+        );
     }
     b.push(
         Mesh::Cube,
-        &placed(centre.add(up(g + rise - int(3))), yaw, v3(span, int(2), cm(30))),
+        &placed(
+            centre.add(up(g + rise - int(3))),
+            yaw,
+            v3(span, int(2), cm(30)),
+        ),
         WHITE,
         ONE / 4,
     );
@@ -1110,7 +1270,14 @@ fn finish_arch(b: &mut Batch, c: &Course) {
         let x = -span / 2 + span * k / 12 + span / 24;
         b.push(
             Mesh::Cube,
-            &placed(centre.add(right.scale(x)).add(up(g + rise - int(3))).add(fwd.scale(cm(20))), yaw, v3(span / 24, cm(80), cm(6))),
+            &placed(
+                centre
+                    .add(right.scale(x))
+                    .add(up(g + rise - int(3)))
+                    .add(fwd.scale(cm(20))),
+                yaw,
+                v3(span / 24, cm(80), cm(6)),
+            ),
             if k % 2 == 0 { RED } else { COAL },
             ONE / 6,
         );
@@ -1173,30 +1340,96 @@ fn part(b: &mut Batch, f: &Affine, mesh: Mesh, at: V3, size: V3, colour: Rgb, gl
 fn summit(b: &mut Batch, foot: V3, yaw: i32) {
     let f = frame(foot, yaw);
     // the station: a long concrete base, a glass band, a flat snowy roof
-    part(b, &f, Mesh::Cube, v3(0, int(3), 0), v3(int(22), int(6), int(12)), CONCRETE, 0);
-    part(b, &f, Mesh::Cube, v3(0, int(7), 0), v3(int(21), int(3), int(11)), GLASS, ONE / 5);
-    part(b, &f, Mesh::Cube, v3(0, cm(880), 0), v3(int(23), cm(70), int(13)), SNOW, 0);
-    part(b, &f, Mesh::Cube, v3(0, cm(830), 0), v3(cm(2320), cm(40), cm(1320)), HOUSING_TRIM, 0);
+    part(
+        b,
+        &f,
+        Mesh::Cube,
+        v3(0, int(3), 0),
+        v3(int(22), int(6), int(12)),
+        CONCRETE,
+        0,
+    );
+    part(
+        b,
+        &f,
+        Mesh::Cube,
+        v3(0, int(7), 0),
+        v3(int(21), int(3), int(11)),
+        GLASS,
+        ONE / 5,
+    );
+    part(
+        b,
+        &f,
+        Mesh::Cube,
+        v3(0, cm(880), 0),
+        v3(int(23), cm(70), int(13)),
+        SNOW,
+        0,
+    );
+    part(
+        b,
+        &f,
+        Mesh::Cube,
+        v3(0, cm(830), 0),
+        v3(cm(2320), cm(40), cm(1320)),
+        HOUSING_TRIM,
+        0,
+    );
     // the mast, beside the station
     let m = v3(-int(19), 0, -int(4));
     let h = int(34);
     for (x, z) in [(-1, -1), (1, -1), (-1, 1), (1, 1)] {
         let base = m.add(v3(x * cm(220), 0, z * cm(220)));
         let top = m.add(v3(x * cm(70), h, z * cm(70)));
-        b.push(Mesh::Cube, &rod(f.apply(base), f.apply(top), cm(26)), RED, 0);
+        b.push(
+            Mesh::Cube,
+            &rod(f.apply(base), f.apply(top), cm(26)),
+            RED,
+            0,
+        );
     }
     // its cross braces, red and white in turn
     for k in 0..6 {
         let y = h * (k + 1) / 7;
         let w = cm(440) - (cm(300) * (k + 1)) / 7;
-        part(b, &f, Mesh::Cube, m.add(v3(0, y, 0)), v3(w, cm(20), w), if k % 2 == 0 { WHITE } else { RED }, 0);
+        part(
+            b,
+            &f,
+            Mesh::Cube,
+            m.add(v3(0, y, 0)),
+            v3(w, cm(20), w),
+            if k % 2 == 0 { WHITE } else { RED },
+            0,
+        );
     }
     // the radar dome, a platform under it
-    part(b, &f, Mesh::Cyl, m.add(v3(0, h, 0)), v3(int(5), cm(40), int(5)), STEEL_DARK, 0);
-    part(b, &f, Mesh::Geo, m.add(v3(0, h + int(3), 0)), v3(int(7), int(7), int(7)), WHITE, ONE / 10);
+    part(
+        b,
+        &f,
+        Mesh::Cyl,
+        m.add(v3(0, h, 0)),
+        v3(int(5), cm(40), int(5)),
+        STEEL_DARK,
+        0,
+    );
+    part(
+        b,
+        &f,
+        Mesh::Geo,
+        m.add(v3(0, h + int(3), 0)),
+        v3(int(7), int(7), int(7)),
+        WHITE,
+        ONE / 10,
+    );
     // the anemometer and the wind sock on a spar
     let spar = m.add(v3(0, h - int(4), 0));
-    b.push(Mesh::Cube, &rod(f.apply(spar), f.apply(spar.add(v3(int(5), 0, 0))), cm(14)), STEEL_DARK, 0);
+    b.push(
+        Mesh::Cube,
+        &rod(f.apply(spar), f.apply(spar.add(v3(int(5), 0, 0))), cm(14)),
+        STEEL_DARK,
+        0,
+    );
     for k in 0..4 {
         let at = spar.add(v3(cm(500) + cm(110) * k, -cm(30), 0));
         part(
@@ -1217,11 +1450,31 @@ fn summit(b: &mut Batch, foot: V3, yaw: i32) {
     );
     for k in 0..3 {
         let a = k * deg(120);
-        let tip = spar.add(v3(-int(4), cm(60), 0)).add(v3(mul(fx::cos(a), cm(70)), 0, mul(sin(a), cm(70))));
-        part(b, &f, Mesh::Sphere, tip, v3(cm(30), cm(30), cm(30)), WHITE, 0);
+        let tip = spar.add(v3(-int(4), cm(60), 0)).add(v3(
+            mul(fx::cos(a), cm(70)),
+            0,
+            mul(sin(a), cm(70)),
+        ));
+        part(
+            b,
+            &f,
+            Mesh::Sphere,
+            tip,
+            v3(cm(30), cm(30), cm(30)),
+            WHITE,
+            0,
+        );
     }
     // a red light on top of the dome
-    part(b, &f, Mesh::Octa, m.add(v3(0, h + int(7), 0)), v3(cm(50), cm(50), cm(50)), RED, ONE);
+    part(
+        b,
+        &f,
+        Mesh::Octa,
+        m.add(v3(0, h + int(7), 0)),
+        v3(cm(50), cm(50), cm(50)),
+        RED,
+        ONE,
+    );
 }
 
 /// A giant snowman: three great balls of snow, coal eyes and buttons, a
@@ -1230,14 +1483,26 @@ fn snowman(b: &mut Batch, foot: V3, yaw: i32) {
     let f = frame(foot, yaw);
     let balls = [(int(9), int(4)), (int(7), int(11)), (cm(520), cm(1650))];
     for (k, (d, y)) in balls.into_iter().enumerate() {
-        part(b, &f, Mesh::Geo, v3(0, y, 0), v3(d, d * 94 / 100, d), SNOW, 0);
+        part(
+            b,
+            &f,
+            Mesh::Geo,
+            v3(0, y, 0),
+            v3(d, d * 94 / 100, d),
+            SNOW,
+            0,
+        );
         if k == 1 {
             for j in 0..3 {
                 part(
                     b,
                     &f,
                     Mesh::Ico,
-                    v3(0, y + int(2) - j * int(2), cm(340) + if j == 1 { cm(25) } else { 0 }),
+                    v3(
+                        0,
+                        y + int(2) - j * int(2),
+                        cm(340) + if j == 1 { cm(25) } else { 0 },
+                    ),
                     v3(cm(80), cm(80), cm(50)),
                     COAL,
                     0,
@@ -1247,7 +1512,15 @@ fn snowman(b: &mut Batch, foot: V3, yaw: i32) {
     }
     let head = v3(0, cm(1650), 0);
     for x in [-cm(110), cm(110)] {
-        part(b, &f, Mesh::Ico, head.add(v3(x, cm(80), cm(230))), v3(cm(70), cm(70), cm(40)), COAL, 0);
+        part(
+            b,
+            &f,
+            Mesh::Ico,
+            head.add(v3(x, cm(80), cm(230))),
+            v3(cm(70), cm(70), cm(40)),
+            COAL,
+            0,
+        );
     }
     // the nose, pointing out
     let nose = f.apply(head.add(v3(0, cm(10), cm(250))));
@@ -1260,15 +1533,35 @@ fn snowman(b: &mut Batch, foot: V3, yaw: i32) {
             b,
             &f,
             Mesh::Ico,
-            head.add(v3(mul(sin(a), cm(130)), -cm(100) + mul(fx::cos(a), -cm(40)) + cm(40), cm(235))),
+            head.add(v3(
+                mul(sin(a), cm(130)),
+                -cm(100) + mul(fx::cos(a), -cm(40)) + cm(40),
+                cm(235),
+            )),
             v3(cm(40), cm(40), cm(30)),
             COAL,
             0,
         );
     }
     // the scarf round the neck, its end hanging down
-    part(b, &f, Mesh::Cyl, v3(0, cm(1420), 0), v3(cm(560), cm(110), cm(560)), SCARF, 0);
-    part(b, &f, Mesh::Cube, v3(cm(170), cm(1240), cm(250)), v3(cm(110), cm(380), cm(30)), SCARF, 0);
+    part(
+        b,
+        &f,
+        Mesh::Cyl,
+        v3(0, cm(1420), 0),
+        v3(cm(560), cm(110), cm(560)),
+        SCARF,
+        0,
+    );
+    part(
+        b,
+        &f,
+        Mesh::Cube,
+        v3(cm(170), cm(1240), cm(250)),
+        v3(cm(110), cm(380), cm(30)),
+        SCARF,
+        0,
+    );
     for k in 0..3 {
         part(
             b,
@@ -1281,17 +1574,51 @@ fn snowman(b: &mut Batch, foot: V3, yaw: i32) {
         );
     }
     // the top hat
-    part(b, &f, Mesh::Cyl, v3(0, cm(1880), 0), v3(cm(560), cm(30), cm(560)), COAL, 0);
-    part(b, &f, Mesh::Cyl, v3(0, cm(2080), 0), v3(cm(380), cm(400), cm(380)), COAL, 0);
-    part(b, &f, Mesh::Cyl, v3(0, cm(1930), 0), v3(cm(390), cm(60), cm(390)), RED, 0);
+    part(
+        b,
+        &f,
+        Mesh::Cyl,
+        v3(0, cm(1880), 0),
+        v3(cm(560), cm(30), cm(560)),
+        COAL,
+        0,
+    );
+    part(
+        b,
+        &f,
+        Mesh::Cyl,
+        v3(0, cm(2080), 0),
+        v3(cm(380), cm(400), cm(380)),
+        COAL,
+        0,
+    );
+    part(
+        b,
+        &f,
+        Mesh::Cyl,
+        v3(0, cm(1930), 0),
+        v3(cm(390), cm(60), cm(390)),
+        RED,
+        0,
+    );
     // stick arms with twig fingers
     for side in [-1, 1] {
         let sh = v3(side * cm(300), int(12), 0);
         let hand = v3(side * cm(820), cm(1550), cm(80));
-        b.push(Mesh::Taper, &rod(f.apply(sh), f.apply(hand), cm(40)), TIMBER_DARK, 0);
+        b.push(
+            Mesh::Taper,
+            &rod(f.apply(sh), f.apply(hand), cm(40)),
+            TIMBER_DARK,
+            0,
+        );
         for k in [-1, 1] {
             let twig = hand.add(v3(side * cm(120), cm(80) + k * cm(60), k * cm(40)));
-            b.push(Mesh::Taper, &rod(f.apply(hand), f.apply(twig), cm(20)), TIMBER_DARK, 0);
+            b.push(
+                Mesh::Taper,
+                &rod(f.apply(hand), f.apply(twig), cm(20)),
+                TIMBER_DARK,
+                0,
+            );
         }
     }
 }
@@ -1302,8 +1629,24 @@ fn snowman(b: &mut Batch, foot: V3, yaw: i32) {
 /// stood in the snow.
 fn lodge(b: &mut Batch, foot: V3, yaw: i32) {
     let f = frame(foot, yaw).then(&Affine::scale(v3(LODGE_SCALE, LODGE_SCALE, LODGE_SCALE)));
-    part(b, &f, Mesh::Cube, v3(0, cm(80), 0), v3(int(20), cm(200), int(13)), STONE, 0);
-    part(b, &f, Mesh::Cube, v3(0, cm(480), 0), v3(int(19), int(6), int(12)), TIMBER, 0);
+    part(
+        b,
+        &f,
+        Mesh::Cube,
+        v3(0, cm(80), 0),
+        v3(int(20), cm(200), int(13)),
+        STONE,
+        0,
+    );
+    part(
+        b,
+        &f,
+        Mesh::Cube,
+        v3(0, cm(480), 0),
+        v3(int(19), int(6), int(12)),
+        TIMBER,
+        0,
+    );
     // the logs' lines
     for k in 0..6 {
         part(
@@ -1320,12 +1663,12 @@ fn lodge(b: &mut Batch, foot: V3, yaw: i32) {
     for side in [-1, 1] {
         let slope = f
             .then(&Affine::translate(v3(side * cm(560), cm(1060), 0)))
-            .then(&Affine::rot_z(side * deg(42)))
+            .then(&Affine::rot_z(-side * deg(42)))
             .then(&Affine::scale(v3(int(15), cm(80), int(16))));
         b.push(Mesh::Cube, &slope, SNOW, 0);
         let under = f
             .then(&Affine::translate(v3(side * cm(560), cm(1000), 0)))
-            .then(&Affine::rot_z(side * deg(42)))
+            .then(&Affine::rot_z(-side * deg(42)))
             .then(&Affine::scale(v3(int(15), cm(40), cm(1580))));
         b.push(Mesh::Cube, &under, TIMBER_DARK, 0);
     }
@@ -1353,15 +1696,55 @@ fn lodge(b: &mut Batch, foot: V3, yaw: i32) {
             );
         }
     }
-    part(b, &f, Mesh::Cube, v3(0, cm(1100), cm(605)), v3(cm(300), cm(250), cm(20)), WARM_WINDOW, ONE / 2);
+    part(
+        b,
+        &f,
+        Mesh::Cube,
+        v3(0, cm(1100), cm(605)),
+        v3(cm(300), cm(250), cm(20)),
+        WARM_WINDOW,
+        ONE / 2,
+    );
     // the chimney
-    part(b, &f, Mesh::Cube, v3(int(6), int(13), -int(2)), v3(int(2), int(7), int(2)), STONE, 0);
-    part(b, &f, Mesh::Cube, v3(int(6), cm(1660), -int(2)), v3(cm(240), cm(30), cm(240)), SNOW, 0);
+    part(
+        b,
+        &f,
+        Mesh::Cube,
+        v3(int(6), int(13), -int(2)),
+        v3(int(2), int(7), int(2)),
+        STONE,
+        0,
+    );
+    part(
+        b,
+        &f,
+        Mesh::Cube,
+        v3(int(6), cm(1660), -int(2)),
+        v3(cm(240), cm(30), cm(240)),
+        SNOW,
+        0,
+    );
     // the sun deck along the front, its parasols
-    part(b, &f, Mesh::Cube, v3(0, cm(170), int(11)), v3(int(20), cm(30), int(9)), TIMBER, 0);
+    part(
+        b,
+        &f,
+        Mesh::Cube,
+        v3(0, cm(170), int(11)),
+        v3(int(20), cm(30), int(9)),
+        TIMBER,
+        0,
+    );
     for k in 0..4 {
         let at = v3(-int(7) + k * cm(470), cm(170), int(11));
-        part(b, &f, Mesh::Cyl, at.add(v3(0, cm(150), 0)), v3(cm(12), int(3), cm(12)), WHITE, 0);
+        part(
+            b,
+            &f,
+            Mesh::Cyl,
+            at.add(v3(0, cm(150), 0)),
+            v3(cm(12), int(3), cm(12)),
+            WHITE,
+            0,
+        );
         part(
             b,
             &f,
@@ -1406,14 +1789,50 @@ const FALLS_SCALE: i32 = ONE * 8 / 5;
 fn ski_jump(b: &mut Batch, c: &Course, foot: V3, yaw: i32, s: i32) {
     // the jump runs down toward the course
     let toward = c.point(s).flat().sub(foot.flat());
-    let yaw = if toward.len() > int(1) { yaw_of(toward) } else { yaw };
+    let yaw = if toward.len() > int(1) {
+        yaw_of(toward)
+    } else {
+        yaw
+    };
     let f = frame(foot, yaw);
     let top = v3(0, int(44), -int(46));
     let lip = v3(0, int(14), -int(6));
-    part(b, &f, Mesh::Cube, v3(0, int(22), -int(48)), v3(int(7), int(44), int(7)), CONCRETE, 0);
-    part(b, &f, Mesh::Cube, v3(0, int(46), -int(48)), v3(int(9), int(5), int(9)), HOUSING_TRIM, 0);
-    part(b, &f, Mesh::Cube, v3(0, int(46), -int(48) + cm(455)), v3(int(7), int(2), cm(20)), GLASS, ONE / 5);
-    part(b, &f, Mesh::Cube, v3(0, cm(4880), -int(48)), v3(cm(1000), cm(70), cm(1000)), SNOW, 0);
+    part(
+        b,
+        &f,
+        Mesh::Cube,
+        v3(0, int(22), -int(48)),
+        v3(int(7), int(44), int(7)),
+        CONCRETE,
+        0,
+    );
+    part(
+        b,
+        &f,
+        Mesh::Cube,
+        v3(0, int(46), -int(48)),
+        v3(int(9), int(5), int(9)),
+        HOUSING_TRIM,
+        0,
+    );
+    part(
+        b,
+        &f,
+        Mesh::Cube,
+        v3(0, int(46), -int(48) + cm(455)),
+        v3(int(7), int(2), cm(20)),
+        GLASS,
+        ONE / 5,
+    );
+    part(
+        b,
+        &f,
+        Mesh::Cube,
+        v3(0, cm(4880), -int(48)),
+        v3(cm(1000), cm(70), cm(1000)),
+        SNOW,
+        0,
+    );
     // the in-run: a long sloping slab, white with blue edges
     let (a, z) = (f.apply(top), f.apply(lip));
     let d = z.sub(a);
@@ -1424,21 +1843,41 @@ fn ski_jump(b: &mut Batch, c: &Course, foot: V3, yaw: i32, s: i32) {
         c0: across.scale(w),
         c1: normal.scale(h),
         c2: d,
-        t: a.lerp(z, ONE / 2).add(normal.scale(lift)).add(across.scale(off)),
+        t: a.lerp(z, ONE / 2)
+            .add(normal.scale(lift))
+            .add(across.scale(off)),
     };
     b.push(Mesh::Cube, &slab(int(6), cm(90), 0, 0), STEEL, 0);
     b.push(Mesh::Cube, &slab(int(5), cm(30), cm(55), 0), SNOW, 0);
     for side in [-1, 1] {
-        b.push(Mesh::Cube, &slab(cm(30), cm(110), cm(60), side * cm(270)), rgb(30, 80, 190), 0);
+        b.push(
+            Mesh::Cube,
+            &slab(cm(30), cm(110), cm(60), side * cm(270)),
+            rgb(30, 80, 190),
+            0,
+        );
     }
     // its legs, down to the ground
     for k in 1..5 {
         let p = top.lerp(lip, ONE * k / 5);
         let g = v3(p.x, -int(1), p.z);
-        b.push(Mesh::Cube, &rod(f.apply(g), f.apply(p.sub(up(cm(60)))), cm(90)), CONCRETE, 0);
+        b.push(
+            Mesh::Cube,
+            &rod(f.apply(g), f.apply(p.sub(up(cm(60)))), cm(90)),
+            CONCRETE,
+            0,
+        );
     }
     // the take-off table, and the landing hill under it running down
-    part(b, &f, Mesh::Cube, lip.add(v3(0, -cm(60), int(1))), v3(int(6), cm(120), int(3)), CONCRETE, 0);
+    part(
+        b,
+        &f,
+        Mesh::Cube,
+        lip.add(v3(0, -cm(60), int(1))),
+        v3(int(6), cm(120), int(3)),
+        CONCRETE,
+        0,
+    );
     b.push(
         Mesh::Wedge,
         &f.then(&Affine::translate(v3(0, int(5) - int(1), int(12))))
@@ -1447,13 +1886,45 @@ fn ski_jump(b: &mut Batch, c: &Course, foot: V3, yaw: i32, s: i32) {
         0,
     );
     // the judges' tower beside the landing
-    part(b, &f, Mesh::Cube, v3(int(15), int(7), int(4)), v3(int(4), int(16), int(4)), CONCRETE, 0);
-    part(b, &f, Mesh::Cube, v3(int(15), int(16), int(4)), v3(int(6), int(3), int(5)), GLASS, ONE / 5);
-    part(b, &f, Mesh::Cube, v3(int(15), cm(1780), int(4)), v3(int(7), cm(40), int(6)), SNOW, 0);
+    part(
+        b,
+        &f,
+        Mesh::Cube,
+        v3(int(15), int(7), int(4)),
+        v3(int(4), int(16), int(4)),
+        CONCRETE,
+        0,
+    );
+    part(
+        b,
+        &f,
+        Mesh::Cube,
+        v3(int(15), int(16), int(4)),
+        v3(int(6), int(3), int(5)),
+        GLASS,
+        ONE / 5,
+    );
+    part(
+        b,
+        &f,
+        Mesh::Cube,
+        v3(int(15), cm(1780), int(4)),
+        v3(int(7), cm(40), int(6)),
+        SNOW,
+        0,
+    );
     // flags along the in-run
     for k in 0..6 {
         let p = top.lerp(lip, ONE * k / 6).add(v3(-int(4), 0, 0));
-        part(b, &f, Mesh::Cyl, p.add(v3(0, int(3), 0)), v3(cm(14), int(6), cm(14)), WHITE, 0);
+        part(
+            b,
+            &f,
+            Mesh::Cyl,
+            p.add(v3(0, int(3), 0)),
+            v3(cm(14), int(6), cm(14)),
+            WHITE,
+            0,
+        );
         part(
             b,
             &f,
@@ -1469,7 +1940,15 @@ fn ski_jump(b: &mut Batch, c: &Course, foot: V3, yaw: i32, s: i32) {
 /// A giant ice sculpture of an ape on an ice plinth: an ape's model,
 /// twenty times life size, recoloured in pale translucent ice.
 fn ice_ape(b: &mut Batch, foot: V3, yaw: i32) {
-    part(b, &frame(foot, yaw), Mesh::Hex, v3(0, cm(90), 0), v3(int(9), cm(180), int(9)), ICE_DEEP, ONE / 4);
+    part(
+        b,
+        &frame(foot, yaw),
+        Mesh::Hex,
+        v3(0, cm(90), 0),
+        v3(int(9), cm(180), int(9)),
+        ICE_DEEP,
+        ONE / 4,
+    );
     let marks = b.marks();
     let mut pose = crate::models::Pose::standing(foot.add(up(cm(180))), yaw, 0);
     // (a standing ape is scaled about its feet)
@@ -1532,7 +2011,15 @@ fn frozen_falls(b: &mut Batch, c: &Course, foot: V3, yaw: i32) {
         let x = k * cm(130);
         let len = int(20) - (k * k) * cm(40);
         let at = v3(x, int(20) - len / 2, -cm(20) + (k % 2).abs() * cm(50));
-        part(b, &f, Mesh::Hex, at, v3(cm(170), len, cm(140)), if k % 2 == 0 { ICE } else { ICE_DEEP }, ONE / 4);
+        part(
+            b,
+            &f,
+            Mesh::Hex,
+            at,
+            v3(cm(170), len, cm(140)),
+            if k % 2 == 0 { ICE } else { ICE_DEEP },
+            ONE / 4,
+        );
         // icicles hanging off the lip
         b.push(
             Mesh::Spike,
@@ -1544,7 +2031,15 @@ fn frozen_falls(b: &mut Batch, c: &Course, foot: V3, yaw: i32) {
         );
     }
     // the heap of ice at the foot, and boulders either side
-    part(b, &f, Mesh::Ico, v3(0, cm(100), int(3)), v3(int(12), int(4), int(7)), ICE, ONE / 5);
+    part(
+        b,
+        &f,
+        Mesh::Ico,
+        v3(0, cm(100), int(3)),
+        v3(int(12), int(4), int(7)),
+        ICE,
+        ONE / 5,
+    );
     for x in [-int(14), int(13), -int(22), int(21)] {
         b.push(
             Mesh::Rock,
@@ -1580,7 +2075,13 @@ fn village(s: &mut Sink, c: &Course, foot: V3, yaw: i32) {
     ];
     for (k, (along, a)) in spots.into_iter().enumerate() {
         let p = at(along, a);
-        let toward = if k >= 8 { fwd.neg() } else if a < 0 { right } else { right.neg() };
+        let toward = if k >= 8 {
+            fwd.neg()
+        } else if a < 0 {
+            right
+        } else {
+            right.neg()
+        };
         chalet(s.at(p), p, yaw_of(toward), &mut dice);
     }
     // flags along both sides of the run-out
@@ -1591,7 +2092,11 @@ fn village(s: &mut Sink, c: &Course, foot: V3, yaw: i32) {
             b.push(Mesh::Cyl, &rod(p, p.add(up(int(9))), cm(18)), WHITE, 0);
             b.push(
                 Mesh::Cube,
-                &placed(p.add(up(cm(800))).add(fwd.scale(cm(110))), yaw_of(right), v3(cm(8), cm(140), cm(220))),
+                &placed(
+                    p.add(up(cm(800))).add(fwd.scale(cm(110))),
+                    yaw_of(right),
+                    v3(cm(8), cm(140), cm(220)),
+                ),
                 FLAGS[(k as usize + if side > 0 { 2 } else { 0 }) % FLAGS.len()],
                 ONE / 8,
             );
@@ -1601,19 +2106,47 @@ fn village(s: &mut Sink, c: &Course, foot: V3, yaw: i32) {
     let p = at(int(60), 0);
     let b = s.at(p);
     let yaw_f = yaw_of(fwd);
-    for (x, h, colour) in [(0, int(3), GOLD), (-cm(420), int(2), SILVER), (cm(420), cm(130), BRONZE)] {
+    for (x, h, colour) in [
+        (0, int(3), GOLD),
+        (-cm(420), int(2), SILVER),
+        (cm(420), cm(130), BRONZE),
+    ] {
         let q = p.add(right.scale(x));
-        b.push(Mesh::Cube, &placed(q.add(up(h / 2)), yaw_f, v3(int(4), h, int(4))), colour, ONE / 6);
-        b.push(Mesh::Cube, &placed(q.add(up(h + cm(5))), yaw_f, v3(cm(420), cm(10), cm(420))), SNOW, ONE / 6);
+        b.push(
+            Mesh::Cube,
+            &placed(q.add(up(h / 2)), yaw_f, v3(int(4), h, int(4))),
+            colour,
+            ONE / 6,
+        );
+        b.push(
+            Mesh::Cube,
+            &placed(q.add(up(h + cm(5))), yaw_f, v3(cm(420), cm(10), cm(420))),
+            SNOW,
+            ONE / 6,
+        );
     }
     // a pile of bananas beside it
     let q = at(int(58), int(12));
     for k in 0..9 {
         let a = k * fx::TURN / 9;
-        let mid = q.add(v3(mul(sin(a), cm(160)), cm(30) + (k % 3) * cm(25), mul(fx::cos(a), cm(160))));
+        let mid = q.add(v3(
+            mul(sin(a), cm(160)),
+            cm(30) + (k % 3) * cm(25),
+            mul(fx::cos(a), cm(160)),
+        ));
         let along = facing(a + deg(90), 0).scale(cm(60));
-        b.push(Mesh::Cube, &rod(mid.sub(along).add(up(cm(18))), mid, cm(24)), BANANA, ONE / 6);
-        b.push(Mesh::Cube, &rod(mid, mid.add(along).add(up(cm(18))), cm(24)), BANANA, ONE / 6);
+        b.push(
+            Mesh::Cube,
+            &rod(mid.sub(along).add(up(cm(18))), mid, cm(24)),
+            BANANA,
+            ONE / 6,
+        );
+        b.push(
+            Mesh::Cube,
+            &rod(mid, mid.add(along).add(up(cm(18))), cm(24)),
+            BANANA,
+            ONE / 6,
+        );
     }
 }
 
@@ -1624,13 +2157,29 @@ fn chalet(b: &mut Batch, foot: V3, yaw: i32, dice: &mut Dice) {
     let w = int(dice.range(9, 13));
     let d = int(dice.range(8, 11));
     let h = int(dice.range(5, 8));
-    part(b, &f, Mesh::Cube, v3(0, cm(60), 0), v3(w, cm(160), d), STONE, 0);
-    part(b, &f, Mesh::Cube, v3(0, h / 2 + cm(80), 0), v3(w - cm(40), h, d - cm(40)), TIMBER, 0);
+    part(
+        b,
+        &f,
+        Mesh::Cube,
+        v3(0, cm(60), 0),
+        v3(w, cm(160), d),
+        STONE,
+        0,
+    );
+    part(
+        b,
+        &f,
+        Mesh::Cube,
+        v3(0, h / 2 + cm(80), 0),
+        v3(w - cm(40), h, d - cm(40)),
+        TIMBER,
+        0,
+    );
     for side in [-1, 1] {
         let slope = Affine::translate(foot)
             .then(&Affine::rot_y(yaw))
             .then(&Affine::translate(v3(side * w / 4, h + cm(80) + w / 5, 0)))
-            .then(&Affine::rot_z(side * deg(38)))
+            .then(&Affine::rot_z(-side * deg(38)))
             .then(&Affine::scale(v3(w * 3 / 5 + cm(80), cm(60), d + int(2))));
         b.push(Mesh::Cube, &slope, SNOW, 0);
     }
@@ -1642,10 +2191,34 @@ fn chalet(b: &mut Batch, foot: V3, yaw: i32, dice: &mut Dice) {
         0,
     );
     for x in [-w / 4, w / 4] {
-        part(b, &f, Mesh::Cube, v3(x, h / 2 + cm(80), d / 2 - cm(15)), v3(cm(160), cm(180), cm(10)), WARM_WINDOW, ONE / 2);
+        part(
+            b,
+            &f,
+            Mesh::Cube,
+            v3(x, h / 2 + cm(80), d / 2 - cm(15)),
+            v3(cm(160), cm(180), cm(10)),
+            WARM_WINDOW,
+            ONE / 2,
+        );
     }
-    part(b, &f, Mesh::Cube, v3(0, h + cm(20), d / 2 + cm(60)), v3(w - int(1), cm(20), cm(140)), TIMBER_DARK, 0);
-    part(b, &f, Mesh::Cube, v3(0, h + cm(70), d / 2 + cm(120)), v3(w - int(1), cm(90), cm(10)), TIMBER_DARK, 0);
+    part(
+        b,
+        &f,
+        Mesh::Cube,
+        v3(0, h + cm(20), d / 2 + cm(60)),
+        v3(w - int(1), cm(20), cm(140)),
+        TIMBER_DARK,
+        0,
+    );
+    part(
+        b,
+        &f,
+        Mesh::Cube,
+        v3(0, h + cm(70), d / 2 + cm(120)),
+        v3(w - int(1), cm(90), cm(10)),
+        TIMBER_DARK,
+        0,
+    );
 }
 
 // ---- what moves, and the sky round the eye ----
@@ -1666,7 +2239,8 @@ pub fn dynamic(b: &mut Batch, c: &Course, ski: &SkiLayout, eye: V3, tick: u32, r
             continue;
         }
         let hub = h.from.add(now.sub(v.anchor));
-        let hub = v3(hub.x, hub.y.max(now.y + cm(560)), hub.z).add(up(crate::vehicles::hover(tick, k)));
+        let hub =
+            v3(hub.x, hub.y.max(now.y + cm(560)), hub.z).add(up(crate::vehicles::hover(tick, k)));
         let yaw = (k as i32) * deg(97);
         crate::vehicles::helicopter(b, hub, yaw, tick, 1, ONE * 3 / 2);
         let belly = hub.sub(up(cm(420)));
@@ -1690,7 +2264,12 @@ fn smoke(b: &mut Batch, top: V3, tick: u32) {
         let r = cm(120) + mul(t, int(4));
         let at = top.add(v3(mul(t, int(7)), mul(t, int(16)), mul(t, int(3))));
         let grey = mix(rgb(200, 204, 212), FOG, t);
-        b.push(Mesh::Blob, &placed(at, k as i32 * 9000 + age * 20, v3(r, r * 4 / 5, r)), grey, ONE / 4);
+        b.push(
+            Mesh::Blob,
+            &placed(at, k as i32 * 9000 + age * 20, v3(r, r * 4 / 5, r)),
+            grey,
+            ONE / 4,
+        );
     }
 }
 
@@ -1723,7 +2302,12 @@ pub fn backdrop(b: &mut Batch, c: &Course, eye: V3) {
     // the dome's colour is a multiple of the sky's (so the colourblind mode
     // and JOJO MODE, which change the sky, change it too)
     let deep = [0, 1, 2].map(|k| fx::div(ZENITH[k], SKY[k].max(1)).min(ONE));
-    b.push(Mesh::Sphere, &placed(eye, 0, v3(DOME * 2, DOME * 2, DOME * 2)), deep, DOME_GLOW);
+    b.push(
+        Mesh::Sphere,
+        &placed(eye, 0, v3(DOME * 2, DOME * 2, DOME * 2)),
+        deep,
+        DOME_GLOW,
+    );
     let base = downhill_yaw(c);
     let foot = eye.y - RANGE_FOOT;
     let mut dice = Dice(0x5C1_3A06E);
@@ -1737,7 +2321,9 @@ pub fn backdrop(b: &mut Batch, c: &Course, eye: V3) {
         if off.abs() < deg(9) {
             continue;
         }
-        let at = eye.flat().add(facing(yaw, 0).scale(RANGE_AT + int(dice.range(0, 40))));
+        let at = eye
+            .flat()
+            .add(facing(yaw, 0).scale(RANGE_AT + int(dice.range(0, 40))));
         let lean = facing(yaw + deg(90), 0).scale(int(dice.range(-30, 30)));
         mountain(
             b,
@@ -1785,7 +2371,16 @@ const HAZE_BELOW: i32 = int(14);
 /// One mountain: a pyramid with its foot's middle at `foot`, turned `yaw`,
 /// `wide` across and `tall`, its top pushed over by `lean`, in `rock`,
 /// white from `snow` of the way down from the top.
-fn mountain(b: &mut Batch, foot: V3, yaw: i32, (wide, tall): (i32, i32), lean: V3, rock: Rgb, snow: i32, haze: i32) {
+fn mountain(
+    b: &mut Batch,
+    foot: V3,
+    yaw: i32,
+    (wide, tall): (i32, i32),
+    lean: V3,
+    rock: Rgb,
+    snow: i32,
+    haze: i32,
+) {
     let r = Affine::rot_y(yaw);
     let c0 = r.apply_dir(v3(wide, 0, 0));
     let c2 = r.apply_dir(v3(0, 0, wide));
@@ -1829,8 +2424,26 @@ fn peak(b: &mut Batch, eye: V3, yaw: i32) {
     let face = yaw_of(toward) + deg(45);
     let glow = FAR_GLOW + PEAK_HAZE;
     // the shoulders, broad, white over blue-grey rock
-    mountain(b, at(-int(160), int(40), 0), face + deg(12), (int(300), int(150)), side.scale(-int(50)), MOUNTAIN_ROCK, ONE * 3 / 5, PEAK_HAZE);
-    mountain(b, at(int(170), int(50), 0), face - deg(17), (int(300), int(140)), side.scale(int(60)), MOUNTAIN_ROCK, ONE * 3 / 5, PEAK_HAZE);
+    mountain(
+        b,
+        at(-int(160), int(40), 0),
+        face + deg(12),
+        (int(300), int(150)),
+        side.scale(-int(50)),
+        MOUNTAIN_ROCK,
+        ONE * 3 / 5,
+        PEAK_HAZE,
+    );
+    mountain(
+        b,
+        at(int(170), int(50), 0),
+        face - deg(17),
+        (int(300), int(140)),
+        side.scale(int(60)),
+        MOUNTAIN_ROCK,
+        ONE * 3 / 5,
+        PEAK_HAZE,
+    );
     // the horn: snow, leaning a little
     let (wide, tall) = (int(190), int(250));
     let lean = side.scale(int(20));
@@ -1846,7 +2459,11 @@ fn peak(b: &mut Batch, eye: V3, yaw: i32) {
     // dark rock along its four ridges: two thin fins through the summit,
     // each down a pair of opposite corners, a hair proud of the snow
     for k in 0..2 {
-        let corner = horn.apply(v3(if k % 2 == 0 { ONE / 2 } else { -ONE / 2 }, -ONE / 2, if k < 2 { ONE / 2 } else { -ONE / 2 }));
+        let corner = horn.apply(v3(
+            if k % 2 == 0 { ONE / 2 } else { -ONE / 2 },
+            -ONE / 2,
+            if k < 2 { ONE / 2 } else { -ONE / 2 },
+        ));
         let foot_mid = at(0, 0, 0);
         let out = corner.sub(foot_mid).scale(ONE * 104 / 100);
         let across = right_of(out.flat().norm()).scale(int(22));
@@ -1859,7 +2476,10 @@ fn peak(b: &mut Batch, eye: V3, yaw: i32) {
         b.push(Mesh::Pyramid, &fin, PEAK_ROCK, glow);
     }
     // rock bands across its upper faces
-    for (h, w) in [(ONE * 62 / 100, ONE * 40 / 100), (ONE * 80 / 100, ONE * 22 / 100)] {
+    for (h, w) in [
+        (ONE * 62 / 100, ONE * 40 / 100),
+        (ONE * 80 / 100, ONE * 22 / 100),
+    ] {
         let band = Affine {
             c0: horn.c0.scale(w * 118 / 100),
             c1: horn.c1.scale(ONE / 12),
@@ -1933,9 +2553,18 @@ mod tests {
         let l = scene::look(Map::Ski);
         assert!(l.light_dir.y > fx::sin(deg(55)), "the sun is high");
         let [r, g, b] = l.light;
-        assert!(r > ONE * 9 / 10 && g > ONE * 9 / 10 && b > ONE * 9 / 10, "white light");
-        assert!(ZENITH[2] > ZENITH[0] * 4 && ZENITH[2] > ZENITH[1] * 2, "a deep blue overhead");
-        assert!(FOG[2] > FOG[0] && FOG.iter().all(|c| *c > ONE * 3 / 4), "a pale blue haze");
+        assert!(
+            r > ONE * 9 / 10 && g > ONE * 9 / 10 && b > ONE * 9 / 10,
+            "white light"
+        );
+        assert!(
+            ZENITH[2] > ZENITH[0] * 4 && ZENITH[2] > ZENITH[1] * 2,
+            "a deep blue overhead"
+        );
+        assert!(
+            FOG[2] > FOG[0] && FOG.iter().all(|c| *c > ONE * 3 / 4),
+            "a pale blue haze"
+        );
         for other in [Map::Jungle, Map::City] {
             let o = scene::look(other);
             assert_ne!(o.fog, l.fog);
@@ -1950,8 +2579,15 @@ mod tests {
         assert!(rope.halo > 0, "a soft glow round each rope");
         let reach = scene::vine_look_on(Map::Ski, true, false, 0);
         assert_ne!(reach.colour, rope.colour);
-        assert_eq!(reach.colour, scene::vine_look(true, false, 0).colour, "the shared reach yellow");
-        assert_eq!(scene::vine_look_on(Map::Ski, false, true, 0).colour, ROPE_VIVID);
+        assert_eq!(
+            reach.colour,
+            scene::vine_look(true, false, 0).colour,
+            "the shared reach yellow"
+        );
+        assert_eq!(
+            scene::vine_look_on(Map::Ski, false, true, 0).colour,
+            ROPE_VIVID
+        );
         // and apart from the fences' orange, the item flowers' violet and
         // the lift chairs
         for other in [FENCE, scene::PETAL, CHAIRS[0], CHAIRS[1]] {
@@ -1967,14 +2603,24 @@ mod tests {
         let s = scenery(&c, ski);
         let all = shapes(&s.values);
         let fence = all.iter().filter(|(_, col, _)| *col == FENCE).count();
-        assert!(fence as i32 > 2 * c.length / POST_EVERY, "a fence along both edges: {fence}");
+        assert!(
+            fence as i32 > 2 * c.length / POST_EVERY,
+            "a fence along both edges: {fence}"
+        );
         // a chair on every chair of every lift (those carrying vines too)
         for (k, l) in ski.lifts.iter().enumerate() {
-            let chairs = all.iter().filter(|(_, col, _)| *col == CHAIRS[k % 2]).count() as i32;
-            assert!(chairs >= 2 * 2 * (l.chairs() - 1), "lift {k}: {chairs} chair shapes");
+            let chairs = all
+                .iter()
+                .filter(|(_, col, _)| *col == CHAIRS[k % 2])
+                .count() as i32;
+            assert!(
+                chairs >= 2 * 2 * (l.chairs() - 1),
+                "lift {k}: {chairs} chair shapes"
+            );
             for t in &l.towers {
                 assert!(
-                    all.iter().any(|(p, col, _)| *col == STEEL && p.flat().sub(t.flat()).len() < int(1)),
+                    all.iter()
+                        .any(|(p, col, _)| *col == STEEL && p.flat().sub(t.flat()).len() < int(1)),
                     "a tower at each foot"
                 );
             }
@@ -1995,7 +2641,10 @@ mod tests {
     #[test]
     fn the_sky_dome_and_the_range_are_drawn_round_the_eye() {
         let c = Map::Ski.course();
-        for eye in [c.point(int(100)).add(up(int(10))), c.point(int(1500)).add(up(int(40)))] {
+        for eye in [
+            c.point(int(100)).add(up(int(10))),
+            c.point(int(1500)).add(up(int(40))),
+        ] {
             let mut b = Batch::new();
             backdrop(&mut b, &c, eye);
             let (values, _) = b.finish(crate::render::DYNAMIC_BUFFER);
@@ -2003,7 +2652,10 @@ mod tests {
             let dome: Vec<_> = all.iter().filter(|(_, _, g)| *g == DOME_GLOW).collect();
             assert_eq!(dome.len(), 1);
             assert_eq!(dome[0].0, eye, "the dome is centred on the eye");
-            let far = all.iter().filter(|(_, _, g)| *g > FAR_GLOW && *g < DOME_GLOW).count();
+            let far = all
+                .iter()
+                .filter(|(_, _, g)| *g > FAR_GLOW && *g < DOME_GLOW)
+                .count();
             assert!(far > 40, "the range, the peak and the haze: {far}");
             // all of them inside the far plane
             for (p, _, _) in &all {

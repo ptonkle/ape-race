@@ -1816,7 +1816,9 @@ pub fn flyover_camera(c: &Course, ticks: u32, from: i32) -> Camera {
     // on the Ski Slope, down the left branch at each fork (not through the
     // trees on its island)
     let lane = |s: i32| match Map::of(c) {
-        Map::Ski => c.point(s).add(right_of(c.heading_at(s)).scale(c.lanes(s)[0].0)),
+        Map::Ski => c
+            .point(s)
+            .add(right_of(c.heading_at(s)).scale(c.lanes(s)[0].0)),
         _ => c.point(s),
     };
     let p = lane(s);
