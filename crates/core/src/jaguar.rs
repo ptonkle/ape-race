@@ -62,9 +62,14 @@ impl Eaten {
         let ahead = (s + FROM_AHEAD).min(course.length);
         let heading = course.heading_at(ahead);
         let right = right_of(heading);
-        let way = if side >= 0 { right } else { right.neg() };
-        let edge = (course.half_width - FROM_EDGE).max(0);
-        let p = course.point(ahead).add(way.scale(edge));
+        // the lane the ape is in (the Ski Slope's forks have two), and its
+        // edge on the ape's side of it: the whole course elsewhere
+        let [l0, l1] = course.lanes(ahead);
+        let off = |(m, h): (i32, i32)| (side - m).abs() - h;
+        let (m, h) = if off(l1) < off(l0) { l1 } else { l0 };
+        let sign = if side >= m { 1 } else { -1 };
+        let edge = m + sign * (h - FROM_EDGE).max(0);
+        let p = course.point(ahead).add(right.scale(edge));
         Eaten {
             tick,
             at,

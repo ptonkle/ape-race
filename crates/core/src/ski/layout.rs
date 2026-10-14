@@ -58,7 +58,7 @@ pub const FORKS: [Fork; 2] = [
         to: int(670),
         left: int(30),
         right: int(22),
-        branch_half: int(13),
+        branch_half: int(15),
         ramp: int(60),
     },
     Fork {
@@ -66,7 +66,7 @@ pub const FORKS: [Fork; 2] = [
         to: int(1360),
         left: int(20),
         right: int(30),
-        branch_half: int(12),
+        branch_half: int(14),
         ramp: int(55),
     },
 ];
@@ -127,19 +127,17 @@ fn on_ground(c: &Course, p: V3) -> V3 {
     v3(p.x, c.terrain(p.x, p.z), p.z)
 }
 
-/// The lanes at `s`: one (the whole run, or a fork's two branches before
-/// they have parted), or two with the island between. Each (centre, half
-/// width, its left edge an island, its right edge an island).
+/// The lanes at `s`: the whole run, or a fork's two branches (from the
+/// fork's first metre: while they part they overlap). Each (centre, half
+/// width, whether a tree may stand outside its left edge, and its right):
+/// not where the other branch overlaps it.
 fn lanes_at(c: &Course, s: i32) -> Vec<(i32, i32, bool, bool)> {
     let [(c0, h0), (c1, h1)] = c.lanes(s);
     if (c0, h0) == (c1, h1) {
-        return vec![(c0, h0, false, false)];
+        return vec![(c0, h0, true, true)];
     }
-    if c0 + h0 < c1 - h1 {
-        return vec![(c0, h0, false, true), (c1, h1, true, false)];
-    }
-    let (lo, hi) = (c0 - h0, c1 + h1);
-    vec![((lo + hi) / 2, (hi - lo) / 2, false, false)]
+    let apart = c0 + h0 + TRUNK_OUT * 2 < c1 - h1;
+    vec![(c0, h0, true, apart), (c1, h1, apart, true)]
 }
 
 /// Whether a point `off` right of the line at `s` is over a lane, at least
@@ -260,16 +258,22 @@ impl Build {
                 ));
             }
         }
-        // the lane it is in, and its nearer edge
+        // the lane it is in, and its nearer edge a tree may stand by
         let lanes = lanes_at(c, along);
-        let &(m, h, _, _) = lanes
+        let &(m, h, lo_tree, hi_tree) = lanes
             .iter()
             .min_by_key(|&&(m, h, _, _)| ((off - m).abs() - h).max(0))?;
-        let to_edge = h - (off - m).abs();
-        if to_edge < 0 || to_edge + TRUNK_OUT > BRANCH_MAX {
+        let sign = match (lo_tree, hi_tree) {
+            (true, true) if off >= m => 1,
+            (true, true) => -1,
+            (true, false) => -1,
+            (false, true) => 1,
+            (false, false) => return None,
+        };
+        let to_edge = h - (off - m) * sign;
+        if !(0..=BRANCH_MAX - TRUNK_OUT).contains(&to_edge) {
             return None;
         }
-        let sign = if off >= m { 1 } else { -1 };
         let trunk = pt(c, along, m + sign * (h + TRUNK_OUT));
         let g = c.terrain(p.x, p.z);
         let anchor = v3(p.x, g + anchor_h, p.z);
@@ -423,7 +427,7 @@ pub fn ski_seeded(seed: u64) -> Course {
     let mut helis = HELICOPTERS.to_vec();
     let mut s = 32;
     let mut station = 0;
-    let mut middle_wires = 0;
+    let mut middle_skipped = false;
     while s < len_m - 30 {
         let si = int(s);
         let lanes = lanes_at(&c, si);
@@ -440,13 +444,20 @@ pub fn ski_seeded(seed: u64) -> Course {
                 helis.remove(0);
             }
             if let [(m, h, _, _)] = lanes[..] {
-                // the whole run: two of three lanes, now and then all three
+                // the whole run: two of three lanes, now and then all
+                // three; the middle is skipped one time in four at most and
+                // never twice running (the City: a station with only the
+                // outer lanes leaves no way on but along a wall), and never
+                // under a helicopter
                 let side = (h - int(10)).max(int(6));
                 let skip = if b.dice.below(6) == 0 {
                     3
+                } else if !middle_skipped && heli.is_none() && b.dice.below(4) == 0 {
+                    1
                 } else {
-                    b.dice.below(3) as i32
+                    2 * b.dice.below(2) as i32
                 };
+                middle_skipped = skip == 1;
                 for lane in 0..3 {
                     if lane == skip {
                         continue;
@@ -459,28 +470,40 @@ pub fn ski_seeded(seed: u64) -> Course {
                     }
                     let anchor_h = int(b.dice.range(38, 50));
                     let bottom = anchor_h - int(b.dice.range(23, 31));
+                    // (the middle, far from a chair: a wire across the run)
                     match b.vine(&mut c, along, off, anchor_h, bottom, false) {
                         Some(v) => here.push(v),
-                        None if middle_wires % 3 == 0 => {
-                            middle_wires += 1;
+                        None => {
                             let g = c.terrain(c.point(along).x, c.point(along).z);
-                            here.extend(b.wire(&mut c, along, &[off], g + anchor_h, anchor_h - bottom));
+                            here.extend(b.wire(
+                                &mut c,
+                                along,
+                                &[off],
+                                g + anchor_h,
+                                anchor_h - bottom,
+                            ));
                         }
-                        None => middle_wires += 1,
                     }
                 }
             } else {
                 // a fork: one or two vines in each branch
-                for (k, &(m, _, _, _)) in lanes.iter().enumerate() {
+                // (while the branches part, one each, out by its fence)
+                for (k, &(m, h, lo_tree, hi_tree)) in lanes.iter().enumerate() {
                     if k == 0 && heli.is_some() {
                         here.push(b.helicopter(&mut c, int(s), m));
                         continue;
                     }
                     let two = b.dice.below(2) == 0;
                     let first = if b.dice.below(2) == 0 { -1 } else { 1 };
-                    for side in if two { vec![-1, 1] } else { vec![first] } {
+                    let spots = match (lo_tree, hi_tree) {
+                        (true, true) if two => vec![m - int(4), m + int(4)],
+                        (true, true) => vec![m + first * int(4)],
+                        (true, false) => vec![m - h + int(9)],
+                        _ => vec![m + h - int(9)],
+                    };
+                    for spot in spots {
                         let along = int(s + b.dice.range(-3, 3));
-                        let off = m + side * int(4) + int(b.dice.range(-1, 1));
+                        let off = spot + int(b.dice.range(-1, 1));
                         let anchor_h = int(b.dice.range(38, 50));
                         let bottom = anchor_h - int(b.dice.range(23, 31));
                         if let Some(v) = b.vine(&mut c, along, off, anchor_h, bottom, false) {
@@ -494,15 +517,27 @@ pub fn ski_seeded(seed: u64) -> Course {
         // a low vine to climb back up by, in each lane
         if station % 2 == 1 {
             let lanes = lanes_at(&c, int(s + 7));
-            for &(m, h, _, _) in &lanes {
-                let sign = if b.dice.below(2) == 0 { -1 } else { 1 };
-                let reach = if lanes.len() == 1 {
+            for &(m, h, lo_tree, hi_tree) in &lanes {
+                let sign = match (lo_tree, hi_tree) {
+                    (true, false) => -1,
+                    (false, true) => 1,
+                    _ if b.dice.below(2) == 0 => -1,
+                    _ => 1,
+                };
+                let reach = if lanes.len() == 1 || !(lo_tree && hi_tree) {
                     h - int(b.dice.range(9, 12))
                 } else {
                     int(b.dice.range(3, 5))
                 };
                 let length = int(24) + cm(b.dice.range(0, 40));
-                b.vine(&mut c, int(s + 7), m + sign * reach, int(27), int(27) - length, true);
+                b.vine(
+                    &mut c,
+                    int(s + 7),
+                    m + sign * reach,
+                    int(27),
+                    int(27) - length,
+                    true,
+                );
             }
         }
         station += 1;
@@ -542,15 +577,13 @@ fn island_trees(c: &Course, b: &mut Build) {
     for f in FORKS {
         let mut s = f.from + f.ramp / 2;
         while s < f.to - f.ramp / 3 {
-            if let [(_, _, _, true), (m1, h1, true, _)] = lanes_at(c, s)[..] {
-                let [(m0, h0), _] = c.lanes(s);
+            let [(m0, h0), (m1, h1)] = c.lanes(s);
+            {
                 let (lo, hi) = (m0 + h0 + int(3), m1 - h1 - int(3));
                 if hi > lo {
                     let off = lo + mul(hi - lo, b.dice.range(0, 100) * ONE / 100);
                     let p = pt(c, s, off);
-                    let clear = marks
-                        .iter()
-                        .all(|m| m.at.flat().dist(p) > int(16));
+                    let clear = marks.iter().all(|m| m.at.flat().dist(p) > int(16));
                     if clear {
                         let y = c.terrain(p.x, p.z) + int(b.dice.range(10, 26));
                         b.tree(c, p, y);

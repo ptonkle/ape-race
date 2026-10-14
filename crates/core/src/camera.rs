@@ -4,10 +4,10 @@
 //! speed. It is updated once a tick, and drawn between ticks by blending the
 //! last two.
 
-use crate::course::ground;
 use crate::fx::{self, cm, deg, int, mul, ONE};
 use crate::geom::{facing, yaw_of, V3};
 use crate::render::Camera;
+use crate::ski::Terrain;
 
 /// The field of view at rest and at full speed.
 const FOV_REST: i32 = deg(68);
@@ -42,10 +42,12 @@ pub struct Chase {
     pub prev_eye: V3,
     pub prev_target: V3,
     pub prev_fov: i32,
+    /// the course's ground, which the eye stays above
+    pub terrain: Terrain,
 }
 
 impl Chase {
-    pub fn new(at: V3, yaw: i32) -> Chase {
+    pub fn new(at: V3, yaw: i32, terrain: Terrain) -> Chase {
         let mut c = Chase {
             yaw,
             pitch: PITCH_REST,
@@ -57,6 +59,7 @@ impl Chase {
             prev_eye: at,
             prev_target: at,
             prev_fov: FOV_REST,
+            terrain,
         };
         c.place(at);
         c.prev_eye = c.eye;
@@ -111,7 +114,7 @@ impl Chase {
         let look = facing(self.yaw, self.pitch);
         let target = at.sub(V3::UP.scale(cm(40)));
         let mut eye = target.sub(look.scale(self.back)).add(V3::UP.scale(RISE));
-        let floor = ground(eye.x, eye.z) + cm(80);
+        let floor = self.terrain.height(eye.x, eye.z) + cm(80);
         if eye.y < floor {
             eye.y = floor;
         }
@@ -205,10 +208,10 @@ impl Orbit {
     }
 
     /// The camera looking at `at`, kept above the ground.
-    pub fn camera(&self, at: V3) -> Camera {
+    pub fn camera(&self, at: V3, terrain: Terrain) -> Camera {
         let look = facing(self.yaw, self.pitch);
         let eye = at.sub(look.scale(self.dist));
-        let floor = ground(eye.x, eye.z) + int(1);
+        let floor = terrain.height(eye.x, eye.z) + int(1);
         let eye = V3 {
             y: eye.y.max(floor),
             ..eye
@@ -276,7 +279,7 @@ mod tests {
     #[test]
     fn the_ape_is_near_the_middle_of_the_view() {
         let at = v3(0, int(20), 0);
-        let mut c = Chase::new(at, 0);
+        let mut c = Chase::new(at, 0, Terrain::Hills);
         for _ in 0..200 {
             c.follow(at, v3(0, 0, int(10)), v3(0, 0, ONE), true);
         }
@@ -289,8 +292,8 @@ mod tests {
     #[test]
     fn speed_widens_the_view() {
         let at = v3(0, int(20), 0);
-        let mut slow = Chase::new(at, 0);
-        let mut fast = Chase::new(at, 0);
+        let mut slow = Chase::new(at, 0, Terrain::Hills);
+        let mut fast = Chase::new(at, 0, Terrain::Hills);
         for _ in 0..300 {
             slow.follow(at, v3(0, 0, int(2)), v3(0, 0, ONE), true);
             fast.follow(at, v3(0, 0, int(45)), v3(0, 0, ONE), true);
@@ -302,13 +305,13 @@ mod tests {
     #[test]
     fn a_resting_mouse_lets_the_camera_swing_behind() {
         let at = v3(0, int(20), 0);
-        let mut c = Chase::new(at, deg(90));
+        let mut c = Chase::new(at, deg(90), Terrain::Hills);
         for _ in 0..600 {
             c.follow(at, v3(0, 0, int(20)), v3(0, 0, ONE), true);
         }
         assert!(fx::wrap(c.yaw).abs() < deg(5), "{}", c.yaw);
         // but a moving mouse holds it
-        let mut c = Chase::new(at, deg(90));
+        let mut c = Chase::new(at, deg(90), Terrain::Hills);
         for _ in 0..600 {
             c.turn(1, 0);
             c.follow(at, v3(0, 0, int(20)), v3(0, 0, ONE), true);
@@ -319,14 +322,14 @@ mod tests {
     #[test]
     fn a_backswing_does_not_turn_the_camera_round() {
         let at = v3(0, int(20), 0);
-        let mut c = Chase::new(at, 0);
+        let mut c = Chase::new(at, 0, Terrain::Hills);
         // swinging back: moving -z on a course that runs +z
         for _ in 0..600 {
             c.follow(at, v3(0, 0, -int(15)), v3(0, 0, ONE), true);
         }
         assert!(fx::wrap(c.yaw).abs() < deg(5), "{}", c.yaw);
         // moving forward and to the side bends it a little that way
-        let mut c = Chase::new(at, 0);
+        let mut c = Chase::new(at, 0, Terrain::Hills);
         for _ in 0..600 {
             c.follow(at, v3(int(20), 0, int(20)), v3(0, 0, ONE), true);
         }
@@ -364,7 +367,7 @@ mod tests {
         assert_eq!(o.dist, ORBIT_FAR);
         // it looks at the ape from its distance
         let o = Orbit::default();
-        let cam = o.camera(at);
+        let cam = o.camera(at, Terrain::Hills);
         assert!((cam.eye.dist(at) - o.dist).abs() < cm(5));
         let (x, y) = cam.screen(ONE * 16 / 9, at).unwrap();
         assert!((x - 50 * ONE).abs() < ONE && (y - 50 * ONE).abs() < ONE);
@@ -399,11 +402,21 @@ mod tests {
     #[test]
     fn the_eye_stays_above_the_ground() {
         let at = v3(0, int(2), 0);
-        let mut c = Chase::new(at, 0);
+        let mut c = Chase::new(at, 0, Terrain::Hills);
         c.turn(0, deg(40));
         for _ in 0..50 {
             c.follow(at, V3::ZERO, v3(0, 0, ONE), true);
         }
-        assert!(c.eye.y >= ground(c.eye.x, c.eye.z) + cm(80) - 2);
+        assert!(c.eye.y >= crate::course::ground(c.eye.x, c.eye.z) + cm(80) - 2);
+        // and above the ski hill on the Ski Slope, looking up it
+        let ski = crate::ski::ski();
+        let p = ski.point(int(300));
+        let at = v3(p.x, ski.terrain(p.x, p.z) + int(2), p.z);
+        let mut c = Chase::new(at, fx::wrap(fx::HALF), ski.terrain);
+        c.turn(0, deg(40));
+        for _ in 0..50 {
+            c.follow(at, V3::ZERO, v3(0, 0, -ONE), true);
+        }
+        assert!(c.eye.y >= ski.terrain(c.eye.x, c.eye.z) + cm(80) - 2);
     }
 }

@@ -1033,7 +1033,7 @@ impl App {
     /// Starts showing a race in which this browser plays ape `local`.
     pub fn begin(&mut self, race: Race, local: usize) {
         let at = race.racers[local].ape.pos;
-        let chase = Chase::new(at, race.course.start_yaw);
+        let chase = Chase::new(at, race.course.start_yaw, race.course.terrain);
         let prev = race.racers.iter().map(|r| r.ape.pos).collect();
         // each AI ape thinks at the race's difficulty, with its own dice
         // from the race's seed, so a replay rebuilds the same brains
@@ -2015,7 +2015,7 @@ fn restore(p: &mut Play, save: replay::SavePoint) {
     p.prev = p.race.racers.iter().map(|r| r.ape.pos).collect();
     p.since_out = None;
     let f = &p.race.racers[p.focus.racer];
-    p.chase = Chase::new(f.ape.pos, p.chase.yaw);
+    p.chase = Chase::new(f.ape.pos, p.chase.yaw, p.race.course.terrain);
 }
 
 /// The course's way forward a little ahead of centreline sample `hint`.
@@ -2034,7 +2034,7 @@ fn follow_speed(p: &mut Play) {
 /// The camera moves to the focused racer, gliding from `from`.
 fn refocus(p: &mut Play, from: Camera, ticks: u32) {
     let f = &p.race.racers[p.focus.racer];
-    p.chase = Chase::new(f.ape.pos, p.chase.yaw);
+    p.chase = Chase::new(f.ape.pos, p.chase.yaw, p.race.course.terrain);
     p.prev[p.focus.racer] = f.ape.pos;
     p.out_for = 0;
     p.pan = Some(Pan::new(from, ticks));
@@ -2155,11 +2155,7 @@ fn replay_camera(p: &Play, view: replay::View, alpha: i32) -> Camera {
             let side = crate::geom::right_of(course.heading_at(spot));
             let flip = if (spot / gap) % 2 == 0 { 1 } else { -1 };
             let foot = q.add(side.scale(int(14) * flip));
-            let eye = v3(
-                foot.x,
-                crate::course::ground(foot.x, foot.z) + int(16),
-                foot.z,
-            );
+            let eye = v3(foot.x, course.terrain(foot.x, foot.z) + int(16), foot.z);
             let d = at.sub(eye);
             // zoom in on a far ape
             let fov =
@@ -2171,8 +2167,8 @@ fn replay_camera(p: &Play, view: replay::View, alpha: i32) -> Camera {
             }
         }
         _ => match &p.replay {
-            Some(pb) => pb.orbit.camera(at),
-            None => camera::Orbit::default().camera(at),
+            Some(pb) => pb.orbit.camera(at, p.race.course.terrain),
+            None => camera::Orbit::default().camera(at, p.race.course.terrain),
         },
     }
 }
