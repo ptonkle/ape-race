@@ -15,7 +15,9 @@
 //! colourblind mode, JOJO MODE, the Ski Slope's snow), `aura` (`off`
 //! hides the racers' auras, TRIAGE T59) and `pal` (each racer's palette,
 //! joined by `+` (a space, as a URL may decode it, works too), TRIAGE
-//! T49; classic for the rest).
+//! T49; classic for the rest) and `gear` (`none`, `ski` or `space`: what
+//! the racers wear instead of the map's own; `space` previews the Sector
+//! Ape costumes before their map exists).
 
 use crate::ai::Difficulty;
 use crate::camera::Orbit;
@@ -52,6 +54,9 @@ pub struct Tile {
     pub snow: bool,
     pub aura: bool,
     pub palettes: Vec<u8>,
+    /// what the racers wear instead of the map's gear (`gear=space`: the
+    /// Sector Ape costumes on any map)
+    pub gear: Option<crate::models::Gear>,
 }
 
 impl Tile {
@@ -76,6 +81,7 @@ impl Tile {
             snow: false,
             aura: true,
             palettes: Vec::new(),
+            gear: None,
         };
         for pair in text.split(',') {
             let Some((k, v)) = pair.split_once('=') else {
@@ -104,6 +110,7 @@ impl Tile {
                 "jojo" => t.jojo = v == "on",
                 "snow" => t.snow = v == "on",
                 "aura" => t.aura = v != "off",
+                "gear" => t.gear = crate::models::Gear::from_key(v).or(t.gear),
                 "pal" => {
                     t.palettes = v
                         .split(['+', ' '])
@@ -139,6 +146,7 @@ impl App {
         self.settings.colourblind = t.blind;
         self.settings.speed_colours = t.jojo;
         self.settings.aura = t.aura;
+        self.dress = t.gear;
         self.settings.weather = if t.snow {
             crate::snow::Weather::Snowing
         } else {
@@ -220,6 +228,11 @@ mod tests {
         let p = Tile::parse("pal=1+3,aura=off");
         assert_eq!((p.palettes.as_slice(), p.aura), ([1, 3].as_slice(), false));
         assert_eq!(Tile::parse("pal=2 0 1").palettes, [2, 0, 1]);
+        assert_eq!(
+            Tile::parse("gear=space").gear,
+            Some(crate::models::Gear::Space)
+        );
+        assert_eq!(Tile::parse("gear=bogus").gear, None);
         assert_eq!((t.at, t.focus, t.view), (600, 1, View::Orbit));
         assert_eq!((t.yaw, t.pitch, t.dist), (deg(90), -deg(20), int(85) / 10));
         assert!(t.hud && t.lava);
@@ -268,5 +281,20 @@ mod tests {
         assert!(v["hud"].is_object());
         assert!(v["hud"]["replay"].is_null());
         assert_eq!(v["hud"]["hint"], "");
+    }
+
+    #[test]
+    fn a_tile_can_dress_the_racers_in_another_maps_gear() {
+        // the Sector Ape costumes, before their map exists, on the Jungle
+        let shapes = |spec: &str| {
+            let mut a = app();
+            a.act("screen.tile", spec);
+            let n = a.frame().1.len();
+            (a.dress, n)
+        };
+        let (none, plain) = shapes("apes=gorilla+lemur,at=60");
+        let (dress, space) = shapes("apes=gorilla+lemur,at=60,gear=space");
+        assert_eq!((none, dress), (None, Some(crate::models::Gear::Space)));
+        assert!(space > plain, "{space} vs {plain}");
     }
 }

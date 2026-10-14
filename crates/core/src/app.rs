@@ -347,6 +347,10 @@ pub struct App {
     alpha: i32,
     /// a running tick count for menus and animation
     pub ticks: u32,
+    /// what the apes wear instead of the map's gear: a tile's `gear=`
+    /// preview (the Sector Ape costumes before their map exists); never
+    /// saved, `None` everywhere else
+    pub dress: Option<models::Gear>,
     sounds: Vec<String>,
     save: bool,
     scene_version: u32,
@@ -407,6 +411,7 @@ impl App {
             acc: 0,
             alpha: 0,
             ticks: 0,
+            dress: None,
             sounds: Vec::new(),
             save: false,
             scene_version: 1,
@@ -1446,6 +1451,7 @@ impl App {
                         chains: &p.chains,
                         vivid,
                         aura: self.settings.aura,
+                        gear: self.dress,
                     })
                 }
                 None => (Batch::new(), Batch::new()),
@@ -1457,7 +1463,8 @@ impl App {
             Stage::Showcase => self.preview_batches(vivid),
             Stage::Lineup => {
                 let mut b = Batch::new();
-                models::lineup(&mut b, self.ticks, models::Gear::on(self.map()));
+                let gear = self.dress.unwrap_or(models::Gear::on(self.map()));
+                models::lineup(&mut b, self.ticks, gear);
                 (Batch::new(), b)
             }
         };

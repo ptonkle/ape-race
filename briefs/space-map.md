@@ -58,3 +58,5 @@ Given by the person on 2026-10-13, to be built in a later session (after their u
 - **Black hole finish:** the finish line is the event horizon. After the finish, apes get sucked in during the outro (and the finish dances, T53: where do they dance? on the banana horizon?).
 - **The hidden route:** it should be clearly faster but hard. Check the AI: Sloth shouldn't take it, King Kong maybe sometimes.
 - **Build method:** follow MAPS.md (a skeleton with contract types first, then course, art and gear agents in parallel). Budget: the Ski Slope used a lot of the person's session usage, so start fresh.
+
+**Costumes built (2026-10-13):** branch `sector-gear` has `models::Gear::Space` (flight jacket with team scarf, badge and patches, headset, one metal arm, aviator sunglasses; SECOND-ORDER SG1). Switch them on for the map with one line in `models::Gear::on`: `crate::map::Map::Sector => Gear::Space,`. Preview on any map with `?tile=map=ski,gear=space,view=orbit,...`.
