@@ -2039,6 +2039,51 @@ mod tests {
     }
 
     #[test]
+    fn item_tethers_carry_violet_crystals_and_tethers_glow_mint() {
+        let c = Map::Sector.course();
+        let e = crate::race::Entry {
+            name: "P".into(),
+            kind: crate::rules::Kind::Gorilla,
+            driver: crate::race::Driver::Local,
+            palette: 0,
+        };
+        let race = crate::race::Race::new(c, &[e], false, 1);
+        assert!(!race.crate_vines.is_empty() && !race.items.is_empty());
+        let v = race.crate_vines[0];
+        let a = race.course.anchor(v, 0);
+        let eye = a.add(v3(0, int(5), -int(20)));
+        let cam = crate::render::Camera {
+            eye,
+            fwd: a.sub(eye).norm(),
+            fov: deg(70),
+        };
+        let apes: Vec<V3> = race.racers.iter().map(|r| r.ape.pos).collect();
+        let (vines, _) = scene::dynamic(&scene::Frame {
+            race: &race,
+            cam: &cam,
+            apes: &apes,
+            local: None,
+            tick: 10,
+            chains: &[],
+            vivid: false,
+            aura: false,
+            gear: None,
+            flashes: &[],
+        });
+        let (vals, _) = vines.finish(crate::render::DYNAMIC_BUFFER);
+        let colours: Vec<Rgb> = vals
+            .chunks(crate::render::INSTANCE_VALUES)
+            .map(|i| [i[12], i[13], i[14]])
+            .collect();
+        assert!(colours.contains(&CRYSTAL), "violet crystals on item vines");
+        assert!(colours.contains(&TETHER), "mint tethers");
+        assert!(
+            !colours.contains(&scene::PETAL),
+            "no jungle flowers in space"
+        );
+    }
+
+    #[test]
     fn the_backdrop_stays_inside_the_far_plane() {
         let c = Map::Sector.course();
         let eye = c.point(int(300)).add(v3(0, int(20), 0));
