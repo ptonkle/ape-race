@@ -3,6 +3,7 @@
 //! bananas, low vines, a way on everywhere).
 
 use super::*;
+use crate::fx::deg;
 use crate::geom::right_of;
 use crate::rules::{BODY_RADIUS, CEILING};
 

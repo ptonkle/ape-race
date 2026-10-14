@@ -24,7 +24,7 @@
 //! course.
 
 use crate::course::Course;
-use crate::fx::{self, cm, deg, mul, ONE};
+use crate::fx::{self, cm, mul, ONE};
 use crate::geom::{right_of, v3, V3};
 
 /// The mean slope of the hill, in degrees (the person: 5–10°, to be
@@ -94,64 +94,83 @@ impl Terrain {
     }
 }
 
+/// tan(d°) in Q16, for whole degrees 0 to 15 (`SLOPE_DEG`'s range).
+const TAN_DEG: [i64; 16] = [
+    0, 1144, 2289, 3435, 4583, 5734, 6888, 8047, 9210, 10380, 11556, 12739, 13930, 15130, 16340,
+    17560,
+];
+
+/// The pitches' grade, as knots of a piecewise linear function of the
+/// distance down the fall line: (metres Q16, grade Q16, the drop from the
+/// top to there Q16), worked out once at compile time.
+const KNOTS: usize = 2 * (PITCHES.len() - 1) + 1;
+const HILL: [(i64, i64, i64); KNOTS] = hill();
+
+const fn pitch_grade(pct: i32) -> i64 {
+    TAN_DEG[SLOPE_DEG as usize] * pct as i64 / 100
+}
+
+const fn hill() -> [(i64, i64, i64); KNOTS] {
+    let mut out = [(0i64, 0i64, 0i64); KNOTS];
+    out[0] = (0, pitch_grade(PITCHES[0].1), 0);
+    let half = (BLEND as i64 * ONE as i64) / 2;
+    let mut boundary = 0i64;
+    let mut n = 1;
+    let mut k = 0;
+    while k < PITCHES.len() - 1 {
+        boundary += PITCHES[k].0 as i64 * ONE as i64;
+        out[n] = (boundary - half, pitch_grade(PITCHES[k].1), 0);
+        out[n + 1] = (boundary + half, pitch_grade(PITCHES[k + 1].1), 0);
+        n += 2;
+        k += 1;
+    }
+    // the drop at each knot: the exact integral of the grade
+    let mut i = 1;
+    while i < KNOTS {
+        let (x0, g0, h0) = out[i - 1];
+        let (x1, g1, _) = out[i];
+        out[i].2 = h0 + (g0 + g1) * (x1 - x0) / 2;
+        i += 1;
+    }
+    out
+}
+
+/// The knot at or before `u` (Q16 metres down the fall line, not negative).
+fn knot(u: i64) -> usize {
+    let mut k = 0;
+    while k + 1 < KNOTS && HILL[k + 1].0 <= u {
+        k += 1;
+    }
+    k
+}
+
 /// The grade of the hill `u` metres (Q16) down the fall line from the top
 /// (drop per metre, Q16): each pitch's grade, blended into the next over
 /// `BLEND` metres. `drop_at` is its integral.
 pub fn grade_at(u: i32) -> i32 {
-    let mean = fx::div(fx::sin(deg(SLOPE_DEG)), fx::cos(deg(SLOPE_DEG)));
-    let grade = |pct: i32| mul(mean, pct * ONE / 100);
-    let half = BLEND * ONE / 2;
-    let mut boundary = 0;
-    for k in 0..PITCHES.len() - 1 {
-        boundary += PITCHES[k].0 * ONE;
-        if u < boundary - half {
-            return grade(PITCHES[k].1);
-        }
-        if u < boundary + half {
-            let t = fx::div(u - (boundary - half), 2 * half);
-            return fx::lerp(grade(PITCHES[k].1), grade(PITCHES[k + 1].1), t);
-        }
+    let u = (u as i64).max(0);
+    let k = knot(u);
+    let (x0, g0, _) = HILL[k];
+    match HILL.get(k + 1) {
+        Some(&(x1, g1, _)) => (g0 + (g1 - g0) * (u - x0) / (x1 - x0).max(1)) as i32,
+        None => g0 as i32,
     }
-    grade(PITCHES[PITCHES.len() - 1].1)
 }
 
 /// The hill's height `u` metres (Q16) down the fall line from the top
 /// (negative: below the top). Before the top the first pitch goes on up.
 /// The grade is piecewise linear in `u` (each pitch's grade, blended into
 /// the next over `BLEND` metres centred on their boundary), so the height
-/// is its exact integral, a handful of pieces a call.
+/// is its exact integral (`HILL`, worked out once).
 pub fn drop_at(u: i32) -> i32 {
-    let mean = fx::div(fx::sin(deg(SLOPE_DEG)), fx::cos(deg(SLOPE_DEG)));
-    let grade = |pct: i32| mul(mean, pct * ONE / 100) as i64;
-    if u <= 0 {
-        return -((u as i64 * grade(PITCHES[0].1)) >> 16) as i32;
-    }
-    // knots of the grade: (metres Q16, grade Q16)
-    let mut h: i64 = 0;
-    let (mut x0, mut g0) = (0i64, grade(PITCHES[0].1));
-    let mut boundary = 0i64;
     let u = u as i64;
-    let half = (BLEND as i64 * ONE as i64) / 2;
-    let mut knots = [(0i64, 0i64); 2 * 16];
-    let mut n = 0;
-    for k in 0..PITCHES.len() - 1 {
-        boundary += PITCHES[k].0 as i64 * ONE as i64;
-        knots[n] = (boundary - half, grade(PITCHES[k].1));
-        knots[n + 1] = (boundary + half, grade(PITCHES[k + 1].1));
-        n += 2;
+    if u <= 0 {
+        return -((u * HILL[0].1) >> 16) as i32;
     }
-    for &(x1, g1) in &knots[..n] {
-        if u <= x1 {
-            // part of this piece: the grade at u by linear interpolation
-            let gu = g0 + (g1 - g0) * (u - x0) / (x1 - x0).max(1);
-            h += (g0 + gu) * (u - x0) / 2;
-            return -((h >> 16) as i32);
-        }
-        h += (g0 + g1) * (x1 - x0) / 2;
-        (x0, g0) = (x1, g1);
-    }
-    h += g0 * (u - x0);
-    -((h >> 16) as i32)
+    let k = knot(u);
+    let (x0, g0, h0) = HILL[k];
+    let gu = grade_at(u as i32) as i64;
+    -((h0 + (g0 + gu) * (u - x0) / 2) >> 16) as i32
 }
 
 /// Everything the Ski Slope has beyond the shared course data.

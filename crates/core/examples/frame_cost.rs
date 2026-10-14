@@ -10,7 +10,13 @@ fn main() {
     a.act("menu.start", "");
     let mut now = 0i64;
     a.key("KeyW", true);
-    for f in 0..600 {
+    // `-- ski 6000`: this many frames (default 600), then the worst step
+    let frames: u32 = std::env::args()
+        .nth(2)
+        .and_then(|n| n.parse().ok())
+        .unwrap_or(600);
+    let mut worst = std::time::Duration::ZERO;
+    for f in 0..frames {
         if f == 200 {
             a.key("Space", true);
         }
@@ -18,6 +24,7 @@ fn main() {
         let t = Instant::now();
         a.advance(now);
         let stepped = t.elapsed();
+        worst = worst.max(stepped);
         let _ = a.ui();
         let _ = a.frame();
         let e = t.elapsed();
@@ -33,4 +40,5 @@ fn main() {
             );
         }
     }
+    println!("worst step {worst:?} over {frames} frames");
 }
