@@ -84,6 +84,9 @@ pub const PADS: &[i32] = &[220, 400, 890, 1440, 1640, 1960];
 /// wreck, between the armada's ranks (metres along, metres right).
 pub const FEATURE_PADS: &[(i32, i32)] = &[(600, -52), (1162, 0), (2188, 0)];
 const PAD_TOP: i32 = -int(14);
+/// A deck's row of vines (and the start's) are this far apart: with this
+/// map's longer reach, closer ones were caught one after another.
+const ROW_GAP: i32 = int(7);
 const PAD_HALF: (i32, i32) = (int(11), int(12));
 
 /// The Hulk: its corridor's ends (metres along), its middle's height, its
@@ -300,10 +303,15 @@ impl B {
     }
 
     /// A row of vines across a deck's front edge (the start's, TRIAGE row
-    /// 7): `n` of them 3.5 m apart, hanging from a girder to a metre above
-    /// the deck. Returns them.
+    /// 7): `n` of them `ROW_GAP` apart, hanging from a girder to a metre
+    /// above the deck. Returns them.
     fn deck_row(&mut self, s: i32, off: i32, top: i32, n: i32) -> Vec<usize> {
-        let span = cm(350) * (n - 1);
+        self.deck_row_gap(s, off, top, n, ROW_GAP)
+    }
+
+    /// `deck_row` with the vines `gap` apart.
+    fn deck_row_gap(&mut self, s: i32, off: i32, top: i32, n: i32, gap: i32) -> Vec<usize> {
+        let span = gap * (n - 1);
         let anchor_y = top + int(30);
         let girder = v3(ONE, ONE, span / 2 + int(2));
         let mid = self.pt(s, int(off), anchor_y + ONE);
@@ -311,7 +319,7 @@ impl B {
         let b = self.body(Model::Girder(span + int(4)), frame, girder, true, DOWN);
         (0..n)
             .map(|k| {
-                let o = int(off) - span / 2 + cm(350) * k;
+                let o = int(off) - span / 2 + gap * k;
                 let tip = self.pt(s, o, top + ONE);
                 self.vine(tip, DOWN, int(29), Hanger::Body(b))
             })
@@ -321,8 +329,8 @@ impl B {
     /// The way a station's vine hangs: about half of them straight down.
     fn way(&mut self) -> Way {
         match self.dice.below(20) {
-            0..=6 => Way::Down,
-            7..=9 => Way::Up,
+            0..=5 => Way::Down,
+            6..=8 => Way::Up,
             10..=13 => Way::Side,
             14..=16 => Way::SlantDown,
             _ => Way::SlantUp,
@@ -330,9 +338,9 @@ impl B {
     }
 
     /// A station of `lanes` (metres right) at `s`: two of them (now and
-    /// then all), at heights about the line; every other one a catch vine
-    /// well below. Returns its vines.
-    fn station(&mut self, s: i32, lanes: &[i32], base: i32, catch: bool) -> Vec<usize> {
+    /// then all), at heights about the line, hanging every way (or, `down`,
+    /// all straight down). Returns its vines.
+    fn station(&mut self, s: i32, lanes: &[i32], base: i32, down: bool) -> Vec<usize> {
         let n = lanes.len();
         let skip = if n < 3 || self.dice.below(5) == 0 {
             usize::MAX
@@ -347,7 +355,7 @@ impl B {
             let along = s + int(self.dice.range(-3, 3));
             let off = off + self.dice.range(-2, 2);
             let h = base + int(self.dice.range(-6, 8));
-            let way = self.way();
+            let way = if down { Way::Down } else { self.way() };
             let from = match off.signum() {
                 0 => {
                     if self.dice.below(2) == 0 {
@@ -360,18 +368,6 @@ impl B {
             };
             here.push(self.lane_vine(along, off, h, way, from));
         }
-        if catch {
-            // well below the line: a fallen ape's way back
-            let off = lanes[self.dice.below(n as u32) as usize];
-            let h = base - int(self.dice.range(30, 36));
-            // level, in from outside the lanes (its debris out there)
-            let from = if off < 0 || (off == 0 && self.dice.below(2) == 0) {
-                -1
-            } else {
-                1
-            };
-            self.lane_vine(s + int(7), off, h, Way::Side, from);
-        }
         here
     }
 
@@ -379,15 +375,19 @@ impl B {
     /// line's height; returns the last station's place.
     fn stations(&mut self, from: i32, to: i32, lanes: &[i32], base: i32) -> i32 {
         let mut s = from;
+        let mut after_pad = false;
         while s < to {
             // a deck here? (its row off the front edge is the station)
             if let Some(&p) = PADS.iter().find(|&&p| p >= s && p < s + 26) {
                 self.pad(p, 0);
                 s = p + 12 + 26;
+                after_pad = true;
                 continue;
             }
-            let catch = false;
-            let here = self.station(int(s), lanes, base, catch);
+            // (off a deck, from a standstill, plain vines to get going: an
+            // odd one caught slowly only whirled the ape round)
+            let here = self.station(int(s), lanes, base, after_pad);
+            after_pad = false;
             self.stations.push(here);
             s += self.dice.range(23, 29);
         }
@@ -492,17 +492,10 @@ fn start(b: &mut B) {
     }
     b.c.start_yaw = 0;
     let edge = START_LEN + cm(150);
-    // seven across the deck, 3 m apart (as the Jungle's start)
-    let girder = v3(ONE, ONE, int(11));
-    let mid = b.pt(edge, 0, int(31));
-    let frame = pose(mid, b.yaw(edge) + fx::QUARTER, 0, 0, ONE);
-    let g = b.body(Model::Girder(int(22)), frame, girder, true, DOWN);
-    let row: Vec<usize> = (-3..=3)
-        .map(|k| {
-            let tip = b.pt(edge, int(3) * k, ONE);
-            b.vine(tip, DOWN, int(29), Hanger::Body(g))
-        })
-        .collect();
+    // across the deck's front edge (as the Jungle's start): five, 4.5 m
+    // apart (closer, with this map's reach, they were caught one after
+    // another)
+    let row = b.deck_row_gap(edge, 0, 0, 5, cm(450));
     b.stations.push(row);
     // the first station: close, not too high, straight down
     let here: Vec<usize> = [-6, 0, 6]
@@ -887,30 +880,30 @@ fn armada(b: &mut B) {
             };
             b.lay.mechs.push(m);
             let mi = b.lay.mechs.len() - 1;
-            for hand in 0..2u8 {
-                let at = MechPoint::Hand(hand);
+            // one fist's vine straight down, the other fist's and an
+            // elbow's slanted out and down (the mech's own pull: outward)
+            let e = (n % 2) as u8;
+            let mid = m.frame(0).t;
+            for (at, slant) in [
+                (MechPoint::Hand(e), false),
+                (MechPoint::Hand(1 - e), true),
+                (MechPoint::Elbow(e), true),
+            ] {
                 let anchor = m.point(at, 0);
+                let dir = if slant {
+                    anchor.sub(mid).flat().norm().sub(V3::UP).norm()
+                } else {
+                    DOWN
+                };
+                // (a slanted vine's end about as low as the straight one's)
+                let l = if slant { mul(len, ONE * 4 / 3) } else { len };
                 here.push(b.vine(
-                    anchor.sub(v3(0, len, 0)),
-                    DOWN,
-                    len,
+                    anchor.add(dir.scale(l)),
+                    dir,
+                    l,
                     Hanger::Mech { mech: mi, at },
                 ));
             }
-            // one elbow's vine, slanted out
-            let e = (n % 2) as u8;
-            let at = MechPoint::Elbow(e);
-            let anchor = m.point(at, 0);
-            let mid = m.frame(0).t;
-            let out = anchor.sub(mid).flat().norm();
-            let dir = out.sub(V3::UP).norm();
-            let elen = int(22);
-            here.push(b.vine(
-                anchor.add(dir.scale(elen)),
-                dir,
-                elen,
-                Hanger::Mech { mech: mi, at },
-            ));
             n += 1;
         }
         b.stations.push(here);

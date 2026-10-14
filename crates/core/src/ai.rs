@@ -305,9 +305,9 @@ struct Tuning {
 const SECTOR_LOOK: i32 = int(130);
 const SECTOR_CANDS: usize = 16;
 const SECTOR_FLIGHT: u32 = 4 * TICKS_PER_SECOND as u32;
-const SECTOR_HESITATE: [u32; 4] = [6, 2, 1, 0];
-const SECTOR_DRIVE: [u32; 4] = [2, 5, 7, DUTY];
-const SECTOR_NOISE: [i32; 4] = [int(8), int(5), int(2), 0];
+const SECTOR_HESITATE: [u32; 4] = [5, 3, 1, 0];
+const SECTOR_DRIVE: [u32; 4] = [3, 4, 6, DUTY];
+const SECTOR_NOISE: [i32; 4] = [int(9), int(6), int(3), 0];
 const SECTOR_HOP: [i32; 4] = [int(28), int(30), int(32), int(34)];
 const SECTOR_AIM: i32 = int(30);
 /// Each reset onto a deck makes it misjudge up to this much more (four at
@@ -316,7 +316,7 @@ const SHAKEN_NOISE: i32 = int(4);
 /// Scoring a landing on Sector Ape (see `score`).
 const SECTOR_SPEED_WORTH: i64 = 2;
 const SECTOR_WAIT_COST: i64 = 40;
-const SECTOR_HIDDEN: [bool; 4] = [false, false, true, true];
+const SECTOR_HIDDEN: [bool; 4] = [false, false, false, true];
 
 /// The drive pattern's length, ticks.
 const DUTY: u32 = 8;
