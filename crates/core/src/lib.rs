@@ -22,6 +22,7 @@ pub mod camera;
 pub mod city;
 pub mod cityscape;
 pub mod course;
+pub mod dance;
 pub mod focus;
 pub mod fx;
 pub mod geom;

@@ -1455,9 +1455,11 @@ pub const RACE_SCALE: i32 = 200;
 /// A grounded ape is drawn about its feet, so it still stands on the floor.
 pub fn racer_pose(race: &Race, k: usize, at: V3, tick: u32) -> Pose {
     let a = &race.racers[k].ape;
+    // past the finish, stopped on the ground: its dance (TRIAGE T53)
+    let dance = crate::dance::of(race, k);
     Pose {
         hands: at,
-        yaw: a.yaw,
+        yaw: dance.map_or(a.yaw, |(_, yaw)| yaw),
         rope: a
             .swinging()
             .map(|v| race.course.anchor(v, race.tick).sub(at).norm()),
@@ -1468,6 +1470,7 @@ pub fn racer_pose(race: &Race, k: usize, at: V3, tick: u32) -> Pose {
         scale: RACE_SCALE,
         // the Ski Slope's skis, helmet and goggles
         gear: models::Gear::on(Map::of(&race.course)),
+        dance: dance.map(|(d, _)| d),
     }
 }
 

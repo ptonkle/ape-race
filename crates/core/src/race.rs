@@ -298,6 +298,16 @@ impl Race {
         self.phase == Phase::Running
     }
 
+    /// Race ticks since ape `i` finished (TRIAGE T53, the dance), or None
+    /// before it has. The finish is on the race clock, which starts at Go
+    /// (after the fixed countdown) and stops once the race is done, so
+    /// this counts on the race's own tick instead. It comes from shared
+    /// state alone: every browser, ghost and replay sees the same.
+    pub fn since_finish(&self, i: usize) -> Option<u32> {
+        let finish = self.racers.get(i)?.finish?;
+        Some(self.tick.saturating_sub(finish + COUNTDOWN as u32))
+    }
+
     /// One tick. `controls[i]` drives ape `i` unless it is Remote.
     pub fn step(&mut self, controls: &[Controls]) {
         self.events.clear();

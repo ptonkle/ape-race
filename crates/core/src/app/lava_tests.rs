@@ -106,7 +106,7 @@ fn eaten_racers_are_listed_after_the_finishers_and_the_race_ends() {
     }
     let ui = ui_of(&mut a);
     assert_eq!(
-        ui["panels"][0]["kind"], "overlay",
+        ui["panels"][0]["kind"], "results",
         "all out: the full results"
     );
     let rows = ui["panels"][0]["items"][0]["rows"]
