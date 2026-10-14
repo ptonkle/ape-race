@@ -63,6 +63,11 @@ pub const SPACE_DRAG: i32 = ONE * 2 / 5;
 /// (TRIAGE row 9: it should not).
 pub const SECTOR_REACH: i32 = ONE * 3 / 2;
 
+/// An ape's steering in the air on this map, as a share of its steering
+/// elsewhere: at twice the speed a flight needs more to line up with the
+/// next vine (its suit's thrusters).
+pub const SECTOR_AIR: i32 = ONE * 2;
+
 /// On an odd vine (one that does not hang straight down) the swing's drive
 /// fades at this many times the kind's `drive_fade`, so a chain of odd
 /// vines driven well reaches speeds no other map allows.

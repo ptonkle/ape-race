@@ -1,5 +1,6 @@
 //! Sector Ape's layout in numbers, and the AI on it: finish times by
-//! difficulty over seeds (in parallel), with the resets.
+//! difficulty over seeds (in parallel), with the resets, and the mean time
+//! each level spends in each section of the course.
 //!
 //! `cargo run --release -p tool_core --example sector_report [-- SEEDS [KIND]]`
 //! (SECTOR_REPORT_KINDS=1: every kind at King Kong and the Sloth instead)
@@ -18,14 +19,31 @@ fn layout(k: u64) -> Course {
     }
 }
 
-/// One AI ape alone: its finish (seconds) or where it stopped, its resets,
-/// top speed and whether it went through the wreck's passage.
-fn run(
-    course: Course,
-    kind: Kind,
-    level: Difficulty,
-    equal: bool,
-) -> (Option<f64>, i32, u32, i32, bool) {
+/// The sections, by where they end (metres along).
+const SECTIONS: [(i32, &str); 9] = [
+    (250, "start"),
+    (460, "debris"),
+    (720, "hulk"),
+    (1140, "bend"),
+    (1340, "wreck"),
+    (1700, "belt in"),
+    (1880, "belt"),
+    (2040, "pre-armada"),
+    (2330, "armada"),
+];
+
+struct Run {
+    finish: Option<f64>,
+    at: i32,
+    resets: u32,
+    top: i32,
+    hidden: bool,
+    /// seconds in each section (to the first time past its end)
+    split: Vec<f64>,
+}
+
+/// One AI ape alone.
+fn run(course: Course, kind: Kind, level: Difficulty, equal: bool) -> Run {
     let entries = [Entry {
         name: String::new(),
         kind,
@@ -37,6 +55,7 @@ fn run(
     let (mut resets, mut top, mut hidden) = (0, 0, false);
     let w = race.course.sector.as_ref().unwrap().wreck;
     let pass = tool_core::spacecraft::wreck_passage(&w.frame, w.gap);
+    let mut reached = vec![None; SECTIONS.len()];
     while race.clock < 150 * TICKS_PER_SECOND as u32 && race.phase != Phase::Done {
         let c = think(&race, 0, &mut brain);
         race.step(&[c]);
@@ -51,15 +70,29 @@ fn run(
         let d = a.middle().sub(pass.middle);
         let along = d.dot(pass.axis);
         hidden |= along.abs() < pass.length / 2 && d.reject(pass.axis).len() < pass.width / 2;
+        let p = race.racers[0].progress / ONE;
+        for (k, (end, _)) in SECTIONS.iter().enumerate() {
+            if reached[k].is_none() && (p >= *end || race.racers[0].finish.is_some()) {
+                reached[k] = Some(race.clock);
+            }
+        }
     }
     let r = &race.racers[0];
-    (
-        r.finish.map(|f| f as f64 / TICKS_PER_SECOND as f64),
-        r.progress / ONE,
+    let mut split = Vec::new();
+    let mut last = 0;
+    for t in reached {
+        let t = t.unwrap_or(race.clock);
+        split.push((t - last) as f64 / TICKS_PER_SECOND as f64);
+        last = t;
+    }
+    Run {
+        finish: r.finish.map(|f| f as f64 / TICKS_PER_SECOND as f64),
+        at: r.progress / ONE,
         resets,
-        top / ONE,
+        top: top / ONE,
         hidden,
-    )
+        split,
+    }
 }
 
 fn main() {
@@ -93,13 +126,16 @@ fn main() {
             })
             .collect();
         for r in rows {
-            let (level, k, (f, at, resets, top, hidden)) = r.join().unwrap();
+            let (level, k, r) = r.join().unwrap();
             println!(
-                "{:<10} {:<11} {}  resets {resets} top {top} m/s{}",
+                "{:<10} {:<11} {}  resets {} top {} m/s{}",
                 level.key(),
                 format!("{k:?}"),
-                f.map_or(format!("DNF@{at}m"), |f| format!("{f:.1} s")),
-                if hidden { " (passage)" } else { "" }
+                r.finish
+                    .map_or(format!("DNF@{}m", r.at), |f| format!("{f:.1} s")),
+                r.resets,
+                r.top,
+                if r.hidden { " (passage)" } else { "" }
             );
         }
         return;
@@ -117,24 +153,30 @@ fn main() {
             })
         })
         .collect();
-    let mut table: Vec<(Difficulty, u64, (Option<f64>, i32, u32, i32, bool))> =
+    let mut table: Vec<(Difficulty, u64, Run)> =
         rows.into_iter().map(|r| r.join().unwrap()).collect();
     table.sort_by_key(|(l, k, _)| (*l, *k));
     for level in Difficulty::ALL {
-        let row: Vec<_> = table.iter().filter(|(l, _, _)| *l == level).collect();
+        let row: Vec<&Run> = table
+            .iter()
+            .filter(|(l, _, _)| *l == level)
+            .map(|(_, _, r)| r)
+            .collect();
         let cells: Vec<String> = row
             .iter()
-            .map(|(_, _, (f, at, resets, _, hidden))| {
-                let t = f.map_or(format!("DNF@{at}"), |f| format!("{f:.1}"));
+            .map(|r| {
+                let t = r
+                    .finish
+                    .map_or(format!("DNF@{}", r.at), |f| format!("{f:.1}"));
                 format!(
                     "{t}{}{}",
-                    "r".repeat(*resets as usize),
-                    if *hidden { "*" } else { "" }
+                    "r".repeat(r.resets as usize),
+                    if r.hidden { "*" } else { "" }
                 )
             })
             .collect();
-        let done: Vec<f64> = row.iter().filter_map(|(_, _, (f, ..))| *f).collect();
-        let tops: Vec<i32> = row.iter().map(|(_, _, (_, _, _, t, _))| *t).collect();
+        let done: Vec<f64> = row.iter().filter_map(|r| r.finish).collect();
+        let tops: Vec<i32> = row.iter().map(|r| r.top).collect();
         println!(
             "{:<10} {}  mean {:.1} ({} of {})  top {:?}",
             level.key(),
@@ -144,6 +186,13 @@ fn main() {
             row.len(),
             tops
         );
+        let means: Vec<String> = (0..SECTIONS.len())
+            .map(|k| {
+                let m = row.iter().map(|r| r.split[k]).sum::<f64>() / row.len() as f64;
+                format!("{} {m:.1}", SECTIONS[k].1)
+            })
+            .collect();
+        println!("           sections: {}", means.join(", "));
     }
     println!("(r: a reset onto a deck; *: through the wreck's passage)");
 }

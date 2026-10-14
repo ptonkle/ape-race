@@ -326,26 +326,41 @@ fn a_bouncy_body_throws_an_ape_off_elastically_with_a_boost() {
 const HIT_DROP: i32 = BODY_DROP / 2 + crate::ape::HIT_RADIUS;
 
 #[test]
-fn a_hit_while_swinging_knocks_the_ape_off_its_vine() {
-    // a vine whose swing runs into a body ahead
-    let c = space(
-        &[(v3(0, 0, int(95)), DOWN, int(20))],
-        vec![wall(int(4), true)],
-        false,
-    );
-    let mut a = flying(v3(0, 0, int(94)), v3(0, 0, int(20)), &c);
-    a.step(&hold(), &c, 0);
-    assert_eq!(a.swinging(), Some(0));
-    let mut knocked = false;
-    for t in 1..120 {
-        a.step(&hold(), &c, t);
-        if a.happened.contains(&Happening::Rebound) {
-            knocked = true;
-            break;
+fn a_swing_bounces_off_debris_but_a_dead_hull_knocks_the_ape_off() {
+    // a vine whose swing runs into a body ahead: debris (bouncy) turns the
+    // swing back and the ape holds on; a ship's dead hull knocks it off
+    for bouncy in [true, false] {
+        let c = space(
+            &[(v3(0, 0, int(95)), DOWN, int(20))],
+            vec![wall(int(4), bouncy)],
+            false,
+        );
+        let mut a = flying(v3(0, 0, int(94)), v3(0, 0, int(20)), &c);
+        a.step(&hold(), &c, 0);
+        assert_eq!(a.swinging(), Some(0));
+        let mut hit = None;
+        for t in 1..120 {
+            let before = a.vel;
+            a.step(&hold(), &c, t);
+            let h = a
+                .happened
+                .iter()
+                .find(|h| matches!(h, Happening::Rebound | Happening::Wall));
+            if let Some(h) = h {
+                hit = Some((*h, before, a.vel));
+                break;
+            }
+        }
+        let (h, before, after) = hit.expect("the swing hit the body");
+        if bouncy {
+            assert_eq!(h, Happening::Rebound);
+            assert_eq!(a.swinging(), Some(0), "held on");
+            assert!(before.z > 0 && after.z < 0, "{} then {}", before.z, after.z);
+        } else {
+            assert_eq!(h, Happening::Wall);
+            assert_eq!(a.swinging(), None, "knocked off");
         }
     }
-    assert!(knocked);
-    assert_eq!(a.swinging(), None);
 }
 
 #[test]

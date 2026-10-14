@@ -129,6 +129,7 @@ impl Ape {
         let mut a = Ape::new(kind, equal, pos, yaw);
         if course.sector.is_some() {
             a.phys.reach = mul(a.phys.reach, crate::sector::SECTOR_REACH);
+            a.phys.air = mul(a.phys.air, crate::sector::SECTOR_AIR);
         }
         a
     }
