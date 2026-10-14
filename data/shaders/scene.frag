@@ -61,6 +61,16 @@ void main() {
     // a strength of 3 or more is a glow in the sky (Sector Ape's haze and
     // the sun's corona, far round the eye): the part over 3, soft to its
     // outline, unfogged, one side only
+    // a strength from 2 to 3 is glass (the space jaguar's bubble helmet,
+    // TRIAGE T78): faint inside, a crisp bright rim where it curves away,
+    // one side only
+    if (vColor.a >= 2.0 && vColor.a < 3.0) {
+      if (!gl_FrontFacing) discard;
+      float e = 1.0 - facing;
+      float s = (vColor.a - 2.0) * (0.12 + 1.6 * smoothstep(0.62, 0.86, e)) * (1.0 - f);
+      outColor = vec4(vColor.rgb * s, 0.0);
+      return;
+    }
     if (vColor.a >= 3.0) {
       if (!gl_FrontFacing) discard;
       float s = (vColor.a - 3.0) * facing * facing;
