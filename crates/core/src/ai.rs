@@ -307,7 +307,7 @@ const SECTOR_CANDS: usize = 16;
 const SECTOR_FLIGHT: u32 = 4 * TICKS_PER_SECOND as u32;
 const SECTOR_HESITATE: [u32; 4] = [4, 2, 0, 0];
 const SECTOR_DRIVE: [u32; 4] = [3, 3, 6, DUTY];
-const SECTOR_NOISE: [i32; 4] = [int(12), int(9), int(3), 0];
+const SECTOR_NOISE: [i32; 4] = [int(16), int(9), int(3), 0];
 const SECTOR_HOP: [i32; 4] = [int(24), int(28), int(28), int(28)];
 const SECTOR_AIM: i32 = int(30);
 /// Each reset onto a deck makes it misjudge up to this much more (four at
@@ -1234,6 +1234,11 @@ fn on_ground(a: &Ape, course: &Course, tick: u32, brain: &mut Brain) -> Controls
         // (Sector Ape: a deck may be under vines out of a jump's reach, or
         // over vines hanging below it)
         if (!raised || course.sector.is_some()) && course.vine_bottom(i, tick) > top {
+            continue;
+        }
+        // (... or behind it: running back off a deck only drops the ape off
+        // it)
+        if course.sector.is_some() && raised && v.at < prog {
             continue;
         }
         if course.sector.is_some() && an.y.max(course.tip(i, tick).y) < support {
