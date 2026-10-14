@@ -40,10 +40,14 @@ pub enum Cue {
     Catchup,
     /// Floor is Lava (TRIAGE T37): the jaguar's roar as it leaps
     Roar,
+    /// Sector Ape: put back on a deck past the boundary (a warp)
+    Reset,
+    /// Sector Ape: the switch door slams shut
+    Door,
 }
 
 impl Cue {
-    pub const ALL: [Cue; 17] = [
+    pub const ALL: [Cue; 19] = [
         Cue::Grab,
         Cue::Release,
         Cue::Miss,
@@ -61,6 +65,8 @@ impl Cue {
         Cue::Banana,
         Cue::Catchup,
         Cue::Roar,
+        Cue::Reset,
+        Cue::Door,
     ];
 
     pub fn key(self) -> &'static str {
@@ -82,6 +88,8 @@ impl Cue {
             Cue::Banana => "banana",
             Cue::Catchup => "catchup",
             Cue::Roar => "roar",
+            Cue::Reset => "reset",
+            Cue::Door => "door",
         }
     }
 
@@ -214,6 +222,7 @@ fn notes(cue: Cue) -> Vec<Note> {
             n((1200, 1200), 0, 28, 20, Sine, Perc),
         ],
         Cue::Bounce | Cue::Banana | Cue::Catchup => reward_notes(cue),
+        Cue::Reset | Cue::Door => space_notes(cue),
         // A big cat's roar: a snarl, then a rough buzz falling under a
         // swell of breath.
         Cue::Roar => vec![
@@ -247,6 +256,33 @@ fn reward_notes(cue: Cue) -> Vec<Note> {
             n((620, 1480), 0, 220, 40, Sine, Swell),
             n((1240, 2960), 60, 170, 20, Triangle, Perc),
             n(AIR, 0, 180, 15, Noise(120), Swell),
+        ],
+        _ => Vec::new(),
+    }
+}
+
+/// Sector Ape's cues.
+fn space_notes(cue: Cue) -> Vec<Note> {
+    use Env::*;
+    use Wave::*;
+    const AIR: (u32, u32) = (0, 0);
+    match cue {
+        // A warp: a falling sci-fi sweep sucked away, then a rising
+        // shimmer as the ape blinks back in on the deck.
+        Cue::Reset => vec![
+            n((1400, 180), 0, 260, 35, Sine, Swell),
+            n((700, 90), 0, 260, 15, Square, Swell),
+            n((240, 1900), 230, 220, 30, Triangle, Perc),
+            n(AIR, 200, 200, 20, Noise(140), Swell),
+        ],
+        // A heavy bulkhead slam: a deep clang with a metal ring over it,
+        // then a two-tone alarm.
+        Cue::Door => vec![
+            n((110, 48), 0, 260, 45, Square, Perc),
+            n((523, 470), 0, 380, 20, Triangle, Perc),
+            n(AIR, 0, 90, 35, Noise(60), Perc),
+            n((880, 880), 260, 110, 25, Triangle, Flat),
+            n((660, 660), 380, 110, 25, Triangle, Flat),
         ],
         _ => Vec::new(),
     }
