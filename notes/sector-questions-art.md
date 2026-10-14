@@ -14,3 +14,7 @@ The art agent's calls on Sector Ape's look that you may want to change. Each is 
 10. **Landmarks the art added** beyond the course's own set pieces: capital battles, ring stations, big dogfights and V-formations of ape wings outside the boundary every 230–300 m, and wreckage tumbling just outside it. Too busy? (SA22.)
 11. **The switch vine** wears yellow-and-black hazard bands and a beacon that blinks amber, red while the door is shut; the door itself slams down from the corridor's roof in a quarter second with red lights over the corridor's mouths. (SA26.)
 12. **The Hulk** (the door's ship) is a rust-red freighter with containers on top, its corridor lined dark with light strips. (SA23.)
+
+## Screenshots (`notes/sector-shots/`)
+
+01 the lobby (Race Setup), 02 the start, 03 a sideways vine, 04 a vine hanging up, 05 the door shut at the end of the Hulk's corridor, 06 the Hulk from outside, 07 the mothership's pass overhead, 08 the gap between the wreck's halves (title flyover), 09 the asteroid belt and the black hole on the horizon, 10 the armada, 11 the black hole's banana horizon at the finish, 12 a finished ape drawn in, 13 the space jaguar popping in, 14 its leap, 15 colourblind mode, 16 JOJO MODE at 221 km/h, 17 the black hole in the model gallery, 18 the space jaguar's helmet. Shot in Chromium with software rendering (SwiftShader), 1280×720.
