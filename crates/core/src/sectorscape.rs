@@ -464,6 +464,9 @@ fn body(b: &mut Batch, body: &Body, k: usize) {
         Model::Wing => sc::ape_wing(b, f, 0),
         Model::Deck => slab_body(b, body),
         Model::Hulk => slab_body(b, body),
+        // the walls round the wreck's passage and the hulk's corridor:
+        // drawn as part of those
+        Model::Hidden => {}
     }
     let _ = k;
 }
@@ -593,7 +596,7 @@ pub fn dynamic(b: &mut Batch, c: &Course, s: &SectorLayout, eye: V3, tick: u32, 
         }
     }
     for m in &s.mechs {
-        let f = mech_frame(m, race_tick);
+        let f = m.frame(race_tick);
         if f.t.dist(eye) < int(560) {
             sc::mech(b, &f, &m.mech, race_tick);
         }
@@ -630,15 +633,6 @@ fn shield(b: &mut Batch, body: &Body, tick: u32, k: usize) {
     );
 }
 
-/// A mech's frame at a race tick: along its path from `from` to `to` and
-/// back over `period` ticks, facing `yaw`, at `scale`.
-pub fn mech_frame(m: &crate::sector::MechPath, tick: u32) -> Affine {
-    let period = m.period.max(1);
-    let phase = ((tick % period) as i64 * TURN as i64 / period as i64) as i32;
-    // there and back: 0 at `from`, ONE at `to`
-    let t = (ONE - fx::cos(phase)) / 2;
-    sc::pose(m.from.lerp(m.to, t), m.yaw, 0, 0, m.scale)
-}
 
 /// The black hole's frame: its disc tilted toward the start, so an ape
 /// coming in sees it from a little above.
