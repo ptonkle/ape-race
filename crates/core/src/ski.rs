@@ -60,6 +60,9 @@ pub enum Terrain {
     /// falling along `fall` (a unit vector on the ground) from `top`, a
     /// point on the hill at height 0: the course's start
     Slope { top: V3, fall: V3 },
+    /// Sector Ape: no floor, only a level "ground" this far down (far
+    /// below the boundary, so nothing ever stands on it)
+    Flat(i32),
 }
 
 impl Terrain {
@@ -71,6 +74,7 @@ impl Terrain {
                 let u = v3(x, 0, z).sub(top.flat()).dot(fall);
                 drop_at(u)
             }
+            Terrain::Flat(h) => h,
         }
     }
 
@@ -79,7 +83,7 @@ impl Terrain {
     /// zero on the Hills (they are gentle: no ape slides on them).
     pub fn downhill(self, x: i32, z: i32) -> V3 {
         match self {
-            Terrain::Hills => V3::ZERO,
+            Terrain::Hills | Terrain::Flat(_) => V3::ZERO,
             Terrain::Slope { top, fall } => {
                 let u = v3(x, 0, z).sub(top.flat()).dot(fall);
                 fall.scale(grade_at(u))

@@ -37,6 +37,8 @@ pub fn sector() -> Course {
         black_hole: (c.point(c.length), int(20)),
         set_pieces: Vec::new(),
         lobby: (at, c.start_yaw),
+        finish_deck: 0,
+        near: Vec::new(),
         routes: Vec::new(),
     }));
     c

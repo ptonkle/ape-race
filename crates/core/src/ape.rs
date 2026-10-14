@@ -52,6 +52,9 @@ pub enum Happening {
     Knocked,
     /// thrown up by a bounce mushroom, with its push forward (TRIAGE T48)
     Bounce,
+    /// Sector Ape: thrown off a ship or a piece of debris, elastically,
+    /// with a boost
+    Rebound,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -136,6 +139,10 @@ impl Ape {
 
     /// The nearest vine in reach of the hands, if any.
     pub fn vine_in_reach(&self, course: &Course, tick: u32) -> Option<usize> {
+        // (Sector Ape: vines hang every way)
+        if course.sector.is_some() {
+            return self.reach_any_way(course, tick);
+        }
         let mut best = None;
         let mut best_d = self.phys.reach;
         for i in 0..course.vines.len() {
@@ -185,6 +192,10 @@ impl Ape {
         if let Mode::Swinging { vine, .. } = self.mode {
             if !c.grab || stunned {
                 self.release(vine);
+                // (Sector Ape: an odd vine's slingshot)
+                if course.sector.is_some() {
+                    self.sling(vine, course);
+                }
             }
         }
 
@@ -218,12 +229,16 @@ impl Ape {
         }
 
         let wish = if stunned { V3::ZERO } else { wish(c) };
+        let before = self.pos;
         match self.mode {
             Mode::Swinging { vine, rope } => self.swing(vine, rope, wish, course, tick),
-            Mode::Flying => self.fly(wish),
+            Mode::Flying => self.fly(wish, course),
             Mode::Grounded => self.run(wish, course),
         }
-        self.collide(course, tick);
+        self.collide(course, tick, before);
+        if course.sector.is_some() {
+            self.vel = self.vel.clamp_len(crate::sector::SECTOR_TOP);
+        }
         if self.vel.len_xz() > ONE {
             let target = crate::geom::yaw_of(self.vel);
             let turn = fx::wrap(target - self.yaw);
@@ -284,8 +299,14 @@ impl Ape {
 
     /// The swing's drive now: full at rest (the same for every ape),
     /// fading to nothing at the ape's drive fade speed (TRIAGE rows 8, 10).
-    fn drive_now(&self) -> i32 {
+    fn drive_now(&self, odd: bool) -> i32 {
         let fade = self.phys.drive_fade.max(ONE);
+        // (Sector Ape: an odd vine's drive fades much later)
+        let fade = if odd {
+            mul(fade, crate::sector::ODD_FADE)
+        } else {
+            fade
+        };
         let speed = self.vel.len().min(fade);
         mul(self.phys.pump, fx::div(fade - speed, fade))
     }
@@ -297,10 +318,15 @@ impl Ape {
         self.phys.drag as i64 * (1000 - BANANAS_DRAG_CUT * n / BANANAS_FULL as i64)
     }
 
-    fn drag(&mut self) {
+    fn drag(&mut self, course: &Course) {
         let speed = self.vel.len();
         // per second: drag / 100 000 × speed, as a share of the velocity
         let k = (self.drag_now() * speed as i64 / 100_000_000) as i32;
+        // (Sector Ape: thinner in open space)
+        let k = match course.sector {
+            Some(_) => mul(k, crate::sector::SPACE_DRAG),
+            None => k,
+        };
         self.vel = self.vel.sub(self.vel.scale(mul(k, DT)));
     }
 
@@ -326,7 +352,7 @@ impl Ape {
         // steers the swing's plane, without adding speed.
         let t = wish.reject(n);
         if t.len() > ONE / 10 {
-            let drive = self.drive_now();
+            let drive = self.drive_now(course.odd_vine(vine));
             self.vel = self.vel.add(t.norm().scale(mul(mul(drive, t.len()), DT)));
             let speed = self.vel.len();
             if speed > ONE {
@@ -339,10 +365,11 @@ impl Ape {
                 }
             }
         }
-        self.drag();
+        self.drag(course);
         let before = self.pos;
         let speed2 = self.vel.dot64(self.vel);
-        self.vel.y -= mul(GRAVITY, DT);
+        let gravity = course.gravity();
+        self.vel.y -= mul(gravity, DT);
         let mut p = self.pos.add(self.vel.scale(DT));
         let d = p.sub(a);
         // while sliding the ape is held at the rope's length, so it never
@@ -361,7 +388,7 @@ impl Ape {
         // over the height change, so a free swing neither gains nor loses.
         if taut {
             let dh = self.pos.y as i64 - before.y as i64;
-            let target = speed2 - 2 * GRAVITY as i64 * dh;
+            let target = speed2 - 2 * gravity as i64 * dh;
             if target > 0 && self.vel != V3::ZERO {
                 let s = isqrt(target as u128) as i32;
                 self.vel = self.vel.with_len(s);
@@ -369,7 +396,7 @@ impl Ape {
         }
     }
 
-    fn fly(&mut self, wish: V3) {
+    fn fly(&mut self, wish: V3, course: &Course) {
         // steering in the air: across the motion, or braking, never faster
         let mut acc = wish.scale(self.phys.air);
         let flat = self.vel.flat();
@@ -381,8 +408,8 @@ impl Ape {
             }
         }
         self.vel = self.vel.add(acc.scale(DT));
-        self.drag();
-        self.vel.y -= mul(GRAVITY, DT);
+        self.drag(course);
+        self.vel.y -= mul(course.gravity(), DT);
         self.pos = self.pos.add(self.vel.scale(DT));
     }
 
@@ -539,20 +566,24 @@ impl Ape {
             V3::ZERO
         };
         self.vel = v3(v.x, 0, v.z);
-        self.drag();
+        self.drag(course);
         self.vel.y = 0;
         let p = self.pos.add(self.vel.scale(DT));
         // glued to the snow
         self.pos = v3(p.x, course.terrain(p.x, p.z) + BODY_DROP, p.z);
     }
 
-    fn collide(&mut self, course: &Course, tick: u32) {
+    fn collide(&mut self, course: &Course, tick: u32, before: V3) {
         self.hint = course.nearest(self.pos, self.hint);
         let (p, v, wall) = course.contain(self.pos, self.vel, self.hint);
         self.pos = p;
         self.vel = v;
         if wall {
             self.happened.push(Happening::Wall);
+        }
+        // Sector Ape: the ships, the debris and the door
+        if course.sector.is_some() {
+            self.hit_bodies(course, tick, before);
         }
         // a bounce mushroom throws a falling or running ape back up
         // toward the vines (TRIAGE T5)
@@ -663,6 +694,9 @@ pub fn fall_ticks(h: i32) -> i32 {
     let t = fx::sqrt(div(2 * h, GRAVITY));
     mul(t, crate::fx::int(TICKS_PER_SECOND))
 }
+
+mod space;
+pub use space::HIT_RADIUS;
 
 #[cfg(test)]
 mod ski_tests;

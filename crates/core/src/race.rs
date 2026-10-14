@@ -109,6 +109,17 @@ pub enum Event {
     Pounce {
         who: usize,
     },
+    /// Sector Ape: ape `who` crossed the boundary into open space and was
+    /// put back on deck `pad` (an index in `course.platforms`), standing
+    Reset {
+        who: usize,
+        pad: usize,
+    },
+    /// Sector Ape: ape `who` swung the switch vine far enough forward and
+    /// the door shut (`course.sector.door.shut_at` is this tick)
+    Door {
+        who: usize,
+    },
 }
 
 /// One ape in the race.
@@ -383,6 +394,10 @@ impl Race {
                     _ => {}
                 }
             }
+            // Sector Ape: the boundary, the switch door, the black hole
+            if self.space_rules(i) {
+                continue;
+            }
             if self.floor_is_lava(i) {
                 self.eat(i);
                 continue;
@@ -467,6 +482,10 @@ impl Race {
             r.ape.mode = mode;
             r.ape.yaw = yaw;
             r.ape.hint = self.course.nearest(pos, r.ape.hint);
+        }
+        // Sector Ape: a remote ape can shut the door too, from its state
+        if i < self.racers.len() {
+            self.switch(i);
         }
     }
 
