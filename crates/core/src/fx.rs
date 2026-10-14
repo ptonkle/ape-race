@@ -128,18 +128,15 @@ pub fn atan2(y: i32, x: i32) -> i32 {
     wrap(a as i32)
 }
 
-/// Integer square root (floor).
+/// Integer square root (floor): the standard library's, all integers, so
+/// the same answer as the Newton's iteration it replaced (`isqrt_newton` in
+/// the tests) at a fraction of the cost, through 64 bits when the value
+/// fits. (The AI's copies of the ape take millions of these a second.)
 pub fn isqrt(n: u128) -> u128 {
-    if n < 2 {
-        return n;
-    }
-    let mut x = 1u128 << ((128 - n.leading_zeros()).div_ceil(2));
-    loop {
-        let y = (x + n / x) / 2;
-        if y >= x {
-            return x;
-        }
-        x = y;
+    if n <= u64::MAX as u128 {
+        (n as u64).isqrt() as u128
+    } else {
+        n.isqrt()
     }
 }
 
@@ -185,6 +182,46 @@ impl Dice {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The square root the game shipped with, for `isqrt` to agree with.
+    fn isqrt_newton(n: u128) -> u128 {
+        if n < 2 {
+            return n;
+        }
+        let mut x = 1u128 << ((128 - n.leading_zeros()).div_ceil(2));
+        loop {
+            let y = (x + n / x) / 2;
+            if y >= x {
+                return x;
+            }
+            x = y;
+        }
+    }
+
+    #[test]
+    fn the_square_root_agrees_with_newtons() {
+        let check = |n: u128| assert_eq!(isqrt(n), isqrt_newton(n), "{n}");
+        for n in 0..70_000u128 {
+            check(n);
+        }
+        for b in 0..128u32 {
+            let p = 1u128 << b;
+            for n in [p - 1, p, p + 1] {
+                check(n);
+            }
+            let r = isqrt_newton(p);
+            for n in [r * r - 1, r * r, r * r + 1, (r + 1) * (r + 1) - 1] {
+                check(n);
+            }
+        }
+        for n in [u128::MAX, u64::MAX as u128, u64::MAX as u128 + 1] {
+            check(n);
+        }
+        let mut d = Dice(0x5EC7);
+        for k in 0..400_000u32 {
+            check(((d.next() as u128) << 64 | d.next() as u128) >> (k % 128));
+        }
+    }
 
     #[test]
     fn sine_hits_its_landmarks() {

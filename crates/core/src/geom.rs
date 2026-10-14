@@ -68,8 +68,10 @@ impl V3 {
             return V3::ZERO;
         }
         // the length with 32 more bits, so short vectors keep their direction
-        let l = isqrt((s as u128) << 32) as i128;
-        let c = |a: i32| (((a as i128) << 32) / l) as i32;
+        let l = isqrt((s as u128) << 32) as i64;
+        // (a component shifted 32 bits fits an `i64`, and so does the
+        // length: the same quotient as in 128 bits, far cheaper)
+        let c = |a: i32| (((a as i64) << 32) / l) as i32;
         v3(c(self.x), c(self.y), c(self.z))
     }
     /// The same direction, at most `max` long.

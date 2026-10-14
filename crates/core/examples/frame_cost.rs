@@ -16,6 +16,8 @@ fn main() {
         .and_then(|n| n.parse().ok())
         .unwrap_or(600);
     let mut worst = std::time::Duration::ZERO;
+    let mut worst_at = 0;
+    let mut steps = Vec::new();
     for f in 0..frames {
         if f == 200 {
             a.key("Space", true);
@@ -24,7 +26,11 @@ fn main() {
         let t = Instant::now();
         a.advance(now);
         let stepped = t.elapsed();
-        worst = worst.max(stepped);
+        if stepped > worst {
+            worst = stepped;
+            worst_at = f;
+        }
+        steps.push(stepped);
         let _ = a.ui();
         let _ = a.frame();
         let e = t.elapsed();
@@ -40,5 +46,13 @@ fn main() {
             );
         }
     }
-    println!("worst step {worst:?} over {frames} frames");
+    steps.sort();
+    let pct = |p: usize| steps[(steps.len() * p / 100).min(steps.len() - 1)];
+    println!(
+        "median {:?}, 99th {:?}, frames over 2 ms {}",
+        pct(50),
+        pct(99),
+        steps.iter().filter(|s| s.as_micros() > 2000).count()
+    );
+    println!("worst step {worst:?} (frame {worst_at}) over {frames} frames");
 }
