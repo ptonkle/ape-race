@@ -23,10 +23,9 @@
 //! function of (x, z), so the camera and the models can use it without the
 //! course.
 
-use crate::course::{centreline, Course, Leg, Platform, Vine, START_HEIGHT, START_LEN};
-use crate::fx::{self, deg, int, mul, Dice, ONE};
+use crate::course::Course;
+use crate::fx::{self, cm, deg, mul, ONE};
 use crate::geom::{right_of, v3, V3};
-use crate::rules::BODY_DROP;
 
 /// The mean slope of the hill, in degrees (the person: 5–10°, to be
 /// adjusted). Each pitch in `PITCHES` is a share of it.
@@ -74,6 +73,46 @@ impl Terrain {
             }
         }
     }
+
+    /// Which way is downhill at (`x`, `z`), and how steeply: a flat vector
+    /// along the fall whose length is the grade (metres of drop a metre);
+    /// zero on the Hills (they are gentle: no ape slides on them).
+    pub fn downhill(self, x: i32, z: i32) -> V3 {
+        match self {
+            Terrain::Hills => V3::ZERO,
+            Terrain::Slope { top, fall } => {
+                let u = v3(x, 0, z).sub(top.flat()).dot(fall);
+                fall.scale(grade_at(u))
+            }
+        }
+    }
+
+    /// The ground's unit normal at (`x`, `z`) (straight up on the Hills).
+    pub fn normal(self, x: i32, z: i32) -> V3 {
+        let d = self.downhill(x, z);
+        v3(d.x, ONE, d.z).norm()
+    }
+}
+
+/// The grade of the hill `u` metres (Q16) down the fall line from the top
+/// (drop per metre, Q16): each pitch's grade, blended into the next over
+/// `BLEND` metres. `drop_at` is its integral.
+pub fn grade_at(u: i32) -> i32 {
+    let mean = fx::div(fx::sin(deg(SLOPE_DEG)), fx::cos(deg(SLOPE_DEG)));
+    let grade = |pct: i32| mul(mean, pct * ONE / 100);
+    let half = BLEND * ONE / 2;
+    let mut boundary = 0;
+    for k in 0..PITCHES.len() - 1 {
+        boundary += PITCHES[k].0 * ONE;
+        if u < boundary - half {
+            return grade(PITCHES[k].1);
+        }
+        if u < boundary + half {
+            let t = fx::div(u - (boundary - half), 2 * half);
+            return fx::lerp(grade(PITCHES[k].1), grade(PITCHES[k + 1].1), t);
+        }
+    }
+    grade(PITCHES[PITCHES.len() - 1].1)
 }
 
 /// The hill's height `u` metres (Q16) down the fall line from the top
@@ -146,6 +185,57 @@ pub struct Lift {
     pub rope_height: i32,
     pub gauge: i32,
     pub chair_every: i32,
+}
+
+/// A chair's seat hangs this far below its grip on the haul rope.
+pub const CHAIR_DROP: i32 = cm(250);
+
+impl Lift {
+    /// Along the line, from the bottom terminal toward the top (flat, unit).
+    pub fn dir(&self) -> V3 {
+        self.top.sub(self.bottom).flat().norm()
+    }
+
+    /// The line's length on the ground (flat).
+    pub fn length(&self) -> i32 {
+        self.top.sub(self.bottom).flat().len()
+    }
+
+    /// The haul rope `d` metres along the line from the bottom terminal,
+    /// on side `side` (-1 left of the line looking uphill, 1 right): it
+    /// runs straight from support to support (the two terminals and the
+    /// towers, each `rope_height` above its foot), `gauge / 2` either side
+    /// of the line. No sag: the chairs that carry vines sit exactly on it.
+    pub fn rope(&self, d: i32, side: i32) -> V3 {
+        let dir = self.dir();
+        let base = self.bottom.flat();
+        let mut prev = (0, self.bottom.y);
+        let mut y = self.top.y;
+        for p in self.towers.iter().chain(std::iter::once(&self.top)) {
+            let at = p.flat().sub(base).dot(dir);
+            if d <= at {
+                let t = fx::div(d - prev.0, (at - prev.0).max(1));
+                y = fx::lerp(prev.1, p.y, t.clamp(0, ONE));
+                break;
+            }
+            prev = (at, p.y);
+        }
+        let r = right_of(dir).scale(side.signum() * self.gauge / 2);
+        let p = base.add(dir.scale(d)).add(r);
+        v3(p.x, y + self.rope_height, p.z)
+    }
+
+    /// How many chairs hang on each side: chair `k` (1 up to this, less
+    /// one) is `k * chair_every` metres from the bottom terminal.
+    pub fn chairs(&self) -> i32 {
+        self.length() / self.chair_every.max(1)
+    }
+
+    /// Chair `k` on side `side`: its grip on the rope and its seat below.
+    pub fn chair(&self, k: i32, side: i32) -> (V3, V3) {
+        let grip = self.rope(k * self.chair_every, side);
+        (grip, grip.sub(v3(0, CHAIR_DROP, 0)))
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -270,118 +360,13 @@ impl Course {
     }
 }
 
-const SEED: u64 = 0x5C1_0001;
-
-/// The stand-in layout's legs (the course agent replaces it): gentle bends
-/// across the fall line.
-const LEGS: &[Leg] = &[
-    Leg(60, 0),
-    Leg(140, 0),
-    Leg(120, 30),
-    Leg(140, 0),
-    Leg(160, -50),
-    Leg(120, 0),
-    Leg(140, 35),
-    Leg(160, 0),
-    Leg(120, -30),
-    Leg(160, 0),
-    Leg(140, 25),
-    Leg(140, 0),
-];
-
-/// The Ski Slope course.
-pub fn ski() -> Course {
-    ski_seeded(SEED)
-}
-
-/// The Ski Slope laid out from another seed (for the AI's tests).
-pub fn ski_seeded(seed: u64) -> Course {
-    let mut c = centreline("ski", LEGS);
-    let fall = c.heading_at(0);
-    c.terrain = Terrain::Slope {
-        top: c.path[0],
-        fall,
-    };
-    let mut dice = Dice(seed);
-    let mut lay = SkiLayout::default();
-    let len_m = c.length / ONE;
-
-    // a stand-in: the Jungle's start, stations and low vines on the slope
-    let p0 = c.point(START_LEN / 2 - int(2));
-    let fwd = c.heading_at(0);
-    let right = right_of(fwd);
-    let deck = c.terrain(p0.x, p0.z) + START_HEIGHT;
-    c.platforms.push(Platform {
-        centre: v3(p0.x, deck, p0.z),
-        fwd,
-        half_len: START_LEN / 2 + int(2),
-        half_width: int(9),
-        top: deck,
-    });
-    for k in 0..4 {
-        let at = c.point(int(2)).add(right.scale(int(-6) + k * int(4)));
-        c.starts[k as usize] = v3(at.x, deck + BODY_DROP, at.z);
-    }
-    let edge = START_LEN + fx::cm(150);
-    for k in -3..=3 {
-        let base = c.point(edge).add(right.scale(int(3) * k));
-        c.vines.push(Vine {
-            anchor: v3(base.x, deck + int(30), base.z),
-            length: int(29),
-            slide: None,
-            at: edge,
-        });
-    }
-    let mut s = 32;
-    let mut station = 0;
-    while s < len_m - 30 {
-        let r = right_of(c.heading_at(int(s)));
-        let skip = dice.below(3) as i32;
-        for lane in 0..3 {
-            if lane == skip {
-                continue;
-            }
-            let along = s + dice.range(-3, 3);
-            let base = c
-                .point(int(along))
-                .add(r.scale(int((lane - 1) * 10 + dice.range(-2, 2))));
-            let g = c.terrain(base.x, base.z);
-            c.vines.push(Vine {
-                anchor: v3(base.x, g + int(dice.range(38, 50)), base.z),
-                length: int(dice.range(23, 31)),
-                slide: None,
-                at: int(along),
-            });
-        }
-        if station % 2 == 1 {
-            let b = c.point(int(s + 7)).add(r.scale(int(dice.range(-9, 9))));
-            let g = c.terrain(b.x, b.z);
-            c.vines.push(Vine {
-                anchor: v3(b.x, g + int(27), b.z),
-                length: int(24),
-                slide: None,
-                at: int(s + 7),
-            });
-        }
-        station += 1;
-        s += dice.range(22, 28);
-    }
-    for i in 0..c.vines.len() {
-        let a = c.vines[i].anchor;
-        lay.hangers.push(Hanger {
-            vine: i,
-            kind: HangerKind::Helicopter,
-            from: a.add(v3(0, int(3), 0)),
-            to: a,
-        });
-    }
-    c.ski = Some(Box::new(lay));
-    c
-}
+mod layout;
+pub use layout::{ski, ski_seeded};
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::fx::int;
 
     #[test]
     fn the_hill_falls_along_the_course_at_about_the_mean_slope() {
