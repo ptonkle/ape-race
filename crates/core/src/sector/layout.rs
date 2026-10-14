@@ -1,41 +1,52 @@
-//! Sector Ape's layout (2026-10-13): about 2.5 km through open space, from
-//! the launch deck of a carrier to the black hole. The centreline (the
-//! spine) stays at height 0; there is no floor (`Terrain::Flat(FLOOR)`, far
-//! below the boundary), only decks (`Course.platforms`) to stand on.
+//! Sector Ape's layout (2026-10-13): 2.33 km through open space, from the
+//! launch deck of a carrier to the black hole. The centreline (the spine)
+//! stays at height 0, with gentle bends (radius 430–520 m: at 60 m/s an ape
+//! cannot follow a sharper one); there is no floor (`Terrain::Flat(FLOOR)`,
+//! far below the boundary), only decks (`Course.platforms`) to stand on.
 //!
 //! - **Sections** (metres along): the launch deck and a debris field
-//!   (0–540), the Hulk (600–800: three routes, see below), a bend to the
-//!   wreck (860–1100), the wreck (1230–1430: three routes), the asteroid
-//!   belt (1560–2060), the armada of monkey mechs (2250–2490), the finish
-//!   at the black hole's banana horizon (2530).
-//! - **Vines**: stations every 23–29 m, two or three lanes 13 m apart. About
-//!   half the vines hang straight down; the rest hang up from below,
-//!   sideways in from outside the lanes, or slanted (down or up) in from
-//!   outside. Each hangs from its own piece of debris (a hull chunk, an
-//!   asteroid, a girder), placed so the vine's end is in its lane and the
-//!   debris outside the lanes. Every other station also has a catch vine
-//!   well below the line, for an ape that fell.
-//! - **Decks** (pads, `PADS`): every 150–260 m, 14 m below the line, each
-//!   with a row of vines off its front edge (as the start). Crossing the
-//!   boundary puts an ape back on the last deck behind it.
-//! - **The Hulk** (`HULK`): a big hull with a corridor through it along the
-//!   spine (the door route: the switch door near its exit, the switch vine
-//!   just past the door); over its top (up vines standing off its deck); and
-//!   round its left side (horizontal vines off its wall, girders out from
-//!   it). A deck on the outside route.
+//!   (0–440, a 30° bend), the Hulk (500–700: three routes, see below), a
+//!   40° bend to the wreck (760–1080), the wreck (1130–1330: three routes),
+//!   a 35° bend into the asteroid belt (1430–1900, four lanes), the armada
+//!   of monkey mechs (2055–2272), the finish at the black hole's banana
+//!   horizon (2330).
+//! - **Vines**: stations every 23–29 m, three lanes 13 m apart (one now and
+//!   then left out), tips 6 m below to 8 m above the line. About half the
+//!   vines hang straight down; the rest hang up from below, level in from
+//!   outside the lanes, or slanted (down or up) in from outside. Each hangs
+//!   from its own piece of debris (a hull chunk, an asteroid, a girder)
+//!   beyond its anchor; one that would pass through other debris, or whose
+//!   debris would lie across another vine, is laid again another way.
+//!   Stations off a deck are straight down (from a standstill an odd vine
+//!   only whirled the ape round), and none over a deck comes up through it.
+//! - **Decks** (`PADS`, `FEATURE_PADS`): every 100–260 m, 14 m below the
+//!   line, each with a row of three vines 7 m apart off its front edge (the
+//!   start's: five, 4.5 m apart). Crossing the boundary puts an ape back on
+//!   the nearest one, standing.
+//! - **The Hulk** (`HULK`): a big hull (64 × 50 × 200 m) with a corridor
+//!   (30 × 34 m) through it along the spine: the door route, with vines from
+//!   its ceiling, the switch door near its exit (`DOOR_AT`) and the switch
+//!   vine just past it (`SWITCH_AT`); over its top (a deck on it, vines from
+//!   debris high above); round its left side (level vines off its wall,
+//!   girders out from it, a deck). Its walls bounce.
 //! - **The wreck** (`WRECK_AT`): the destroyed mothership lying across the
-//!   course. The hidden route is the passage through its bow on the spine
-//!   (`WRECK_GAP`, 10 × 7 m, 34 m deep): straight on, but miss and you hit
-//!   the hull (not bouncy: a dead stop). The visible ways are the gap
-//!   between its torn halves (64 m left, vines off the torn faces) and over
-//!   the bow (up vines off its top).
+//!   course, rolled so the passage through its bow runs level on the spine.
+//!   The hidden route: the snipe vine 39 m short of the mouth on its line,
+//!   then the 10 × 7 m gap, 34 m deep; miss and the hull (not bouncy) stops
+//!   you dead. The visible ways: out left between its torn halves (a level
+//!   vine off the bow's torn face across the gap) and over the bow (vines
+//!   from debris high over it). A deck before it all.
 //! - **The armada** (`ARMADA`): ten grunts and two brutes at twice life
-//!   size, in ranks across the course, drifting or marching side to side;
-//!   vines hang from their fists (down) and elbows (slanted out), and move
-//!   with them. Mechs are not solid.
+//!   size, in five ranks, drifting or marching 7 m side to side; vines hang
+//!   from their fists (one straight down, one slanted out) and an elbow
+//!   (slanted out), and move with them. Mechs are not solid. A station of
+//!   debris between ranks and a deck among them.
 //! - **The finish**: the black hole sits just past the line, its banana
-//!   horizon (`HORIZON` radii) touching it; a big deck below it catches
-//!   the finished apes for their dance.
+//!   horizon (`HORIZON` radii) touching it at its height; a 110 × 132 m deck
+//!   below it catches the finished apes for their dance.
+//! - Seven bouncy asteroids with no vines stand among the lanes (pinball
+//!   bumpers); item crates on the vines of eight stations; bananas under the
+//!   straight-down vines of every other station; no mushrooms.
 
 use super::rules::HORIZON;
 use super::*;
@@ -47,7 +58,7 @@ use crate::spacecraft::{pose, wreck_halves, wreck_passage, WRECK_GAP};
 
 const SEED: u64 = 0x5EC7_02A9_E000;
 
-/// The spine, metres and degrees (left turns positive): 2,530 m.
+/// The spine, metres and degrees (left turns positive): 2,330 m.
 const LEGS: &[Leg] = &[
     Leg(60, 0),
     Leg(140, 0),
