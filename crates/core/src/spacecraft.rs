@@ -1877,6 +1877,12 @@ const DUST: (i32, i32) = (ratio(66, 10), int(11));
 /// ball (`HORIZON_AT`), with two arms of bananas spiralling in. Everything
 /// turns with the tick. About 1,270 shapes, 4 soft glows.
 pub fn black_hole(b: &mut Batch, f: &Affine, r: i32, tick: u32) {
+    black_hole_jets(b, f, r, tick, true)
+}
+
+/// `black_hole`, its lower jet (down its frame's -y) left off when `lower`
+/// is false (Sector Ape: it would pierce the dance floor under the hole).
+pub fn black_hole_jets(b: &mut Batch, f: &Affine, r: i32, tick: u32, lower: bool) {
     let t = tick as i32;
     // the ball is smaller than the horizon (`HORIZON_AT`): an ape floats
     // at the horizon with the chase camera a dozen metres off, which must
@@ -1967,6 +1973,9 @@ pub fn black_hole(b: &mut Batch, f: &Affine, r: i32, tick: u32) {
     // the jets: narrow white-lilac beams from the poles, soft round a
     // bright core, with sparkles riding out along them
     for sy in [1, -1] {
+        if sy < 0 && !lower {
+            continue;
+        }
         let from = V3::UP.scale(sy * r);
         let to = V3::UP.scale(sy * mul(r, ratio(80, 10)));
         b.push(

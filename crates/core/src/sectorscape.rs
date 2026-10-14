@@ -325,10 +325,10 @@ fn build(c: &Course, s: &SectorLayout) -> (Scenery, Vec<(&'static str, usize)>) 
     (scenery, parts)
 }
 
-/// A ship's deck an ape can stand on (a platform): dark plating on a keel
-/// lit orange from below, glowing edge strips, hazard chevrons at its
-/// ends, and engine pods holding it in place. The start deck has a launch
-/// gantry over its front.
+/// A ship's deck an ape can stand on (a platform): dark plating on a
+/// ribbed slab lit orange from below, as deep as its solid slab, glowing
+/// edge strips, hazard chevrons at its ends, and engines flush in its
+/// back face. The start deck has launch arrows and lights.
 fn deck(b: &mut Batch, pl: &Platform, kind: DeckKind) {
     let fwd = pl.fwd.flat().norm();
     let right = right_of(fwd);
@@ -373,28 +373,34 @@ fn deck(b: &mut Batch, pl: &Platform, kind: DeckKind) {
             );
         }
     }
-    // the slab under the tiles, and the keel below, tapering
+    // the slab under the tiles, as deep as the solid one an ape bounces
+    // off (`Model::Deck`: 0.3 m to 2.3 m under the top), lit orange from
+    // below, with shallow ribs across its underside
     part(
         b,
         Mesh::Bevel,
-        v3(0, -cm(110), 0),
-        v3(hw * 2 + cm(40), cm(120), hl * 2 + cm(40)),
+        v3(0, -cm(130), 0),
+        v3(hw * 2 + cm(20), cm(200), hl * 2 + cm(20)),
         PLATE_DARK,
         0,
     );
+    let ribs = (hl * 2 / int(4)).clamp(2, 30);
+    for k in 0..ribs {
+        let z = -hl + (k * 2 + 1) * hl / ribs;
+        part(
+            b,
+            Mesh::Cube,
+            v3(0, -cm(232), z),
+            v3(hw * 2 - cm(40), cm(14), cm(50)),
+            KEEL,
+            0,
+        );
+    }
     part(
         b,
-        Mesh::Wedge,
-        v3(0, -cm(330), -hl / 4),
-        v3(hw * 6 / 5, cm(330), hl * 3 / 2),
-        KEEL,
-        0,
-    );
-    part(
-        b,
-        Mesh::Bevel,
-        v3(0, -cm(420), hl / 2),
-        v3(hw, cm(200), hl / 2),
+        Mesh::Cube,
+        v3(0, -cm(232), 0),
+        v3(hw / 2, cm(16), hl * 2 - cm(40)),
         PLATE_LIGHT,
         0,
     );
@@ -423,22 +429,22 @@ fn deck(b: &mut Batch, pl: &Platform, kind: DeckKind) {
             );
         }
     }
-    // engine pods at the back corners, glowing backward
+    // engines set flush in the back face, glowing backward
     for sx in [-1, 1] {
-        let at = v3(sx * (hw + cm(60)), -cm(160), -hl + cm(80));
+        let at = v3(sx * hw / 2, -cm(130), -hl - cm(15));
         part(
             b,
-            Mesh::Cyl,
+            Mesh::Cube,
             at,
-            v3(cm(150), cm(150), cm(240)),
+            v3(cm(260), cm(150), cm(30)),
             PLATE_LIGHT,
             0,
         );
         part(
             b,
-            Mesh::Cyl,
-            at.add(v3(0, 0, -cm(130))),
-            v3(cm(110), cm(110), cm(30)),
+            Mesh::Cube,
+            at.add(v3(0, 0, -cm(18))),
+            v3(cm(200), cm(100), cm(10)),
             ENGINE,
             SKY_GLOW,
         );
@@ -542,9 +548,11 @@ enum DeckKind {
 fn body(b: &mut Batch, body: &Body, k: usize) {
     let f = &body.frame;
     match body.model {
-        Model::Chunk(v) => sc::hull_chunk(b, f, 0, v),
+        // (fitted to the box an ape bounces off: the person bounces off
+        // what they see, and an up or level vine leaves the box's face)
+        Model::Chunk(v) => fitted(b, body, |o| sc::hull_chunk(o, f, 0, v)),
         Model::Girder(len) => sc::girder(b, f, len / ONE),
-        Model::Asteroid(v) => sc::asteroid(b, f, v),
+        Model::Asteroid(v) => fitted(b, body, |o| sc::asteroid(o, f, v)),
         Model::Wing => sc::ape_wing(b, f, 0),
         // a deck's slab: drawn with its platform (`deck`)
         Model::Deck => {}
@@ -556,11 +564,107 @@ fn body(b: &mut Batch, body: &Body, k: usize) {
     let _ = k;
 }
 
+/// Each shape in a batch: its mesh, matrix, colour and glow.
+fn shapes(own: Batch) -> Vec<(Mesh, Affine, Rgb, i32)> {
+    let (values, draws) = own.finish(crate::render::DYNAMIC_BUFFER);
+    let mut out = Vec::new();
+    for d in draws.chunks(crate::render::DRAW_VALUES) {
+        let mesh = Mesh::ALL[d[1] as usize];
+        let first = d[2] as usize / crate::render::BYTES_PER_VALUE;
+        for i in values[first..first + d[3] as usize * crate::render::INSTANCE_VALUES]
+            .chunks(crate::render::INSTANCE_VALUES)
+        {
+            let a = Affine {
+                c0: v3(i[0], i[4], i[8]),
+                c1: v3(i[1], i[5], i[9]),
+                c2: v3(i[2], i[6], i[10]),
+                t: v3(i[3], i[7], i[11]),
+            };
+            out.push((mesh, a, [i[12], i[13], i[14]], i[15]));
+        }
+    }
+    out
+}
+
+/// How far a drawing reaches along each of a body's axes from its middle
+/// (lowest, highest): every corner of its lit shapes (glows, and the thin
+/// torn spikes, left out).
+fn reach_along(shapes: &[(Mesh, Affine, Rgb, i32)], body: &Body) -> [(i32, i32); 3] {
+    let ax = body.axes();
+    let mut r = [(i32::MAX, i32::MIN); 3];
+    for (mesh, a, _, glow) in shapes {
+        if *glow != 0 || *mesh == Mesh::Spike {
+            continue;
+        }
+        for p in crate::mesh::vertices(*mesh).chunks(crate::mesh::VERTEX_VALUES) {
+            let d = a.apply(v3(p[0], p[1], p[2])).sub(body.frame.t);
+            for (k, r) in r.iter_mut().enumerate() {
+                let x = d.dot(ax[k]);
+                *r = (r.0.min(x), r.1.max(x));
+            }
+        }
+    }
+    r
+}
+
+/// A body's model drawn by `draw`, then stretched along the body's axes so
+/// that it fills its box (`Body.half`) exactly: the hull chunks' plates
+/// were thinner than their box (an up vine left 1.7 m above the plate) and
+/// the turned asteroids poked out of theirs.
+fn fitted(b: &mut Batch, body: &Body, draw: impl FnOnce(&mut Batch)) {
+    let mut own = Batch::new();
+    draw(&mut own);
+    let halos = shapes(own.take_halos());
+    let all = shapes(own);
+    let r = reach_along(&all, body);
+    if r.iter().any(|&(lo, hi)| lo >= hi) {
+        for (mesh, a, c, glow) in all {
+            b.push(mesh, &a, c, glow);
+        }
+        return;
+    }
+    let ax = body.axes();
+    let half = [body.half.x, body.half.y, body.half.z];
+    // p' = c + sum over the axes of a * s * ((p - c).a - m)
+    let (mut cols, mut t) = ([V3::ZERO; 3], body.frame.t);
+    for k in 0..3 {
+        let (lo, hi) = r[k];
+        let s = fx::div(half[k] * 2, hi - lo);
+        let m = (lo + hi) / 2;
+        let a = ax[k];
+        cols[0] = cols[0].add(a.scale(mul(s, a.x)));
+        cols[1] = cols[1].add(a.scale(mul(s, a.y)));
+        cols[2] = cols[2].add(a.scale(mul(s, a.z)));
+        // (and the (p - c) part: -c through the same, done below)
+        t = t.sub(a.scale(mul(s, m)));
+    }
+    let lin = Affine {
+        c0: cols[0],
+        c1: cols[1],
+        c2: cols[2],
+        t: V3::ZERO,
+    };
+    let warp = Affine {
+        t: t.sub(lin.apply_dir(body.frame.t)),
+        ..lin
+    };
+    for (mesh, a, c, glow) in all {
+        b.push(mesh, &warp.then(&a), c, glow);
+    }
+    for (mesh, a, c, glow) in halos {
+        b.push_halo(mesh, &warp.then(&a), c, glow);
+    }
+}
+
 /// The door's ship: a rust-red freighter hull its box's size, a corridor
 /// straight through it along its length where the door is (the door's
 /// opening, `Door.half`), lit inside with strips, hazard frames round
-/// both mouths, rows of windows, a bridge tower and engines at the stern.
-/// The door itself is drawn each frame (`door`).
+/// both mouths, rows of windows and engines at the stern. Only what is
+/// solid is drawn (the person bounces off what they see): the walls and
+/// roof round the corridor (`Model::Hidden` bodies) and the corridor's
+/// floor, a deck (`Model::Deck`, 2.3 m deep), so under the floor a channel
+/// runs between the walls' keels; the deck along its top is drawn as a
+/// deck. The door itself is drawn each frame (`door`).
 fn hulk(b: &mut Batch, body: &Body, door: &crate::sector::Door) {
     let f = &body.frame;
     let axes = [f.c0.norm(), f.c1.norm(), f.c2.norm()];
@@ -604,18 +708,19 @@ fn hulk(b: &mut Batch, body: &Body, door: &crate::sector::Door) {
             );
         }
     };
-    // the walls round the bore
+    // the walls round the bore, and its roof
     slab(b, -h.x, ox - dw, -h.y, h.y, HULK);
     slab(b, ox + dw, h.x, -h.y, h.y, HULK);
-    slab(b, ox - dw, ox + dw, -h.y, oy - dh, shade(HULK, 90));
     slab(b, ox - dw, ox + dw, oy + dh, h.y, HULK);
-    // a grey armour band along each side and the keel
+    // (the bore's floor is the corridor's deck, its top the door's foot:
+    // drawn as a deck)
+    // a grey armour band along each side
     for sx in [-1, 1] {
         part(
             b,
             Mesh::Bevel,
-            v3(sx * (h.x + cm(40)), -h.y / 3, 0),
-            v3(cm(120), h.y / 2, h.z * 19 / 10),
+            v3(sx * (h.x + cm(15)), -h.y / 3, 0),
+            v3(cm(30), h.y / 2, h.z * 19 / 10),
             HULK_GREY,
             0,
         );
@@ -643,14 +748,6 @@ fn hulk(b: &mut Batch, body: &Body, door: &crate::sector::Door) {
             }
         }
     }
-    part(
-        b,
-        Mesh::Wedge,
-        v3(0, -h.y - cm(150), h.z / 4),
-        v3(h.x * 3 / 2, cm(300), h.z * 3 / 2),
-        HULK_GREY,
-        0,
-    );
     // the bore's lining: dark plates (the sun below cannot reach inside),
     // ribbed, with a lit strip down the roof
     part(
@@ -761,11 +858,19 @@ fn hulk(b: &mut Batch, body: &Body, door: &crate::sector::Door) {
     let ribs = (h.z * 2 / int(10)).clamp(2, 16);
     for k in 1..ribs {
         let z = -h.z + k * h.z * 2 / ribs;
+        // (under the hull only along the walls' keels: the channel
+        // between them is open)
+        let keel = h.x - (ox + dw).abs().max((ox - dw).abs()).min(h.x);
+        let keel_at = h.x - keel / 2;
         for (at, size) in [
             (v3(0, h.y + cm(20), z), v3(h.x * 2 + cm(60), cm(40), cm(70))),
             (
-                v3(0, -h.y - cm(20), z),
-                v3(h.x * 2 + cm(60), cm(40), cm(70)),
+                v3(keel_at, -h.y - cm(20), z),
+                v3(keel + cm(60), cm(40), cm(70)),
+            ),
+            (
+                v3(-keel_at, -h.y - cm(20), z),
+                v3(keel + cm(60), cm(40), cm(70)),
             ),
             (v3(h.x + cm(20), 0, z), v3(cm(40), h.y * 2, cm(70))),
             (v3(-h.x - cm(20), 0, z), v3(cm(40), h.y * 2, cm(70))),
@@ -784,68 +889,30 @@ fn hulk(b: &mut Batch, body: &Body, door: &crate::sector::Door) {
             0,
         );
     }
-    // cargo containers stacked along the top, ahead of the bridge
-    let cargo = [
-        rgb(232, 120, 40),
-        rgb(40, 150, 160),
-        rgb(220, 214, 200),
-        rgb(170, 40, 50),
-    ];
-    let mut k = 0;
-    let mut z = -h.z / 4 + int(8);
-    while z < h.z - int(5) {
-        for sx in [-1, 1] {
-            if h.x > int(6) {
-                part(
-                    b,
-                    Mesh::Cube,
-                    v3(sx * h.x / 2, h.y + int(2) + cm(40), z),
-                    v3(h.x * 8 / 10, int(4), int(9)),
-                    cargo[k % cargo.len()],
-                    0,
-                );
-            }
-            k += 1;
-        }
-        z += int(10);
-    }
-    // the bridge tower toward the stern, its windows lit
-    part(
-        b,
-        Mesh::Bevel,
-        v3(0, h.y + int(4), -h.z / 2),
-        v3(h.x, int(8), int(12)),
-        HULK_GREY,
-        0,
-    );
-    part(
-        b,
-        Mesh::Cube,
-        v3(0, h.y + int(6), -h.z / 2 + int(6) + cm(10)),
-        v3(h.x * 8 / 10, cm(90), cm(20)),
-        WINDOW,
-        ONE,
-    );
-    part(
-        b,
-        Mesh::Cyl,
-        v3(h.x / 3, h.y + int(14), -h.z / 2),
-        v3(cm(40), int(12), cm(40)),
-        PLATE_LIGHT,
-        0,
-    );
-    // engines at the stern, glowing
+    // engines at the stern, set flush in the walls' ends (clear of the
+    // corridor's mouth), glowing
+    let wall_mid = (h.x + (ox + dw).abs()) / 2;
+    let wall_w = h.x - (ox + dw).abs();
     for sx in [-1, 1] {
-        let at = v3(sx * h.x / 2, -h.y / 3, -h.z - int(2));
-        part(b, Mesh::Cyl, at, v3(int(6), int(5), int(6)), HULK_GREY, 0);
-        part(
-            b,
-            Mesh::Hex,
-            at.add(v3(0, 0, -int(2) - cm(60))),
-            v3(int(5), cm(30), int(5)),
-            ENGINE,
-            SKY_GLOW,
-        );
+        for y in [-h.y / 2, h.y / 4] {
+            let at = v3(sx * wall_mid, y, -h.z - cm(20));
+            part(
+                b,
+                Mesh::Cube,
+                at,
+                v3(wall_w * 7 / 10, int(7), cm(40)),
+                HULK_GREY,
+                0,
+            );
+            part(
+                b,
+                Mesh::Cube,
+                at.add(v3(0, 0, -cm(25))),
+                v3(wall_w / 2, int(5), cm(10)),
+                ENGINE,
+                SKY_GLOW,
+            );
+        }
     }
 }
 
@@ -980,12 +1047,7 @@ pub fn dynamic(b: &mut Batch, c: &Course, s: &SectorLayout, eye: V3, tick: u32, 
         }
     }
     let (at, r) = s.black_hole;
-    sc::black_hole(
-        b,
-        &seen_from(eye, &black_hole_frame(c, at), HOLE_NEAR),
-        r,
-        tick,
-    );
+    hole(b, c, at, r, eye, tick);
     for p in &s.set_pieces {
         set_piece(b, p, eye, tick, race_tick);
     }
@@ -1349,14 +1411,24 @@ fn shield(b: &mut Batch, body: &Body, tick: u32, k: usize) {
     );
 }
 
-/// The black hole's frame: its disc stood up 60° to face the apes coming
-/// in (seen from a little above, as in the person's example), so its wide
-/// disc rises round the finish instead of lying across the course before
-/// it (SECOND-ORDER SA10).
+/// The black hole, shrunk toward the eye when far (`seen_from`), without
+/// its lower jet: the finish deck lies under it.
+fn hole(b: &mut Batch, c: &Course, at: V3, r: i32, eye: V3, tick: u32) {
+    let f = seen_from(eye, &black_hole_frame(c, at), HOLE_NEAR);
+    sc::black_hole_jets(b, &f, r, tick, false);
+}
+
+/// The black hole's frame: its disc tipped 35° from flat, its near side
+/// up, so its wide disc arches high over the last of the course and the
+/// apes fly in under it to the hole, instead of lying across the course
+/// before it (SECOND-ORDER SA10), and passes over the finish deck under
+/// the hole. (Stood up 60° to face the apes it cut through the deck where
+/// they dance; tipped toward them, its near side came down into the way
+/// in, where apes fly low: SECOND-ORDER SF2.)
 pub fn black_hole_frame(c: &Course, at: V3) -> Affine {
     Affine::translate(at)
         .then(&Affine::rot_y(yaw_of(c.heading_at(c.length))))
-        .then(&Affine::rot_x(-BLACK_HOLE_TILT))
+        .then(&Affine::rot_x(BLACK_HOLE_TILT))
 }
 
 /// Beyond this distance the black hole is drawn shrunk toward the eye
@@ -1382,8 +1454,10 @@ fn seen_from(eye: V3, f: &Affine, near: i32) -> Affine {
     }
 }
 
-/// How far the disc is stood up from lying flat.
-const BLACK_HOLE_TILT: i32 = deg(60);
+/// How far the disc is tipped up from lying flat: more and it cuts through
+/// the finish deck under the hole
+/// (`the_black_holes_disc_passes_over_the_dance_floor`).
+const BLACK_HOLE_TILT: i32 = deg(35);
 
 fn set_piece(b: &mut Batch, p: &SetPiece, eye: V3, tick: u32, race_tick: u32) {
     match *p {
@@ -2259,5 +2333,111 @@ mod tests {
         assert!(sun.y < eye.y - int(300));
         // the stars are behind the black hole and its disc
         assert!(mul(int(520), BACK) > HOLE_NEAR + int(200));
+    }
+
+    #[test]
+    fn every_body_is_drawn_the_size_of_the_box_an_ape_bounces_off() {
+        // (the person bounces off what they see; an up or level vine leaves
+        // its box's face, so the drawing must reach it)
+        let c = Map::Sector.course();
+        let s = c.sector.as_ref().unwrap();
+        let mut seen = 0;
+        for (k, body) in s.bodies.iter().enumerate() {
+            let girder = matches!(body.model, Model::Girder(_));
+            if !matches!(body.model, Model::Chunk(_) | Model::Asteroid(_)) && !girder {
+                continue;
+            }
+            let mut b = Batch::new();
+            self::body(&mut b, body, k);
+            let r = reach_along(&shapes(b), body);
+            let half = [body.half.x, body.half.y, body.half.z];
+            for a in 0..3 {
+                // a girder's rails stand a little proud of its box, and one
+                // bent rail sticks out across at its broken end (thin)
+                let slack = if girder { cm(25) } else { cm(5) };
+                let (lo, hi) = r[a];
+                let proud = girder && a != 2;
+                assert!(
+                    (lo + half[a]).abs() <= slack,
+                    "body {k} ({:?}) axis {a}: drawn from {} cm, its box from {} cm",
+                    body.model,
+                    lo * 100 / ONE,
+                    -half[a] * 100 / ONE
+                );
+                assert!(
+                    (hi - half[a]).abs() <= slack || proud,
+                    "body {k} ({:?}) axis {a}: drawn to {} cm, its box to {} cm",
+                    body.model,
+                    hi * 100 / ONE,
+                    half[a] * 100 / ONE
+                );
+            }
+            seen += 1;
+        }
+        assert!(seen > 150, "{seen}");
+    }
+
+    #[test]
+    fn the_black_holes_disc_passes_over_the_dance_floor() {
+        // (the finished apes come down and dance on the deck under the hole,
+        // SECOND-ORDER SC2: no part of the hole is drawn through it or in
+        // the 5 m over it)
+        let c = Map::Sector.course();
+        let s = c.sector.as_ref().unwrap();
+        let pl = c.platforms[s.finish_deck];
+        let (at, r) = s.black_hole;
+        let mut b = Batch::new();
+        hole(&mut b, &c, at, r, at, 0);
+        let fwd = pl.fwd.flat().norm();
+        let right = right_of(fwd);
+        let mut near = 0;
+        for (mesh, a, _, _) in shapes(b) {
+            for p in crate::mesh::vertices(mesh).chunks(crate::mesh::VERTEX_VALUES) {
+                let q = a.apply(v3(p[0], p[1], p[2]));
+                let d = q.sub(pl.centre);
+                let over = q.y - pl.top;
+                let inside = d.dot(right).abs() < pl.half_width && d.dot(fwd).abs() < pl.half_len;
+                assert!(
+                    !(inside && over > -int(3) && over < int(5)),
+                    "{mesh:?} drawn {} m over the dance floor",
+                    over / ONE
+                );
+                if inside && over < int(15) {
+                    near += 1;
+                }
+            }
+        }
+        // (and the disc is close over it: the hole looms over the dance)
+        assert!(near > 0, "nothing of the hole within 15 m over the deck");
+    }
+
+    #[test]
+    fn the_black_holes_disc_stays_out_of_the_way_in() {
+        // (apes come in to the line anywhere from 40 m below it to 40 m
+        // above: none of the hole but its banana horizon is drawn there
+        // before the line, inside the boundary)
+        let c = Map::Sector.course();
+        let s = c.sector.as_ref().unwrap();
+        let (at, r) = s.black_hole;
+        let mut b = Batch::new();
+        hole(&mut b, &c, at, r, at, 0);
+        let line = c.point(c.length);
+        let fwd = c.heading_at(c.length);
+        for (mesh, a, _, _) in shapes(b) {
+            for p in crate::mesh::vertices(mesh).chunks(crate::mesh::VERTEX_VALUES) {
+                let q = a.apply(v3(p[0], p[1], p[2]));
+                let before = q.sub(line).dot(fwd);
+                // (the banana horizon is the line itself)
+                let horizon = q.dist(at) < mul(r, ratio(14, 10));
+                let aside = q.sub(line).dot(right_of(fwd)).abs() > s.boundary.side;
+                assert!(
+                    before > 0 || horizon || aside || (q.y - line.y).abs() > int(40),
+                    "{mesh:?} drawn {} m before the line, {} m up, {} m from the hole",
+                    -before / ONE,
+                    (q.y - line.y) / ONE,
+                    q.dist(at) / ONE
+                );
+            }
+        }
     }
 }
