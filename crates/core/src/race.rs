@@ -394,6 +394,10 @@ impl Race {
                     _ => {}
                 }
             }
+            // Sector Ape: the boundary, the switch door, the black hole
+            if self.space_rules(i) {
+                continue;
+            }
             if self.floor_is_lava(i) {
                 self.eat(i);
                 continue;
@@ -478,6 +482,10 @@ impl Race {
             r.ape.mode = mode;
             r.ape.yaw = yaw;
             r.ape.hint = self.course.nearest(pos, r.ape.hint);
+        }
+        // Sector Ape: a remote ape can shut the door too, from its state
+        if i < self.racers.len() {
+            self.switch(i);
         }
     }
 

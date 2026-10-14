@@ -32,7 +32,7 @@ use crate::fx::{cm, int, Dice, ONE};
 use crate::geom::{pitch_of, v3, yaw_of, V3};
 use crate::race::{Driver, Entry, Item, Race};
 use crate::rules::{
-    Kind, BODY_DROP, BOOST_GAIN, GRAVITY, HOOK_RANGE, JUMP_SPEED, STICK_RANGE, TICKS_PER_SECOND,
+    Kind, BODY_DROP, BOOST_GAIN, HOOK_RANGE, JUMP_SPEED, STICK_RANGE, TICKS_PER_SECOND,
 };
 
 /// A predicted flight counts a grab only this much inside the reach, so the
@@ -534,7 +534,7 @@ fn ahead(course: &Course, a: &Ape, from: i32, tick: u32, tune: Tuning) -> Vec<us
         course.heading_at(from)
     };
     // how high its speed could carry it
-    let top = a.pos.y + (a.vel.dot64(a.vel) / (2 * GRAVITY as i64)) as i32;
+    let top = a.pos.y + (a.vel.dot64(a.vel) / (2 * course.gravity() as i64)) as i32;
     ahead_from(
         course,
         a.swinging(),
@@ -564,7 +564,7 @@ fn ahead_from(
             continue;
         }
         let an = course.anchor(i, tick);
-        let low = an.y - v.length - course.terrain(an.x, an.z) < int(5);
+        let low = course.vine_bottom(i, tick) - course.terrain(an.x, an.z) < int(5);
         if v.at >= from + int(12) && !low {
             good.push(i);
         } else {
@@ -578,7 +578,7 @@ fn ahead_from(
         let along = d.dot(dir);
         let lat = d.sub(dir.scale(along)).len();
         // and a vine that hangs out of reach above costs four times over
-        let above = (course.anchor(i, tick).y - course.vines[i].length - origin.y).max(0);
+        let above = (course.vine_bottom(i, tick) - origin.y).max(0);
         lat as i64 * 3 + (along - tune.ideal_hop).abs() as i64 + above as i64 * 4
     });
     rest.sort_by_key(|&i| course.vines[i].at);
@@ -611,10 +611,7 @@ fn after(course: &Course, a: &Ape, target: usize, tick: u32, tune: Tuning) -> Op
 
 /// How far the hands at `p` are from vine `i`.
 fn vine_dist(course: &Course, i: usize, tick: u32, p: V3) -> i32 {
-    let a = course.anchor(i, tick);
-    let bottom = a.y - course.vines[i].length;
-    let y = p.y.clamp(bottom, a.y);
-    p.dist(v3(a.x, y, a.z))
+    p.dist(course.vine_point(i, tick, p))
 }
 
 /// The first candidate `margin` inside reach, at or beyond `min_at` along
@@ -630,7 +627,12 @@ fn in_reach(
     let reach = a.phys.reach - margin;
     for &i in cands.iter().filter(|&&i| course.vines[i].at >= min_at) {
         let an = course.anchor(i, tick);
-        if (a.pos.x - an.x).abs() > reach || (a.pos.z - an.z).abs() > reach {
+        // (Sector Ape: a vine may reach out sideways from its anchor)
+        let box_ = match course.sector {
+            Some(_) => reach + course.vines[i].length,
+            None => reach,
+        };
+        if (a.pos.x - an.x).abs() > box_ || (a.pos.z - an.z).abs() > box_ {
             continue;
         }
         // not right up by the anchor: a short rope only whirls round
@@ -754,6 +756,10 @@ fn fly_ahead(
         a.step(&c, course, tick);
         last_grab = false;
         if a.mode == Mode::Grounded || progress(course, a) > far {
+            return None;
+        }
+        // (Sector Ape: past the boundary is a reset, a flight lost)
+        if course.sector.is_some() && course.out_of_bounds(a.pos, a.hint) {
             return None;
         }
         tick += 1;
@@ -1011,7 +1017,7 @@ fn on_ground(a: &Ape, course: &Course, tick: u32, brain: &mut Brain) -> Controls
     let support = course.support(a.pos);
     let raised = support > course.terrain(a.pos.x, a.pos.z) + int(3);
     // the highest a jump can reach
-    let rise = (JUMP_SPEED as i64 * JUMP_SPEED as i64 / (2 * GRAVITY as i64)) as i32;
+    let rise = (JUMP_SPEED as i64 * JUMP_SPEED as i64 / (2 * course.gravity() as i64)) as i32;
     let top = support + BODY_DROP + rise + a.phys.reach - MARGIN;
     let mut best: Option<(i64, usize)> = None;
     for (i, v) in course.vines.iter().enumerate() {
@@ -1019,7 +1025,7 @@ fn on_ground(a: &Ape, course: &Course, tick: u32, brain: &mut Brain) -> Controls
             continue;
         }
         let an = course.anchor(i, tick);
-        if !raised && an.y - v.length > top {
+        if !raised && course.vine_bottom(i, tick) > top {
             continue;
         }
         let d = an.flat().sub(a.pos.flat()).len() as i64;

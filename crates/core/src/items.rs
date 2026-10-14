@@ -155,7 +155,7 @@ fn summon(race: &mut Race, who: usize, c: &Controls) {
     } else {
         0
     };
-    let then = ape.pos.y + mul(ape.vel.y, t) - mul(GRAVITY, mul(t, t)) / 2;
+    let then = ape.pos.y + mul(ape.vel.y, t) - mul(race.course.gravity(), mul(t, t)) / 2;
     let spot = ape.pos.add(dir.scale(ahead));
     let floor = race.course.support(spot);
     let bottom = (ape.pos.y.min(then) - SUMMON_BELOW).max(floor + ONE);
@@ -351,7 +351,7 @@ pub fn crate_at(race: &Race, k: usize) -> V3 {
         .find(|r| r.ape.swinging() == Some(v))
         .map(|r| r.ape.pos.sub(a))
         .filter(|d| d.len() > ONE)
-        .map_or(v3(0, -ONE, 0), |d| d.norm());
+        .map_or(race.course.hang(v), |d| d.norm());
     a.add(down.scale(length + CRATE_HANG))
 }
 
@@ -414,7 +414,7 @@ fn fly(race: &mut Race) {
                         let to = ape.middle().sub(s.pos);
                         s.vel = turn_toward(s.vel, to, mul(BANANA_TURN, DT)).scale(speed);
                     }
-                    None => s.vel.y -= mul(GRAVITY, DT),
+                    None => s.vel.y -= mul(race.course.gravity(), DT),
                 }
                 s.pos = s.pos.add(s.vel.scale(DT));
                 let hit = (0..race.racers.len()).find(|&i| {

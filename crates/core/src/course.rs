@@ -437,6 +437,10 @@ impl Course {
     /// Whether a body at `p` (the hands) stands on the jungle floor itself,
     /// not on a platform (Floor is Lava, TRIAGE T37).
     pub fn on_floor(&self, p: V3) -> bool {
+        // Sector Ape has no floor: crossing the boundary is its lava
+        if self.sector.is_some() {
+            return false;
+        }
         let floor = self.floor(p.x, p.z);
         self.support(p) <= floor && p.y - BODY_DROP <= floor + cm(10)
     }
@@ -524,6 +528,11 @@ impl Course {
     /// Keeps a body inside the corridor and under the ceiling: returns the
     /// corrected position and velocity, and whether a wall was hit.
     pub fn contain(&self, pos: V3, vel: V3, i: usize) -> (V3, V3, bool) {
+        // Sector Ape: no walls and no ceiling, only the boundary (the race
+        // puts an ape that crosses it back on a deck)
+        if self.sector.is_some() {
+            return (pos, vel, false);
+        }
         let (s, side) = self.progress(pos, i);
         let limit = self.half_width - BODY_RADIUS;
         let mut pos = pos;

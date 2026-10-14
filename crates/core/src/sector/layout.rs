@@ -38,6 +38,7 @@ pub fn sector() -> Course {
         set_pieces: Vec::new(),
         lobby: (at, c.start_yaw),
         finish_deck: 0,
+        near: Vec::new(),
         routes: Vec::new(),
     }));
     c

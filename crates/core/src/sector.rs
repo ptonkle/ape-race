@@ -40,6 +40,7 @@ use crate::spacecraft::{Gait, Mech, MechAnchors, MechKind};
 pub use layout::sector;
 
 mod layout;
+pub mod rules;
 
 /// The pull toward the sun on this map (the other maps: `rules::GRAVITY`,
 /// 17). A first guess; the course tunes it.
@@ -106,6 +107,115 @@ pub struct SectorLayout {
     pub finish_deck: usize,
     /// the routes the track splits into (for the minimap and the AI)
     pub routes: Vec<Route>,
+    /// physics only (the scene ignores it): for each stretch of
+    /// `NEAR_SAMPLES` centreline samples, the solid bodies an ape in that
+    /// stretch (anywhere inside the boundary) could touch
+    pub near: Vec<Vec<u16>>,
+}
+
+/// Centreline samples to a stretch of `SectorLayout.near` (20 m).
+pub const NEAR_SAMPLES: usize = 10;
+
+impl SectorLayout {
+    /// The solid bodies an ape whose nearest centreline sample is `hint`
+    /// could touch.
+    pub fn bodies_near(&self, hint: usize) -> &[u16] {
+        self.near
+            .get(hint / NEAR_SAMPLES)
+            .map_or(&[][..], |v| &v[..])
+    }
+
+    /// Fills `near` from the bodies, the course's centreline and the
+    /// boundary: a body is listed for a stretch if its ball comes within
+    /// the boundary's reach of any sample of it.
+    pub fn index_bodies(&mut self, path: &[V3]) {
+        let n = path.len().div_ceil(NEAR_SAMPLES);
+        let far = self
+            .boundary
+            .side
+            .max(self.boundary.above.max(-self.boundary.below))
+            + int(4);
+        self.near = (0..n)
+            .map(|k| {
+                let lo = k * NEAR_SAMPLES;
+                let hi = (lo + NEAR_SAMPLES).min(path.len());
+                (0..self.bodies.len())
+                    .filter(|&b| {
+                        let body = &self.bodies[b];
+                        body.solid()
+                            && path[lo..hi]
+                                .iter()
+                                .any(|p| body.frame.t.dist(*p) <= body.reach() + far)
+                    })
+                    .map(|b| b as u16)
+                    .collect()
+            })
+            .collect();
+    }
+}
+
+/// Where a ball moving from `p0` to `p1` first touches a box (centre `c`,
+/// unit axes `axes`, half sizes `half`), the ball's radius `r` added to
+/// the box: the share of the way (Q16, 0 if it starts inside), the face's
+/// outward normal, and (starting inside) how deep it is.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Touch {
+    pub t: i32,
+    pub normal: V3,
+    pub depth: i32,
+}
+
+/// A swept test of a ball against a box (`Touch`): no tunnelling however
+/// fast it moves.
+pub fn sweep(c: V3, axes: &[V3; 3], half: V3, r: i32, p0: V3, p1: V3) -> Option<Touch> {
+    let hs = [half.x + r, half.y + r, half.z + r];
+    let d0 = p0.sub(c);
+    let d1 = p1.sub(c);
+    let s: [i32; 3] = [d0.dot(axes[0]), d0.dot(axes[1]), d0.dot(axes[2])];
+    let e: [i32; 3] = [d1.dot(axes[0]), d1.dot(axes[1]), d1.dot(axes[2])];
+    if (0..3).all(|k| s[k].abs() < hs[k]) {
+        // inside: out through the nearest face
+        let k = (0..3).min_by_key(|&k| hs[k] - s[k].abs()).unwrap_or(0);
+        let sign = if s[k] >= 0 { ONE } else { -ONE };
+        return Some(Touch {
+            t: 0,
+            normal: axes[k].scale(sign),
+            depth: hs[k] - s[k].abs(),
+        });
+    }
+    let (mut enter, mut exit, mut axis, mut sign) = (i64::MIN, i64::MAX, 0, ONE);
+    for k in 0..3 {
+        let d = (e[k] - s[k]) as i64;
+        let (lo, hi) = (-hs[k] as i64 - s[k] as i64, hs[k] as i64 - s[k] as i64);
+        if d == 0 {
+            if lo > 0 || hi < 0 {
+                return None;
+            }
+            continue;
+        }
+        // the share of the way at each plane, Q16
+        let (mut t0, mut t1) = ((lo << 16) / d, (hi << 16) / d);
+        if t0 > t1 {
+            std::mem::swap(&mut t0, &mut t1);
+        }
+        if t0 > enter {
+            enter = t0;
+            axis = k;
+            sign = if d > 0 { -ONE } else { ONE };
+        }
+        exit = exit.min(t1);
+        if enter > exit {
+            return None;
+        }
+    }
+    if enter < 0 || enter > ONE as i64 {
+        return None;
+    }
+    Some(Touch {
+        t: enter as i32,
+        normal: axes[axis].scale(sign),
+        depth: 0,
+    })
 }
 
 /// What a vine hangs from.
