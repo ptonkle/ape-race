@@ -28,13 +28,17 @@ fn run(a: &mut Ape, c: &Course, ctl: Controls, ticks: u32) {
 #[test]
 fn on_the_snow_an_ape_glides_downhill_and_tops_out_below_a_swing() {
     let c = crate::ski::ski();
-    // the first straight runs down the fall line (steep from 100 m)
+    // the first straight runs down the fall line (steep from 100 m): a
+    // skier at 10 m/s glides on down it, slowing far less than on the
+    // Jungle's floor (the person, 2026-10-13: the snow's grip halfway
+    // between the first skis' and the ground's)
     let mut a = on_the_snow(&c, 120);
     assert!(a.on_snow(&c));
+    a.vel = c.heading_at(int(120)).scale(int(10));
     let y0 = a.pos.y;
-    run(&mut a, &c, Controls::default(), 4 * TICKS_PER_SECOND as u32);
+    run(&mut a, &c, Controls::default(), TICKS_PER_SECOND as u32);
     assert_eq!(a.mode, Mode::Grounded, "glued to the snow");
-    assert!(a.speed() > int(3), "it slid off: {} m/s", a.speed() / ONE);
+    assert!(a.speed() > int(6), "it slowed to {} m/s", a.speed() / ONE);
     assert!(a.pos.y < y0 - cm(50), "and down the hill");
     assert_eq!(a.pos.y, c.terrain(a.pos.x, a.pos.z) + BODY_DROP);
     // however steep, skiing tops out well under a good swing (25–35 m/s;
@@ -84,7 +88,7 @@ fn wasd_carve_the_skis_round_and_s_brakes() {
     run(&mut a, &c, right, 60);
     let turned = a.vel.flat().norm().dot(right_of(fwd));
     assert!(turned > ONE / 4, "turned {}", turned * 100 / ONE);
-    assert!(a.speed() > int(13), "kept {} m/s", a.speed() / ONE);
+    assert!(a.speed() > int(11), "kept {} m/s", a.speed() / ONE);
     // S: a snowplough slows it far faster than gliding on
     let ski_on = |fwd: i32| {
         let mut b = on_the_snow(&c, 20);
@@ -99,7 +103,7 @@ fn wasd_carve_the_skis_round_and_s_brakes() {
     };
     let (braked, glided) = (ski_on(-1), ski_on(0));
     assert!(
-        braked < int(3) && glided > int(8),
+        braked + int(2) < glided && glided > int(5),
         "S {} m/s, none {} m/s",
         braked / ONE,
         glided / ONE

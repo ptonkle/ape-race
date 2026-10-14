@@ -121,8 +121,10 @@ pub const LADDER_EVERY: i32 = int(20);
 
 /// On the Ski Slope an ape on the snow is on skis: gravity pulls it down
 /// the hill, and the snow and the skis hold it back this much (a constant
-/// friction, m/s²) ...
-pub const SKI_FRICTION: i32 = cm(80);
+/// friction, m/s²: the person, 2026-10-13, halfway between the first
+/// skis' 0.8 and the ground's `GROUND_FRICTION` 7, so a skier coasts on
+/// but no longer slides off from a stand) ...
+pub const SKI_FRICTION: i32 = cm(390);
 /// ... plus this share of its speed a second, on top of the air's drag, so
 /// skiing tops out well below a good swing.
 pub const SKI_DRAG: i32 = ratio(9, 100);
