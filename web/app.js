@@ -25,11 +25,14 @@ function readStore(key) {
   }
 }
 
+// Whether the text was stored. A failed write leaves what was there before.
 function writeStore(key, text) {
   try {
     localStorage.setItem(key, text);
+    return true;
   } catch (e) {
-    // Storage can be blocked; settings then last for this visit only.
+    // Storage can be blocked or full; settings then last for this visit only.
+    return false;
   }
 }
 
@@ -540,7 +543,9 @@ function handle(view) {
     return;
   }
   if (view.save) writeStore(SAVE_KEY, view.save);
-  if (view.save_replays) writeStore(REPLAYS_KEY, view.save_replays);
+  // Storage full: the core asks again with fewer recent replays, never
+  // fewer bests (TRIAGE T55).
+  if (view.save_replays && !writeStore(REPLAYS_KEY, view.save_replays)) game.replays_not_saved();
   if (view.sounds) view.sounds.forEach(play);
   // Messages first: a Leave goes out before the transport closes.
   if (view.net_requests) {

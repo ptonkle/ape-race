@@ -36,6 +36,13 @@ impl Session {
         }
     }
 
+    /// Storage would not take the last replays text (TRIAGE T55).
+    pub fn replays_not_saved(&mut self) {
+        if let Ok(a) = &mut self.app {
+            a.replays_not_saved();
+        }
+    }
+
     pub fn key(&mut self, code: &str, down: bool) {
         if let Ok(a) = &mut self.app {
             a.key(code, down);

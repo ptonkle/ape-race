@@ -17,6 +17,16 @@
 //! replay the same, so each carries the course's fingerprint ([`fingerprint`])
 //! and the format number [`FORMAT`]; bump that when a physics or AI change
 //! would make old recordings play differently.
+//!
+//! A best is never deleted (TRIAGE T55). It is beaten only by a faster run
+//! of the same course, mode, layout and format; a best from an older layout
+//! or format stays beside the new one, listed as watch-only with a note
+//! ("older layout", "older version"), and is never a ghost. A best of
+//! another format is written back exactly as it was read, so a later (or
+//! earlier) game finds it whole; one that cannot be read at all is kept
+//! as it was read too. Only the recent ones are ever evicted, and when
+//! storage is full the saved text sheds recent ones, never a best
+//! ([`Library::text_keeping`]).
 
 use serde::{Deserialize, Serialize};
 
@@ -29,7 +39,8 @@ use crate::items::ItemSet;
 use crate::race::{Driver, Entry, Item, Phase, Race, Summon};
 use crate::rules::TICKS_PER_SECOND;
 
-/// The recording format; recordings of another format are dropped.
+/// The recording format. Recent recordings of another format are dropped;
+/// bests of another format are kept, watch-only (TRIAGE T55).
 /// (2: group K, mushroom push, bananas, catch-up vines, the AI's start.)
 pub const FORMAT: u32 = 2;
 /// How many recordings besides the bests are kept.
@@ -96,6 +107,9 @@ pub struct Recording {
     pub serial: u32,
     /// an online race: every ape's place instead of the controls
     pub track: Option<Track>,
+    /// the [`FORMAT`] it was made in (TRIAGE T55: another one plays
+    /// differently, so it is watch-only)
+    pub format: u32,
 }
 
 impl Recording {
@@ -125,6 +139,7 @@ impl Recording {
             eaten: false,
             serial: 0,
             track: None,
+            format: FORMAT,
         }
     }
 
@@ -138,9 +153,31 @@ impl Recording {
         r
     }
 
-    /// Whether it was made on this course as it is now.
+    /// Whether it was made on this course as it is now, in this format: it
+    /// replays exactly, and can race as a ghost.
     pub fn fits(&self, course: &Course) -> bool {
-        self.course == course.name && self.layout == fingerprint(course)
+        self.format == FORMAT && self.course == course.name && self.layout == fingerprint(course)
+    }
+
+    /// Whether it can be watched on `course` (TRIAGE T55): any run of that
+    /// course, though one that does not [`fits`](Recording::fits) replays its
+    /// controls on the course as it is now and may go its own way. An
+    /// online track that does not fit is not watchable (its vines might
+    /// not be there).
+    pub fn watchable(&self, course: &Course) -> bool {
+        self.course == course.name && (self.track.is_none() || self.fits(course))
+    }
+
+    /// Why it would not replay exactly on `course`, as a string key: made
+    /// in another format, or on another layout; `None` when it fits.
+    pub fn older(&self, course: &Course) -> Option<&'static str> {
+        if self.format != FORMAT {
+            Some("replays.older_version")
+        } else if self.course == course.name && self.layout != fingerprint(course) {
+            Some("replays.older_layout")
+        } else {
+            None
+        }
     }
 
     /// The race at its first tick, as it was set up. A track's apes are all
@@ -676,6 +713,10 @@ struct Stored {
     /// an online recording's packed track
     #[serde(default, skip_serializing_if = "Option::is_none")]
     track: Option<String>,
+    /// its format (TRIAGE T55); missing in recordings from before, which
+    /// take the shelf's
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    format: Option<u32>,
 }
 
 impl Stored {
@@ -697,10 +738,13 @@ impl Stored {
             serial: r.serial,
             controls: pack(&r.controls),
             track: r.track.as_ref().map(|t| t.pack(r.entries.len())),
+            format: Some(r.format),
         }
     }
 
-    fn recording(self) -> Option<Recording> {
+    /// The recording it holds; `shelf` is the shelf's format, for one
+    /// that does not name its own.
+    fn recording(self, shelf: u32) -> Option<Recording> {
         if self.local >= self.entries.len() || self.entries.len() > 4 {
             return None;
         }
@@ -731,6 +775,7 @@ impl Stored {
             lava: self.lava,
             eaten: self.eaten,
             serial: self.serial,
+            format: self.format.unwrap_or(shelf),
         })
     }
 }
@@ -739,53 +784,116 @@ fn is_false(b: &bool) -> bool {
     !*b
 }
 
-#[derive(Serialize, Deserialize, Default)]
+#[derive(Serialize)]
 struct Shelf {
     format: u32,
-    best: Vec<Stored>,
+    best: Vec<serde_json::Value>,
     recent: Vec<Stored>,
 }
 
 /// The kept recordings.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Library {
-    /// the fastest finish per course and mode
+    /// the fastest finish per course, mode, layout and format: one per
+    /// course and mode as it is now, and any from older layouts or formats
+    /// (TRIAGE T55), never deleted
     pub best: Vec<Recording>,
     /// the latest others, oldest first, at most [`RECENT`]
     pub recent: Vec<Recording>,
+    /// the bests not of this [`FORMAT`] (those listed in `best` and any
+    /// that cannot be read), each written back exactly as it was read
+    pub foreign: Vec<serde_json::Value>,
+}
+
+/// A number in stored JSON, when it is one that fits a `u32`.
+fn number(v: Option<&serde_json::Value>) -> Option<u32> {
+    v.and_then(|n| n.as_u64())
+        .and_then(|n| u32::try_from(n).ok())
 }
 
 impl Library {
-    /// From browser storage; nonsense or another format gives an empty one.
+    /// From browser storage; nonsense gives an empty one. Each best is
+    /// kept whatever its format (TRIAGE T55); recent ones of another format
+    /// are dropped.
     pub fn parse(text: &str) -> Library {
-        let shelf: Shelf = serde_json::from_str(text).unwrap_or_default();
-        if shelf.format != FORMAT {
-            return Library::default();
+        let shelf: serde_json::Value = serde_json::from_str(text).unwrap_or_default();
+        let format = number(shelf.get("format")).unwrap_or(0);
+        let list = |key: &str| -> Vec<serde_json::Value> {
+            match shelf.get(key) {
+                Some(serde_json::Value::Array(v)) => v.clone(),
+                _ => Vec::new(),
+            }
+        };
+        let read = |v: &serde_json::Value| -> Option<Recording> {
+            let own = number(v.get("format")).unwrap_or(format);
+            serde_json::from_value::<Stored>(v.clone())
+                .ok()
+                .and_then(|s| s.recording(own))
+        };
+        let mut lib = Library::default();
+        for mut v in list("best") {
+            let rec = read(&v);
+            if rec.as_ref().is_none_or(|r| r.format != FORMAT) {
+                // kept as it was read, to be written back so, naming the
+                // format it was read in (the shelf it goes back on is
+                // this one's)
+                if let Some(o) = v.as_object_mut() {
+                    o.entry("format").or_insert(serde_json::json!(format));
+                }
+                lib.foreign.push(v);
+            }
+            lib.best.extend(rec);
         }
-        let take = |v: Vec<Stored>| -> Vec<Recording> {
-            v.into_iter().filter_map(Stored::recording).collect()
-        };
-        let mut lib = Library {
-            best: take(shelf.best),
-            recent: take(shelf.recent),
-        };
+        lib.recent = list("recent")
+            .iter()
+            .filter_map(read)
+            .filter(|r| r.format == FORMAT)
+            .collect();
         lib.trim();
         lib
     }
 
     pub fn text(&self) -> String {
+        self.text_keeping(usize::MAX)
+    }
+
+    /// The text with every best but only the newest `recent` recent ones:
+    /// what is saved when the whole will not fit in storage (TRIAGE T55).
+    pub fn text_keeping(&self, recent: usize) -> String {
+        let skip = self.recent.len().saturating_sub(recent);
         let shelf = Shelf {
             format: FORMAT,
-            best: self.best.iter().map(Stored::of).collect(),
-            recent: self.recent.iter().map(Stored::of).collect(),
+            // the foreign first: they were read before any of this format
+            // was added, so the order reads back the same
+            best: self
+                .foreign
+                .iter()
+                .cloned()
+                .chain(
+                    self.best
+                        .iter()
+                        .filter(|r| r.format == FORMAT)
+                        .filter_map(|r| serde_json::to_value(Stored::of(r)).ok()),
+                )
+                .collect(),
+            recent: self.recent[skip..].iter().map(Stored::of).collect(),
         };
         serde_json::to_string(&shelf).unwrap_or_default()
     }
 
+    /// The best of this format on the course named `course` in `mode`, the
+    /// newest when older layouts have bests too.
     pub fn best_of(&self, course: &str, mode: Mode) -> Option<&Recording> {
         self.best
             .iter()
-            .find(|r| r.course == course && r.mode == mode)
+            .filter(|r| r.course == course && r.mode == mode && r.format == FORMAT)
+            .max_by_key(|r| r.serial)
+    }
+
+    /// The best on `course` as it is now in `mode`: the one that replays
+    /// exactly and can race as a ghost.
+    pub fn best_for(&self, course: &Course, mode: Mode) -> Option<&Recording> {
+        self.best.iter().find(|r| r.mode == mode && r.fits(course))
     }
 
     fn next_serial(&self) -> u32 {
@@ -798,9 +906,10 @@ impl Library {
     }
 
     /// Keeps a finished run: the best for its course and mode if it beats
-    /// the one kept (which then joins the recent ones), else a recent one.
-    /// A run the jaguar ended (TRIAGE T37) is a recent one; any other
-    /// unfinished run is not kept.
+    /// the one kept on the same layout and format (which then joins the
+    /// recent ones), else a recent one. A best of another layout or format
+    /// is not compared and stays (TRIAGE T55). A run the jaguar ended
+    /// (TRIAGE T37) is a recent one; any other unfinished run is not kept.
     pub fn add(&mut self, mut rec: Recording) {
         let t = match rec.finish {
             Some(t) => t,
@@ -814,10 +923,12 @@ impl Library {
             self.trim();
             return;
         }
-        let old = self
-            .best
-            .iter()
-            .position(|r| r.course == rec.course && r.mode == rec.mode);
+        let old = self.best.iter().position(|r| {
+            r.course == rec.course
+                && r.mode == rec.mode
+                && r.layout == rec.layout
+                && r.format == rec.format
+        });
         match old {
             Some(k) if self.best[k].finish.map(|b| b <= t).unwrap_or(false) => {
                 self.recent.push(rec)
@@ -1372,5 +1483,151 @@ mod tests {
         assert_eq!(lib.recent[2].length(), newer.length());
         assert_eq!(lib.recent[2].finish, Some(104));
         assert!(!lib.refresh(&newer), "nothing new");
+    }
+
+    // ---- TRIAGE T55: the best is never deleted ----
+
+    /// A shelf's JSON with its format set to `format` and the recordings'
+    /// own format fields taken out (as every shelf from before T55 was).
+    fn shelf_of_format(lib: &Library, format: u32) -> String {
+        let mut v: serde_json::Value = serde_json::from_str(&lib.text()).unwrap();
+        v["format"] = serde_json::json!(format);
+        for key in ["best", "recent"] {
+            for r in v[key].as_array_mut().unwrap() {
+                r.as_object_mut().unwrap().remove("format");
+            }
+        }
+        v.to_string()
+    }
+
+    #[test]
+    fn a_shelf_from_before_t55_reads_as_it_did() {
+        // no per-recording format: they take the shelf's, this one
+        let mut lib = Library::default();
+        lib.add(run(9000, Mode::Trial));
+        lib.add(run(9500, Mode::Trial));
+        let back = Library::parse(&shelf_of_format(&lib, FORMAT));
+        assert_eq!(back, lib);
+        assert!(back.foreign.is_empty());
+        assert!(back.best[0].fits(&Course::jungle()));
+    }
+
+    #[test]
+    fn a_best_of_another_format_is_kept_watch_only_and_written_back_whole() {
+        let mut lib = Library::default();
+        lib.add(run(9000, Mode::Trial));
+        lib.add(run(9900, Mode::Race));
+        lib.add(run(9500, Mode::Trial));
+        let old = shelf_of_format(&lib, FORMAT - 1);
+        let mut back = Library::parse(&old);
+        // both bests kept; the recent one of the old format dropped
+        assert_eq!(back.best.len(), 2, "old-format bests dropped");
+        assert!(back.recent.is_empty());
+        let course = Course::jungle();
+        let b = &back.best[0];
+        assert_eq!(b.format, FORMAT - 1);
+        assert!(!b.fits(&course) && b.watchable(&course));
+        assert_eq!(b.older(&course), Some("replays.older_version"));
+        assert!(Ghost::new(b, &course).is_none(), "never a ghost");
+        assert!(back.best_for(&course, Mode::Trial).is_none());
+        // a new run does not beat it: both stay
+        back.add(run(12_000, Mode::Trial));
+        assert_eq!(back.best.len(), 3);
+        assert_eq!(
+            back.best_for(&course, Mode::Trial).unwrap().finish,
+            Some(12_000)
+        );
+        // many recent runs later, still there
+        for k in 0..30 {
+            back.add(run(20_000 + k, Mode::Trial));
+        }
+        assert_eq!(back.best.len(), 3);
+        // written back exactly as read, and read again the same
+        let text = back.text();
+        let again = Library::parse(&text);
+        assert_eq!(again, back);
+        let olds: serde_json::Value = serde_json::from_str(&old).unwrap();
+        let news: serde_json::Value = serde_json::from_str(&text).unwrap();
+        for b in olds["best"].as_array().unwrap() {
+            // as it was, now naming the format it was made in
+            let mut b = b.clone();
+            b["format"] = serde_json::json!(FORMAT - 1);
+            assert!(news["best"].as_array().unwrap().contains(&b), "{b}");
+        }
+    }
+
+    #[test]
+    fn a_best_that_cannot_be_read_is_kept_as_it_was() {
+        // a later game's best whose fields this one does not understand
+        let text = format!(
+            r#"{{"format":{},"best":[{{"course":"jungle","controls":7,"warp":true}}],"recent":[{{"course":"jungle"}}]}}"#,
+            FORMAT + 1
+        );
+        let mut lib = Library::parse(&text);
+        assert!(lib.best.is_empty());
+        assert_eq!(lib.foreign.len(), 1);
+        lib.add(run(9000, Mode::Race));
+        let back: serde_json::Value = serde_json::from_str(&lib.text()).unwrap();
+        let bests = back["best"].as_array().unwrap();
+        assert_eq!(bests.len(), 2);
+        let was =
+            serde_json::json!({"course":"jungle","controls":7,"warp":true,"format":FORMAT + 1});
+        assert!(bests.contains(&was), "{back}");
+    }
+
+    #[test]
+    fn a_best_of_an_older_layout_stays_beside_the_new_one() {
+        let course = Course::jungle();
+        let mut lib = Library::default();
+        let mut older = run(8000, Mode::Trial);
+        older.layout ^= 1;
+        lib.add(older);
+        // slower and faster runs on the layout as it is now
+        lib.add(run(9000, Mode::Trial));
+        lib.add(run(7000, Mode::Trial));
+        for k in 0..30 {
+            lib.add(run(20_000 + k, Mode::Trial));
+        }
+        let times: Vec<Option<u32>> = lib.best.iter().map(|r| r.finish).collect();
+        assert_eq!(
+            times,
+            vec![Some(8000), Some(7000)],
+            "the older layout's best was lost"
+        );
+        let o = &lib.best[0];
+        assert!(!o.fits(&course) && o.watchable(&course));
+        assert_eq!(o.older(&course), Some("replays.older_layout"));
+        assert_eq!(lib.best[1].older(&course), None);
+        assert_eq!(
+            lib.best_for(&course, Mode::Trial).unwrap().finish,
+            Some(7000)
+        );
+        assert_eq!(Library::parse(&lib.text()), lib);
+        // an online track of another layout is not watched
+        let (_, mut t) = tracked(2, 40);
+        t.layout ^= 1;
+        assert!(!t.watchable(&course));
+        assert!(!t.watchable(&Course::jungle_seeded(5)) && !o.watchable(&Course::test_line(&[])));
+    }
+
+    #[test]
+    fn a_full_store_sheds_recent_runs_never_a_best() {
+        let mut lib = Library::default();
+        lib.add(run(9000, Mode::Trial));
+        let mut older = run(8000, Mode::Trial);
+        older.layout ^= 1;
+        lib.add(older);
+        lib.add(run(9900, Mode::Race));
+        for k in 0..5 {
+            lib.add(run(20_000 + k, Mode::Race));
+        }
+        let some = Library::parse(&lib.text_keeping(2));
+        assert_eq!(some.best, lib.best);
+        let kept: Vec<Option<u32>> = some.recent.iter().map(|r| r.finish).collect();
+        assert_eq!(kept, vec![Some(20_003), Some(20_004)], "the newest kept");
+        let none = Library::parse(&lib.text_keeping(0));
+        assert_eq!(none.best, lib.best);
+        assert!(none.recent.is_empty());
+        assert_eq!(lib.text_keeping(RECENT), lib.text());
     }
 }
