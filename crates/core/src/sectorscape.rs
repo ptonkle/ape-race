@@ -1067,8 +1067,8 @@ fn door_alone(b: &mut Batch, d: &crate::sector::Door, eye: V3, tick: u32) {
                 part(
                     b,
                     Mesh::Cube,
-                    v3(x, -h.y + cm(80), sz * (h.z + cm(3))),
-                    v3(h.x / n, cm(120), cm(8)),
+                    v3(x, 0, sz * (h.z + cm(3))),
+                    v3(h.x / n, h.y * 2 - cm(40), cm(8)),
                     if k % 2 == 0 { HAZARD } else { PLATE_DARK },
                     ONE / 2,
                 );
