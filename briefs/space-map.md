@@ -30,6 +30,17 @@ Given by the person on 2026-10-13, to be built in a later session (after their u
 - [ ] Gameplay is about actively finding a path and improvising; the hard part is learning to swing on vines at strange angles.
 - [ ] The Jungle, City and Ski Slope play exactly the same. Verify by replaying a saved replay and getting the identical finish time (`tests/jungle_unchanged.rs` does this for the Jungle; add the same for the City and the Ski Slope before starting).
 
+## The person's answers (2026-10-13)
+
+- **Name: Sector Ape** (map key `sector`, or `sectorape`).
+- **Lighting: a big sun far below.** A blazing orange-white sun below the track lights everything from beneath, with strong rim light. This is the map's "time of day".
+- **Switch door: it stops rivals behind you.** One shared door: whoever swings the switch vine far enough forward shuts it for everyone behind, who must take another path. It reopens after a few seconds. It must be deterministic from race state, synced online and kept in replays.
+- **Reset: past a boundary.** Crossing an invisible edge round the track resets you at once to the nearest piece of ground, like falling off a kart track.
+- **Mechs: they carry vines and they move.** You hook through the armada on vines hanging from the mechs, which march or drift on fixed paths (the same every race, from the tick, like the City's cars).
+- **Top speed: about double** the other maps, up to ~300 km/h. The speedometer gets a bigger scale on this map, the camera widens further, and collisions must stay safe (no passing through thin debris).
+- **Gravity per debris piece: sets the vines' direction only.** Each ship sets which way its vines hang (sideways, upward, at angles). The ape always feels only the weak pull toward the sun below (lessened gravity in open space). No walking on the sides of ships.
+- **Great Fox pass and distant battles: scenery only,** big moving set pieces timed to the race.
+
 ## Integrator's notes and open questions (for the building session)
 
 - **Lighting first** (MAPS.md rule): space has no time of day. Decide the light source before any art: the far sun or a star below, plus rim light from the planet. Make the palette distinct from the other three maps (deep black-blue space, neon wireframe and laser colours, Sector X's purple-green haze?).
@@ -45,4 +56,3 @@ Given by the person on 2026-10-13, to be built in a later session (after their u
 - **Black hole finish:** the finish line is the event horizon. After the finish, apes get sucked in during the outro (and the finish dances, T53: where do they dance? on the banana horizon?).
 - **The hidden route:** it should be clearly faster but hard. Check the AI: Sloth shouldn't take it, King Kong maybe sometimes.
 - **Build method:** follow MAPS.md (a skeleton with contract types first, then course, art and gear agents in parallel). Budget: the Ski Slope used a lot of the person's session usage, so start fresh.
-- **Name:** not given. Suggestion: "Sector Ape" or "Deep Space"; ask the person.
