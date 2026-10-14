@@ -56,17 +56,17 @@ pub const FORKS: [Fork; 2] = [
     Fork {
         from: int(330),
         to: int(670),
-        left: int(30),
-        right: int(22),
-        branch_half: int(15),
+        left: int(35),
+        right: int(27),
+        branch_half: int(20),
         ramp: int(60),
     },
     Fork {
         from: int(1090),
         to: int(1360),
-        left: int(20),
-        right: int(30),
-        branch_half: int(14),
+        left: int(26),
+        right: int(36),
+        branch_half: int(20),
         ramp: int(55),
     },
 ];
@@ -83,10 +83,10 @@ type Spot = (i32, i32);
 /// tower or terminal stands in a lane (the Art's B6: apes passed through
 /// them): towers slide along the line out of the lanes (`lift`).
 const LIFTS: &[(Spot, Spot, i32)] = &[
-    ((-24, 28), (296, -42), 6),
-    ((288, -47), (700, -47), 12),
+    ((-24, 33), (296, -44), 6),
+    ((288, -57), (700, -57), 12),
     ((706, -38), (1060, 40), 6),
-    ((1066, 46), (1392, 46), 12),
+    ((1066, 58), (1392, 58), 12),
     ((1398, 38), (1905, 32), 6),
 ];
 
@@ -108,12 +108,16 @@ const CHAIR_IN: i32 = int(3);
 /// A conifer stands this far outside the edge of the lane it serves (behind
 /// the fence, or on the island), and its branch reaches this far at most.
 const TRUNK_OUT: i32 = cm(150);
-const BRANCH_MAX: i32 = int(14);
+const BRANCH_MAX: i32 = int(16);
 /// A helicopter's rotor hub above where its cable leaves the belly.
 const ROTOR_UP: i32 = int(3);
 /// The helicopters: over the station nearest this far along, in this lane
 /// (0 the left branch of a fork, or the middle of the run).
 const HELICOPTERS: [i32; 2] = [int(1220), int(1450)];
+
+/// The run is this wide either side of its line (each fork's branch
+/// `branch_half`, 20 m).
+pub const HALF_WIDTH: i32 = int(27);
 
 /// Rows of item crates, metres along.
 const CRATES: [i32; 7] = [150, 490, 740, 990, 1225, 1480, 1720];
@@ -334,10 +338,13 @@ impl Build {
         offs: &[i32],
         anchor_y: i32,
         length: i32,
+        span: Option<(i32, i32)>,
     ) -> Vec<usize> {
         let lanes = lanes_at(c, along);
         let lo = lanes.first().map_or(-c.half_width, |&(m, h, _, _)| m - h);
         let hi = lanes.last().map_or(c.half_width, |&(m, h, _, _)| m + h);
+        // (or across one branch of a fork, fence to island)
+        let (lo, hi) = span.unwrap_or((lo, hi));
         let a = pt(c, along, lo - TRUNK_OUT);
         let b = pt(c, along, hi + TRUNK_OUT);
         let ta = self.tree(c, a, anchor_y, None);
@@ -429,6 +436,9 @@ fn lift(c: &Course, top: Spot, bottom: Spot, gauge: i32) -> Lift {
 /// and landmarks, different vines and trees (for the AI's tests).
 pub fn ski_seeded(seed: u64) -> Course {
     let mut c = centreline("ski", LEGS);
+    // a wide snowfield (the person, 2026-10-13: "widen the run a bit";
+    // the Jungle's and the City's are 20 m)
+    c.half_width = HALF_WIDTH;
     let fall = c.heading_at(0);
     c.terrain = Terrain::Slope {
         top: c.path[0],
@@ -477,7 +487,7 @@ pub fn ski_seeded(seed: u64) -> Course {
     // edge, on a wire between two conifers, hanging to a metre above the deck
     let edge = START_LEN + cm(150);
     let offs: Vec<i32> = (-3..=3).map(|k| int(3) * k).collect();
-    b.wire(&mut c, edge, &offs, deck + int(30), int(29));
+    b.wire(&mut c, edge, &offs, deck + int(30), int(29), None);
 
     // the stations
     let mut stations: Vec<Vec<usize>> = Vec::new();
@@ -493,7 +503,7 @@ pub fn ski_seeded(seed: u64) -> Course {
             // off the summit: close, and not too high, on a second wire
             let g = c.terrain(c.point(si).x, c.point(si).z);
             let offs = [-int(6), 0, int(6)];
-            here = b.wire(&mut c, si, &offs, g + int(46), int(30));
+            here = b.wire(&mut c, si, &offs, g + int(46), int(30), None);
         } else {
             // a helicopter over this station?
             let heli = helis.first().copied().filter(|&h| si + int(12) >= h);
@@ -538,6 +548,7 @@ pub fn ski_seeded(seed: u64) -> Course {
                                 &[off],
                                 g + anchor_h,
                                 anchor_h - bottom,
+                                None,
                             ));
                         }
                     }
@@ -557,14 +568,37 @@ pub fn ski_seeded(seed: u64) -> Course {
                     let here_lanes = lanes_at(&c, along);
                     let (m, h, lo_tree, hi_tree) = here_lanes[k.min(here_lanes.len() - 1)];
                     // (9 m in from an edge, for the branch from its tree)
-                    let inset = (h - int(9)).max(int(4));
+                    let inset = (h - int(11)).max(int(4));
+                    // (a branch as wide as the run gets a middle lane too,
+                    // on a wire across it; one of the three left out)
+                    let wide = h >= int(18) && !b.in_clearing(along);
                     let spots = match (lo_tree, hi_tree) {
+                        (true, true) if wide => match b.dice.below(4) {
+                            0 => vec![m - inset, m, m + inset],
+                            1 => vec![m - inset, m],
+                            2 => vec![m, m + inset],
+                            _ => vec![m - inset, m + inset],
+                        },
                         (true, true) if two => vec![m - inset, m + inset],
                         (true, true) => vec![m + first * inset],
                         (true, false) => vec![m - h + int(9)],
                         _ => vec![m + h - int(9)],
                     };
                     for spot in spots {
+                        if spot == m {
+                            let anchor_h = int(b.dice.range(38, 50));
+                            let length = int(b.dice.range(23, 31));
+                            match b.vine(&mut c, along, m, anchor_h, anchor_h - length, false) {
+                                Some(v) => here.push(v),
+                                None => {
+                                    let p = pt(&c, along, m);
+                                    let y = c.terrain(p.x, p.z) + anchor_h;
+                                    let span = Some((m - h, m + h));
+                                    here.extend(b.wire(&mut c, along, &[m], y, length, span));
+                                }
+                            }
+                            continue;
+                        }
                         let off = spot + int(b.dice.range(-1, 1));
                         let anchor_h = int(b.dice.range(38, 50));
                         let bottom = anchor_h - int(b.dice.range(23, 31));
@@ -603,7 +637,7 @@ pub fn ski_seeded(seed: u64) -> Course {
             }
         }
         station += 1;
-        s += b.dice.range(22, 28);
+        s += b.dice.range(20, 25);
     }
 
     banana_arcs(&mut c, &stations);
@@ -613,7 +647,7 @@ pub fn ski_seeded(seed: u64) -> Course {
     for at in CRATES {
         let si = int(at);
         let offs: Vec<i32> = match lanes_at(&c, si)[..] {
-            [(m, _, _, _)] => vec![m - int(9), m, m + int(9)],
+            [(m, h, _, _)] => vec![m - h / 2, m, m + h / 2],
             ref two => two
                 .iter()
                 .flat_map(|&(m, _, _, _)| [m - int(4), m + int(4)])

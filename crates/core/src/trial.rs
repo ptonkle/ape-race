@@ -76,13 +76,13 @@ pub const CITY: [u32; 4] = [
 
 /// The Ski Slope's target times in hundredths of a second (2026-10-13, set
 /// as the City's were: King Kong alone as a Time Trial runs finishes in
-/// 53.4–75.2 s by kind, Gibbon best; `ski_time_trial_report` in
+/// 57.8–88.7 s by kind, Lemur best, on the widened run; `ski_time_trial_report` in
 /// `tests/ski_ai.rs`). Author: just under the best kind; then the
 /// Jungle's steps above it (7, 10, 15 s).
-pub const SKI_AUTHOR: u32 = 5_300;
-pub const SKI_GOLD: u32 = 6_000;
-pub const SKI_SILVER: u32 = 7_000;
-pub const SKI_BRONZE: u32 = 8_500;
+pub const SKI_AUTHOR: u32 = 5_700;
+pub const SKI_GOLD: u32 = 6_400;
+pub const SKI_SILVER: u32 = 7_400;
+pub const SKI_BRONZE: u32 = 8_900;
 
 /// The Ski Slope's target times, in race ticks, slowest first.
 pub const SKI: [u32; 4] = [
