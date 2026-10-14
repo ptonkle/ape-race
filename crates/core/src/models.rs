@@ -49,16 +49,28 @@ pub struct Pose {
 }
 
 /// What an ape wears (2026-10-13): nothing, as on the Jungle and the City,
-/// or on the Ski Slope a pair of skis, a ski helmet and goggles. Only the
-/// drawing changes.
+/// or on the Ski Slope a pair of skis, a ski helmet and goggles, or for
+/// Sector Ape (the space map, TRIAGE T75, not built yet) a Star Fox flight
+/// jacket, one metal arm and aviator sunglasses. Only the drawing changes.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub enum Gear {
     #[default]
     None,
     Ski,
+    Space,
 }
 
 impl Gear {
+    /// The gear named `key` (`none`, `ski`, `space`; a tile's `gear=`).
+    pub fn from_key(key: &str) -> Option<Gear> {
+        match key {
+            "none" => Some(Gear::None),
+            "ski" => Some(Gear::Ski),
+            "space" => Some(Gear::Space),
+            _ => None,
+        }
+    }
+
     /// What the apes wear on `map`.
     pub fn on(map: crate::map::Map) -> Gear {
         match map {
@@ -1155,13 +1167,18 @@ pub fn draw_in(b: &mut Batch, kind: Kind, palette: u8, pose: &Pose) {
         base = base.then(&Affine::translate(v3(0, SKI_THICK, 0)));
     }
     let mut rig = Rig { b, base };
+    let space = pose.gear == Gear::Space;
     torso(&mut rig, kind, &l, &m, &skel);
-    limbs(&mut rig, kind, &l, &m, &skel);
+    limbs(&mut rig, kind, &l, &m, &skel, space);
     head(&mut rig, kind, &l, &skel.head, pose);
     tail(&mut rig, kind, &m, &skel, pose.tick);
     if pose.gear == Gear::Ski {
         skis(&mut rig, kind, &m, &skel);
         helmet(&mut rig, kind, &l, &skel.head);
+    }
+    if space {
+        jacket(&mut rig, kind, &m, &skel, pose);
+        shades(&mut rig, kind, &l, &skel.head);
     }
     if pose.stunned {
         stars(&mut rig, &skel.head, m.head, pose.tick);
@@ -1339,7 +1356,9 @@ fn foot(rig: &mut Rig, f: &Frame, ankle: V3, w: i32, side: i32, c: Rgb) {
     rig.put(Mesh::Taper, rod(root, toe, pct(w, 44)), shade(c, 90));
 }
 
-fn limbs(rig: &mut Rig, kind: Kind, l: &Look, m: &Dims, s: &Skel) {
+/// `space`: in the Sector Ape costume, one arm (`metal_side`) is metal from
+/// the elbow down, and the jacket's sleeves cover the upper arms.
+fn limbs(rig: &mut Rig, kind: Kind, l: &Look, m: &Dims, s: &Skel, space: bool) {
     let ff = &s.feet_frame;
     for (i, side) in SIDES.into_iter().enumerate() {
         // arm: a round shoulder, a tapering upper arm and forearm
@@ -1347,11 +1366,21 @@ fn limbs(rig: &mut Rig, kind: Kind, l: &Look, m: &Dims, s: &Skel) {
         let (elbow, wrist) = bend(sh, s.hands[i], m.arm, s.arm_hint[i]);
         rig.ball(sh, pct(m.arm_w, 160), l.limb);
         rig.bone(sh, elbow, pct(m.arm_w, 130), l.limb);
-        rig.bone(elbow, wrist, pct(m.arm_w, 112), l.limb);
-        hand(rig, ff, wrist, m.arm_w, side, l.skin);
+        let metal = space && side == metal_side(kind);
+        if metal {
+            metal_arm(rig, ff, m, elbow, wrist, side);
+        } else {
+            rig.bone(elbow, wrist, pct(m.arm_w, 112), l.limb);
+            hand(rig, ff, wrist, m.arm_w, side, l.skin);
+        }
         if kind == Kind::Orangutan {
-            // long hair hanging from the arms
-            for (a, b) in [(sh, elbow), (elbow, wrist)] {
+            // long hair hanging from the arms (not from a sleeve or metal)
+            let bare: &[(V3, V3)] = match (space, metal) {
+                (false, _) => &[(sh, elbow), (elbow, wrist)],
+                (true, false) => &[(elbow, wrist)],
+                (true, true) => &[],
+            };
+            for &(a, b) in bare {
                 for j in 1..4 {
                     let top = a.lerp(b, ONE * j / 4);
                     let along = b.sub(a);
@@ -1571,6 +1600,234 @@ fn helmet(rig: &mut Rig, kind: Kind, l: &Look, h: &Frame) {
         rgb(255, 255, 240),
         ONE / 2,
     );
+}
+
+// ---------------------------------------------------------------------------
+// Sector Ape's costume (TRIAGE T75, the space map after Star Fox): a cropped
+// flight jacket with a team scarf, a winged badge and shoulder patches, a
+// pilot's headset, one metal arm and aviator sunglasses. The team colour is
+// the kind's own from the Ski Slope (`gear_colours`), so each ape keeps its
+// colour from map to map.
+
+/// The jacket: off-white with olive trim, as a Star Fox pilot's.
+const JACKET: Rgb = rgb(236, 232, 218);
+const OLIVE: Rgb = rgb(92, 112, 52);
+const BADGE: Rgb = rgb(246, 194, 56);
+/// The metal arm: a gunmetal forearm with chrome bands, joint and hand,
+/// and a glowing cyan light.
+const GUNMETAL: Rgb = rgb(78, 84, 98);
+const CHROME: Rgb = rgb(210, 218, 232);
+const LED: Rgb = rgb(80, 236, 255);
+/// The sunglasses: near-black lenses in a gold frame, a warm glint on each.
+const LENS: Rgb = rgb(18, 20, 30);
+const FRAME_GOLD: Rgb = rgb(226, 178, 64);
+const GLINT: Rgb = rgb(255, 238, 206);
+
+/// Which arm is metal (-1 or 1): it alternates through the kinds, so a
+/// pack of apes shows both.
+fn metal_side(kind: Kind) -> i32 {
+    match kind {
+        Kind::Orangutan | Kind::Chimpanzee | Kind::Proboscis => 1,
+        Kind::Gorilla | Kind::Gibbon | Kind::Lemur => -1,
+    }
+}
+
+/// Where the eyes sit on the face: percent of the head up and to each side.
+fn eye_spot(kind: Kind) -> (i32, i32) {
+    match kind {
+        Kind::Lemur => (10, 20),
+        Kind::Proboscis => (14, 15),
+        _ => (8, 17),
+    }
+}
+
+/// A forearm and hand of metal from `elbow` to `wrist`: a chrome joint, a
+/// faceted gunmetal forearm with two chrome bands, a cyan light on the
+/// outside and a chrome hand.
+fn metal_arm(rig: &mut Rig, ff: &Frame, m: &Dims, elbow: V3, wrist: V3, side: i32) {
+    let w = m.arm_w;
+    let j = pct(w, 150);
+    rig.glow(
+        Mesh::Octa,
+        Affine::translate(elbow).then(&Affine::scale(v3(j, j, j))),
+        CHROME,
+        ONE / 6,
+    );
+    rig.put(Mesh::Hex, rod(elbow, wrist, pct(w, 104)), GUNMETAL);
+    let at = |p: i32| elbow.lerp(wrist, ONE * p / 100);
+    for (a, b) in [(28, 40), (60, 72), (88, 100)] {
+        rig.glow(Mesh::Hex, rod(at(a), at(b), pct(w, 126)), CHROME, ONE / 6);
+    }
+    let out = dir_or(ff.x.scale(side), V3::UP);
+    let led = at(50).add(out.scale(pct(w, 52)));
+    let k = pct(w, 40);
+    rig.glow(
+        Mesh::Octa,
+        Affine::translate(led).then(&Affine::scale(v3(k, k, k))),
+        LED,
+        ONE,
+    );
+    hand(rig, ff, wrist, w, side, CHROME);
+}
+
+/// How low each kind's jacket comes (percent of the torso up from the
+/// hips), and its colour and trim: the gorilla's is cropped higher and
+/// olive with off-white trim, so its silver saddle shows below and stands
+/// out against it.
+fn jacket_cut(kind: Kind) -> (i32, Rgb, Rgb) {
+    match kind {
+        Kind::Gorilla => (64, OLIVE, JACKET),
+        _ => (46, JACKET, OLIVE),
+    }
+}
+
+/// The flight jacket over the chest and upper arms, its collar, the team
+/// scarf (streaming back with the ape's speed), the badge and the patches.
+fn jacket(rig: &mut Rig, kind: Kind, m: &Dims, s: &Skel, pose: &Pose) {
+    let body = &s.body;
+    let (w, t, d) = (m.w, m.t, m.d);
+    let at = |x: i32, y: i32, z: i32| v3(pct(w, x), pct(t, y), pct(d, z));
+    let team = gear_colours(kind).0;
+    let (hem, cloth, trim) = jacket_cut(kind);
+    let tall = 104 - hem;
+    let mid = hem + tall / 2;
+    // the body, a little bigger than the ribcage, gathered at the waist
+    // by an olive band; a yoke over the shoulders
+    rig.put(
+        Mesh::Barrel,
+        body.shape(at(0, mid, 0), at(112, tall, 114)),
+        cloth,
+    );
+    rig.put(
+        Mesh::Barrel,
+        body.shape(at(0, hem + 2, 0), at(104, 10, 106)),
+        trim,
+    );
+    rig.put(
+        Mesh::Bevel,
+        body.shape(
+            at(0, 88, -4),
+            v3(2 * m.shoulder + pct(m.arm_w, 90), pct(t, 28), pct(d, 86)),
+        ),
+        cloth,
+    );
+    // the zip down the front
+    rig.put(
+        Mesh::Cube,
+        body.shape(at(0, mid, 56), v3(pct(w, 7), pct(t, tall - 10), pct(d, 4))),
+        trim,
+    );
+    // a high olive collar
+    rig.put(
+        Mesh::Hex,
+        rod(
+            body.at(0, pct(t, 94), 0),
+            body.at(0, pct(t, 108), 0),
+            pct(w, 70),
+        ),
+        trim,
+    );
+    // the winged gold badge on the chest
+    let badge = body.at(-pct(w, 24), pct(t, 80), pct(d, 52));
+    let b = pct(w, 13);
+    rig.glow(
+        Mesh::Octa,
+        body.shape(V3::ZERO, v3(b, b, pct(d, 8))).at(badge),
+        BADGE,
+        ONE / 4,
+    );
+    for side in SIDES {
+        let tip = badge
+            .add(body.x.scale(side * pct(w, 15)))
+            .add(body.y.scale(pct(t, 5)));
+        rig.blade(badge, tip, body.y, pct(t, 8), pct(d, 4), shade(BADGE, 90));
+    }
+    // the scarf: a knot at the throat and a tail streaming back
+    rig.ball(body.at(0, pct(t, 100), pct(d, 44)), pct(w, 16), team);
+    let speed = pose.vel.len();
+    let back = dir_or(pose.vel.neg(), body.z.neg());
+    let droop = ONE - fx::div(speed.min(int(10)), int(10)) * 3 / 4;
+    let way = dir_or(back.add(V3::UP.scale(-droop)), body.z.neg());
+    let flap = mul(fx::sin(spin(pose.tick, deg(25))), pct(t, 10));
+    let root = body.at(0, pct(t, 102), -pct(d, 40));
+    let tip = root.add(way.scale(pct(t, 60))).add(body.x.scale(flap));
+    rig.blade(root, tip, body.x, pct(w, 26), pct(d, 6), team);
+    // the sleeves to the elbows, olive cuffs, a team patch on each shoulder
+    for (i, side) in SIDES.into_iter().enumerate() {
+        let sh = shoulder_of(body, m, side);
+        let (elbow, _) = bend(sh, s.hands[i], m.arm, s.arm_hint[i]);
+        let aw = m.arm_w;
+        rig.ball(sh, pct(aw, 178), cloth);
+        rig.put(Mesh::Taper, rod(sh, elbow, pct(aw, 154)), cloth);
+        let along = |p: i32| sh.lerp(elbow, ONE * p / 100);
+        rig.put(Mesh::Hex, rod(along(78), along(96), pct(aw, 132)), trim);
+        let out = body.x.scale(side * ONE);
+        let patch = along(24);
+        rig.put(
+            Mesh::Hex,
+            rod(
+                patch.add(out.scale(pct(aw, 66))),
+                patch.add(out.scale(pct(aw, 82))),
+                pct(aw, 96),
+            ),
+            team,
+        );
+    }
+}
+
+/// Aviator sunglasses over the eyes (two dark drop-shaped lenses in a thin
+/// gold frame with arms back to the ears) and a pilot's headset: an
+/// earpiece on the other side from the metal arm and a mic on a boom.
+fn shades(rig: &mut Rig, kind: Kind, l: &Look, h: &Frame) {
+    let d = cm(l.head);
+    let p = |x: i32, y: i32, z: i32| v3(pct(d, x), pct(d, y), pct(d, z));
+    let (ey, ex) = eye_spot(kind);
+    let lw = (l.eye + 16).min(2 * ex - 3);
+    let lh = l.eye + 4;
+    // in front of the eyes, and of the brow where it juts out
+    let z = (42 + l.eye / 2 + 5).max(38 + (l.brow + 14) / 2 + 3);
+    let top = ey - 1 + lh / 2;
+    for side in SIDES {
+        let x = side * ex;
+        rig.put(Mesh::Geo, h.shape(p(x, ey - 1, z), p(lw, lh, 6)), LENS);
+        // the drop of an aviator lens, lower and outward
+        rig.put(
+            Mesh::Geo,
+            h.shape(
+                p(x + side * 3, ey - 1 - lh / 4, z - 1),
+                p(pct(lw, 82), pct(lh, 70), 5),
+            ),
+            LENS,
+        );
+        rig.glow(
+            Mesh::Cube,
+            h.shape(p(x - side * lw / 6, ey + lh / 5, z + 3), p(lw / 3, 3, 2)),
+            GLINT,
+            ONE / 2,
+        );
+        // the arm back to the ear
+        let a = h.at(side * pct(d, ex + lw / 2), pct(d, top - 2), pct(d, z - 3));
+        let b = h.at(side * pct(d, 52), pct(d, ey + 2), 0);
+        rig.put(Mesh::Hex, rod(a, b, pct(d, 4)), FRAME_GOLD);
+    }
+    // the bar across the top of both lenses
+    rig.put(
+        Mesh::Cube,
+        h.shape(p(0, top, z + 1), p(2 * ex + lw, 3, 3)),
+        FRAME_GOLD,
+    );
+    // the headset
+    let side = -metal_side(kind);
+    let ex = if l.ear > 0 { 56 } else { 48 };
+    let ear = h.at(side * pct(d, ex), -pct(d, 2), pct(d, 2));
+    rig.put(
+        Mesh::Hex,
+        rod(ear, ear.add(h.x.scale(side * pct(d, 10))), pct(d, 30)),
+        GUNMETAL,
+    );
+    let mouth = h.at(side * pct(d, 30), -pct(d, 30), pct(d, 50 + l.muzzle / 4));
+    rig.put(Mesh::Hex, rod(ear, mouth, pct(d, 5)), GUNMETAL);
+    rig.ball(mouth, pct(d, 10), shade(GUNMETAL, 70));
 }
 
 /// The proboscis monkey's nose: four points from its root on the face to its
@@ -1799,10 +2056,12 @@ fn head(rig: &mut Rig, kind: Kind, l: &Look, h: &Frame, pose: &Pose) {
                     .at(b.sub(h.z.scale(pct(d, 4)))),
                 BLACK,
             );
-            eyes(rig, h, d, l.eye, LEMUR_EYE, 10, 20);
+            let (y, x) = eye_spot(kind);
+            eyes(rig, h, d, l.eye, LEMUR_EYE, y, x);
         }
         Kind::Proboscis => {
-            eyes(rig, h, d, l.eye, EYE_WHITE, 14, 15);
+            let (y, x) = eye_spot(kind);
+            eyes(rig, h, d, l.eye, EYE_WHITE, y, x);
             // a small mouth, under the nose
             rig.put(Mesh::Wedge, h.shape(p(0, -30, 44), p(26, 4, 6)), BLACK);
             // the nose widens to a heavy bulb that hangs over the mouth
@@ -1814,7 +2073,10 @@ fn head(rig: &mut Rig, kind: Kind, l: &Look, h: &Frame, pose: &Pose) {
             }
             rig.put(Mesh::Geo, h.shape(V3::ZERO, p(60, 54, 56)).at(n[3]), NOSE);
         }
-        _ => eyes(rig, h, d, l.eye, EYE_WHITE, 8, 17),
+        _ => {
+            let (y, x) = eye_spot(kind);
+            eyes(rig, h, d, l.eye, EYE_WHITE, y, x)
+        }
     }
 }
 
@@ -2723,6 +2985,165 @@ mod tests {
         assert_eq!(Gear::on(crate::map::Map::Ski), Gear::Ski);
         assert_eq!(Gear::on(crate::map::Map::Jungle), Gear::None);
         assert_eq!(Gear::on(crate::map::Map::City), Gear::None);
+        // the Sector Ape costume waits for its map
+        for map in crate::map::Map::ALL {
+            assert_ne!(Gear::on(map), Gear::Space, "{map:?}");
+        }
+    }
+
+    /// The poses in the Sector Ape costume.
+    fn space_poses() -> Vec<Pose> {
+        poses()
+            .into_iter()
+            .map(|p| Pose {
+                gear: Gear::Space,
+                ..p
+            })
+            .collect()
+    }
+
+    #[test]
+    fn in_space_every_kind_wears_a_jacket_a_metal_arm_and_sunglasses_in_every_pose() {
+        // Sector Ape (TRIAGE T75), previewed with a tile's `gear=space`
+        for kind in Kind::ALL {
+            let team = gear_colours(kind).0;
+            for pose in space_poses() {
+                let s = drawn(kind, &pose);
+                let bare = drawn(
+                    kind,
+                    &Pose {
+                        gear: Gear::None,
+                        ..pose
+                    },
+                );
+                assert!(
+                    s.len() > bare.len() + 20,
+                    "{kind:?} {} vs {}",
+                    s.len(),
+                    bare.len()
+                );
+                assert!((50..=300).contains(&s.len()), "{kind:?} {} shapes", s.len());
+                let has = |c: Rgb| s.iter().any(|x| x.colour == c);
+                assert!(has(JACKET) && has(OLIVE), "{kind:?}: no jacket");
+                assert!(has(team), "{kind:?}: no scarf or patches");
+                assert!(has(LENS) && has(FRAME_GOLD), "{kind:?}: no sunglasses");
+                assert!(has(GUNMETAL) && has(LED), "{kind:?}: no metal arm");
+                // one chrome hand: a palm and four fingers
+                let bevels = |c: Rgb| {
+                    s.iter()
+                        .filter(|x| x.mesh == Mesh::Bevel as u32 && x.colour == c)
+                        .count()
+                };
+                assert_eq!(
+                    (bevels(CHROME), bevels(shade(CHROME, 92))),
+                    (1, 4),
+                    "{kind:?} {pose:?}"
+                );
+                for x in &s {
+                    for a in x.axes {
+                        assert!(
+                            a.len() >= ONE / 500 && a.len() <= int(2),
+                            "{kind:?} mesh {} colour {:?} axis {}",
+                            x.mesh,
+                            x.colour,
+                            a.len()
+                        );
+                    }
+                    assert!(x.at.dist(pose.hands) <= int(3));
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn the_sunglasses_sit_in_front_of_the_eyes() {
+        for kind in Kind::ALL {
+            for pose in space_poses() {
+                let face = facing(dance_turn(kind, &pose).yaw, 0);
+                let s = drawn(kind, &pose);
+                let eye = |c: Rgb| {
+                    s.iter()
+                        .filter(|x| x.mesh == Mesh::Ico as u32 && x.colour == c)
+                        .map(|x| x.at)
+                        .collect::<Vec<_>>()
+                };
+                let mut whites = eye(EYE_WHITE);
+                whites.extend(eye(LEMUR_EYE));
+                let lenses: Vec<V3> = s
+                    .iter()
+                    .filter(|x| x.mesh == Mesh::Geo as u32 && x.colour == LENS)
+                    .map(|x| x.at)
+                    .collect();
+                assert_eq!((whites.len(), lenses.len()), (2, 4), "{kind:?}");
+                // each eye has a lens just ahead of it
+                for e in &whites {
+                    let ahead = lenses
+                        .iter()
+                        .filter(|l| l.dist(*e) < cm(12))
+                        .map(|l| l.sub(*e).dot(face))
+                        .max()
+                        .unwrap_or(i32::MIN);
+                    assert!(ahead > cm(1), "{kind:?} {pose:?}: lens {ahead} ahead");
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn in_space_the_fur_and_markings_still_show() {
+        for kind in Kind::ALL {
+            for palette in 0..PALETTES {
+                let l = look_in(kind, palette);
+                let pose = Pose {
+                    gear: Gear::Space,
+                    ..at_rest()
+                };
+                let mut b = Batch::new();
+                draw_in(&mut b, kind, palette, &pose);
+                let s = shapes(b);
+                let count = |c: Rgb| s.iter().filter(|x| x.colour == c).count();
+                // the bare arm, the legs and the head keep the kind's colours
+                assert!(count(l.limb) >= 4, "{kind:?} {palette}: limbs hidden");
+                assert!(count(l.fur) >= 2, "{kind:?} {palette}: fur hidden");
+                assert!(count(l.skin) >= 3, "{kind:?} {palette}: no bare hand");
+            }
+        }
+        // the gorilla's silver saddle and the lemur's ringed tail, as bare
+        let pose = Pose {
+            gear: Gear::Space,
+            ..at_rest()
+        };
+        let silver = rgb(158, 158, 166);
+        assert!(drawn(Kind::Gorilla, &pose)
+            .iter()
+            .any(|x| x.colour == silver));
+        let rings = |p: &Pose| {
+            drawn(Kind::Lemur, p)
+                .iter()
+                .filter(|x| x.colour == rgb(242, 242, 240))
+                .count()
+        };
+        assert_eq!(rings(&pose), rings(&at_rest()));
+        assert!(rings(&pose) > 0);
+    }
+
+    #[test]
+    fn the_metal_arm_alternates_through_the_kinds() {
+        let sides: Vec<i32> = Kind::ALL.into_iter().map(metal_side).collect();
+        assert!(sides.contains(&1) && sides.contains(&-1), "{sides:?}");
+        // and it is the arm on that side
+        for kind in Kind::ALL {
+            let pose = Pose {
+                gear: Gear::Space,
+                ..at_rest()
+            };
+            let face = facing(pose.yaw, 0);
+            let side = V3::UP.cross(face).norm();
+            let s = drawn(kind, &pose);
+            let led = s.iter().find(|x| x.colour == LED).unwrap().at;
+            let off = led.sub(pose.hands).dot(side);
+            assert!(off * metal_side(kind) > cm(5), "{kind:?}: the LED at {off}");
+        }
     }
 
     /// `pose` dancing, `beat` ticks into its dance.
