@@ -1926,8 +1926,8 @@ pub fn black_hole(b: &mut Batch, f: &Affine, r: i32, tick: u32) {
         let to = V3::UP.scale(sy * mul(r, ratio(80, 10)));
         b.push(
             Mesh::Spike,
-            &f.then(&rod(from, to, r / 5)),
-            rgb(246, 240, 255),
+            &f.then(&rod(from, to, r / 14)),
+            rgb(214, 196, 255),
             SKY_GLOW,
         );
         b.push_halo(
