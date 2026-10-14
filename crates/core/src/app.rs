@@ -101,6 +101,9 @@ pub struct Settings {
     pub bests: BTreeMap<String, Bests>,
     /// Floor is Lava (TRIAGE T37): touch the ground and a jaguar eats you
     pub lava: bool,
+    /// the Ski Slope's weather (2026-10-13): Clear or Snowing, this
+    /// player's own view only (no effect on play, not sent online)
+    pub weather: crate::snow::Weather,
 }
 
 /// One map's personal bests, in race ticks.
@@ -133,6 +136,7 @@ impl Default for Settings {
             map: Map::default(),
             bests: BTreeMap::new(),
             lava: false,
+            weather: crate::snow::Weather::Clear,
         }
     }
 }
@@ -422,6 +426,15 @@ impl App {
         }
     }
 
+    /// Whether snow falls in the 3D view: the Weather setting is Snowing
+    /// and the view is on the Ski Slope (a race, the title's flyover, the
+    /// setup's preview), never on the lineup.
+    pub(crate) fn snowing(&self) -> bool {
+        self.settings.weather == crate::snow::Weather::Snowing
+            && self.stage != Stage::Lineup
+            && self.shown_map() == Map::Ski
+    }
+
     /// The map the 3D view is on: a race's own, else the menus'.
     fn shown_map(&self) -> Map {
         match (&self.play, self.stage) {
@@ -474,6 +487,17 @@ impl App {
             .collect();
         json!({ "type": "select", "id": id, "label": self.t("setup.map"),
                 "value": self.map().key(), "options": options })
+    }
+
+    /// The Ski Slope's Weather select (`settings.weather` in Settings,
+    /// `setup.weather` on the Ski Slope's setup), labelled by its id.
+    pub(crate) fn weather_select(&self, id: &str) -> Value {
+        let options: Vec<Value> = crate::snow::Weather::ALL
+            .iter()
+            .map(|w| json!({ "value": w.key(), "text": self.t(&format!("weather.{}", w.key())) }))
+            .collect();
+        json!({ "type": "select", "id": id, "label": self.t(id),
+                "value": self.settings.weather.key(), "options": options })
     }
 
     /// A map's name, as shown.
@@ -971,6 +995,13 @@ impl App {
                 self.settings.auto_camera = value == "on";
                 self.save = true;
             }
+            // the same setting from Settings and from the Ski Slope's setup
+            "settings.weather" | "setup.weather" => {
+                if let Some(w) = crate::snow::Weather::from_key(value) {
+                    self.settings.weather = w;
+                    self.save = true;
+                }
+            }
             _ => {}
         }
         self.settle_scene();
@@ -1288,6 +1319,13 @@ impl App {
                 .map(scene::look_of)
                 .unwrap_or_else(|| scene::look(self.shown_map())),
         };
+        // the Ski Slope's snow greys the sky and closes the fog in
+        let snowing = self.snowing();
+        let look = if snowing {
+            crate::snow::overcast(look)
+        } else {
+            look
+        };
         // the colourblind mode mutes the sky and the fog as well (TRIAGE T33)
         let (sky, fog) = if vivid {
             (
@@ -1338,11 +1376,14 @@ impl App {
             Stage::Showcase => self.preview_batches(vivid),
             Stage::Lineup => {
                 let mut b = Batch::new();
-                models::lineup(&mut b, self.ticks);
+                models::lineup(&mut b, self.ticks, models::Gear::on(self.map()));
                 (Batch::new(), b)
             }
         };
         let (mut vines, mut batch) = (vines, batch);
+        if snowing {
+            crate::snow::flakes(&mut batch, cam.eye, self.ticks);
+        }
         let halos = (vines.take_halos(), batch.take_halos());
         let mut draws = self.scenery().draws_near(cam.eye);
         let mut values = Vec::new();
@@ -1489,6 +1530,10 @@ impl App {
               "text": self.t(&format!("ape.{}", self.settings.kind.key())) }),
             json!({ "type": "stats", "label": self.t("setup.stats"), "rows": self.stats_rows(&stats) }),
         ];
+        // the Ski Slope's weather, under the map that has it
+        if self.settings.map == Map::Ski {
+            items.insert(1, self.weather_select("setup.weather"));
+        }
         if self.trial {
             items.push(self.medal_table(self.settings.map, None));
             items.push(
@@ -1658,6 +1703,7 @@ impl App {
         ];
         // Speed Colours shows once unlocked (TRIAGE row 26)
         if let Some(items) = panels[0]["items"].as_array_mut() {
+            items.push(self.weather_select("settings.weather"));
             if self.settings.colours_unlocked {
                 items.push(json!({ "type": "toggle", "id": "settings.speed_colours",
                   "label": self.t("settings.speed_colours"), "value": self.settings.speed_colours }));
@@ -1947,15 +1993,37 @@ impl App {
                 1000 - pad - ((q.z - lo_z) as i64 * (1000 - 2 * pad) as i64 / span as i64) as i32;
             (x, y)
         };
-        let line: Vec<i32> = c
-            .path
-            .iter()
+        // the run: on the Ski Slope down each fork's left branch, with the
+        // right branches drawn beside (`branches`)
+        let lane = |s: i32, k: usize| {
+            c.point(s)
+                .add(crate::geom::right_of(c.heading_at(s)).scale(c.lanes(s)[k].0))
+        };
+        let line: Vec<i32> = (0..c.path.len())
             .step_by(10)
-            .flat_map(|q| {
-                let (x, y) = to(*q);
+            .flat_map(|i| {
+                let (x, y) = to(lane(i as i32 * crate::course::STEP, 0));
                 [x, y]
             })
             .collect();
+        let branches: Vec<Vec<i32>> = c
+            .ski
+            .as_ref()
+            .map(|ski| {
+                ski.forks
+                    .iter()
+                    .map(|f| {
+                        let step = int(10);
+                        (0..=(f.to - f.from) / step)
+                            .flat_map(|k| {
+                                let (x, y) = to(lane(f.from + k * step, 1));
+                                [x, y]
+                            })
+                            .collect()
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
         let apes: Vec<Value> = p
             .race
             .racers
@@ -1984,7 +2052,7 @@ impl App {
         }
         let (fx_, fy) = to(*c.path.last().unwrap_or(&V3::ZERO));
         json!({
-            "size": 1000, "stride": 2, "line": line, "apes": apes, "finish": [fx_, fy],
+            "size": 1000, "stride": 2, "line": line, "branches": branches, "apes": apes, "finish": [fx_, fy],
             "dot": MINIMAP_DOT, "me_dot": MINIMAP_ME_DOT, "width": 22, "ring_width": 8,
             "track": "rgba(240, 230, 190, 0.75)", "finish_colour": "#ffffff",
             "ring": "rgba(0, 0, 0, 0.6)", "me_ring": "#ffe066",
@@ -2338,6 +2406,8 @@ mod items_hype_tests;
 mod lava_tests;
 #[cfg(test)]
 mod spectate_tests;
+#[cfg(test)]
+mod weather_tests;
 
 #[cfg(test)]
 mod tests {
@@ -2695,6 +2765,50 @@ mod tests {
         assert!(ui["hud"]["minimap"]["apes"].is_array());
         let (_, dynamic, _) = a.frame();
         assert!(!dynamic.is_empty());
+    }
+
+    #[test]
+    fn the_ski_slopes_minimap_shows_both_branches_of_each_fork() {
+        let mut a = app();
+        a.act("menu.race", "");
+        a.act("setup.map", "ski");
+        a.act("menu.start", "");
+        let ui: Value = serde_json::from_str(&a.ui()).unwrap();
+        let m = &ui["hud"]["minimap"];
+        let branches = m["branches"].as_array().unwrap();
+        assert_eq!(branches.len(), 2, "one more branch per fork");
+        let line: Vec<i64> = m["line"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter_map(|v| v.as_i64())
+            .collect();
+        for b in branches {
+            let b: Vec<i64> = b
+                .as_array()
+                .unwrap()
+                .iter()
+                .filter_map(|v| v.as_i64())
+                .collect();
+            assert!(b.len() >= 8);
+            // the branch's middle is apart from every point of the run's line
+            let (x, y) = (b[(b.len() / 2) & !1], b[((b.len() / 2) & !1) + 1]);
+            let near = line
+                .chunks(2)
+                .map(|p| (p[0] - x).abs() + (p[1] - y).abs())
+                .min()
+                .unwrap();
+            assert!(near > 4, "the branch's middle is {near} from the line");
+        }
+        // the other maps have none
+        let mut j = app();
+        j.act("menu.race", "");
+        j.act("menu.start", "");
+        let ui: Value = serde_json::from_str(&j.ui()).unwrap();
+        assert!(ui["hud"]["minimap"]["branches"]
+            .as_array()
+            .unwrap()
+            .is_empty());
     }
 
     fn ui_of(a: &mut App) -> Value {

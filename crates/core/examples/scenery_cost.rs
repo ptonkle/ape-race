@@ -36,4 +36,9 @@ fn main() {
     for (part, n) in tool_core::cityscape::parts(&city) {
         println!("  {part}: {n}");
     }
+    let ski = tool_core::map::Map::Ski.course();
+    report("ski", &ski);
+    for (part, n) in tool_core::skiscape::parts(&ski) {
+        println!("  {part}: {n}");
+    }
 }

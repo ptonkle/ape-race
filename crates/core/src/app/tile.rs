@@ -11,8 +11,8 @@
 //! (the racer watched, 0), `view` (`chase`, `orbit` or `trackside`),
 //! `yaw` and `pitch` (the orbit's, in degrees; the yaw from straight
 //! behind, along the course), `dist` (the orbit's distance, in decimetres)
-//! `hud` (`on` shows the HUD), and `blind` and `jojo` (`on`: the
-//! colourblind mode, JOJO MODE).
+//! `hud` (`on` shows the HUD), and `blind`, `jojo` and `snow` (`on`: the
+//! colourblind mode, JOJO MODE, the Ski Slope's snow).
 
 use crate::ai::Difficulty;
 use crate::camera::Orbit;
@@ -46,6 +46,7 @@ pub struct Tile {
     pub hud: bool,
     pub blind: bool,
     pub jojo: bool,
+    pub snow: bool,
 }
 
 impl Tile {
@@ -67,6 +68,7 @@ impl Tile {
             hud: false,
             blind: false,
             jojo: false,
+            snow: false,
         };
         for pair in text.split(',') {
             let Some((k, v)) = pair.split_once('=') else {
@@ -93,6 +95,7 @@ impl Tile {
                 "hud" => t.hud = v == "on",
                 "blind" => t.blind = v == "on",
                 "jojo" => t.jojo = v == "on",
+                "snow" => t.snow = v == "on",
                 _ => {}
             }
         }
@@ -121,6 +124,11 @@ impl App {
         self.settings.map = t.map;
         self.settings.colourblind = t.blind;
         self.settings.speed_colours = t.jojo;
+        self.settings.weather = if t.snow {
+            crate::snow::Weather::Snowing
+        } else {
+            crate::snow::Weather::Clear
+        };
         self.ensure_course(t.map);
         let Some(course) = self.course_of(t.map).cloned() else {
             return;

@@ -114,8 +114,7 @@ pub fn look(map: Map) -> Look {
             ground: rgb(70, 110, 50),
         },
         Map::City => crate::cityscape::look(),
-        // stand-in until the Ski Slope's art lands
-        Map::Ski => look(Map::Jungle),
+        Map::Ski => crate::skiscape::look(),
     }
 }
 
@@ -125,7 +124,8 @@ pub fn look_of(c: &Course) -> Look {
         // the light comes from the sun drawn on its horizon
         Map::City => crate::cityscape::look_for(c),
         Map::Jungle => look(Map::Jungle),
-        Map::Ski => look(Map::Ski),
+        // the sun stands behind the skiers, from the hill's fall line
+        Map::Ski => crate::skiscape::look_for(c),
     }
 }
 
@@ -329,6 +329,9 @@ pub(crate) fn chunk_of(c: &Course, p: V3, n: usize) -> usize {
 pub fn scenery(c: &Course) -> Scenery {
     if let Some(city) = &c.city {
         return crate::cityscape::scenery(c, city);
+    }
+    if let Some(ski) = &c.ski {
+        return crate::skiscape::scenery(c, ski);
     }
     let n = chunk_count(c);
     let mut batches: Vec<Batch> = (0..n).map(|_| Batch::new()).collect();
@@ -1218,6 +1221,23 @@ pub fn vine_look_on(map: Map, in_reach: bool, vivid: bool, tick: u32) -> VineLoo
             ..look
         },
         (Map::City, true, _) => VineLook { halo, ..look },
+        // the Ski Slope's ropes: hot pink against the white snow, the blue
+        // sky and the dark trees, with a soft glow of their own
+        (Map::Ski, false, false) => VineLook {
+            colour: crate::skiscape::ROPE_PINK,
+            glow: ONE * 2 / 5,
+            halo: look.width * crate::skiscape::ROPE_HALO,
+            ..look
+        },
+        (Map::Ski, false, true) => VineLook {
+            colour: crate::skiscape::ROPE_VIVID,
+            halo: look.width * crate::skiscape::ROPE_HALO,
+            ..look
+        },
+        (Map::Ski, true, _) => VineLook {
+            halo: look.width * crate::skiscape::ROPE_HALO,
+            ..look
+        },
         _ => look,
     }
 }
@@ -1268,6 +1288,9 @@ pub fn dynamic(f: &Frame) -> (Batch, Batch) {
         crate::cityscape::hangers_dynamic(&mut b, c, city, eye, f.tick, tick);
         crate::cityscape::cars_dynamic(&mut b, c, city, eye, tick);
         crate::cityscape::sun(&mut b, c, eye, tick);
+    }
+    if let Some(ski) = &c.ski {
+        crate::skiscape::dynamic(&mut b, c, ski, eye, f.tick, tick);
     }
     for (k, r) in race.racers.iter().enumerate() {
         // Floor is Lava (TRIAGE T37): the jaguar, and the ape until the bite
@@ -1443,6 +1466,8 @@ pub fn racer_pose(race: &Race, k: usize, at: V3, tick: u32) -> Pose {
         stunned: a.stun > 0,
         tick,
         scale: RACE_SCALE,
+        // the Ski Slope's skis, helmet and goggles
+        gear: models::Gear::on(Map::of(&race.course)),
     }
 }
 
@@ -1758,7 +1783,8 @@ pub struct Preview {
 pub fn preview(c: &Course) -> Preview {
     let (feet, yaw, camera) = match Map::of(c) {
         Map::City => crate::cityscape::preview(c),
-        Map::Jungle | Map::Ski => {
+        Map::Ski => crate::skiscape::preview(c),
+        Map::Jungle => {
             let pl = c.platforms.first();
             let feet = pl.map_or(c.point(int(4)), |p| {
                 v3(p.centre.x, p.top, p.centre.z).add(p.fwd.scale(p.half_len / 2))
@@ -1787,18 +1813,41 @@ pub fn flyover_camera(c: &Course, ticks: u32, from: i32) -> Camera {
     let s = ((ticks as i64 * int(6) as i64 / crate::rules::TICKS_PER_SECOND as i64 + from as i64)
         % lap) as i32
         + int(40);
-    let p = c.point(s);
-    let ahead = c.point(s + int(30));
+    // on the Ski Slope, down the left branch at each fork (not through the
+    // trees on its island)
+    let lane = |s: i32| match Map::of(c) {
+        Map::Ski => c
+            .point(s)
+            .add(right_of(c.heading_at(s)).scale(c.lanes(s)[0].0)),
+        _ => c.point(s),
+    };
+    let p = lane(s);
+    let ahead = lane(s + int(30));
     let lift = match Map::of(c) {
-        Map::Jungle | Map::Ski => int(14),
+        Map::Jungle => int(14),
         Map::City => int(18),
+        // over the hill, high enough to see down it
+        Map::Ski => int(16),
     };
     let eye = v3(p.x, c.terrain(p.x, p.z) + lift, p.z);
-    let look = v3(ahead.x, eye.y - int(3), ahead.z);
+    // down the Ski Slope's hill, the glide looks down it too
+    let level = match Map::of(c) {
+        Map::Ski => c.terrain(ahead.x, ahead.z) + lift,
+        _ => eye.y,
+    };
+    let look = v3(ahead.x, level - int(3), ahead.z);
     Camera {
         eye,
         fwd: look.sub(eye).norm(),
         fov: deg(70),
+    }
+}
+
+/// The sky round the eye for a map that draws its own (the Ski Slope's
+/// dome and mountains), for the menus' ape preview.
+pub fn backdrop(b: &mut Batch, c: &Course, eye: V3) {
+    if c.ski.is_some() {
+        crate::skiscape::backdrop(b, c, eye);
     }
 }
 
@@ -1827,6 +1876,9 @@ pub fn flyover_dynamic(c: &Course, tick: u32, vivid: bool, eye: V3) -> (Batch, B
         crate::cityscape::hangers_dynamic(&mut rest, c, city, eye, tick, tick);
         crate::cityscape::cars_dynamic(&mut rest, c, city, eye, tick);
         crate::cityscape::sun(&mut rest, c, eye, tick);
+    }
+    if let Some(ski) = &c.ski {
+        crate::skiscape::dynamic(&mut rest, c, ski, eye, tick, tick);
     }
     (b, rest)
 }
