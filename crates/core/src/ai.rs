@@ -305,10 +305,10 @@ struct Tuning {
 const SECTOR_LOOK: i32 = int(130);
 const SECTOR_CANDS: usize = 16;
 const SECTOR_FLIGHT: u32 = 4 * TICKS_PER_SECOND as u32;
-const SECTOR_HESITATE: [u32; 4] = [8, 4, 1, 0];
-const SECTOR_DRIVE: [u32; 4] = [2, 4, 6, DUTY];
-const SECTOR_NOISE: [i32; 4] = [int(10), int(6), int(3), 0];
-const SECTOR_HOP: [i32; 4] = [int(28), int(30), int(32), int(34)];
+const SECTOR_HESITATE: [u32; 4] = [4, 2, 0, 0];
+const SECTOR_DRIVE: [u32; 4] = [3, 4, 7, DUTY];
+const SECTOR_NOISE: [i32; 4] = [int(12), int(8), int(2), 0];
+const SECTOR_HOP: [i32; 4] = [int(24), int(28), int(28), int(28)];
 const SECTOR_AIM: i32 = int(30);
 /// Each reset onto a deck makes it misjudge up to this much more (four at
 /// most).
@@ -316,6 +316,17 @@ const SHAKEN_NOISE: i32 = int(4);
 /// Scoring a landing on Sector Ape (see `score`).
 const SECTOR_SPEED_WORTH: i64 = 2;
 const SECTOR_WAIT_COST: i64 = 40;
+/// On Sector Ape a swing with no way on whirls round its anchor for good
+/// (the low gravity): it gives up on it sooner.
+const SECTOR_GIVE_UP: u32 = 3 * TICKS_PER_SECOND as u32;
+
+/// How long it holds a vine with no way on before letting go forward.
+fn give_up(course: &Course) -> u32 {
+    match course.sector {
+        Some(_) => SECTOR_GIVE_UP,
+        None => GIVE_UP,
+    }
+}
 const SECTOR_HIDDEN: [bool; 4] = [false, false, false, true];
 
 /// The drive pattern's length, ticks.
@@ -967,11 +978,6 @@ fn on_vine(a: &Ape, course: &Course, tick: u32, vine: usize, brain: &mut Brain) 
             true,
             tune,
         );
-        if std::env::var("AI_DEBUG").is_ok() {
-            let d = fl.vel;
-            eprintln!("  t{} vine {} pick {} steer {} rel v({},{},{}) at s{} y{} -> {:?} end s{} y{} side{} mode{:?}", plan.sim_tick, vine, plan.pick, steer, plan.sim.vel.x/ONE, plan.sim.vel.y/ONE, plan.sim.vel.z/ONE, progress(course, &plan.sim)/ONE, plan.sim.pos.y/ONE, hit.map(|h| h.0), progress(course, &fl)/ONE, fl.pos.y/ONE, course.progress(fl.pos, fl.hint).1/ONE, fl.mode);
-            let _ = d;
-        }
         if let Some(hit) = hit.filter(|_| plan.sim_tick >= brain.ready) {
             // a weaker AI misjudges how good a moment is
             let error = brain.dice.range(-tune.noise, tune.noise) as i64;
@@ -1028,7 +1034,7 @@ fn on_vine(a: &Ape, course: &Course, tick: u32, vine: usize, brain: &mut Brain) 
                 brain.plan = None;
             }
         }
-    } else if tick - plan.began > GIVE_UP {
+    } else if tick - plan.began > give_up(course) {
         // no way on from here: let go moving forward, and run for it
         let h = course.heading_at(progress(course, a));
         if a.vel.flat().dot(h) > a.vel.len() / 2 && a.vel.y >= 0 {
