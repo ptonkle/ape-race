@@ -63,7 +63,8 @@ impl Batch {
     /// where it faces the eye and fading to nothing at its outline, added
     /// over what is behind it; drawn last (`take_halos`, `HALO`). A
     /// `strength` over ONE adds evenly, by the part over ONE. A negative
-    /// one is an aura (TRIAGE T59): only the shape's far side is drawn, at
+    /// one is a rim glow (made for T59's auras, now the black hole's photon
+    /// ring): only the shape's far side is drawn, at
     /// `-strength`, so a solid shape inside it hides its middle and it
     /// glows round that shape's outline.
     pub fn push_halo(&mut self, mesh: Mesh, a: &Affine, c: Rgb, strength: i32) {

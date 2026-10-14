@@ -112,9 +112,6 @@ pub struct Settings {
     /// each kind's chosen colours (TRIAGE T49), by the kind's key; a kind
     /// not here wears the classic
     pub palettes: BTreeMap<String, u8>,
-    /// a soft glow round every racer in its start slot's colour (TRIAGE
-    /// T59: blue, red, green, purple)
-    pub aura: bool,
 }
 
 /// One map's personal bests, in race ticks.
@@ -149,7 +146,6 @@ impl Default for Settings {
             lava: false,
             weather: crate::snow::Weather::Clear,
             palettes: BTreeMap::new(),
-            aura: true,
         }
     }
 }
@@ -1022,10 +1018,6 @@ impl App {
                     self.save = true;
                 }
             }
-            "settings.aura" => {
-                self.settings.aura = value == "on";
-                self.save = true;
-            }
             "setup.ai_level" => {
                 if let Some(d) = crate::ai::Difficulty::from_key(value) {
                     self.settings.ai_level = d;
@@ -1486,7 +1478,6 @@ impl App {
                         tick: self.ticks,
                         chains: &p.chains,
                         vivid,
-                        aura: self.settings.aura,
                         gear: self.dress,
                         flashes: &p.flashes,
                     })
@@ -1851,8 +1842,6 @@ impl App {
                   "value": self.settings.auto_camera },
                 { "type": "toggle", "id": "settings.colourblind", "label": self.t("settings.colourblind"),
                   "value": self.settings.colourblind },
-                { "type": "toggle", "id": "settings.aura", "label": self.t("settings.aura"),
-                  "value": self.settings.aura },
             ]}),
         ];
         // Speed Colours shows once unlocked (TRIAGE row 26)
@@ -2203,13 +2192,7 @@ impl App {
             .map(|(i, r)| {
                 let (x, y) = to(r.ape.pos);
                 let me = i == p.local;
-                // with the auras on, each dot is its ape's aura colour
-                // (TRIAGE T59); else its kind's
-                let colour = if self.settings.aura {
-                    hex(scene::aura_colour(i, self.settings.colourblind))
-                } else {
-                    colour_of(r.ape.kind).to_string()
-                };
+                let colour = colour_of(r.ape.kind);
                 let mut dot = json!({ "x": x, "y": y, "me": me, "colour": colour });
                 // the colourblind mode tells the apes apart by shape too
                 // (TRIAGE T33)
@@ -2517,12 +2500,6 @@ fn step_chains(p: &mut Play) {
 /// some (a gain, a full circle in radians), and the core keeps no floats.
 fn decimal(text: &str) -> Value {
     serde_json::from_str(text).unwrap_or(Value::Null)
-}
-
-/// A colour as the page's `#rrggbb`.
-fn hex(c: render::Rgb) -> String {
-    let byte = |v: i32| (v.clamp(0, ONE) * 255 + ONE / 2) / ONE;
-    format!("#{:02x}{:02x}{:02x}", byte(c[0]), byte(c[1]), byte(c[2]))
 }
 
 /// An ape kind's colour on the minimap.
@@ -2914,8 +2891,6 @@ mod tests {
         assert!(!kinds(&a).contains(&render::HALO), "the Jungle's title");
         a.act("menu.race", "");
         a.act("menu.start", "");
-        // (the racers' auras, TRIAGE T59, are glows too)
-        a.act("settings.aura", "off");
         assert!(!kinds(&a).contains(&render::HALO), "a Jungle race");
         let mut a = app();
         a.act("flag.map", "city");

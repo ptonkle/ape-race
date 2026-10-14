@@ -1,10 +1,9 @@
-//! The racers' looks: an aura round each in its slot's colour (TRIAGE
-//! T59) and each ape's colour palette (T49).
+//! The racers' looks: each ape's colour palette (T49), and no aura round
+//! them (T59's auras, taken out again by T73).
 
 use serde_json::Value;
 
 use super::*;
-use crate::mesh::Mesh;
 use crate::models::PALETTES;
 use crate::render::Rgb;
 
@@ -25,20 +24,23 @@ fn item(ui: &Value, id: &str) -> Option<Value> {
         .find(|i| i["id"] == id)
 }
 
-/// The frame's auras: each glow drawn in the halo pass with a negative
-/// strength, as (colour, strength, centre).
-fn auras(a: &App) -> Vec<(Rgb, i32, V3)> {
+/// The frame's auras, as T59 drew them: rim glows (a negative strength in
+/// the halo pass) round a racer, as (colour, strength). (Sector Ape's black
+/// hole has one too, far off.)
+fn auras(a: &App) -> Vec<(Rgb, i32)> {
     let (_, values, draws) = a.frame();
+    let racers: Vec<V3> = a.play.as_ref().unwrap().race.racers.iter().map(|r| r.ape.pos).collect();
     let mut out = Vec::new();
     for d in draws.chunks(render::DRAW_VALUES) {
-        if d[6] != render::HALO || d[1] != Mesh::Sphere as u32 {
+        if d[6] != render::HALO {
             continue;
         }
         let from = d[2] as usize / render::BYTES_PER_VALUE;
         for k in 0..d[3] as usize {
             let s = &values[from + k * render::INSTANCE_VALUES..][..render::INSTANCE_VALUES];
-            if s[15] < 0 {
-                out.push(([s[12], s[13], s[14]], -s[15], v3(s[3], s[7], s[11])));
+            let at = v3(s[3], s[7], s[11]);
+            if s[15] < 0 && racers.iter().any(|r| r.dist(at) < int(10)) {
+                out.push(([s[12], s[13], s[14]], -s[15]));
             }
         }
     }
@@ -61,169 +63,35 @@ fn race_on(map: &str, opponents: &str) -> App {
     a
 }
 
-// the player's own aura is the subtler
-const _: () = assert!(scene::AURA_OWN < scene::AURA_GLOW);
-
 #[test]
-fn every_racer_glows_in_its_slots_colour_on_every_map() {
-    for map in ["jungle", "city", "ski"] {
-        let mut a = race_on(map, "3");
-        // a little into the countdown, everyone on the platform
-        run(&mut a, 30);
-        let got = auras(&a);
-        assert_eq!(got.len(), 4, "{map}: one aura a racer");
-        let p = a.play.as_ref().unwrap();
-        for (k, r) in p.race.racers.iter().enumerate() {
-            let (colour, strength, at) = got
-                .iter()
-                .copied()
-                .find(|g| g.0 == scene::AURA[k])
-                .unwrap_or_else(|| panic!("{map}: no aura in slot {k}'s colour"));
-            // round its own ape
-            assert!(
-                at.dist(r.ape.pos) < int(3),
-                "{map} {k}: {at:?} far from the ape"
-            );
-            let want = if k == p.local {
-                scene::AURA_OWN
-            } else {
-                scene::AURA_GLOW
-            };
-            assert_eq!(strength, want, "{map} {k}: {colour:?}");
+fn no_racer_wears_an_aura_and_the_minimap_dots_are_the_kinds() {
+    // TRIAGE T73: the auras (T59) are gone, on every map, in either mode,
+    // and with them the setting
+    for map in ["jungle", "city", "ski", "sector"] {
+        for blind in ["off", "on"] {
+            let mut a = race_on(map, "3");
+            a.act("settings.colourblind", blind);
+            run(&mut a, 30);
+            assert_eq!(auras(&a), [], "{map}, colourblind {blind}");
         }
     }
-}
-
-#[test]
-fn the_auras_are_blue_red_green_purple_and_change_for_colourblind_eyes() {
-    let hue = |c: Rgb| {
-        let m = *c.iter().max().unwrap();
-        c.map(|v| v * 4 / m.max(1))
-    };
-    // blue, red, green, purple: the strongest channel (and purple's red
-    // and blue both strong)
-    assert_eq!(hue(scene::AURA[0])[2], 4);
-    assert_eq!(hue(scene::AURA[1])[0], 4);
-    assert_eq!(hue(scene::AURA[2])[1], 4);
-    let purple = hue(scene::AURA[3]);
-    assert!(
-        purple[2] == 4 && purple[0] >= 2 && purple[1] < 2,
-        "{purple:?}"
-    );
     let mut a = race_on("jungle", "3");
-    a.act("settings.colourblind", "on");
-    let colours: Vec<Rgb> = auras(&a).into_iter().map(|g| g.0).collect();
-    for c in scene::AURA_BLIND {
-        assert!(colours.contains(&c), "{c:?}");
+    let ui = ui_of(&mut a);
+    let p = a.play.as_ref().unwrap();
+    for (k, r) in p.race.racers.iter().enumerate() {
+        assert_eq!(
+            ui["hud"]["minimap"]["apes"][k]["colour"],
+            super::colour_of(r.ape.kind),
+            "dot {k}"
+        );
     }
-    for c in scene::AURA {
-        assert!(!colours.contains(&c), "{c:?}");
-    }
-}
-
-#[test]
-fn the_aura_wraps_the_ape_whatever_it_is_doing() {
-    // the shell holds most parts of the drawn ape (three in four: a tail,
-    // a finger or a gibbon's raised arm may poke out where the glow has
-    // faded anyway): swinging, flying
-    // and on the ground, for every kind, going the way it faces
-    use crate::models::{draw, Pose};
-    let yaw = deg(30);
-    let ahead = crate::geom::facing(yaw, 0);
-    let poses = [
-        Pose {
-            rope: Some(V3::UP.sub(ahead.scale(ONE / 5)).norm()),
-            grounded: false,
-            vel: ahead.scale(int(12)),
-            ..Pose::standing(v3(0, int(5), 0), yaw, 3)
-        },
-        Pose {
-            grounded: false,
-            vel: ahead.scale(int(10)).add(v3(0, int(3), 0)),
-            ..Pose::standing(v3(0, int(5), 0), yaw, 3)
-        },
-        Pose {
-            vel: ahead.scale(int(6)),
-            ..Pose::standing(V3::ZERO, yaw, 3)
-        },
-    ];
-    for kind in Kind::ALL {
-        for pose in poses {
-            let pose = Pose {
-                scale: scene::RACE_SCALE,
-                ..pose
-            };
-            let mut b = Batch::new();
-            scene::aura(&mut b, kind, &pose, scene::AURA[0], scene::AURA_GLOW);
-            let (shell, _) = b.take_halos().finish(render::DYNAMIC_BUFFER);
-            let m = crate::geom::Affine {
-                c0: v3(shell[0], shell[4], shell[8]),
-                c1: v3(shell[1], shell[5], shell[9]),
-                c2: v3(shell[2], shell[6], shell[10]),
-                t: v3(shell[3], shell[7], shell[11]),
-            };
-            let mut ape = Batch::new();
-            draw(&mut ape, kind, &pose);
-            let (v, _) = ape.finish(render::DYNAMIC_BUFFER);
-            let parts: Vec<V3> = v
-                .chunks(render::INSTANCE_VALUES)
-                .map(|s| v3(s[3], s[7], s[11]))
-                .collect();
-            let inside = parts
-                .iter()
-                .filter(|p| {
-                    // in the unit sphere's space (radius a half)
-                    let d = p.sub(m.t);
-                    let local = v3(
-                        crate::fx::div(d.dot(m.c0), m.c0.dot(m.c0)),
-                        crate::fx::div(d.dot(m.c1), m.c1.dot(m.c1)),
-                        crate::fx::div(d.dot(m.c2), m.c2.dot(m.c2)),
-                    );
-                    local.len() <= ONE / 2
-                })
-                .count();
-            assert!(
-                inside * 100 >= parts.len() * 75,
-                "{kind:?} {:?}: {inside} of {} parts inside",
-                (pose.rope.is_some(), pose.grounded),
-                parts.len()
-            );
-            // and it is not much bigger than the ape: the glow stays round it
-            assert!(m.c1.len() < int(5) && m.c0.len() < int(5));
-        }
-    }
-}
-
-#[test]
-fn the_auras_can_be_turned_off_and_the_setting_is_kept() {
-    let mut a = race_on("jungle", "2");
-    assert!(Settings::default().aura, "on by default");
-    a.act("settings.aura", "off");
-    assert!(auras(&a).is_empty());
-    let kept = Settings::parse(&serde_json::to_string(&a.settings).unwrap());
-    assert!(!kept.aura);
-    // settings saved before auras read as on
-    assert!(Settings::parse("{\"volume\":40}").aura);
     a.act("menu.quit", "");
     a.act("menu.settings", "");
     let ui = ui_of(&mut a);
-    assert_eq!(item(&ui, "settings.aura").unwrap()["value"], false);
-}
-
-#[test]
-fn the_minimap_dots_wear_the_aura_colours() {
-    let mut a = race_on("jungle", "3");
-    let ui = ui_of(&mut a);
-    let dots: Vec<String> = ui["hud"]["minimap"]["apes"]
-        .as_array()
-        .unwrap()
-        .iter()
-        .map(|d| d["colour"].as_str().unwrap().to_string())
-        .collect();
-    assert_eq!(dots, ["#3c8cff", "#ff3228", "#32eb46", "#b946ff"]);
-    a.act("settings.aura", "off");
-    let ui = ui_of(&mut a);
-    assert_eq!(ui["hud"]["minimap"]["apes"][0]["colour"], "#6b4a30");
+    assert!(item(&ui, "settings.aura").is_none());
+    // settings saved with the auras still read
+    let old = Settings::parse("{\"volume\":40,\"aura\":true}");
+    assert_eq!(old.volume, 40);
 }
 
 #[test]

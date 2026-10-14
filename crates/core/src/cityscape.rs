@@ -3311,7 +3311,6 @@ mod tests {
                 tick: 10,
                 chains: &[],
                 vivid: false,
-                aura: false,
                 gear: None,
                 flashes: &[],
             });
