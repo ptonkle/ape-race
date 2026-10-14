@@ -59,7 +59,7 @@ Notes for building the next map, from the Jungle (the first course) and the City
 - **Each map's vine look** (`scene::vine_look_on(map, …)`): the City's are glowing cyan cables. Keep in-reach (yellow, white and thick in colourblind mode), catch-up (coral) and the item marker distinct: Jungle flowers are violet, City item wires get violet sparks, and the marker is hidden when items are off.
 - **Give the map a set piece the person can see from the course:** the City's sunset sits 22° off the course heading over the river, in view while crossing the bridge, and is also where the light comes from. Glow above 1 in `scene.frag` counts as sky (no fog) so the sun stays visible.
 - **A finish set piece** past the arch (the Jungle: a podium clearing; the City: a gantry and a plaza), since a finished ape coasts on (`course::OUTRO`).
-- **Budget:** about 20k scenery shapes and 6–7k drawn at once (Jungle 19,997 / 6,209; City 17,935 / 7,399; Ski Slope 17,556 / 6,005; `examples/scenery_cost.rs`).
+- **Budget:** about 20k scenery shapes and 6–7k drawn at once (Jungle 19,997 / 6,209; City 17,935 / 7,399; Ski Slope 17,487 / 6,156; `examples/scenery_cost.rs`).
 
 ## Checklist for a new map
 

@@ -57,7 +57,7 @@ fn main() {
             sum += a.speed() as i64;
             n += 1;
         }
-        if race.running() && race.clock % (10 * TICKS_PER_SECOND as u32) == 0 {
+        if race.running() && race.clock.is_multiple_of(10 * TICKS_PER_SECOND as u32) {
             marks.push(format!(
                 "{:.0}s {}m {:.1}",
                 secs(race.clock),

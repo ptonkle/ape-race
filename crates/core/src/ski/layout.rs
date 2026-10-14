@@ -71,11 +71,14 @@ pub const FORKS: [Fork; 2] = [
     },
 ];
 
+/// A place by the run: (metres along it, metres right of its line).
+type Spot = (i32, i32);
+
 /// The chairlifts, top of the hill first: each (top terminal, bottom
 /// terminal) as (metres along the run, metres right of its line). Each
 /// bottom terminal stands near the next lift's top terminal. Lifts 2 and 4
 /// run down a fork's branch.
-const LIFTS: &[((i32, i32), (i32, i32))] = &[
+const LIFTS: &[(Spot, Spot)] = &[
     ((-24, 28), (296, -42)),
     ((288, -34), (700, -30)),
     ((706, -38), (1060, 40)),
