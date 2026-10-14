@@ -8,7 +8,7 @@ use std::path::Path;
 use tool_core::map::Map;
 
 /// The most a card's picture may weigh, in bytes: it loads with the menus.
-const MAX_BYTES: usize = 40 * 1024;
+const MAX_BYTES: usize = 80 * 1024;
 
 #[test]
 fn every_map_has_its_picture() {

@@ -192,9 +192,9 @@ def run(page, check, engine):
     maps = [STRINGS["map.jungle"], STRINGS["map.city"], STRINGS["map.ski"]]
     check(options == maps, f"Race Setup offers the Jungle, the City and the Ski Slope as cards {options}")
     pictures = page.eval_on_selector_all(
-        "[id='setup.map'] .tile img", "is => is.map(i => i.complete && i.naturalWidth > 0)"
+        "[id='setup.map'] .tile-hero img", "is => is.map(i => i.complete && i.naturalWidth > 0)"
     )
-    check(pictures == [True] * len(maps), f"every map card shows its picture {pictures}")
+    check(pictures == [True], f"the chosen map shows its picture large {pictures}")
     check(chosen_map(page) == ["jungle"], "the Jungle's card is marked at first")
     page.click("[id='setup.map.city']")
     page.wait_for_timeout(300)

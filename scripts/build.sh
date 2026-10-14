@@ -58,7 +58,7 @@ stamp dist/app.js '"./pkg/tool_shim.js"' "\"./pkg/tool_shim.js?v=$ID\""
 stamp dist/app.js '"./gl.js"' "\"./gl.js?v=$ID\""
 stamp dist/app.js '"./online.js"' "\"./online.js?v=$ID\""
 stamp dist/app.js 'fetch(f)' "fetch(f + \"?v=$ID\")"
-stamp dist/app.js 'img.src = o.picture;' "img.src = o.picture + \"?v=$ID\";"
+stamp dist/app.js 'img.src = chosen.picture;' "img.src = chosen.picture + \"?v=$ID\";"
 stamp dist/app.js 'await init();' "await init({ module_or_path: \"pkg/tool_shim_bg.wasm?v=$ID\" });"
 stamp dist/online.js '"./online-config.js"' "\"./online-config.js?v=$ID\""
 

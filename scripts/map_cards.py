@@ -7,8 +7,9 @@ built game and kept as data/maps/<key>.webp, which the build ships.
 
 The maps are read from the built game itself (the cards on Race Setup), so
 a new map needs no change here: it is shot from DEFAULT until CARDS names a
-better moment for it. Each shot opens `dist/index.html?tile=map=<key>,<spec>`
-(crates/core/src/app/tile.rs documents the spec), is shot at SHOT and
+better moment for it. Each shot opens the title's flyover over the map,
+`dist/index.html?map=<key>&at=<metres>` with the menus hidden, so no ape
+is in the picture (the person, 2026-10-13), is shot at SHOT and
 scaled down to SIZE by the browser, which also encodes the webp. Commit the
 files; `cargo test` (tests/map_pictures.rs) checks each map has one and
 that it stays small.
@@ -28,16 +29,16 @@ from shot import Handler  # noqa: E402
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 SHOT = (960, 540)
-SIZE = (320, 180)
+SIZE = (640, 360)
 QUALITY = 0.8
 
-# A moment that shows each map at its best (picked with scripts/tiles.py
+# Where along each map's flyover it looks best (metres; picked with
 # --try); a map not listed is shot from DEFAULT.
-DEFAULT = "seed=1,at=2400,focus=0,view=orbit,yaw=150,pitch=-8,dist=70"
+DEFAULT = "400"
 CARDS = {
-    "jungle": "seed=4,at=930,focus=2,view=orbit,yaw=20,pitch=-8,dist=70",
-    "city": "seed=3,at=2100,focus=2,view=orbit,yaw=60,pitch=0,dist=60",
-    "ski": "seed=2,at=3000,focus=1,view=orbit,yaw=180,pitch=10,dist=90",
+    "jungle": "300",
+    "city": "1000",
+    "ski": "330",
 }
 
 SCALE_TO_WEBP = """async ([w, h, q]) => {
@@ -66,7 +67,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--out", default=str(ROOT / "data" / "maps"))
     ap.add_argument("--only", default="", help="comma-separated map keys to redo")
-    ap.add_argument("--try", dest="spec", default="", help="shoot --only's map from this spec to try-<key>.png")
+    ap.add_argument("--try", dest="spec", default="", help="shoot --only's map from this many metres along to try-<key>.png")
     ap.add_argument("--wait", type=float, default=2.0)
     a = ap.parse_args()
     out = pathlib.Path(a.out)
@@ -89,8 +90,9 @@ def main():
             errors = []
             page.on("pageerror", lambda e: errors.append(str(e)))
             page.on("console", lambda m: errors.append(m.text) if m.type == "error" else None)
-            page.goto(f"{base}?tile=map={key},{spec}")
+            page.goto(f"{base}?map={key}&at={spec}")
             page.wait_for_selector("body[data-ready='true']", timeout=120000)
+            page.evaluate("document.querySelectorAll('body > :not(canvas)').forEach(e => e.style.setProperty('display', 'none', 'important'))")
             page.wait_for_timeout(a.wait * 1000)
             png = page.screenshot()
             if a.spec:
