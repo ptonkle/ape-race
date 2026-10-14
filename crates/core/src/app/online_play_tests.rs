@@ -331,6 +331,38 @@ fn the_hosts_map_shows_in_every_lobby_and_the_race_runs_on_it() {
     let ui: Value = serde_json::from_str(&p.apps[1].ui()).unwrap();
     let shown = ui["panels"].to_string();
     assert!(shown.contains("City"), "{shown}");
+    // the map grid (TRIAGE T54): the host's to press, the joiner's
+    // read-only with the host's pick marked
+    let grid = |ui: &Value| {
+        ui["panels"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .flat_map(|p| p["items"].as_array().unwrap().clone())
+            .find(|i| i["id"] == "lobby.map")
+            .expect("a map grid")
+    };
+    let chosen = |g: &Value| -> Vec<String> {
+        g["options"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter(|o| o["chosen"] == true)
+            .map(|o| o["value"].as_str().unwrap().to_string())
+            .collect()
+    };
+    let host: Value = serde_json::from_str(&p.apps[0].ui()).unwrap();
+    let (hg, jg) = (grid(&host), grid(&ui));
+    assert_eq!(
+        (hg["type"].as_str(), jg["type"].as_str()),
+        (Some("tiles"), Some("tiles"))
+    );
+    assert_eq!(
+        (hg["read_only"].as_bool(), jg["read_only"].as_bool()),
+        (Some(false), Some(true))
+    );
+    assert_eq!(chosen(&hg), ["city"]);
+    assert_eq!(chosen(&jg), ["city"], "the joiner sees the host's pick");
     // a joiner cannot choose
     p.apps[1].act("lobby.map", "jungle");
     p.run(200);

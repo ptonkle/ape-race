@@ -15,7 +15,7 @@ Notes for building the next map, from the Jungle (the first course) and the City
 2. **Three agents in parallel**, each in a worktree:
    - **Course:** layout, physics for anything new (water), the AI, medal times, layout tests. It should commit a first rough but real layout early and keep the contract stable after that; any contract change goes in early and into SECOND-ORDER.
    - **Art:** models and drawing from the contract. It starts on the models, then merges the course branch once there is a real layout (tell it the branch name).
-   - **Map selector and UI:** only needed for the second map. Every later map is just an entry in `Map::ALL` plus its strings.
+   - **Map selector and UI:** only needed for the second map. Every later map is just an entry in `Map::ALL` plus its strings and its picture on the map grid (`data/maps/<key>.webp`, TRIAGE T54).
 3. **Hold the selector until the real map lands**: a selectable stand-in that looks like another map confuses players.
 4. **Pre-merge art and UI on a staging worktree** while the course agent finishes. The slow part is always the course/AI agent.
 
@@ -69,6 +69,7 @@ Notes for building the next map, from the Jungle (the first course) and the City
 ## Checklist for a new map
 
 - [ ] `Map` entry, its `key`, and strings `map.<key>`
+- [ ] Its card on the map grid: build, then `.venv/bin/python scripts/map_cards.py --only <key>` makes `data/maps/<key>.webp` (add a moment to `CARDS` there if the default shot is dull); `tests/map_pictures.rs` fails until it exists
 - [ ] Course builder with a fixed seed, its own dice for new placement, and the old maps' fingerprint test still passing
 - [ ] Starts and platform, finish and outro, item vines, bananas, bouncers, low vines
 - [ ] `Course::floor` for the map; Floor is Lava works there (the jaguar's run-in stays inside the walls)

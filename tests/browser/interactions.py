@@ -33,6 +33,11 @@ def canvas_drawn(page):
     )
 
 
+def chosen_map(page):
+    """The keys of the map cards marked chosen on the setup's grid."""
+    return page.eval_on_selector_all("[id='setup.map'] .tile.chosen", "ts => ts.map(t => t.dataset.value)")
+
+
 def run(page, check, engine):
     check(page.title() == STRINGS["title"], "the tab is titled Ape Race")
     check(page.evaluate("document.body.dataset.screen") == "title", "the title screen is up")
@@ -180,15 +185,30 @@ def run(page, check, engine):
     check(STRINGS["replays.none"] in text(page, "#menus"), "the Replays list is empty before a finish")
     page.click("[id='menu.back']")
 
-    # The City (2026-10-12): the map select on Race Setup, the ape preview
-    # moves onto the chosen map, and the race runs there
+    # The City (2026-10-12): the map grid on Race Setup (TRIAGE T54), the
+    # ape preview moves onto the chosen map, and the race runs there
     page.click("[id='menu.race']")
-    options = page.evaluate("() => [...document.getElementById('setup.map').options].map(o => o.text)")
+    options = page.eval_on_selector_all("[id='setup.map'] .tile", "ts => ts.map(t => t.innerText.trim())")
     maps = [STRINGS["map.jungle"], STRINGS["map.city"], STRINGS["map.ski"]]
-    check(options == maps, f"Race Setup offers the Jungle, the City and the Ski Slope {options}")
-    page.select_option("[id='setup.map']", "city")
+    check(options == maps, f"Race Setup offers the Jungle, the City and the Ski Slope as cards {options}")
+    pictures = page.eval_on_selector_all(
+        "[id='setup.map'] .tile img", "is => is.map(i => i.complete && i.naturalWidth > 0)"
+    )
+    check(pictures == [True] * len(maps), f"every map card shows its picture {pictures}")
+    check(chosen_map(page) == ["jungle"], "the Jungle's card is marked at first")
+    page.click("[id='setup.map.city']")
     page.wait_for_timeout(300)
-    check(page.input_value("[id='setup.map']") == "city", "the City is chosen")
+    check(chosen_map(page) == ["city"], "the City is chosen by its card")
+    # the keyboard: arrows move between cards, Enter presses one
+    page.focus("[id='setup.map.city']")
+    page.keyboard.press("ArrowRight")
+    page.keyboard.press("Enter")
+    page.wait_for_timeout(300)
+    check(chosen_map(page) == ["ski"], "the arrow and Enter keys choose the Ski Slope")
+    page.keyboard.press("ArrowLeft")
+    page.keyboard.press("Space")
+    page.wait_for_timeout(300)
+    check(chosen_map(page) == ["city"], "and back to the City")
     check(canvas_drawn(page), "the ape is drawn on the City behind the setup")
     page.click("[id='menu.start']")
     page.wait_for_function("() => document.getElementById('hud-place').innerText.includes('/')", timeout=10000)
@@ -212,7 +232,7 @@ def run(page, check, engine):
     page.wait_for_selector("body[data-ready='true']", timeout=20000)
     check(canvas_drawn(page), "the title flies over the last chosen map")
     page.click("[id='menu.trial']")
-    check(page.input_value("[id='setup.map']") == "city", "the City is kept after a reload")
+    check(chosen_map(page) == ["city"], "the City is kept after a reload")
     page.click("[id='menu.back']")
 
     # The Ski Slope's weather (2026-10-13): chosen in Settings, kept after a
@@ -224,7 +244,7 @@ def run(page, check, engine):
     page.wait_for_selector("body[data-ready='true']", timeout=20000)
     page.click("[id='menu.race']")
     check(page.query_selector("[id='setup.weather']") is None, "no Weather on the City's setup")
-    page.select_option("[id='setup.map']", "ski")
+    page.click("[id='setup.map.ski']")
     page.wait_for_selector("[id='setup.weather']", timeout=5000)
     check(page.input_value("[id='setup.weather']") == "snowing", "the weather is kept after a reload")
     check(canvas_drawn(page), "the Ski Slope is drawn in the snow behind the setup")

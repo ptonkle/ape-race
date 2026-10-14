@@ -145,6 +145,45 @@ function select(item) {
   return wrap;
 }
 
+// A grid of picture cards, one per choice (TRIAGE T54: the maps). The core
+// gives each card's id, picture, name and whether it is the chosen one; a
+// read-only grid (a joiner's lobby) shows the pick and presses nothing.
+// The arrow keys move between cards; Enter or Space presses one.
+function tiles(item) {
+  const wrap = make("div", "tiles-field");
+  wrap.append(make("span", "tiles-label", item.label));
+  const grid = make("div", item.read_only ? "tiles read-only" : "tiles");
+  grid.id = item.id;
+  grid.dataset.value = item.value;
+  grid.setAttribute("role", "radiogroup");
+  grid.setAttribute("aria-label", item.label);
+  item.options.forEach((o) => {
+    const b = make("button", o.chosen ? "tile chosen" : "tile");
+    b.type = "button";
+    b.id = o.id;
+    b.dataset.value = o.value;
+    b.disabled = item.read_only === true;
+    b.setAttribute("role", "radio");
+    b.setAttribute("aria-checked", o.chosen ? "true" : "false");
+    const img = make("img");
+    img.src = o.picture;
+    img.alt = "";
+    img.draggable = false;
+    b.append(img, make("span", "tile-name", o.text));
+    b.addEventListener("click", () => send(item.id, o.value));
+    b.addEventListener("keydown", (e) => {
+      const to = { ArrowRight: b.nextElementSibling, ArrowDown: b.nextElementSibling, ArrowLeft: b.previousElementSibling, ArrowUp: b.previousElementSibling }[e.key];
+      if (to) {
+        e.preventDefault();
+        to.focus();
+      }
+    });
+    grid.append(b);
+  });
+  wrap.append(grid);
+  return wrap;
+}
+
 function slider(item) {
   const wrap = make("div", "field slider");
   const label = make("label", "", item.label);
@@ -216,7 +255,7 @@ function cells(item) {
   return table;
 }
 
-const builders = { button, picker, stats, select, slider, toggle, checks, list, table: cells, field, copy };
+const builders = { button, picker, stats, select, tiles, slider, toggle, checks, list, table: cells, field, copy };
 
 function drawMenus() {
   const text = JSON.stringify(ui.panels || []);
@@ -242,7 +281,8 @@ function drawMenus() {
     box.append(panel);
   });
   const again = focused && el(focused);
-  if (again && again.tagName !== "BUTTON") {
+  // a map card keeps the focus too, so the arrow keys go on from it
+  if (again && (again.tagName !== "BUTTON" || again.classList.contains("tile"))) {
     again.focus();
     if (caret !== null && caret !== undefined && again.setSelectionRange) again.setSelectionRange(caret, caret);
   }

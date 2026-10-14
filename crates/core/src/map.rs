@@ -28,6 +28,14 @@ impl Map {
         }
     }
 
+    /// The map's picture on the setup's map grid (TRIAGE T54): a still of
+    /// the map shipped in `data/maps/<key>.webp`, made from the built game
+    /// by `scripts/map_cards.py`. A new map needs only its `ALL` entry and
+    /// this file (`every_map_has_its_picture` in `tests/map_pictures.rs`).
+    pub fn picture(self) -> String {
+        format!("data/maps/{}.webp", self.key())
+    }
+
     pub fn from_key(key: &str) -> Option<Map> {
         Map::ALL.into_iter().find(|m| m.key() == key)
     }

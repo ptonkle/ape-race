@@ -23,8 +23,11 @@ WebKit's tabs connect only with loopback candidates (see online.py,
 LOOPBACK_ONLY): the pasted codes are rewritten for it.
 
     python3 tests/browser/online_race.py
+
+`ONLINE_SHOTS=DIR` also saves each tab's lobby (DIR/lobby-<engine>-<tab>.png).
 """
 import json
+import os
 import pathlib
 import sys
 
@@ -146,9 +149,12 @@ def run_engine(p, engine, origin):
     except Exception:
         screeched = False
     check(screeched, "B's screech plays on both tabs")
-    # The City (2026-10-12): the host picks the map; B's lobby shows it live
-    a.page.select_option(by_id("lobby.map"), "city")
+    # The City (2026-10-12): the host picks the map on its grid of cards
+    # (TRIAGE T54); B's lobby shows the pick live on a read-only grid
+    check(a.enabled("lobby.map.city"), "A's map cards can be pressed")
+    a.click("lobby.map.city")
     try:
+        b.page.wait_for_selector(by_id("lobby.map") + ".read-only " + by_id("lobby.map.city") + ".chosen", timeout=WAIT_MS)
         b.page.wait_for_function(
             "city => document.getElementById('menus').innerText.includes(city)",
             arg=CITY,
@@ -158,6 +164,13 @@ def run_engine(p, engine, origin):
     except Exception:
         shown = False
     check(shown, "A's choice of the City shows in B's lobby")
+    disabled = b.page.eval_on_selector_all(by_id("lobby.map") + " .tile", "ts => ts.map(t => t.disabled)")
+    check(disabled and all(disabled), f"B cannot press a map card {disabled}")
+    if os.environ.get("ONLINE_SHOTS"):
+        out = pathlib.Path(os.environ["ONLINE_SHOTS"])
+        out.mkdir(parents=True, exist_ok=True)
+        for t in tabs:
+            t.page.screenshot(path=str(out / f"lobby-{engine}-{t.name}.png"))
     b.click("lobby.ready")
     ok = a.enabled("lobby.start")
     check(ok, "A's Start comes on once B is Ready")

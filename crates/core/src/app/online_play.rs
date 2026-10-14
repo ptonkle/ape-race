@@ -501,7 +501,7 @@ impl App {
             json!({ "type": "stats", "label": self.t("setup.stats"), "rows": self.stats_rows(&stats) }),
         ];
         if view.is_host {
-            mine.insert(0, self.map_select("lobby.map"));
+            mine.insert(0, self.map_tiles("lobby.map", view.map, false));
             let options: Vec<Value> = (0..=view.max_ai)
                 .map(|n| json!({ "value": n.to_string(), "text": n.to_string() }))
                 .collect();
@@ -519,11 +519,8 @@ impl App {
             start["disabled"] = json!(!view.can_start);
             mine.push(start);
         } else {
-            mine.insert(
-                0,
-                json!({ "type": "list", "id": "lobby.map",
-                "rows": [[self.t("setup.map"), self.map_name(view.map)]] }),
-            );
+            // the host's pick, read-only (TRIAGE T54)
+            mine.insert(0, self.map_tiles("lobby.map", view.map, true));
             mine.push(json!({ "type": "list", "rows": [[self.t("setup.equal"),
                 self.t(if view.equal_stats { "on" } else { "off" })]] }));
             mine.push(json!({ "type": "list", "rows": [[self.t("setup.lava"),

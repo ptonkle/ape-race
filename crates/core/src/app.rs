@@ -479,14 +479,22 @@ impl App {
         }
     }
 
-    /// The map choice on Race Setup, Time Trial and the host's lobby.
-    pub(crate) fn map_select(&self, id: &str) -> Value {
+    /// The map choice on Race Setup, Time Trial and the lobby (TRIAGE T54):
+    /// a grid of cards, one per map with its picture and name, `chosen`
+    /// marked. `read_only` (a joiner's lobby) shows the host's pick and
+    /// lets no card be pressed. A card sends the grid's id with its map's
+    /// key.
+    pub(crate) fn map_tiles(&self, id: &str, chosen: Map, read_only: bool) -> Value {
         let options: Vec<Value> = Map::ALL
             .iter()
-            .map(|m| json!({ "value": m.key(), "text": self.map_name(*m) }))
+            .map(|m| {
+                json!({ "id": format!("{id}.{}", m.key()), "value": m.key(),
+                  "text": self.map_name(*m), "picture": m.picture(),
+                  "chosen": *m == chosen })
+            })
             .collect();
-        json!({ "type": "select", "id": id, "label": self.t("setup.map"),
-                "value": self.map().key(), "options": options })
+        json!({ "type": "tiles", "id": id, "label": self.t("setup.map"),
+                "value": chosen.key(), "read_only": read_only, "options": options })
     }
 
     /// The Ski Slope's Weather select (`settings.weather` in Settings,
@@ -1524,7 +1532,7 @@ impl App {
             .collect();
         let stats = self.settings.kind.race_stats(self.settings.equal_stats);
         let mut items = vec![
-            self.map_select("setup.map"),
+            self.map_tiles("setup.map", self.settings.map, false),
             json!({ "type": "picker", "id": "setup.ape", "label": self.t("setup.ape"),
               "value": self.settings.kind.key(), "options": kinds,
               "text": self.t(&format!("ape.{}", self.settings.kind.key())) }),
