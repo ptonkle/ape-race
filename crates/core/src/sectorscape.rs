@@ -291,6 +291,10 @@ fn build(c: &Course, s: &SectorLayout) -> (Scenery, Vec<(&'static str, usize)>) 
     }
     tally(&sink, "decks");
     for (k, body) in s.bodies.iter().enumerate() {
+        if body.model == Model::Hulk {
+            hulk(sink.at(body.frame.t), body, &s.door);
+            continue;
+        }
         self::body(sink.at(body.frame.t), body, k);
     }
     tally(&sink, "bodies");
@@ -471,6 +475,252 @@ fn body(b: &mut Batch, body: &Body, k: usize) {
     let _ = k;
 }
 
+/// The door's ship: a rust-red freighter hull its box's size, a corridor
+/// straight through it along its length where the door is (the door's
+/// opening, `Door.half`), lit inside with strips, hazard frames round
+/// both mouths, rows of windows, a bridge tower and engines at the stern.
+/// The door itself is drawn each frame (`door`).
+fn hulk(b: &mut Batch, body: &Body, door: &crate::sector::Door) {
+    let f = &body.frame;
+    let axes = [f.c0.norm(), f.c1.norm(), f.c2.norm()];
+    let unit = Affine {
+        c0: axes[0],
+        c1: axes[1],
+        c2: axes[2],
+        t: f.t,
+    };
+    let h = body.half;
+    // the corridor: through the door's middle, along the hull, as wide and
+    // tall as the door's opening (a 12 m by 9 m bore if there is none)
+    let (ox, oy, dw, dh) = if door.half == V3::ZERO {
+        (0, 0, int(6), cm(450))
+    } else {
+        let o = door.frame.t.sub(f.t);
+        (
+            o.dot(axes[0]),
+            o.dot(axes[1]),
+            door.half.x + cm(20),
+            door.half.y + cm(20),
+        )
+    };
+    let part = |b: &mut Batch, mesh: Mesh, at: V3, size: V3, c: Rgb, glow: i32| {
+        b.push(
+            mesh,
+            &unit.then(&Affine::translate(at)).then(&Affine::scale(size)),
+            c,
+            glow,
+        );
+    };
+    let slab = |b: &mut Batch, x0: i32, x1: i32, y0: i32, y1: i32, c: Rgb| {
+        if x1 - x0 > cm(10) && y1 - y0 > cm(10) {
+            part(
+                b,
+                Mesh::Cube,
+                v3((x0 + x1) / 2, (y0 + y1) / 2, 0),
+                v3(x1 - x0, y1 - y0, h.z * 2),
+                c,
+                0,
+            );
+        }
+    };
+    // the walls round the bore
+    slab(b, -h.x, ox - dw, -h.y, h.y, HULK);
+    slab(b, ox + dw, h.x, -h.y, h.y, HULK);
+    slab(b, ox - dw, ox + dw, -h.y, oy - dh, shade(HULK, 90));
+    slab(b, ox - dw, ox + dw, oy + dh, h.y, HULK);
+    // a grey armour band along each side and the keel
+    for sx in [-1, 1] {
+        part(
+            b,
+            Mesh::Bevel,
+            v3(sx * (h.x + cm(40)), -h.y / 3, 0),
+            v3(cm(120), h.y / 2, h.z * 19 / 10),
+            HULK_GREY,
+            0,
+        );
+        // rows of windows
+        for row in 0..2 {
+            let y = h.y / 4 + row * int(3);
+            if y > h.y - int(1) {
+                continue;
+            }
+            let n = (h.z * 2 / int(6)).clamp(2, 14);
+            for k in 0..n {
+                let z = -h.z + (k * 2 + 1) * h.z / n;
+                part(
+                    b,
+                    Mesh::Cube,
+                    v3(sx * (h.x + cm(10)), y, z),
+                    v3(cm(20), cm(80), cm(160)),
+                    if (k + row) % 4 == 0 {
+                        rgb(255, 200, 120)
+                    } else {
+                        WINDOW
+                    },
+                    ONE,
+                );
+            }
+        }
+    }
+    part(
+        b,
+        Mesh::Wedge,
+        v3(0, -h.y - cm(150), h.z / 4),
+        v3(h.x * 3 / 2, cm(300), h.z * 3 / 2),
+        HULK_GREY,
+        0,
+    );
+    // the bore's lights: strips along its walls, and hazard frames round
+    // both mouths
+    for sx in [-1, 1] {
+        part(
+            b,
+            Mesh::Cube,
+            v3(ox + sx * (dw - cm(15)), oy + dh - cm(60), 0),
+            v3(cm(25), cm(25), h.z * 2),
+            NEON,
+            SKY_GLOW,
+        );
+        part(
+            b,
+            Mesh::Cube,
+            v3(ox + sx * (dw - cm(15)), oy - dh + cm(40), 0),
+            v3(cm(25), cm(25), h.z * 2),
+            NEON_WARM,
+            ONE,
+        );
+    }
+    for sz in [-1, 1] {
+        let z = sz * (h.z + cm(30));
+        let n = 8;
+        for k in 0..n {
+            let c = if k % 2 == 0 { HAZARD } else { PLATE_DARK };
+            let t = -dw + (k * 2 + 1) * dw / n;
+            part(
+                b,
+                Mesh::Cube,
+                v3(ox + t, oy + dh + cm(40), z),
+                v3(dw / n * 2, cm(80), cm(60)),
+                c,
+                0,
+            );
+            part(
+                b,
+                Mesh::Cube,
+                v3(ox + t, oy - dh - cm(40), z),
+                v3(dw / n * 2, cm(80), cm(60)),
+                c,
+                0,
+            );
+        }
+        for sx in [-1, 1] {
+            part(
+                b,
+                Mesh::Cube,
+                v3(ox + sx * (dw + cm(40)), oy, z),
+                v3(cm(80), dh * 2 + cm(160), cm(60)),
+                HAZARD,
+                0,
+            );
+        }
+    }
+    // ribs round the hull every 10 m, standing proud of the plating
+    let ribs = (h.z * 2 / int(10)).clamp(2, 16);
+    for k in 1..ribs {
+        let z = -h.z + k * h.z * 2 / ribs;
+        for (at, size) in [
+            (v3(0, h.y + cm(20), z), v3(h.x * 2 + cm(60), cm(40), cm(70))),
+            (
+                v3(0, -h.y - cm(20), z),
+                v3(h.x * 2 + cm(60), cm(40), cm(70)),
+            ),
+            (v3(h.x + cm(20), 0, z), v3(cm(40), h.y * 2, cm(70))),
+            (v3(-h.x - cm(20), 0, z), v3(cm(40), h.y * 2, cm(70))),
+        ] {
+            part(b, Mesh::Cube, at, size, HULK_GREY, 0);
+        }
+    }
+    // a white band down each side
+    for sx in [-1, 1] {
+        part(
+            b,
+            Mesh::Cube,
+            v3(sx * (h.x + cm(5)), h.y * 2 / 3, 0),
+            v3(cm(20), cm(90), h.z * 2 - int(2)),
+            rgb(226, 222, 214),
+            0,
+        );
+    }
+    // cargo containers stacked along the top, ahead of the bridge
+    let cargo = [
+        rgb(232, 120, 40),
+        rgb(40, 150, 160),
+        rgb(220, 214, 200),
+        rgb(170, 40, 50),
+    ];
+    let mut k = 0;
+    let mut z = -h.z / 4 + int(8);
+    while z < h.z - int(5) {
+        for sx in [-1, 1] {
+            if h.x > int(6) {
+                part(
+                    b,
+                    Mesh::Cube,
+                    v3(sx * h.x / 2, h.y + int(2) + cm(40), z),
+                    v3(h.x * 8 / 10, int(4), int(9)),
+                    cargo[k % cargo.len()],
+                    0,
+                );
+            }
+            k += 1;
+        }
+        z += int(10);
+    }
+    // the bridge tower toward the stern, its windows lit
+    part(
+        b,
+        Mesh::Bevel,
+        v3(0, h.y + int(4), -h.z / 2),
+        v3(h.x, int(8), int(12)),
+        HULK_GREY,
+        0,
+    );
+    part(
+        b,
+        Mesh::Cube,
+        v3(0, h.y + int(6), -h.z / 2 + int(6) + cm(10)),
+        v3(h.x * 8 / 10, cm(90), cm(20)),
+        WINDOW,
+        ONE,
+    );
+    part(
+        b,
+        Mesh::Cyl,
+        v3(h.x / 3, h.y + int(14), -h.z / 2),
+        v3(cm(40), int(12), cm(40)),
+        PLATE_LIGHT,
+        0,
+    );
+    // engines at the stern, glowing
+    for sx in [-1, 1] {
+        let at = v3(sx * h.x / 2, -h.y / 3, -h.z - int(2));
+        part(b, Mesh::Cyl, at, v3(int(6), int(5), int(6)), HULK_GREY, 0);
+        part(
+            b,
+            Mesh::Hex,
+            at.add(v3(0, 0, -int(2) - cm(60))),
+            v3(int(5), cm(30), int(5)),
+            ENGINE,
+            SKY_GLOW,
+        );
+    }
+}
+
+/// The freighter's hull: a rusty red, its armour a dark grey.
+const HULK: Rgb = rgb(138, 70, 58);
+const HULK_GREY: Rgb = rgb(84, 88, 98);
+const WINDOW: Rgb = rgb(150, 220, 255);
+
 /// A box-shaped body drawn as a slab of hull plating its own size.
 fn slab_body(b: &mut Batch, body: &Body) {
     let f = body.frame.at(V3::ZERO);
@@ -600,6 +850,341 @@ pub fn dynamic(b: &mut Batch, c: &Course, s: &SectorLayout, eye: V3, tick: u32, 
     }
     for p in &s.set_pieces {
         set_piece(b, p, eye, tick, race_tick);
+    }
+    if s.wreck.frame.t.dist(eye) < int(700) && s.wreck.frame != Affine::IDENTITY {
+        sc::wreck(b, &s.wreck.frame, tick, s.wreck.gap);
+    }
+    door(b, c, s, eye, race_tick);
+    for (k, (kind, f)) in landmarks(c, s).into_iter().enumerate() {
+        landmark(b, kind, &f, eye, tick, k);
+    }
+    drifting(b, c, s, eye, tick);
+}
+
+// ---- the door ----
+
+/// How long the door takes to slide shut or open (ticks): quick, so what
+/// is drawn stays close to what is solid (`Door::shut`).
+const DOOR_SLIDE: u32 = 30;
+
+/// The shared door in the hulk's corridor: a heavy slab with hazard
+/// stripes that slams down from the corridor's roof when the switch is
+/// swung (`Door::shut`) and slides back up as it reopens, with a red
+/// light over the corridor while it is shut and a green one while open.
+fn door(b: &mut Batch, c: &Course, s: &SectorLayout, eye: V3, tick: u32) {
+    let _ = c;
+    door_alone(b, &s.door, eye, tick);
+}
+
+fn door_alone(b: &mut Batch, d: &crate::sector::Door, eye: V3, tick: u32) {
+    if d.half == V3::ZERO || d.frame.t.dist(eye) > int(400) {
+        return;
+    }
+    // how far down it is, 0 (open, up in the roof) to ONE (shut)
+    let down = match d.shut_at {
+        Some(at) if tick >= at => {
+            let since = tick - at;
+            let open_at = crate::sector::DOOR_SHUT;
+            if since < open_at {
+                fx::div(since.min(DOOR_SLIDE) as i32, DOOR_SLIDE as i32)
+            } else {
+                ONE - fx::div((since - open_at).min(DOOR_SLIDE) as i32, DOOR_SLIDE as i32)
+            }
+        }
+        _ => 0,
+    };
+    let f = &d.frame;
+    let axes = [f.c0.norm(), f.c1.norm(), f.c2.norm()];
+    let h = d.half;
+    let up = axes[1].scale(mul(ONE - down, h.y * 2));
+    let at = f.t.add(up);
+    let unit = Affine {
+        c0: axes[0],
+        c1: axes[1],
+        c2: axes[2],
+        t: at,
+    };
+    let part = |b: &mut Batch, mesh: Mesh, p: V3, size: V3, colour: Rgb, glow: i32| {
+        b.push(
+            mesh,
+            &unit.then(&Affine::translate(p)).then(&Affine::scale(size)),
+            colour,
+            glow,
+        );
+    };
+    if down > 0 {
+        part(
+            b,
+            Mesh::Bevel,
+            V3::ZERO,
+            v3(h.x * 2, h.y * 2, h.z * 2),
+            PLATE_LIGHT,
+            0,
+        );
+        // hazard stripes across both faces
+        let n = (h.x * 2 / int(2)).clamp(2, 12);
+        for k in 0..n {
+            let x = -h.x + (k * 2 + 1) * h.x / n;
+            for sz in [-1, 1] {
+                part(
+                    b,
+                    Mesh::Cube,
+                    v3(x, -h.y + cm(80), sz * (h.z + cm(3))),
+                    v3(h.x / n, cm(120), cm(8)),
+                    if k % 2 == 0 { HAZARD } else { PLATE_DARK },
+                    ONE / 2,
+                );
+            }
+        }
+        // a glowing seam along its bottom edge
+        part(
+            b,
+            Mesh::Cube,
+            v3(0, -h.y, 0),
+            v3(h.x * 2, cm(20), h.z * 2 + cm(10)),
+            NEON_WARM,
+            SKY_GLOW,
+        );
+    }
+    // the warning lights over the corridor's mouths: red while shut
+    let shut = d.shut(tick);
+    let light = if shut {
+        rgb(255, 50, 40)
+    } else {
+        rgb(60, 255, 120)
+    };
+    for sz in [-1, 1] {
+        let p =
+            f.t.add(axes[1].scale(h.y + cm(90)))
+                .add(axes[2].scale(sz * (h.z + int(1))));
+        b.push(
+            Mesh::Octa,
+            &placed(
+                p,
+                (tick as i32).wrapping_mul(400),
+                v3(cm(90), cm(90), cm(90)),
+            ),
+            light,
+            SKY_GLOW,
+        );
+        if shut {
+            b.push_halo(
+                Mesh::Sphere,
+                &placed(p, 0, v3(int(4), int(4), int(4))),
+                light,
+                ONE / 2,
+            );
+        }
+    }
+}
+
+// ---- landmarks of the art's own: battles, a station, drifting wrecks ----
+
+/// A landmark the art adds round the course (scenery only, outside the
+/// boundary): the brief asks for plentiful landmarks along the way.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Landmark {
+    /// two capital ships trading broadsides (`spacecraft::capital_battle`)
+    Battle,
+    /// fighters chasing in loops (`spacecraft::dogfight`), drawn large
+    Dogfight,
+    /// a ring station turning slowly
+    Station,
+    /// a slow convoy of ape wings in formation
+    Wings,
+}
+
+/// The art's landmarks along the course: every ~260 m, alternating sides,
+/// well outside the boundary, each with its frame.
+fn landmarks(c: &Course, s: &SectorLayout) -> Vec<(Landmark, Affine)> {
+    let bd = s.boundary;
+    let mut out = Vec::new();
+    let mut dice = Dice(0x1A4D_3A2C);
+    let kinds = [
+        Landmark::Battle,
+        Landmark::Station,
+        Landmark::Dogfight,
+        Landmark::Wings,
+        Landmark::Battle,
+        Landmark::Dogfight,
+        Landmark::Station,
+    ];
+    let mut at = int(150);
+    let mut k = 0;
+    while at < c.length - int(80) {
+        let kind = kinds[k % kinds.len()];
+        let side = if k % 2 == 0 { 1 } else { -1 };
+        let p = c.point(at);
+        let fwd = c.heading_at(at);
+        let right = right_of(fwd);
+        let (out_by, up) = match kind {
+            Landmark::Battle => (bd.side + int(220), int(dice.range(-60, 40))),
+            Landmark::Station => (bd.side + int(170), int(dice.range(-80, 60))),
+            Landmark::Dogfight => (bd.side + int(60), bd.above + int(dice.range(30, 70))),
+            Landmark::Wings => (bd.side + int(40), bd.above + int(20)),
+        };
+        let q = p.add(right.scale(side * out_by)).add(v3(0, up, 0));
+        let yaw = yaw_of(fwd) + if kind == Landmark::Battle { deg(90) } else { 0 };
+        let scale = match kind {
+            Landmark::Dogfight => ONE * 2,
+            Landmark::Wings => ONE * 2,
+            _ => ONE,
+        };
+        out.push((kind, sc::pose(q, yaw, 0, 0, scale)));
+        at += int(dice.range(230, 300));
+        k += 1;
+    }
+    out
+}
+
+fn landmark(b: &mut Batch, kind: Landmark, f: &Affine, eye: V3, tick: u32, k: usize) {
+    let d = f.t.dist(eye);
+    match kind {
+        Landmark::Battle if d < int(700) => sc::capital_battle(b, f, tick + k as u32 * 97),
+        Landmark::Dogfight if d < int(500) => sc::dogfight(b, f, tick + k as u32 * 131),
+        Landmark::Station if d < int(650) => station(b, f, tick),
+        Landmark::Wings if d < int(450) => wings(b, f, tick),
+        _ => {}
+    }
+}
+
+/// A ring station: a wheel of hull segments with lit windows, four spokes
+/// to a hub, a docking spire and blinking beacons, turning slowly about
+/// its axle. About 70 shapes.
+fn station(b: &mut Batch, f: &Affine, tick: u32) {
+    let spin = (tick as i32).wrapping_mul(10);
+    let g = f
+        .then(&Affine::rot_x(deg(90) - deg(20)))
+        .then(&Affine::rot_y(spin));
+    let n = 20;
+    let rad = int(48);
+    for k in 0..n {
+        let a = k * TURN / n;
+        let out = v3(sin(a), 0, fx::cos(a));
+        let along = v3(fx::cos(a), 0, -sin(a));
+        let seg = mul(rad, ratio(6_283, 1_000)) / n + int(1);
+        b.push(
+            Mesh::Bevel,
+            &g.then(&Affine {
+                c0: out.scale(int(9)),
+                c1: V3::UP.scale(int(8)),
+                c2: along.scale(seg),
+                t: out.scale(rad),
+            }),
+            if k % 5 == 0 { PLATE_LIGHT } else { KEEL },
+            0,
+        );
+        // a row of lit windows on the outer face
+        b.push(
+            Mesh::Cube,
+            &g.then(&Affine {
+                c0: out.scale(cm(30)),
+                c1: V3::UP.scale(int(2)),
+                c2: along.scale(seg * 7 / 10),
+                t: out.scale(rad + int(4) + cm(20)),
+            }),
+            if k % 3 == 0 {
+                rgb(255, 210, 140)
+            } else {
+                rgb(150, 220, 255)
+            },
+            ONE,
+        );
+    }
+    for k in 0..4 {
+        let a = k * TURN / 4 + TURN / 8;
+        let out = v3(sin(a), 0, fx::cos(a));
+        b.push(
+            Mesh::Cyl,
+            &g.then(&rod(out.scale(int(8)), out.scale(rad - int(4)), int(3))),
+            PLATE,
+            0,
+        );
+    }
+    b.push(
+        Mesh::Barrel,
+        &g.then(&Affine::scale(v3(int(16), int(22), int(16)))),
+        KEEL,
+        0,
+    );
+    b.push(
+        Mesh::Spike,
+        &g.then(&rod(v3(0, int(10), 0), v3(0, int(40), 0), int(4))),
+        PLATE_LIGHT,
+        0,
+    );
+    if (tick / 50).is_multiple_of(2) {
+        b.push(
+            Mesh::Octa,
+            &g.then(&Affine::translate(v3(0, int(41), 0)))
+                .then(&Affine::scale(v3(int(2), int(2), int(2)))),
+            rgb(255, 60, 50),
+            SKY_GLOW,
+        );
+    }
+    b.push(
+        Mesh::Hex,
+        &g.then(&Affine::translate(v3(0, -int(12), 0)))
+            .then(&Affine::scale(v3(int(10), int(2), int(10)))),
+        ENGINE,
+        SKY_GLOW,
+    );
+}
+
+/// Five ape wings flying in a V, slowly overtaking along the course.
+fn wings(b: &mut Batch, f: &Affine, tick: u32) {
+    let ahead = mul(sin((tick as i32).wrapping_mul(20)), int(20));
+    for (x, z) in [(0, 0), (-12, -10), (12, -10), (-24, -20), (24, -20)] {
+        let p = v3(
+            int(x),
+            mul(sin((tick as i32).wrapping_mul(60) + x * 900), int(1)),
+            int(z) + ahead,
+        );
+        sc::ape_wing(b, &f.then(&Affine::translate(p)), tick);
+    }
+}
+
+/// Wreckage and rocks drifting and tumbling just outside the boundary near
+/// the eye: they carry no vine, so they may turn.
+fn drifting(b: &mut Batch, c: &Course, s: &SectorLayout, eye: V3, tick: u32) {
+    let bd = s.boundary;
+    let (i, _) = c.progress(eye, c.nearest_anywhere(eye));
+    let mut dice = Dice(0xD21F7);
+    let mut at = int(30);
+    let mut k = 0u32;
+    while at < c.length {
+        let step = int(dice.range(40, 70));
+        let side = if dice.below(2) == 0 { 1 } else { -1 };
+        let out = bd.side + int(dice.range(6, 30));
+        let up = int(dice.range(-30, 60));
+        let kind = dice.below(10);
+        let size = ONE + dice.range(0, ONE / 2);
+        if (at - i).abs() < int(260) {
+            let p = c.point(at);
+            let right = right_of(c.heading_at(at));
+            let drift = v3(
+                mul(
+                    sin((tick as i32).wrapping_mul(7) + k as i32 * 5_000),
+                    int(3),
+                ),
+                mul(
+                    sin((tick as i32).wrapping_mul(5) + k as i32 * 7_000),
+                    int(2),
+                ),
+                0,
+            );
+            let q = p.add(right.scale(side * out)).add(v3(0, up, 0)).add(drift);
+            let f = Affine::translate(q)
+                .then(&sc::tumble(tick, k))
+                .then(&Affine::scale(v3(size, size, size)));
+            match kind {
+                0..=5 => sc::asteroid(b, &f, k),
+                6..=8 => sc::hull_chunk(b, &f, tick, k),
+                _ => sc::girder(b, &f, 14),
+            }
+        }
+        at += step;
+        k += 1;
     }
 }
 
@@ -806,6 +1391,67 @@ fn pop_burst(b: &mut Batch, at: V3, age: u32, tick: u32) {
             colours[k as usize % 4],
             SKY_GLOW,
         );
+    }
+}
+
+// ---- the model gallery (`?gallery=hulk`, `deck`, `station`, `tether`) ----
+
+/// Sector Ape's own pieces for the model gallery (`app/gallery.rs`), turned
+/// by `f` about the origin.
+pub fn gallery(b: &mut Batch, key: &str, f: &Affine, tick: u32) {
+    match key {
+        "hulk" => {
+            let body = Body {
+                model: Model::Hulk,
+                frame: f.then(&Affine::IDENTITY),
+                half: v3(int(16), int(12), int(40)),
+                bouncy: false,
+                pull: crate::sector::DOWN,
+            };
+            let door = crate::sector::Door {
+                frame: f.then(&Affine::translate(v3(int(2), -int(2), int(5)))),
+                half: v3(int(6), cm(450), cm(60)),
+                switch: 0,
+                shut_at: Some(tick.saturating_sub(DOOR_SLIDE * 2) / 600 * 600),
+            };
+            hulk(b, &body, &door);
+            door_alone(b, &door, V3::ZERO, tick);
+        }
+        "deck" => {
+            let pl = Platform {
+                centre: f.t,
+                fwd: f.c2.norm(),
+                half_len: int(9),
+                half_width: int(6),
+                top: 0,
+            };
+            deck(b, &pl, true);
+        }
+        "station" => station(b, f, tick),
+        "tether" => {
+            for (k, dir) in [
+                crate::sector::DOWN,
+                v3(ONE, 0, 0),
+                v3(0, ONE, 0),
+                v3(ONE, -ONE, 0).norm(),
+            ]
+            .into_iter()
+            .enumerate()
+            {
+                let a = v3(int(k as i32 * 8 - 12), int(10), 0);
+                let look = scene::vine_look_on(crate::map::Map::Sector, k == 3, false, tick);
+                let end = a.add(dir.scale(int(9)));
+                b.push(Mesh::Cyl, &rod(a, end, look.width), look.colour, look.glow);
+                b.push_halo(
+                    Mesh::Cyl,
+                    &rod(a, end, look.halo),
+                    look.colour,
+                    scene::HALO_GLOW,
+                );
+                tether(b, &[a, end], dir, look, tick + k as u32 * 37);
+            }
+        }
+        _ => {}
     }
 }
 

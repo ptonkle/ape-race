@@ -19,7 +19,7 @@ use crate::spacecraft::{self as sc, Gait, Mech, MechKind};
 use super::App;
 
 /// The models the gallery shows, by key.
-pub const MODELS: [&str; 18] = [
+pub const MODELS: [&str; 22] = [
     "mothership",
     "wreck",
     "grunt",
@@ -38,6 +38,10 @@ pub const MODELS: [&str; 18] = [
     "planet",
     "cat",
     "armada",
+    "hulk",
+    "deck",
+    "station",
+    "tether",
 ];
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -108,6 +112,10 @@ impl Gallery {
             "sun" => (V3::ZERO, int(90)),
             "planet" => (V3::ZERO, int(120)),
             "cat" => (v3(0, fx::cm(60), 0), int(1)),
+            "hulk" => (V3::ZERO, int(110)),
+            "deck" => (V3::ZERO, int(30)),
+            "station" => (V3::ZERO, int(150)),
+            "tether" => (v3(0, int(6), 0), int(26)),
             _ => (v3(0, 0, int(20)), int(40)),
         }
     }
@@ -136,6 +144,9 @@ impl Gallery {
         };
         match self.key() {
             "mothership" => sc::mothership(b, &f, tick),
+            "hulk" | "deck" | "station" | "tether" => {
+                crate::sectorscape::gallery(b, self.key(), &f, tick)
+            }
             "wreck" => sc::wreck(b, &f, tick, sc::WRECK_GAP),
             "grunt" => sc::mech(b, &f, &grunt, tick),
             "brute" => sc::mech(
