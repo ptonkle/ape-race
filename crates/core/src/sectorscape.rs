@@ -3,13 +3,13 @@
 //!
 //! **The light first** (MAPS "Art lessons"): there is no time of day. A
 //! blazing orange-white sun hangs far below the track, a little ahead and
-//! to the right of the way the course runs, and lights everything from
+//! to the left of the way the course runs, and lights everything from
 //! underneath: hull bellies glow warm orange-white, their tops fall into
 //! a cool indigo from the far stars and the gas giant, and every outline
 //! catches a blue-violet edge light (`Look.rim`, `scene.frag`: SECOND-ORDER
 //! SM4), so a hull's top reads against black space. The sky is deep
 //! black-blue with stars; a violet ringed gas giant hangs high off to the
-//! left; the purple and green haze of Sector X drifts far off round the
+//! right; the purple and green haze of Sector X drifts far off round the
 //! sides. Nothing is fogged much: space is clear, and only far things sink
 //! into a dark violet haze. No weather. The glows are neon: engines in
 //! ice blue, lasers green and red, windows pale cyan, the vines (energy
@@ -38,9 +38,9 @@ use crate::spacecraft as sc;
 // ---- the light: a sun far below ----
 
 /// Toward the sun: its bearing from the way the course runs (start to
-/// finish) and its height (below the horizon). Ahead and to the right, so
-/// its glow rises over the bottom of the chase view, and steep, so the
-/// light comes from underneath.
+/// finish; a yaw grows to the left) and its height (below the horizon).
+/// Ahead and to the left, so its glow rises over the bottom of the chase
+/// view, and steep, so the light comes from underneath.
 const SUN_BEARING: i32 = deg(28);
 const SUN_LOW: i32 = -deg(56);
 
@@ -72,7 +72,7 @@ pub fn look() -> Look {
 }
 
 /// Sector Ape's look for its course: the sun stands below, ahead and to
-/// the right of the way the course runs.
+/// the left of the way the course runs.
 pub fn look_for(c: &Course) -> Look {
     Look {
         light_dir: sun_dir(c),
@@ -100,7 +100,7 @@ pub const TETHER: Rgb = rgb(80, 255, 176);
 /// The colourblind mode's tethers: brighter still.
 pub const TETHER_VIVID: Rgb = rgb(150, 255, 210);
 /// How many times a tether's width its glow is across.
-pub const TETHER_HALO: i32 = 4;
+pub const TETHER_HALO: i32 = 3;
 /// The item vines' marker: violet crystals (the asteroids' own).
 pub const CRYSTAL: Rgb = rgb(186, 110, 255);
 const CRYSTAL_DULL: Rgb = rgb(70, 66, 86);
@@ -133,7 +133,7 @@ const SUN_AT: i32 = int(470);
 const SUN_R: i32 = int(64);
 const PLANET_AT: i32 = int(470);
 const PLANET_R: i32 = int(46);
-/// The planet: off to the left of the way the course runs, high.
+/// The planet: off to the right of the way the course runs, high.
 const PLANET_BEARING: i32 = -deg(58);
 const PLANET_HIGH: i32 = deg(17);
 const STAR_COUNT: u32 = 650;
@@ -208,7 +208,7 @@ fn sun(b: &mut Batch, at: V3, r: i32, tick: u32) {
 fn haze(b: &mut Batch, eye: V3, base: i32) {
     let mut dice = Dice(0x5EC7_4A2E);
     for k in 0..16 {
-        // a band rising from low on the right, round behind, to the left
+        // a band rising from low on the left, round behind, to the right
         let yaw = base + deg(20) + k * deg(19) + dice.range(-deg(8), deg(8));
         let high = dice.range(-deg(26), deg(30));
         let dir = facing(yaw, high);
@@ -470,23 +470,15 @@ fn deck(b: &mut Batch, pl: &Platform, kind: DeckKind) {
                     );
                 }
             }
-            // start lights down both edges
+            // start lights set in both edges
             for sx in [-1, 1] {
                 for k in 0..4 {
                     let z = -hl + (k * 2 + 1) * hl / 4;
                     part(
                         b,
-                        Mesh::Cube,
-                        v3(sx * (hw - cm(40)), cm(50), z),
-                        v3(cm(30), int(1), cm(30)),
-                        PLATE_LIGHT,
-                        0,
-                    );
-                    part(
-                        b,
                         Mesh::Octa,
-                        v3(sx * (hw - cm(40)), cm(120), z),
-                        v3(cm(50), cm(50), cm(50)),
+                        v3(sx * (hw - cm(30)), cm(10), z),
+                        v3(cm(22), cm(22), cm(40)),
                         if k % 2 == 0 { NEON } else { NEON_WARM },
                         SKY_GLOW,
                     );
@@ -1391,11 +1383,16 @@ fn set_piece(b: &mut Batch, p: &SetPiece, eye: V3, tick: u32, race_tick: u32) {
             start,
             end,
         } => {
-            if race_tick < start || race_tick > end || end <= start {
+            // waiting behind the start until its pass, then on past its
+            // end and away
+            if end <= start {
                 return;
             }
-            let t = fx::div((race_tick - start) as i32, (end - start) as i32);
-            let at = from.lerp(to, t);
+            let t = fx::div(
+                race_tick.saturating_sub(start).min((end - start) * 3) as i32,
+                (end - start) as i32,
+            );
+            let at = from.add(to.sub(from).scale(t));
             let yaw = yaw_of(to.sub(from).flat());
             if at.dist(eye) < int(700) {
                 sc::mothership(b, &sc::pose(at, yaw, 0, 0, ONE), tick);
@@ -1647,21 +1644,20 @@ pub fn route_lines(c: &Course, s: &SectorLayout) -> Vec<Vec<V3>> {
 
 // ---- the menus' ape preview and the title's flyover ----
 
-/// Round the lobby deck behind the menus: the backdrop, and the mothership
-/// riding at anchor behind the ape, broadside on, its engines glowing,
-/// with a pair of ape wings circling it.
+/// Round the lobby behind the menus: the backdrop, and the mothership
+/// riding at anchor out in the open beyond the ape, broadside on, its
+/// engines glowing, with a pair of ape wings circling it.
 pub fn lobby_backdrop(b: &mut Batch, c: &Course, s: &SectorLayout, eye: V3, tick: u32) {
     backdrop(b, c, eye, tick);
-    let (hands, yaw) = s.lobby;
-    let feet = hands.sub(v3(0, crate::rules::BODY_DROP, 0));
-    let fwd = facing(yaw, 0);
-    let at = feet.add(fwd.scale(LOBBY_SHIP_AT)).sub(v3(0, int(26), 0));
-    sc::mothership(b, &sc::pose(at, yaw + deg(78), 0, deg(4), ONE), tick);
+    let (feet, look) = lobby_spot(c, s);
+    let yaw = yaw_of(look);
+    let at = feet.add(look.scale(LOBBY_SHIP_AT)).sub(v3(0, int(20), 0));
+    sc::mothership(b, &sc::pose(at, yaw + deg(70), 0, deg(4), ONE), tick);
     for k in 0..2 {
         let a = (tick as i32).wrapping_mul(110) + k * fx::HALF;
         let p = at.add(v3(
             mul(sin(a), int(150)),
-            int(40) + k * int(12),
+            int(36) + k * int(12),
             mul(fx::cos(a), int(70)),
         ));
         let heading = yaw_of(v3(fx::cos(a), 0, -mul(sin(a), ONE * 7 / 15)));
@@ -1669,27 +1665,50 @@ pub fn lobby_backdrop(b: &mut Batch, c: &Course, s: &SectorLayout, eye: V3, tick
     }
 }
 
-/// How far behind the lobby deck the mothership rides.
-const LOBBY_SHIP_AT: i32 = int(240);
+/// How far out beyond the lobby's deck the mothership rides.
+const LOBBY_SHIP_AT: i32 = int(260);
 
-/// Where an ape stands behind the menus (`SectorLayout.lobby`, a ship's
-/// deck), the way it faces and the camera: the sun's glow below, the
-/// mothership behind.
-pub fn preview(c: &Course) -> (V3, i32, Camera) {
-    // the lobby is the hands' place: the feet are under it
-    let (hands, yaw) = c
-        .sector
-        .as_ref()
-        .map(|s| s.lobby)
-        .unwrap_or((c.starts[0], c.start_yaw));
+/// Where the ape stands behind the menus and the way the camera looks at
+/// it (flat): on the launch deck (`SectorLayout.lobby`'s deck) out at its
+/// left-hand edge, seen from the deck's middle looking out over the edge
+/// into open space, on the sun's side, so behind the ape there is only
+/// space, the mothership and the haze. (A heading's yaw grows to the left:
+/// `geom::facing`.) With no deck, at the lobby itself,
+/// looking down the course.
+fn lobby_spot(c: &Course, s: &SectorLayout) -> (V3, V3) {
+    let (hands, yaw) = s.lobby;
     let feet = hands.sub(v3(0, crate::rules::BODY_DROP, 0));
+    let deck = c.platforms.iter().find(|pl| {
+        let d = feet.sub(pl.centre);
+        d.dot(pl.fwd).abs() <= pl.half_len
+            && d.dot(right_of(pl.fwd)).abs() <= pl.half_width
+            && (feet.y - pl.top).abs() < int(1)
+    });
+    match deck {
+        Some(pl) => {
+            let fwd = pl.fwd.flat().norm();
+            let right = right_of(fwd);
+            let edge = v3(pl.centre.x, pl.top, pl.centre.z)
+                .sub(right.scale(pl.half_width - cm(250)))
+                .sub(fwd.scale(pl.half_len / 3));
+            (edge, facing(yaw_of(fwd) + LOBBY_LOOK, 0))
+        }
+        None => (feet, facing(yaw, 0)),
+    }
+}
 
-    let fwd = facing(yaw, 0);
-    let right = right_of(fwd);
-    let eye = feet
-        .add(fwd.scale(-cm(290)))
-        .add(right.scale(-cm(40)))
-        .add(v3(0, cm(110), 0));
+/// The lobby's view: this far round to the left of the course's way (a
+/// little back toward the start, away from the start row's girder).
+const LOBBY_LOOK: i32 = deg(105);
+
+/// Where an ape stands behind the menus (`lobby_spot`), the way it faces
+/// (toward the camera) and the camera.
+pub fn preview(c: &Course) -> (V3, i32, Camera) {
+    let (feet, look) = match c.sector.as_deref() {
+        Some(s) => lobby_spot(c, s),
+        None => (c.starts[0], facing(c.start_yaw, 0)),
+    };
+    let eye = feet.sub(look.scale(cm(290))).add(v3(0, cm(125), 0));
     let target = feet.add(v3(0, cm(62), 0));
     (
         feet,
@@ -1852,7 +1871,15 @@ mod tests {
         let c = Map::Sector.course();
         let s = c.sector.as_ref().unwrap();
         let (feet, _, cam) = preview(&c);
-        assert_eq!(feet, s.lobby.0.sub(v3(0, crate::rules::BODY_DROP, 0)));
+        // on the launch deck, standing on its top, out near its edge
+        let deck = &c.platforms[0];
+        assert_eq!(feet.y, deck.top);
+        let side = feet.sub(deck.centre).dot(right_of(deck.fwd)).abs();
+        assert!(
+            side > deck.half_width / 2 && side < deck.half_width,
+            "{}",
+            side / ONE
+        );
         // the menus' preview uses it (`scene::preview`)
         assert_eq!(scene::preview(&c).feet, feet);
         // the mothership is in the lobby's backdrop, beyond the ape

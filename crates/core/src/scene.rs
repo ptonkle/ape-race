@@ -132,7 +132,7 @@ pub fn look_of(c: &Course) -> Look {
         Map::Jungle => look(Map::Jungle),
         // the sun stands behind the skiers, from the hill's fall line
         Map::Ski => crate::skiscape::look_for(c),
-        // the sun stands below, ahead and to the right of the course
+        // the sun stands below, ahead and to the left of the course
         Map::Sector => crate::sectorscape::look_for(c),
     }
 }
