@@ -524,9 +524,13 @@ impl Course {
         let hi = (hint + 40).min(n - 1);
         let mut best = hint.min(n - 1);
         let mut best_d = i64::MAX;
-        for i in lo..=hi {
-            let d = p.flat().sub(self.path[i]);
-            let dd = d.dot64(d);
+        // (the centreline is at height 0, so only across and along count:
+        // the same sums as the flat distance, cheaper, as the physics and
+        // the AI's copies of the ape ask every tick)
+        let (x, z) = (p.x as i64, p.z as i64);
+        for (i, q) in self.path.iter().enumerate().take(hi + 1).skip(lo) {
+            let (dx, dz) = (x - q.x as i64, z - q.z as i64);
+            let dd = dx * dx + dz * dz;
             if dd < best_d {
                 best_d = dd;
                 best = i;
@@ -1132,6 +1136,14 @@ fn scenery(c: &mut Course, dice: &mut Dice) {
 mod tests {
     use super::*;
     use crate::rules::{GRAVITY, MUSHROOM_BOUNCE};
+
+    #[test]
+    fn every_centreline_is_at_height_zero() {
+        // (`nearest` counts on it)
+        for map in crate::map::Map::ALL {
+            assert!(map.course().path.iter().all(|p| p.y == 0), "{map:?}");
+        }
+    }
 
     #[test]
     fn the_jungle_turns_and_does_not_come_back() {

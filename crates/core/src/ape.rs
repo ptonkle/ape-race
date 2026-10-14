@@ -421,7 +421,8 @@ impl Ape {
         // steering in the air: across the motion, or braking, never faster
         let mut acc = wish.scale(self.phys.air);
         let flat = self.vel.flat();
-        if flat.longer_than(ONE) {
+        // (no wish, nothing to take off: `acc` is zero)
+        if wish != V3::ZERO && flat.longer_than(ONE) {
             let dir = flat.norm();
             let along = acc.dot(dir);
             if along > 0 {

@@ -760,8 +760,61 @@ fn in_reach(
     margin: i32,
     min_at: i32,
 ) -> Option<usize> {
+    in_reach_watched(a, course, tick, cands, margin, min_at, None)
+}
+
+/// Sector Ape, over one planned flight: when each candidate is worth
+/// looking at again. A candidate outside the box round where its anchor
+/// can be (`Course::anchor_bound`) by some distance stays outside until the
+/// ape has moved that far along x or z, so until then `in_reach` skips it:
+/// the same answer, without the sums (the plans fly thousands of ticks a
+/// tick).
+struct Watch {
+    /// how far the ape has moved, tick by tick, along x or z (the larger)
+    moved: i64,
+    last: V3,
+    /// for each candidate, `moved` before which it cannot be in its box
+    clear: Vec<i64>,
+}
+
+impl Watch {
+    fn new(a: &Ape, cands: &[usize]) -> Watch {
+        Watch {
+            moved: 0,
+            last: a.pos,
+            clear: vec![0; cands.len()],
+        }
+    }
+
+    /// After a step: count the move.
+    fn follow(&mut self, a: &Ape) {
+        let d = a.pos.sub(self.last);
+        self.moved += (d.x as i64).abs().max((d.z as i64).abs());
+        self.last = a.pos;
+    }
+}
+
+/// `in_reach`, skipping the candidates `watch` says cannot be in reach.
+fn in_reach_watched(
+    a: &Ape,
+    course: &Course,
+    tick: u32,
+    cands: &[usize],
+    margin: i32,
+    min_at: i32,
+    mut watch: Option<&mut Watch>,
+) -> Option<usize> {
     let reach = a.phys.reach - margin;
-    for &i in cands.iter().filter(|&&i| course.vines[i].at >= min_at) {
+    for (k, &i) in cands
+        .iter()
+        .enumerate()
+        .filter(|&(_, &i)| course.vines[i].at >= min_at)
+    {
+        if let Some(w) = &watch {
+            if w.clear[k] > w.moved {
+                continue;
+            }
+        }
         // (Sector Ape: a vine may reach out sideways from its anchor)
         let box_ = match course.sector {
             Some(_) => reach + course.vines[i].length,
@@ -773,6 +826,12 @@ fn in_reach(
             let (c0, slack) = course.anchor_bound(i);
             let lim = box_ + slack;
             if (a.pos.x - c0.x).abs() > lim || (a.pos.z - c0.z).abs() > lim {
+                if let Some(w) = watch.as_deref_mut() {
+                    let out = (a.pos.x as i64 - c0.x as i64)
+                        .abs()
+                        .max((a.pos.z as i64 - c0.z as i64).abs());
+                    w.clear[k] = w.moved + out - lim as i64;
+                }
                 continue;
             }
         }
@@ -841,32 +900,54 @@ fn flight_controls(
         ..Controls::default()
     };
     if target < course.vines.len() {
-        let at = aim_point(course, target, tick).flat();
-        let mut to = at.sub(a.pos.flat());
-        if let Some(n) = next {
-            // far out, aim short of the vine, back along the next leg, so the
-            // ape comes at it heading on; close in, aim at the vine itself
-            let leg = aim_point(course, n, tick).flat().sub(at).norm();
-            let d = to.len();
-            if d > LEAD_NEAR {
-                to = to.sub(leg.scale((d - LEAD_NEAR) / LEAD));
-            }
-        }
-        let v = a.vel.flat();
-        if !v.longer_than(ONE - 1) {
-            c.fwd = 1;
-            c.yaw = yaw_of(to);
-        } else {
-            let vn = v.norm();
-            let along = to.dot(vn);
-            let lat = to.sub(vn.scale(along));
-            if along > 0 && lat.longer_than(cm(25)) {
-                c.fwd = 1;
-                c.yaw = yaw_of(lat);
-            }
-        }
+        let (at, leg) = aim_and_leg(course, tick, target, next);
+        steer(a, at, leg, &mut c);
     }
     c
+}
+
+/// Where `flight_controls` aims (flat) and the unit direction of the leg
+/// on to `next`.
+fn aim_and_leg(course: &Course, tick: u32, target: usize, next: Option<usize>) -> (V3, Option<V3>) {
+    let at = aim_point(course, target, tick).flat();
+    let leg = next.map(|n| aim_point(course, n, tick).flat().sub(at).norm());
+    (at, leg)
+}
+
+/// Whether `aim_and_leg` is the same at every tick: on Sector Ape the AI
+/// aims at every vine's anchor where it starts (`aim_point`), so unless
+/// a vine slides it is.
+fn aim_is_fixed(course: &Course, target: usize, next: Option<usize>) -> bool {
+    course.sector.is_some()
+        && target < course.vines.len()
+        && course.vines[target].slide.is_none()
+        && next.is_none_or(|n| course.vines[n].slide.is_none())
+}
+
+/// The steering part of `flight_controls`, aiming at `at` (flat).
+fn steer(a: &Ape, at: V3, leg: Option<V3>, c: &mut Controls) {
+    let mut to = at.sub(a.pos.flat());
+    if let Some(leg) = leg {
+        // far out, aim short of the vine, back along the next leg, so the
+        // ape comes at it heading on; close in, aim at the vine itself
+        let d = to.len();
+        if d > LEAD_NEAR {
+            to = to.sub(leg.scale((d - LEAD_NEAR) / LEAD));
+        }
+    }
+    let v = a.vel.flat();
+    if !v.longer_than(ONE - 1) {
+        c.fwd = 1;
+        c.yaw = yaw_of(to);
+    } else {
+        let vn = v.norm();
+        let along = to.dot(vn);
+        let lat = to.sub(vn.scale(along));
+        if along > 0 && lat.longer_than(cm(25)) {
+            c.fwd = 1;
+            c.yaw = yaw_of(lat);
+        }
+    }
 }
 
 /// Flies a copy of the ape from `tick` with the air policy and no hold on
@@ -901,6 +982,10 @@ fn fly_ahead(
     };
     // (how far along it is: worked out once a tick, after each step)
     let mut along = progress(course, a);
+    // (Sector Ape: the candidates not worth looking at yet)
+    let mut watch = course.sector.as_ref().map(|_| Watch::new(a, cands));
+    // (and where it steers for, worked out once when that never moves)
+    let fixed = aim_is_fixed(course, target, next).then(|| aim_and_leg(course, tick, target, next));
     for _ in 0..tune.flight {
         *spent += 1;
         if along >= course.length {
@@ -911,7 +996,15 @@ fn fly_ahead(
             return None;
         }
         if a.swinging().is_none() {
-            let hit = in_reach(a, course, tick, cands, MARGIN, aim_at(course, target));
+            let hit = in_reach_watched(
+                a,
+                course,
+                tick,
+                cands,
+                MARGIN,
+                aim_at(course, target),
+                watch.as_mut(),
+            );
             if let Some(v) = hit {
                 if !last_grab {
                     let rope = a.pos.dist(course.anchor(v, tick));
@@ -926,10 +1019,24 @@ fn fly_ahead(
                 }
             }
         }
-        let mut c = flight_controls(a, course, tick, target, next, cands, true);
-        c.grab = false;
+        let c = match fixed {
+            Some((at, leg)) => {
+                // (`flight_controls` with no grab, as below)
+                let mut c = Controls::default();
+                steer(a, at, leg, &mut c);
+                c
+            }
+            None => {
+                let mut c = flight_controls(a, course, tick, target, next, cands, true);
+                c.grab = false;
+                c
+            }
+        };
         a.step(&c, course, tick);
         last_grab = false;
+        if let Some(w) = watch.as_mut() {
+            w.follow(a);
+        }
         along = progress(course, a);
         if a.mode == Mode::Grounded || along > far {
             return None;
