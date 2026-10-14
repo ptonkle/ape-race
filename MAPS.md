@@ -68,6 +68,7 @@ Notes for building the next map, from the Jungle (the first course) and the City
 
 ## Checklist for a new map
 
+- [ ] **The lobby zone, designed on purpose** (the person, 2026-10-13: a core thing for every map). It's where your ape stands behind Race Setup, Time Trial and the online lobby, so it's the map's first impression. Choose a spot that shows the map at its best (its time of day, its set piece behind), with room for T76's lineup of every player's ape and yours on a pedestal in front. Wire it through `scene::preview(course)` and check `app/menu_dock.rs` `preview_spot` actually uses it: the Jungle's never did; it stood the ape at the world origin on the forest floor, T77. Screenshot the setup screen and the lobby on the new map before calling the map done.
 - [ ] `Map` entry, its `key`, and strings `map.<key>`
 - [ ] Its card on the map grid: build, then `.venv/bin/python scripts/map_cards.py --only <key>` makes `data/maps/<key>.webp` (add a moment to `CARDS` there if the default shot is dull); `tests/map_pictures.rs` fails until it exists
 - [ ] Course builder with a fixed seed, its own dice for new placement, and the old maps' fingerprint test still passing

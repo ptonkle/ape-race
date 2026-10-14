@@ -45,6 +45,7 @@ Given by the person on 2026-10-13, to be built in a later session (after their u
 
 ## Integrator's notes and open questions (for the building session)
 
+- **Lobby zone:** design where your ape stands behind the menus as a showpiece (MAPS.md checklist): e.g. on a ship's deck with the sun below and the Great Fox–type mothership behind, with room for the lineup of every player's ape (T76).
 - **Lighting first** (MAPS.md rule): space has no time of day. Decide the light source before any art: the far sun or a star below, plus rim light from the planet. Make the palette distinct from the other three maps (deep black-blue space, neon wireframe and laser colours, Sector X's purple-green haze?).
 - **Physics, new for this map only:**
   - Today gravity is a constant `rules::GRAVITY` pointing down.
