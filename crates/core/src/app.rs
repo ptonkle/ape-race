@@ -1466,6 +1466,7 @@ impl App {
             mute,
             (look.light_dir, look.light, look.ground),
             look.rim,
+            look.far,
         );
         let (vines, batch) = match self.stage {
             Stage::Race => match &self.play {

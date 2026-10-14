@@ -202,7 +202,13 @@ pub struct Camera {
 
 impl Camera {
     pub fn matrix(&self, aspect: i32) -> Mat4 {
-        Mat4::perspective(self.fov, aspect, NEAR, FAR).mul(&Mat4::look(self.eye, self.fwd, V3::UP))
+        self.matrix_to(aspect, FAR)
+    }
+
+    /// The matrix with its far plane at `far` (Sector Ape sees further:
+    /// `scene::Look.far`).
+    pub fn matrix_to(&self, aspect: i32, far: i32) -> Mat4 {
+        Mat4::perspective(self.fov, aspect, NEAR, far).mul(&Mat4::look(self.eye, self.fwd, V3::UP))
     }
 
     /// Where a world point lands on screen, in hundredths of the width and
@@ -234,8 +240,9 @@ pub fn view_values(
     mute: i32,
     light: (V3, Rgb, Rgb),
     rim: Rgb,
+    far: i32,
 ) -> Vec<i32> {
-    let mut v = cam.matrix(aspect).0.to_vec();
+    let mut v = cam.matrix_to(aspect, far).0.to_vec();
     v.extend([cam.eye.x, cam.eye.y, cam.eye.z, fog.0, fog.1]);
     v.extend(colours.1);
     v.extend(colours.0);

@@ -59,6 +59,7 @@ pub fn look() -> Look {
         light: LIGHT,
         ground: BOUNCE,
         rim: [0; 3],
+        far: crate::render::FAR,
     }
 }
 

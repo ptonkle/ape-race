@@ -244,6 +244,7 @@ impl App {
             0,
             (look.light_dir, look.light, look.ground),
             look.rim,
+            look.far,
         );
         let mut b = Batch::new();
         sc::stars(&mut b, cam.eye, 500);

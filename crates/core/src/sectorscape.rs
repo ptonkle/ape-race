@@ -56,6 +56,10 @@ const RIM: Rgb = rgb(78, 90, 210);
 /// deep violet-black.
 pub const FOG: Rgb = rgb(9, 9, 26);
 
+/// The far plane in clear space: the black hole shows from anywhere on
+/// the course (`HOLE_NEAR`); everything else is drawn well inside it.
+pub const SPACE_FAR: i32 = int(1500);
+
 /// Sector Ape: no day, a sun below.
 pub fn look() -> Look {
     Look {
@@ -68,6 +72,7 @@ pub fn look() -> Look {
         light: SUN_LIGHT,
         ground: BOUNCE,
         rim: RIM,
+        far: SPACE_FAR,
     }
 }
 
@@ -128,23 +133,26 @@ const SKY_HALO: i32 = ONE * 3;
 // ---- the backdrop: round the eye each frame ----
 
 /// How far from the eye the sun, the planet, the stars and the haze are
-/// drawn (inside the far plane, `render::FAR`).
-const SUN_AT: i32 = int(470);
-const SUN_R: i32 = int(64);
-const PLANET_AT: i32 = int(470);
-const PLANET_R: i32 = int(46);
+/// drawn: inside the far plane (`SPACE_FAR`), beyond the black hole
+/// (`HOLE_NEAR` and its disc), `BACK` times the distances first chosen at
+/// the 600 m far plane, everything as much bigger.
+const BACK: i32 = ratio(27, 10);
+const SUN_AT: i32 = mul(int(470), BACK);
+const SUN_R: i32 = mul(int(64), BACK);
+const PLANET_AT: i32 = mul(int(400), BACK);
+const PLANET_R: i32 = mul(int(40), BACK);
 /// The planet: off to the right of the way the course runs, high.
 const PLANET_BEARING: i32 = -deg(58);
 const PLANET_HIGH: i32 = deg(17);
 const STAR_COUNT: u32 = 650;
-const HAZE_AT: i32 = int(540);
+const HAZE_AT: i32 = mul(int(500), BACK);
 
 /// Round the eye: the sun far below, the gas giant, the stars, and the
 /// haze of Sector X, all at a fixed distance from the eye, as if
 /// infinitely far.
 pub fn backdrop(b: &mut Batch, c: &Course, eye: V3, tick: u32) {
     let base = course_yaw(c);
-    sc::stars(b, eye, STAR_COUNT);
+    sc::stars_at(b, eye, STAR_COUNT, BACK);
     sun(b, eye.add(sun_dir(c).scale(SUN_AT)), SUN_R, tick);
     sc::planet(
         b,
@@ -214,7 +222,7 @@ fn haze(b: &mut Batch, eye: V3, base: i32) {
         let high = dice.range(-deg(26), deg(30));
         let dir = facing(yaw, high);
         let at = eye.add(dir.scale(HAZE_AT));
-        let r = int(dice.range(80, 170));
+        let r = mul(int(dice.range(80, 170)), BACK);
         let c = match k % 3 {
             0 => HAZE_VIOLET,
             1 => HAZE_GREEN,
@@ -1353,8 +1361,9 @@ pub fn black_hole_frame(c: &Course, at: V3) -> Affine {
 
 /// Beyond this distance the black hole is drawn shrunk toward the eye
 /// (`seen_from`), so it shows on the horizon from anywhere on the course
-/// without the far plane cutting it.
-const HOLE_NEAR: i32 = int(300);
+/// without the far plane (`SPACE_FAR`) cutting its disc. Nothing else is
+/// drawn this far out, so nothing is wrongly hidden behind it.
+const HOLE_NEAR: i32 = int(1200);
 
 /// A frame `f` as seen from `eye`, brought in to `near` if it is further:
 /// moved along the line of sight and shrunk by the same share, so it looks
@@ -2095,14 +2104,12 @@ mod tests {
         assert!(v.len() / crate::render::INSTANCE_VALUES > STAR_COUNT as usize / 2);
         for i in v.chunks(16).chain(h.chunks(16)) {
             let at = v3(i[3], i[7], i[11]);
-            assert!(
-                at.dist(eye) < crate::render::FAR - int(40),
-                "{}",
-                at.dist(eye) / ONE
-            );
+            assert!(at.dist(eye) < SPACE_FAR - int(40), "{}", at.dist(eye) / ONE);
         }
         // the sun is below the eye
         let sun = eye.add(sun_dir(&c).scale(SUN_AT));
         assert!(sun.y < eye.y - int(300));
+        // the stars are behind the black hole and its disc
+        assert!(mul(int(520), BACK) > HOLE_NEAR + int(200));
     }
 }

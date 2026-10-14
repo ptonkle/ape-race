@@ -2127,6 +2127,12 @@ pub fn planet(b: &mut Batch, at: V3, r: i32, tick: u32) {
 /// A starfield round the eye: `n` small glowing points scattered over a
 /// ball 520 m out (inside the far plane), the same every frame.
 pub fn stars(b: &mut Batch, eye: V3, n: u32) {
+    stars_at(b, eye, n, ONE);
+}
+
+/// The starfield `k` times as far out (and each star as big), for a map
+/// whose far plane is further (Sector Ape).
+pub fn stars_at(b: &mut Batch, eye: V3, n: u32, k: i32) {
     let mut dice = fx::Dice(0x5EC7_0A9E);
     for _ in 0..n {
         let d = v3(
@@ -2137,7 +2143,7 @@ pub fn stars(b: &mut Batch, eye: V3, n: u32) {
         if d.len() < ONE / 8 {
             continue;
         }
-        let s = cm(60) + dice.range(0, cm(160));
+        let s = mul(cm(60) + dice.range(0, cm(160)), k);
         let c = match dice.below(4) {
             0 => rgb(255, 226, 190),
             1 => rgb(180, 200, 255),
@@ -2145,7 +2151,8 @@ pub fn stars(b: &mut Batch, eye: V3, n: u32) {
         };
         b.push(
             Mesh::Octa,
-            &Affine::translate(eye.add(d.with_len(int(520)))).then(&Affine::scale(v3(s, s, s))),
+            &Affine::translate(eye.add(d.with_len(mul(int(520), k))))
+                .then(&Affine::scale(v3(s, s, s))),
             c,
             SKY_GLOW,
         );

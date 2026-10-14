@@ -32,6 +32,7 @@ pub fn look() -> Look {
         light: rgb(255, 172, 100),
         ground: rgb(84, 62, 52),
         rim: [0; 3],
+        far: crate::render::FAR,
     }
 }
 

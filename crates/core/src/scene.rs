@@ -103,6 +103,9 @@ pub struct Look {
     /// where a surface turns away from the eye, so a hull's top reads
     /// against black space; black (none) on every other map
     pub rim: Rgb,
+    /// the far plane (`render::FAR` on every map but Sector Ape, whose
+    /// clear space shows its black hole from the start)
+    pub far: i32,
 }
 
 /// The look of a map.
@@ -117,6 +120,7 @@ pub fn look(map: Map) -> Look {
             light: rgb(255, 244, 214),
             ground: rgb(70, 110, 50),
             rim: [0; 3],
+            far: crate::render::FAR,
         },
         Map::City => crate::cityscape::look(),
         Map::Ski => crate::skiscape::look(),
@@ -2424,6 +2428,7 @@ mod tests {
                 light: rgb(255, 244, 214),
                 ground: rgb(70, 110, 50),
                 rim: [0; 3],
+                far: crate::render::FAR,
             }
         );
         // the person (2026-10-12): an orange sunset, not purple. The City's
