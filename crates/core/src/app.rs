@@ -281,8 +281,8 @@ pub struct Play {
 /// The game's version, shown small in the bottom right corner: major
 /// (1, the first release), minor (one more for each release with new
 /// features or a new map: 1.1 the todo batch, 1.2 the City, 1.3 the Ski
-/// Slope), patch (fixes only).
-pub const VERSION: &str = "1.3.0";
+/// Slope, 1.4 the map grid and kept best replays), patch (fixes only).
+pub const VERSION: &str = "1.4.0";
 
 pub struct App {
     strings: BTreeMap<String, String>,
