@@ -339,7 +339,16 @@ impl Course {
     pub fn anchor(&self, i: usize, tick: u32) -> V3 {
         let v = &self.vines[i];
         match v.slide {
-            None => v.anchor,
+            // (Sector Ape: a vine on a mech moves with it)
+            None => match &self.sector {
+                Some(s) => match s.hangers.get(i) {
+                    Some(crate::sector::Hanger::Mech { mech, at }) => {
+                        s.mechs[*mech].point(*at, tick)
+                    }
+                    _ => v.anchor,
+                },
+                None => v.anchor,
+            },
             Some(s) => {
                 let phase = ((tick as i64 * fx::TURN as i64) / s.period as i64) as i32;
                 v.anchor.add(s.reach.scale(sin(phase + i as i32 * 9_001)))
@@ -355,6 +364,51 @@ impl Course {
             Some(s) => s.hangs.get(i).copied().unwrap_or(crate::sector::DOWN),
             None => crate::sector::DOWN,
         }
+    }
+
+    /// Where vine `i` ends at a tick: its anchor plus its length along the
+    /// way it hangs.
+    pub fn tip(&self, i: usize, tick: u32) -> V3 {
+        let a = self.anchor(i, tick);
+        let len = self.vines[i].length;
+        match &self.sector {
+            None => v3(a.x, a.y - len, a.z),
+            Some(_) => a.add(self.hang(i).scale(len)),
+        }
+    }
+
+    /// The lowest point of vine `i` at a tick: its end on every map but
+    /// Sector Ape, where a vine hanging up is lowest at its anchor.
+    pub fn vine_bottom(&self, i: usize, tick: u32) -> i32 {
+        let a = self.anchor(i, tick);
+        match &self.sector {
+            None => a.y - self.vines[i].length,
+            Some(_) => a.y.min(self.tip(i, tick).y),
+        }
+    }
+
+    /// The point of vine `i` nearest `p`, at a tick: on every map but
+    /// Sector Ape the vine is straight down from its anchor, so it is the
+    /// anchor's column at `p`'s height, held to the vine.
+    pub fn vine_point(&self, i: usize, tick: u32, p: V3) -> V3 {
+        let a = self.anchor(i, tick);
+        match &self.sector {
+            None => {
+                let bottom = a.y - self.vines[i].length;
+                v3(a.x, p.y.clamp(bottom, a.y), a.z)
+            }
+            Some(_) => {
+                let h = self.hang(i);
+                let t = p.sub(a).dot(h).clamp(0, self.vines[i].length);
+                a.add(h.scale(t))
+            }
+        }
+    }
+
+    /// Whether vine `i` is an odd one (Sector Ape: it does not hang
+    /// straight down).
+    pub fn odd_vine(&self, i: usize) -> bool {
+        self.sector.is_some() && self.hang(i) != crate::sector::DOWN
     }
 
     /// The downward pull on an ape: `rules::GRAVITY`, less on Sector Ape.

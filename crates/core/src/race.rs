@@ -109,6 +109,17 @@ pub enum Event {
     Pounce {
         who: usize,
     },
+    /// Sector Ape: ape `who` crossed the boundary into open space and was
+    /// put back on deck `pad` (an index in `course.platforms`), standing
+    Reset {
+        who: usize,
+        pad: usize,
+    },
+    /// Sector Ape: ape `who` swung the switch vine far enough forward and
+    /// the door shut (`course.sector.door.shut_at` is this tick)
+    Door {
+        who: usize,
+    },
 }
 
 /// One ape in the race.

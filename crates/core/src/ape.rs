@@ -52,6 +52,9 @@ pub enum Happening {
     Knocked,
     /// thrown up by a bounce mushroom, with its push forward (TRIAGE T48)
     Bounce,
+    /// Sector Ape: thrown off a ship or a piece of debris, elastically,
+    /// with a boost
+    Rebound,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
