@@ -21,11 +21,6 @@ use crate::scene::Look;
 // ---------------------------------------------------------------------------
 // The palette: deep black-blue space, the sun's under-light, neon glows.
 
-const SPACE: Rgb = rgb(6, 8, 22);
-const SPACE_FOG: Rgb = rgb(10, 12, 30);
-const SUN_LIGHT: Rgb = rgb(255, 214, 160);
-const SUN_BOUNCE: Rgb = rgb(190, 100, 44);
-
 const HULL: Rgb = rgb(214, 220, 228);
 const HULL_GREY: Rgb = rgb(150, 158, 172);
 const HULL_DARK: Rgb = rgb(62, 68, 82);
@@ -67,19 +62,13 @@ const BANANA_GLOW: i32 = ONE / 2;
 /// A far backdrop: lit, unfogged, hazed a little toward the fog.
 const FAR_GLOW: i32 = ONE * 5 / 2 + ONE / 8;
 
-/// How Sector Ape is lit: a black-blue sky and a blazing sun far below, so
-/// the light comes from underneath (the light's direction points toward
-/// the sun) and the ground's bounce, which colours down-facing sides, is
-/// the sun's own orange.
+/// How Sector Ape is lit (`sectorscape::look`): a black-blue sky and a
+/// blazing sun far below, so the light comes from underneath (the light's
+/// direction points toward the sun), the ground's bounce, which colours
+/// down-facing sides, is the sun's own orange, and an edge light outlines
+/// the tops.
 pub fn look() -> Look {
-    Look {
-        sky: SPACE,
-        fog: SPACE_FOG,
-        fog_range: (int(220), int(590)),
-        light_dir: v3(cm(25), -cm(92), cm(30)).norm(),
-        light: SUN_LIGHT,
-        ground: SUN_BOUNCE,
-    }
+    crate::sectorscape::look()
 }
 
 /// The frame of a model at `at`, turned `yaw` about +y, its nose raised by

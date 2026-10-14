@@ -224,7 +224,7 @@ impl Camera {
 /// the jungle has turned and its colours (10); and how muted the world is
 /// (1: the colourblind mode, TRIAGE T33); then the light's direction and
 /// colour and the ground's bounce (9: each map has its own, the City at
-/// dusk).
+/// dusk); then the edge light's colour (3: Sector Ape's, black elsewhere).
 pub fn view_values(
     cam: &Camera,
     aspect: i32,
@@ -233,6 +233,7 @@ pub fn view_values(
     world: (i32, [Rgb; 3]),
     mute: i32,
     light: (V3, Rgb, Rgb),
+    rim: Rgb,
 ) -> Vec<i32> {
     let mut v = cam.matrix(aspect).0.to_vec();
     v.extend([cam.eye.x, cam.eye.y, cam.eye.z, fog.0, fog.1]);
@@ -248,6 +249,7 @@ pub fn view_values(
     v.extend([light.0.x, light.0.y, light.0.z]);
     v.extend(light.1);
     v.extend(light.2);
+    v.extend(rim);
     v
 }
 
@@ -278,7 +280,7 @@ pub fn numbers_json() -> String {
         },
         "draw_values": DRAW_VALUES,
         "buffers": { "static": STATIC_BUFFER, "dynamic": DYNAMIC_BUFFER },
-        "view": { "matrix": [0, 16], "eye": [16, 19], "fog": [19, 21], "fog_colour": [21, 24], "sky": [24, 27], "trip": 27, "wild_ground": [28, 31], "wild_wood": [31, 34], "wild_leaves": [34, 37], "mute": 37, "light_dir": [38, 41], "light": [41, 44], "ground": [44, 47] },
+        "view": { "matrix": [0, 16], "eye": [16, 19], "fog": [19, 21], "fog_colour": [21, 24], "sky": [24, 27], "trip": 27, "wild_ground": [28, 31], "wild_wood": [31, 34], "wild_leaves": [34, 37], "mute": 37, "light_dir": [38, 41], "light": [41, 44], "ground": [44, 47], "rim": [47, 50] },
         "uniforms": [["uLightDir", 3], ["uLight", 3], ["uSky", 3], ["uFog", 3], ["uGround", 3]],
     })
     .to_string()

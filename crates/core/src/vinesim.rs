@@ -9,6 +9,7 @@
 use crate::fx::{self, mul, ONE};
 use crate::geom::{v3, V3};
 use crate::rules::{DT, GRAVITY};
+use crate::sector::DOWN;
 
 pub const SEGMENTS: usize = 8;
 const POINTS: usize = SEGMENTS + 1;
@@ -21,16 +22,32 @@ const PASSES: usize = 3;
 pub struct Chain {
     pub pts: [V3; POINTS],
     prev: [V3; POINTS],
+    /// the unit direction it hangs (`Course::hang`): straight down but on
+    /// Sector Ape, whose bodies pull their vines every way
+    pub dir: V3,
 }
 
 impl Chain {
     /// Hanging straight down from `anchor`.
     pub fn hanging(anchor: V3, length: i32) -> Chain {
+        Chain::hanging_along(anchor, length, DOWN)
+    }
+
+    /// Hanging from `anchor` along the unit direction `dir`.
+    pub fn hanging_along(anchor: V3, length: i32, dir: V3) -> Chain {
         let mut pts = [anchor; POINTS];
         for (k, p) in pts.iter_mut().enumerate() {
-            *p = anchor.sub(v3(0, length * k as i32 / SEGMENTS as i32, 0));
+            *p = if dir == DOWN {
+                anchor.sub(v3(0, length * k as i32 / SEGMENTS as i32, 0))
+            } else {
+                anchor.add(dir.scale(length * k as i32 / SEGMENTS as i32))
+            };
         }
-        Chain { pts, prev: pts }
+        Chain {
+            pts,
+            prev: pts,
+            dir,
+        }
     }
 
     /// One tick. `hands` is where a holder grips, if any: the chain's link
@@ -44,11 +61,17 @@ impl Chain {
             0,
             mul(fx::cos(phase / 2 + 3000), ONE / 50_000),
         );
+        // the pull along the way it hangs (straight down: as always)
+        let pull = if self.dir == DOWN {
+            v3(0, -fall, 0)
+        } else {
+            self.dir.scale(fall)
+        };
         for k in 1..POINTS {
             let p = self.pts[k];
             let moved = p.sub(self.prev[k]).scale(KEEP);
             self.prev[k] = p;
-            self.pts[k] = p.add(moved).sub(v3(0, fall, 0)).add(breeze);
+            self.pts[k] = p.add(moved).add(pull).add(breeze);
         }
         // a held vine's grip point: the link the rope length reaches
         let grip = hands.map(|h| {
@@ -149,6 +172,20 @@ mod tests {
             assert!(c.pts.contains(&h), "the grip point is at the hands");
         }
         assert!(bent > ONE / 4, "{}", bent / 655);
+    }
+
+    #[test]
+    fn a_free_vine_hangs_along_its_own_direction() {
+        // Sector Ape: sideways, and up from below
+        for dir in [v3(ONE, 0, 0), v3(0, ONE, 0), v3(0, -ONE, ONE).norm()] {
+            let a = v3(0, int(50), 0);
+            let mut c = Chain::hanging_along(a, int(20), dir);
+            for t in 0..600 {
+                c.step(a, int(20), None, t, 1);
+            }
+            let end = a.add(dir.scale(int(20)));
+            assert!(c.pts[SEGMENTS].dist(end) < int(1), "{dir:?}");
+        }
     }
 
     #[test]

@@ -31,6 +31,7 @@ pub fn look() -> Look {
         light_dir: v3(-cm(62), cm(30), cm(72)).norm(),
         light: rgb(255, 172, 100),
         ground: rgb(84, 62, 52),
+        rim: [0; 3],
     }
 }
 

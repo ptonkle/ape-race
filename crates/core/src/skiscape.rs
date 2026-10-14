@@ -58,6 +58,7 @@ pub fn look() -> Look {
         light_dir: facing(SUN_BEARING, SUN_HIGH),
         light: LIGHT,
         ground: BOUNCE,
+        rim: [0; 3],
     }
 }
 

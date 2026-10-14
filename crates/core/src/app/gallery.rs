@@ -232,6 +232,7 @@ impl App {
             crate::sky::world(0, 0),
             0,
             (look.light_dir, look.light, look.ground),
+            look.rim,
         );
         let mut b = Batch::new();
         sc::stars(&mut b, cam.eye, 500);

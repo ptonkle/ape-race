@@ -1153,7 +1153,11 @@ impl App {
     /// Starts showing a race in which this browser plays ape `local`.
     pub fn begin(&mut self, race: Race, local: usize) {
         let at = race.racers[local].ape.pos;
-        let chase = Chase::new(at, race.course.start_yaw, race.course.terrain);
+        let mut chase = Chase::new(at, race.course.start_yaw, race.course.terrain);
+        // Sector Ape runs about twice as fast: the view opens wider
+        if race.course.sector.is_some() {
+            chase.pace = crate::camera::SPACE_PACE;
+        }
         let prev = race.racers.iter().map(|r| r.ape.pos).collect();
         // each AI ape thinks at the race's difficulty, with its own dice
         // from the race's seed, so a replay rebuilds the same brains
@@ -1327,7 +1331,9 @@ impl App {
         if p.race.racers[p.local].out() {
             return;
         }
-        let kmh = crate::speedo::kmh(p.hype_speed);
+        // on Sector Ape's faster dial, the same share of the way round
+        let dial = crate::speedo::Dial::on(Map::of(&p.race.course));
+        let kmh = crate::speedo::kmh(dial.standard(p.hype_speed));
         if let Some(level) = p.hype.step(kmh) {
             self.sounds.push(crate::hype::voice_key(level));
         }
@@ -1402,7 +1408,10 @@ impl App {
         let (speed, metres) = match (&self.play, self.stage) {
             (Some(p), Stage::Race) if self.settings.speed_colours => {
                 let me = &p.race.racers[p.local];
-                (p.colour_speed, me.progress)
+                // Sector Ape's speeds are about double: the colours come
+                // at the same share of its dial
+                let dial = crate::speedo::Dial::on(Map::of(&p.race.course));
+                (dial.standard(p.colour_speed), me.progress)
             }
             // the unlock: the title's jungle goes wild, colours turning about
             // once a second, until another menu opens
@@ -1445,6 +1454,7 @@ impl App {
             world,
             mute,
             (look.light_dir, look.light, look.ground),
+            look.rim,
         );
         let (vines, batch) = match self.stage {
             Stage::Race => match &self.play {
@@ -1510,7 +1520,7 @@ impl App {
             "volume": self.settings.volume,
             "no_webgl": self.t("no_webgl"),
             "tab_icon": crate::icon::data_url(),
-            "speedo_face": crate::speedo::face(),
+            "speedo_face": crate::speedo::Dial::on(self.shown_map()).face(),
             "speedo_needle": crate::speedo::banana(),
             "want_pointer": self.screen == Screen::Race
                 && self
@@ -2014,6 +2024,7 @@ impl App {
         // place, time and item are the followed ape's (TRIAGE T24, T34)
         let me = &race.racers[p.focus.racer];
         let shown_clock = me.finish.unwrap_or(race.clock);
+        let dial = crate::speedo::Dial::on(Map::of(&race.course));
         let item = me
             .item
             .map(|i| self.t(&format!("item.{}", i.key())))
@@ -2027,10 +2038,10 @@ impl App {
             "speedo": {
                 "value": crate::speedo::kmh(p.hype_speed).to_string(),
                 "unit": self.t("hud.kmh"),
-                "needle": crate::speedo::needle(crate::speedo::kmh(p.hype_speed)),
-                "hype": crate::speedo::hype(crate::speedo::kmh(p.hype_speed)),
-                "amount": decimal(&crate::speedo::amount_text(crate::speedo::kmh(p.hype_speed))),
-                "shout": self.t(&format!("hud.hype{}", crate::speedo::hype(crate::speedo::kmh(p.hype_speed)))),
+                "needle": dial.needle(crate::speedo::kmh(p.hype_speed)),
+                "hype": dial.hype(crate::speedo::kmh(p.hype_speed)),
+                "amount": decimal(&dial.amount_text(crate::speedo::kmh(p.hype_speed))),
+                "shout": self.t(&format!("hud.hype{}", dial.hype(crate::speedo::kmh(p.hype_speed)))),
                 // the splash of a call-out (TRIAGE T22): how strongly the
                 // shout pops (0 to 1), the screen flash's opacity, and the
                 // level whose shout pops while it shows
@@ -2448,7 +2459,7 @@ fn step_chains(p: &mut Play) {
     p.chains.truncate(c.vines.len());
     for i in 0..c.vines.len() {
         let a = c.anchor(i, p.race.tick);
-        let fresh = || crate::vinesim::Chain::hanging(a, c.vines[i].length);
+        let fresh = || crate::vinesim::Chain::hanging_along(a, c.vines[i].length, c.hang(i));
         match p.chains.get(i) {
             None => p.chains.push(fresh()),
             Some(ch) if i >= p.race.base_vines && ch.pts[0].dist(a) > int(2) => {
@@ -2912,7 +2923,7 @@ mod tests {
             let ui: Value = serde_json::from_str(&a.ui()).unwrap();
             assert!(ui["screen"].is_string());
             let (view, _, _) = a.frame();
-            assert_eq!(view.len(), 47);
+            assert_eq!(view.len(), 50);
             let (statics, _, _) = a.static_scene();
             assert!(!statics.is_empty());
         }
@@ -3121,7 +3132,7 @@ mod tests {
         // the cameras all give a view
         for v in ["orbit", "trackside", "chase"] {
             a.act("replay.camera", v);
-            assert_eq!(a.frame().0.len(), 47);
+            assert_eq!(a.frame().0.len(), 50);
         }
         // leaving goes back to the race it came from
         a.act("replay.exit", "");
