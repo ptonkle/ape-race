@@ -74,8 +74,17 @@ impl V3 {
         let c = |a: i32| (((a as i64) << 32) / l) as i32;
         v3(c(self.x), c(self.y), c(self.z))
     }
+    /// Whether `len()` is over `k`, without the square root: the floor of
+    /// the root is over `k` exactly when the square is at least (k + 1)².
+    pub fn longer_than(self, k: i32) -> bool {
+        k < 0 || self.len2() >= (k as u64 + 1) * (k as u64 + 1)
+    }
     /// The same direction, at most `max` long.
     pub fn clamp_len(self, max: i32) -> V3 {
+        // (most are short enough: no square root for them)
+        if !self.longer_than(max) {
+            return self;
+        }
         let l = self.len();
         if l <= max || l == 0 {
             return self;

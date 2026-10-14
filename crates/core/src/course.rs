@@ -160,6 +160,9 @@ pub struct Course {
     /// centreline points on the ground, `STEP` apart, and their headings
     pub path: Vec<V3>,
     pub heading: Vec<V3>,
+    /// `right_of` each heading, worked out once (the physics and the AI's
+    /// copies of the ape ask for it every tick)
+    pub right: Vec<V3>,
     pub length: i32,
     pub half_width: i32,
     pub laps: u32,
@@ -551,7 +554,7 @@ impl Course {
     pub fn progress(&self, p: V3, i: usize) -> (i32, i32) {
         let d = p.flat().sub(self.path[i]);
         let along = d.dot(self.heading[i]);
-        let side = d.dot(right_of(self.heading[i]));
+        let side = d.dot(self.right[i]);
         ((i as i32 * STEP + along).clamp(0, self.length), side)
     }
 
@@ -573,7 +576,7 @@ impl Course {
         } else if self.ski.is_some() {
             (pos, vel, hit) = self.contain_lanes(pos, vel, i, s, side);
         } else if side.abs() > limit {
-            let right = right_of(self.heading[i]);
+            let right = self.right[i];
             let out = if side > 0 { right } else { right.neg() };
             pos = pos.sub(out.scale(side.abs() - limit));
             let into = vel.dot(out);
@@ -700,10 +703,12 @@ pub(crate) fn centreline(name: &'static str, legs: &[Leg]) -> Course {
     path.push(p);
     heading.push(facing(yaw, 0));
     let length = (path.len() as i32 - 1) * STEP;
+    let right = heading.iter().map(|&h| right_of(h)).collect();
     Course {
         name,
         path,
         heading,
+        right,
         length,
         half_width: int(20),
         laps: 1,

@@ -853,14 +853,14 @@ fn flight_controls(
             }
         }
         let v = a.vel.flat();
-        if v.len() < ONE {
+        if !v.longer_than(ONE - 1) {
             c.fwd = 1;
             c.yaw = yaw_of(to);
         } else {
             let vn = v.norm();
             let along = to.dot(vn);
             let lat = to.sub(vn.scale(along));
-            if along > 0 && lat.len() > cm(25) {
+            if along > 0 && lat.longer_than(cm(25)) {
                 c.fwd = 1;
                 c.yaw = yaw_of(lat);
             }
@@ -899,9 +899,11 @@ fn fly_ahead(
             .unwrap_or(i32::MIN),
         None => i32::MIN,
     };
+    // (how far along it is: worked out once a tick, after each step)
+    let mut along = progress(course, a);
     for _ in 0..tune.flight {
         *spent += 1;
-        if progress(course, a) >= course.length {
+        if along >= course.length {
             // over the line
             return Some((FINISH, tick, a.vel.flat().len(), int(12)));
         }
@@ -928,7 +930,8 @@ fn fly_ahead(
         c.grab = false;
         a.step(&c, course, tick);
         last_grab = false;
-        if a.mode == Mode::Grounded || progress(course, a) > far {
+        along = progress(course, a);
+        if a.mode == Mode::Grounded || along > far {
             return None;
         }
         // (Sector Ape: past the boundary is a reset, a flight lost)

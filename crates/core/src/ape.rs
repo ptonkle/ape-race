@@ -260,7 +260,7 @@ impl Ape {
         if course.sector.is_some() {
             self.vel = self.vel.clamp_len(crate::sector::SECTOR_TOP);
         }
-        if self.vel.len_xz() > ONE {
+        if self.vel.flat().longer_than(ONE) {
             let target = crate::geom::yaw_of(self.vel);
             let turn = fx::wrap(target - self.yaw);
             self.yaw = fx::wrap(self.yaw + turn / 6);
@@ -421,7 +421,7 @@ impl Ape {
         // steering in the air: across the motion, or braking, never faster
         let mut acc = wish.scale(self.phys.air);
         let flat = self.vel.flat();
-        if flat.len() > ONE {
+        if flat.longer_than(ONE) {
             let dir = flat.norm();
             let along = acc.dot(dir);
             if along > 0 {
@@ -693,8 +693,13 @@ const fn int_speed(n: i32) -> i32 {
 /// The direction WASD ask for, on the ground plane, from the camera's
 /// heading: zero, or a unit vector.
 pub fn wish(c: &Controls) -> V3 {
+    // (no keys, no wish; and with no sideways key no need of the right: the
+    // same sums, cheaper, for the AI's copies of the ape)
+    if c.fwd == 0 && c.side == 0 {
+        return V3::ZERO;
+    }
     let f = facing(c.yaw, 0);
-    let r = right_of(f);
+    let r = if c.side == 0 { V3::ZERO } else { right_of(f) };
     let w = f
         .scale(c.fwd.signum() * ONE)
         .add(r.scale(c.side.signum() * ONE));
