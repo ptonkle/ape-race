@@ -47,6 +47,22 @@ fn looks_at(a: &App, i: usize) -> bool {
         && cam.eye.dist(at) < int(20)
 }
 
+/// Ticks until the camera leaves racer `i`, a finisher, and how many of
+/// those it was dancing.
+fn watch_until_it_pans(a: &mut App, i: usize) -> (u32, u32) {
+    let mut danced = 0;
+    for t in 0..FINISH_WATCH_MOST + 2 {
+        a.tick();
+        if crate::dance::dancing(&play(a).race, i) {
+            danced += 1;
+        }
+        if play(a).focus.racer != i {
+            return (t + 1, danced);
+        }
+    }
+    panic!("the camera stayed on racer {i}");
+}
+
 #[test]
 fn after_the_finish_the_camera_pans_to_the_leader_still_racing() {
     let mut a = race(3, 900);
@@ -57,12 +73,13 @@ fn after_the_finish_the_camera_pans_to_the_leader_still_racing() {
     assert!(ui_of(&mut a)["want_pointer"] == true);
     let p = a.play.as_mut().unwrap();
     p.race.racers[0].finish = Some(p.race.clock);
-    for _ in 0..SPECTATE_AFTER - 1 {
-        a.tick();
-    }
-    assert_eq!(play(&a).focus.racer, 0, "a moment on the finisher first");
-    a.tick();
-    a.tick();
+    // a moment on the finisher first, to watch its dance (TRIAGE T53)
+    let (ticks, danced) = watch_until_it_pans(&mut a, 0);
+    assert!(ticks >= SPECTATE_AFTER, "it pans after {ticks} ticks");
+    assert!(
+        danced >= DANCE_SHOWN,
+        "it pans after {danced} ticks of dancing"
+    );
     let p = play(&a);
     let leader = Focus::leader_racing(&p.race).unwrap();
     assert_eq!(p.focus.racer, leader);
@@ -93,9 +110,7 @@ fn after_the_finish_the_camera_pans_to_the_leader_still_racing() {
     // when the followed one finishes too, on to the next still racing
     let p = a.play.as_mut().unwrap();
     p.race.racers[leader].finish = Some(p.race.clock);
-    for _ in 0..SPECTATE_AFTER + 2 {
-        a.tick();
-    }
+    watch_until_it_pans(&mut a, leader);
     let f = play(&a).focus.racer;
     assert!(f != leader && f != 0 && focus::racing(&play(&a).race.racers[f]));
     // all in: the full results
@@ -104,7 +119,7 @@ fn after_the_finish_the_camera_pans_to_the_leader_still_racing() {
         r.finish = r.finish.or(Some(p.race.clock));
     }
     a.tick();
-    assert_eq!(panel_kind(&mut a), "overlay");
+    assert_eq!(panel_kind(&mut a), "results");
     // the kept replay runs on past the finish, to the leaving
     let ticks = play(&a).race.tick;
     a.act("menu.main", "");
@@ -127,7 +142,7 @@ fn a_time_trial_has_no_one_to_spectate() {
     }
     assert_eq!(play(&a).focus.racer, 0);
     assert!(play(&a).pan.is_none());
-    assert_eq!(panel_kind(&mut a), "overlay");
+    assert_eq!(panel_kind(&mut a), "results");
 }
 
 #[test]

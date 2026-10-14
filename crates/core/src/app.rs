@@ -56,6 +56,10 @@ const KEEP_AGAIN: u32 = rules::TICKS_PER_SECOND as u32 * 10;
 /// The followed ape has been out of the race (finished) this long when the
 /// camera pans to one still racing (TRIAGE T34).
 const SPECTATE_AFTER: u32 = rules::TICKS_PER_SECOND as u32 * 2;
+/// A finisher's dance (TRIAGE T53) is watched this long before the camera
+/// pans on, and the camera stays at most this long for one to start.
+const DANCE_SHOWN: u32 = rules::TICKS_PER_SECOND as u32 * 3;
+const FINISH_WATCH_MOST: u32 = rules::TICKS_PER_SECOND as u32 * 12;
 /// An eaten ape (TRIAGE T37): the camera stays for the jaguar, and pans
 /// on a quarter of a second after it has eaten.
 const EATEN_SPECTATE_AFTER: u32 = crate::jaguar::EATEN + rules::TICKS_PER_SECOND as u32 / 4;
@@ -297,6 +301,8 @@ pub struct Play {
     pub focus: Focus,
     /// ticks the followed racer has been out of the race
     out_for: u32,
+    /// ticks of those it has been dancing (TRIAGE T53)
+    danced: u32,
     /// the camera gliding to a new racer
     pan: Option<Pan>,
     /// watching a recording instead of racing (TRIAGE T15)
@@ -1166,6 +1172,7 @@ impl App {
             kept: None,
             focus: Focus::on(local),
             out_for: 0,
+            danced: 0,
             pan: None,
             replay: None,
             ghost: None,
@@ -1843,7 +1850,7 @@ impl App {
                     .map(|m| self.t(&format!("medal.{}", m.key())))
                     .unwrap_or_else(|| self.t("item.none"));
                 out.push(
-                    json!({ "kind": "overlay", "heading": self.t("trial.heading"), "items": [
+                    json!({ "kind": "results", "heading": self.t("trial.heading"), "items": [
                         { "type": "list", "rows": [
                             [self.t("setup.map"), self.map_name(map)],
                             [self.t("results.time"), clock_text(finish)],
@@ -1871,7 +1878,7 @@ impl App {
                     self.quiet_button("menu.replay"),
                     self.button("menu.main"),
                 ]);
-                let kind = if racing { "spectate" } else { "overlay" };
+                let kind = if racing { "spectate" } else { "results" };
                 out.push(
                     json!({ "kind": kind, "heading": self.t("results.heading"), "items": items }),
                 );
@@ -2213,6 +2220,7 @@ fn refocus(p: &mut Play, from: Camera, ticks: u32) {
     p.chase = Chase::new(f.ape.pos, p.chase.yaw, p.race.course.terrain);
     p.prev[p.focus.racer] = f.ape.pos;
     p.out_for = 0;
+    p.danced = 0;
     p.pan = Some(Pan::new(from, ticks));
 }
 
@@ -2223,10 +2231,19 @@ fn spectate(p: &mut Play, alpha: i32) {
     let followed = &p.race.racers[p.focus.racer];
     if focus::racing(followed) {
         p.out_for = 0;
+        p.danced = 0;
         return;
     }
     p.out_for = p.out_for.saturating_add(1);
+    if crate::dance::dancing(&p.race, p.focus.racer) {
+        p.danced = p.danced.saturating_add(1);
+    }
     if p.out_for < spectate_after(followed) {
+        return;
+    }
+    // a finisher's dance is watched first (TRIAGE T53), unless it never
+    // gets to dance
+    if followed.finish.is_some() && p.danced < DANCE_SHOWN && p.out_for < FINISH_WATCH_MOST {
         return;
     }
     let from = play_camera(p, alpha);

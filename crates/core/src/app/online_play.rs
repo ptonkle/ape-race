@@ -617,7 +617,7 @@ impl App {
             items.push(self.quiet_button("menu.replay"));
         }
         items.push(self.button("menu.main"));
-        let kind = if done { "overlay" } else { "spectate" };
+        let kind = if done { "results" } else { "spectate" };
         vec![json!({ "kind": kind, "heading": self.t("results.heading"), "items": items })]
     }
 

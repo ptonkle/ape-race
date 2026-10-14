@@ -18,6 +18,7 @@
 //! every movement (the run cycle, the nose's flop, the tail's sway) comes
 //! from the pose's tick and velocity.
 
+use crate::dance::Dance;
 use crate::fx::{self, cm, deg, int, mul, HALF, ONE, QUARTER, TURN};
 use crate::geom::{facing, v3, Affine, V3};
 use crate::mesh::Mesh;
@@ -43,6 +44,8 @@ pub struct Pose {
     pub scale: i32,
     /// what the ape wears (the map's: skis on the Ski Slope)
     pub gear: Gear,
+    /// past the finish, its kind's dance (TRIAGE T53; `dance::of`)
+    pub dance: Option<Dance>,
 }
 
 /// What an ape wears (2026-10-13): nothing, as on the Jungle and the City,
@@ -78,6 +81,7 @@ impl Pose {
             tick,
             scale: 100,
             gear: Gear::None,
+            dance: None,
         }
     }
 }
@@ -640,13 +644,21 @@ fn hip_of(body: &Frame, m: &Dims, s: i32) -> V3 {
     body.at(s * pct(m.w, 28), pct(m.t, 6), 0)
 }
 
-fn pose_skel(l: &Look, pose: &Pose) -> Skel {
+fn pose_skel(kind: Kind, l: &Look, pose: &Pose) -> Skel {
     let m = dims(l);
     let face = facing(pose.yaw, 0);
     let tick = pose.tick;
     let mut skel = match pose.rope {
         Some(rope) => swinging(&m, pose, face, dir_or(rope, V3::UP)),
-        None if pose.grounded => running(l, &m, pose, face),
+        None if pose.grounded => {
+            let run = running(l, &m, pose, face);
+            match pose.dance {
+                Some(d) if !pose.stunned => {
+                    blend(&run, &dancing(kind, &m, pose, face, d.beat), d.weight)
+                }
+                _ => run,
+            }
+        }
         None => flying(&m, pose, face),
     };
     if pose.stunned && pose.rope.is_none() {
@@ -825,6 +837,300 @@ fn running(l: &Look, m: &Dims, pose: &Pose, face: V3) -> Skel {
 }
 
 // ---------------------------------------------------------------------------
+// Dancing past the finish (TRIAGE T53): one dance per kind
+
+/// One beat of a dance, in ticks (two beats a second).
+const BEAT: u32 = 60;
+
+/// How far through a cycle `beats` beats long `t` ticks are, as an angle.
+fn cycle(t: u32, beats: u32) -> i32 {
+    let n = BEAT * beats;
+    ((t % n) as i64 * TURN as i64 / n as i64) as i32
+}
+
+/// A smooth wave, one round every `beats` beats, shifted by `off`.
+fn wave(t: u32, beats: u32, off: i32) -> i32 {
+    fx::sin(cycle(t, beats) + off)
+}
+
+/// A hump on every beat, 0 on the beat and ONE between: a hop or a bob.
+fn hump(t: u32) -> i32 {
+    fx::sin(cycle(t, 1) / 2)
+}
+
+/// Which beat of the dance `t` is in.
+fn beat_of(t: u32) -> u32 {
+    t / BEAT
+}
+
+/// The whole body's moves this tick, in the dancer's own frame (x to one
+/// side, z the way it faces): what the hands do is in [`dance_hand`].
+#[derive(Default)]
+struct Moves {
+    /// everything up (a hop)
+    lift: i32,
+    /// everything sideways (a step or a sideways hop)
+    slide: i32,
+    /// the hips alone sideways (a sway)
+    sway: i32,
+    /// the hips lowered (bent knees)
+    squat: i32,
+    /// the back's tilt sideways and forward, as parts of 100 up
+    lean: [i32; 2],
+    /// the chest turned from the way the ape faces
+    twist: i32,
+    /// each foot from the middle, sideways
+    stance: i32,
+    /// each foot lifted
+    feet_up: [i32; 2],
+}
+
+fn dance_moves(kind: Kind, m: &Dims, t: u32) -> Moves {
+    let h = hump(t);
+    let beat = beat_of(t);
+    match kind {
+        // the orangutan sways slowly side to side with its long arms up,
+        // rocking onto each foot in turn
+        Kind::Orangutan => {
+            let sw = wave(t, 2, 0);
+            Moves {
+                sway: mul(sw, pct(m.w, 24)),
+                squat: mul(h, pct(m.leg, 14)),
+                lean: [-sw * 14 / ONE, 0],
+                twist: mul(sw, deg(10)),
+                stance: pct(m.w, 40),
+                feet_up: SIDES.map(|s| mul((-s * sw).max(0), pct(m.leg, 18))),
+                ..Moves::default()
+            }
+        }
+        // the gorilla stomps and beats its chest for two beats, then leaps
+        // and flexes for two
+        Kind::Gorilla => {
+            let flex = beat % 4 >= 2;
+            let stomp = |s: i32| {
+                if !flex && beat.is_multiple_of(2) == (s < 0) {
+                    mul(h, pct(m.leg, 40))
+                } else {
+                    0
+                }
+            };
+            let sw = if beat.is_multiple_of(2) { h } else { -h };
+            Moves {
+                lift: if beat % 4 == 2 {
+                    mul(h, pct(m.leg, 70))
+                } else {
+                    0
+                },
+                sway: if flex { 0 } else { mul(sw, pct(m.w, 12)) },
+                squat: pct(m.leg, 16) + if flex { mul(ONE - h, pct(m.leg, 8)) } else { 0 },
+                lean: [
+                    if flex { 0 } else { sw * 8 / ONE },
+                    if flex { -14 } else { 6 },
+                ],
+                stance: pct(m.w, 46),
+                feet_up: [stomp(-1), stomp(1)],
+                ..Moves::default()
+            }
+        }
+        // the chimpanzee does jumping jacks, clapping over its head
+        Kind::Chimpanzee => Moves {
+            lift: mul(h, pct(m.leg, 70)),
+            squat: mul(ONE - h, pct(m.leg, 12)),
+            stance: pct(m.w, 22) + mul(h, pct(m.w, 60)),
+            ..Moves::default()
+        },
+        // the gibbon windmills its long arms, twisting, and every eighth
+        // beat spins right round (`dance_spin`)
+        Kind::Gibbon => Moves {
+            squat: mul(h, pct(m.leg, 12)),
+            twist: mul(wave(t, 2, 0), deg(18)),
+            lean: [wave(t, 2, QUARTER) * 10 / ONE, 0],
+            stance: pct(m.w, 55),
+            ..Moves::default()
+        },
+        // the proboscis monkey's disco: hips swinging, belly out, one hand
+        // on the hip and the other pointing up to the sky and down
+        Kind::Proboscis => {
+            let sw = wave(t, 2, 0);
+            Moves {
+                sway: mul(sw, pct(m.w, 30)),
+                squat: mul(h, pct(m.leg, 12)),
+                lean: [-sw * 10 / ONE, -8],
+                twist: -mul(sw, deg(14)),
+                stance: pct(m.w, 34),
+                ..Moves::default()
+            }
+        }
+        // the lemur hops sideways, four hops one way and four back, like a
+        // dancing sifaka, with its arms up
+        Kind::Lemur => {
+            let n = t % (BEAT * 8);
+            let way = if n < BEAT * 4 { 1 } else { -1 };
+            let travel = if n < BEAT * 4 { n } else { BEAT * 8 - n } as i32;
+            let span = pct(m.leg, 110);
+            Moves {
+                lift: mul(h, pct(m.leg, 80)),
+                slide: (travel - BEAT as i32 * 2) * span / (BEAT as i32 * 2),
+                squat: mul(ONE - h, pct(m.leg, 18)),
+                lean: [way * 16, 0],
+                twist: way * deg(15),
+                stance: pct(m.w, 30),
+                feet_up: [mul(h, pct(m.leg, 20)); 2],
+                ..Moves::default()
+            }
+        }
+    }
+}
+
+/// The whole ape's extra turn this tick, applied to the pose's facing so
+/// the skis turn with it: the gibbon's spin every eighth beat.
+fn dance_spin(kind: Kind, t: u32) -> i32 {
+    match kind {
+        Kind::Gibbon if beat_of(t) % 8 == 7 => cycle(t, 1),
+        _ => 0,
+    }
+}
+
+/// A dancing ape's pose: its facing with the dance's spin, blended in.
+fn dance_turn(kind: Kind, pose: &Pose) -> Pose {
+    match pose.dance {
+        Some(d) if pose.grounded && pose.rope.is_none() => Pose {
+            yaw: fx::wrap(pose.yaw + mul(dance_spin(kind, d.beat), d.weight)),
+            ..*pose
+        },
+        _ => *pose,
+    }
+}
+
+/// Hand `s`'s target and its elbow's hint this tick.
+fn dance_hand(kind: Kind, m: &Dims, body: &Frame, s: i32, t: u32) -> (V3, V3) {
+    let beat = beat_of(t);
+    let sh = shoulder_of(body, m, s);
+    // out from the shoulder along (x outward, y, z), `r` percent of the arm
+    let out = |x: i32, y: i32, z: i32, r: i32| sh.add(body.dir(s * x, y, z).scale(pct(m.arm, r)));
+    // a point on the torso: x outward, percent of its width, height, depth
+    let on = |x: i32, y: i32, z: i32| body.at(s * pct(m.w, x), pct(m.t, y), pct(m.d, z));
+    let hint = |x: i32, y: i32, z: i32| body.dir(s * x, y, z);
+    match kind {
+        Kind::Orangutan => {
+            // both arms up, waving together the way the hips do not and
+            // pumping on every beat ("raise the roof")
+            let sw = wave(t, 2, 0);
+            let reach = 62 + 34 * hump(t) / ONE;
+            (out(30 + s * sw * 45 / ONE, 90, 15, reach), hint(70, 0, -30))
+        }
+        // a flex: fists up by the head, elbows out
+        Kind::Gorilla if beat % 4 >= 2 => (out(80, 55, 20, 45), hint(100, -40, -10)),
+        Kind::Gorilla => {
+            // fists drumming on the chest, one then the other, fast
+            let n = (t % 30) as i32 * TURN / 30;
+            let hit = fx::sin(n + if s > 0 { HALF } else { 0 }).max(0);
+            let wind = on(62, 80, 120);
+            let chest = on(24, 72, 66);
+            (wind.lerp(chest, hit), hint(100, -30, -40))
+        }
+        Kind::Chimpanzee => {
+            // arms down at the sides, then up to clap over the head
+            let down = out(30, -90, 15, 92);
+            let clap = body.at(s * cm(3), pct(m.t, 88) + pct(m.arm, 88), pct(m.d, 40));
+            (down.lerp(clap, hump(t)), hint(100, 10, 0))
+        }
+        Kind::Gibbon => {
+            // windmills, the arms half a turn apart (flattened at the
+            // bottom: the long arms would reach the ground)
+            let a = cycle(t, 2) + if s > 0 { HALF } else { 0 };
+            let x = 40 + 60 * fx::cos(a) / ONE;
+            let y = fx::sin(a).max(-ONE * 3 / 10) * 100 / ONE;
+            (out(x, y, 35, 96), hint(0, -30, -100))
+        }
+        Kind::Proboscis => {
+            // the pointing hand swaps every two bars
+            let pointer = if (beat / 4).is_multiple_of(2) { 1 } else { -1 };
+            if s == pointer {
+                let u = (wave(t, 2, -QUARTER) + ONE) / 2;
+                let low = out(-35, -55, 50, 92);
+                let high = out(55, 85, 25, 98);
+                (low.lerp(high, u), hint(60, -30, -40))
+            } else {
+                (on(70, 28, 20), hint(100, 0, -40))
+            }
+        }
+        Kind::Lemur => {
+            // arms up and out, the hands fluttering
+            let flutter = 18 * wave(t, 1, s * QUARTER) / ONE;
+            (out(60, 70 + flutter, 25, 95), hint(60, -40, -30))
+        }
+    }
+}
+
+/// A dancing ape on the ground, its feet at the anchor's level, facing
+/// `face`; `t` ticks into its kind's dance.
+fn dancing(kind: Kind, m: &Dims, pose: &Pose, face: V3, t: u32) -> Skel {
+    let mv = dance_moves(kind, m, t);
+    let flat = Frame::upright(V3::ZERO, V3::UP, face);
+    let up = flat.dir(mv.lean[0], 100, mv.lean[1]);
+    let chest = flat.dir(fx::sin(mv.twist), 0, fx::cos(mv.twist));
+    let hips = flat.at(mv.slide + mv.sway, pct(m.leg, 92) - mv.squat + mv.lift, 0);
+    let body = Frame::upright(hips, up, chest);
+    let mut hands = [V3::ZERO; 2];
+    let mut arm_hint = [V3::ZERO; 2];
+    let mut feet = [V3::ZERO; 2];
+    for (i, s) in SIDES.into_iter().enumerate() {
+        (hands[i], arm_hint[i]) = dance_hand(kind, m, &body, s, t);
+        feet[i] = flat.at(
+            mv.slide + s * mv.stance,
+            m.leg_w / 2 + mv.lift + mv.feet_up[i],
+            0,
+        );
+    }
+    // the tail out behind (standing up, a drooping one would reach the
+    // ground); the lemur's up, swinging with the hops
+    let tail_back = if kind == Kind::Lemur {
+        flat.dir(-mv.lean[0], 60, -100)
+    } else {
+        flat.dir(0, 30, -100)
+    };
+    Skel {
+        anchor: pose.hands.sub(v3(0, BODY_DROP, 0)),
+        body,
+        head: body,
+        feet_frame: flat,
+        skis: None,
+        hands,
+        feet,
+        arm_hint,
+        leg_hint: SIDES.map(|s| flat.dir(s * 35, 0, 100)),
+        tail_back,
+        tail_curl: V3::UP,
+        tail_bend: deg(9),
+    }
+}
+
+/// A frame part way from `a` to `b`.
+fn mix_frame(a: &Frame, b: &Frame, w: i32) -> Frame {
+    Frame::upright(a.o.lerp(b.o, w), a.y.lerp(b.y, w), a.z.lerp(b.z, w))
+}
+
+/// One skeleton part way to another (an ape slowing into its dance).
+fn blend(a: &Skel, b: &Skel, w: i32) -> Skel {
+    let lerp2 = |p: [V3; 2], q: [V3; 2]| [p[0].lerp(q[0], w), p[1].lerp(q[1], w)];
+    Skel {
+        anchor: a.anchor.lerp(b.anchor, w),
+        body: mix_frame(&a.body, &b.body, w),
+        head: mix_frame(&a.head, &b.head, w),
+        feet_frame: mix_frame(&a.feet_frame, &b.feet_frame, w),
+        skis: None,
+        hands: lerp2(a.hands, b.hands),
+        feet: lerp2(a.feet, b.feet),
+        arm_hint: lerp2(a.arm_hint, b.arm_hint),
+        leg_hint: lerp2(a.leg_hint, b.leg_hint),
+        tail_back: a.tail_back.lerp(b.tail_back, w),
+        tail_curl: a.tail_curl.lerp(b.tail_curl, w),
+        tail_bend: fx::lerp(a.tail_bend, b.tail_bend, w),
+    }
+}
+
+// ---------------------------------------------------------------------------
 // Drawing
 
 /// Draws one ape, in its classic colours.
@@ -836,7 +1142,8 @@ pub fn draw(b: &mut Batch, kind: Kind, pose: &Pose) {
 pub fn draw_in(b: &mut Batch, kind: Kind, palette: u8, pose: &Pose) {
     let l = look_in(kind, palette);
     let m = dims(&l);
-    let mut skel = pose_skel(&l, pose);
+    let pose = &dance_turn(kind, pose);
+    let mut skel = pose_skel(kind, &l, pose);
     if pose.gear == Gear::Ski {
         skel.skis = Some(ski_frames(pose));
     }
@@ -1982,7 +2289,9 @@ mod tests {
             stunned: true,
             ..fly
         };
-        vec![rest, run, swing, fly, fall, dizzy, dizzy_air]
+        // past the finish, mid-hop in its dance (TRIAGE T53)
+        let dance = dance_at(rest, 100);
+        vec![rest, run, swing, fly, fall, dizzy, dizzy_air, dance]
     }
 
     #[test]
@@ -2140,7 +2449,7 @@ mod tests {
                     vel,
                     ..at_rest()
                 };
-                pose_skel(&l, &pose).feet
+                pose_skel(kind, &l, &pose).feet
             };
             let fast = v3(0, 0, int(6));
             // half a stride apart, each foot swings from front to back
@@ -2414,5 +2723,143 @@ mod tests {
         assert_eq!(Gear::on(crate::map::Map::Ski), Gear::Ski);
         assert_eq!(Gear::on(crate::map::Map::Jungle), Gear::None);
         assert_eq!(Gear::on(crate::map::Map::City), Gear::None);
+    }
+
+    /// `pose` dancing, `beat` ticks into its dance.
+    fn dance_at(pose: Pose, beat: u32) -> Pose {
+        Pose {
+            dance: Some(Dance { beat, weight: ONE }),
+            ..pose
+        }
+    }
+
+    /// A kind's dance over eight beats, a sample every eighth of a beat:
+    /// the hands and the hips from the feet, in tenths of its arm.
+    fn dance_path(kind: Kind) -> Vec<[i32; 7]> {
+        let l = look(kind);
+        let m = dims(&l);
+        (0..64)
+            .map(|i| {
+                let pose = dance_turn(kind, &dance_at(at_rest(), i * BEAT / 8));
+                let s = pose_skel(kind, &l, &pose);
+                let t = |v: i32| v * 10 / m.arm;
+                let [a, b] = s.hands;
+                let o = s.body.o;
+                [
+                    t(a.x - o.x),
+                    t(a.y - o.y),
+                    t(a.z - o.z),
+                    t(b.x - o.x),
+                    t(b.y - o.y),
+                    t(b.z - o.z),
+                    t(o.y),
+                ]
+            })
+            .collect()
+    }
+
+    #[test]
+    fn every_kind_dances_its_own_dance_and_the_dance_moves() {
+        // the person (2026-10-12): a unique dance for each of the six
+        let paths: Vec<_> = Kind::ALL.into_iter().map(dance_path).collect();
+        for (i, a) in paths.iter().enumerate() {
+            let k = Kind::ALL[i];
+            // the hands go up and down by a good part of an arm
+            for h in [1, 4] {
+                let ys: Vec<i32> = a.iter().map(|p| p[h]).collect();
+                let range = ys.iter().max().unwrap() - ys.iter().min().unwrap();
+                assert!(range >= 3, "{k:?}: a hand moves {range} tenths of an arm");
+            }
+            for (j, b) in paths.iter().enumerate().skip(i + 1) {
+                let apart: i32 = a
+                    .iter()
+                    .zip(b)
+                    .map(|(p, q)| p.iter().zip(q).map(|(x, y)| (x - y).abs()).sum::<i32>())
+                    .sum();
+                assert!(
+                    apart > 200,
+                    "{k:?} and {:?} dance alike: {apart}",
+                    Kind::ALL[j]
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn a_dancer_lands_on_every_beat_and_never_sinks() {
+        for kind in Kind::ALL {
+            let rest = at_rest();
+            let ground = rest.hands.y - BODY_DROP;
+            for t in (0..BEAT * 8).step_by(5) {
+                let s = drawn(kind, &dance_at(rest, t));
+                let low = s.iter().map(|x| x.at.y).min().unwrap();
+                let lowest = s.iter().min_by_key(|x| x.at.y).unwrap();
+                assert!(
+                    low >= ground - cm(1),
+                    "{kind:?} at {t}: in the ground {} cm, mesh {} colour {:?}",
+                    (low - ground) * 100 / ONE,
+                    lowest.mesh,
+                    lowest.colour
+                );
+                if t % BEAT == 0 {
+                    assert!(
+                        low <= ground + cm(10),
+                        "{kind:?} at {t}: in the air on the beat"
+                    );
+                }
+                for x in &s {
+                    assert!(x.at.dist(rest.hands) <= int(3), "{kind:?} at {t}");
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn on_skis_a_dancer_keeps_its_skis_under_its_feet_turning_with_it() {
+        for kind in Kind::ALL {
+            for t in [0, 20, BEAT * 7 + BEAT / 4, BEAT * 7 + BEAT / 2] {
+                let pose = dance_at(
+                    Pose {
+                        gear: Gear::Ski,
+                        ..at_rest()
+                    },
+                    t,
+                );
+                let b = boards(kind, &pose);
+                assert_eq!(b.len(), 2, "{kind:?} at {t}");
+                let face = facing(dance_turn(kind, &pose).yaw, 0);
+                for (_, along) in &b {
+                    let d = along.norm().dot(face);
+                    assert!(
+                        d > ONE * 9 / 10,
+                        "{kind:?} at {t}: a ski {d} off the facing"
+                    );
+                }
+            }
+        }
+        // the gibbon's spin turns it, skis and all
+        let mid = dance_at(at_rest(), BEAT * 7 + BEAT / 2);
+        let spun = dance_turn(Kind::Gibbon, &mid).yaw;
+        assert!(fx::wrap(spun - mid.yaw).abs() > deg(150));
+    }
+
+    #[test]
+    fn slowing_into_the_dance_blends_from_the_run() {
+        let l = look(Kind::Chimpanzee);
+        let run = pose_skel(Kind::Chimpanzee, &l, &at_rest());
+        let full = pose_skel(Kind::Chimpanzee, &l, &dance_at(at_rest(), 30));
+        let half = Pose {
+            dance: Some(Dance {
+                beat: 30,
+                weight: ONE / 2,
+            }),
+            ..at_rest()
+        };
+        let mid = pose_skel(Kind::Chimpanzee, &l, &half);
+        for i in 0..2 {
+            let want = run.hands[i].lerp(full.hands[i], ONE / 2);
+            assert!(mid.hands[i].dist(want) < cm(1));
+            assert!(mid.hands[i].dist(run.hands[i]) > cm(10));
+        }
     }
 }
