@@ -104,6 +104,9 @@ const ROTOR_UP: i32 = int(3);
 /// (0 the left branch of a fork, or the middle of the run).
 const HELICOPTERS: [i32; 2] = [int(1220), int(1450)];
 
+/// Rows of item crates, metres along.
+const CRATES: [i32; 7] = [150, 490, 740, 990, 1225, 1480, 1720];
+
 /// The Ski Slope course.
 pub fn ski() -> Course {
     ski_seeded(SEED)
@@ -166,16 +169,15 @@ impl Build {
         i
     }
 
-    /// The conifer nearest `p` (flat) within 4 m, or a new one there tall
-    /// enough to carry a branch at `branch_y`.
-    fn tree(&mut self, c: &Course, p: V3, branch_y: i32) -> usize {
+    /// The conifer nearest `p` (flat) within 4 m (and within a branch's
+    /// reach of `serves`, if given), or a new one there tall enough to carry
+    /// a branch at `branch_y`.
+    fn tree(&mut self, c: &Course, p: V3, branch_y: i32, serves: Option<V3>) -> usize {
         let foot = on_ground(c, p);
-        if let Some(i) = self
-            .lay
-            .trees
-            .iter()
-            .position(|t| t.at.flat().dist(p.flat()) < int(4))
-        {
+        if let Some(i) = self.lay.trees.iter().position(|t| {
+            t.at.flat().dist(p.flat()) < int(4)
+                && serves.is_none_or(|s| t.at.flat().dist(s.flat()) <= BRANCH_MAX)
+        }) {
             let need = branch_y - self.lay.trees[i].at.y + int(6);
             let t = &mut self.lay.trees[i];
             t.height = t.height.max(need);
@@ -258,26 +260,22 @@ impl Build {
                 ));
             }
         }
-        // the lane it is in, and its nearer edge a tree may stand by
-        let lanes = lanes_at(c, along);
-        let &(m, h, lo_tree, hi_tree) = lanes
-            .iter()
-            .min_by_key(|&&(m, h, _, _)| ((off - m).abs() - h).max(0))?;
-        let sign = match (lo_tree, hi_tree) {
-            (true, true) if off >= m => 1,
-            (true, true) => -1,
-            (true, false) => -1,
-            (false, true) => 1,
-            (false, false) => return None,
-        };
-        let to_edge = h - (off - m) * sign;
-        if !(0..=BRANCH_MAX - TRUNK_OUT).contains(&to_edge) {
-            return None;
+        // the nearest lane edge a tree may stand by, of a lane it is over
+        let mut edge: Option<(i32, i32, i32)> = None;
+        for (m, h, lo_tree, hi_tree) in lanes_at(c, along) {
+            for (sign, ok) in [(-1, lo_tree), (1, hi_tree)] {
+                let to_edge = h - (off - m) * sign;
+                let fits = ok && (0..=BRANCH_MAX - TRUNK_OUT).contains(&to_edge);
+                if fits && edge.is_none_or(|(d, _, _)| to_edge < d) {
+                    edge = Some((to_edge, m + sign * h, sign));
+                }
+            }
         }
-        let trunk = pt(c, along, m + sign * (h + TRUNK_OUT));
+        let (_, at_edge, sign) = edge?;
+        let trunk = pt(c, along, at_edge + sign * TRUNK_OUT);
         let g = c.terrain(p.x, p.z);
         let anchor = v3(p.x, g + anchor_h, p.z);
-        let t = self.tree(c, trunk, anchor.y);
+        let t = self.tree(c, trunk, anchor.y, Some(anchor));
         let foot = self.lay.trees[t].at;
         let from = v3(foot.x, anchor.y + int(1), foot.z);
         Some(self.hang(
@@ -309,8 +307,8 @@ impl Build {
         let hi = lanes.last().map_or(c.half_width, |&(m, h, _, _)| m + h);
         let a = pt(c, along, lo - TRUNK_OUT);
         let b = pt(c, along, hi + TRUNK_OUT);
-        let ta = self.tree(c, a, anchor_y);
-        let tb = self.tree(c, b, anchor_y);
+        let ta = self.tree(c, a, anchor_y, None);
+        let tb = self.tree(c, b, anchor_y, None);
         let (fa, fb) = (self.lay.trees[ta].at, self.lay.trees[tb].at);
         let from = v3(fa.x, anchor_y + int(1), fa.z);
         let to = v3(fb.x, anchor_y + int(1), fb.z);
@@ -488,21 +486,26 @@ pub fn ski_seeded(seed: u64) -> Course {
             } else {
                 // a fork: one or two vines in each branch
                 // (while the branches part, one each, out by its fence)
-                for (k, &(m, h, lo_tree, hi_tree)) in lanes.iter().enumerate() {
+                // (the lanes are taken where each vine hangs: they move)
+                for (k, &(m, _, _, _)) in lanes.iter().enumerate() {
                     if k == 0 && heli.is_some() {
                         here.push(b.helicopter(&mut c, int(s), m));
                         continue;
                     }
+                    let along = int(s + b.dice.range(-3, 3));
                     let two = b.dice.below(2) == 0;
                     let first = if b.dice.below(2) == 0 { -1 } else { 1 };
+                    let here_lanes = lanes_at(&c, along);
+                    let (m, h, lo_tree, hi_tree) = here_lanes[k.min(here_lanes.len() - 1)];
+                    // (9 m in from an edge, for the branch from its tree)
+                    let inset = (h - int(9)).max(int(4));
                     let spots = match (lo_tree, hi_tree) {
-                        (true, true) if two => vec![m - int(4), m + int(4)],
-                        (true, true) => vec![m + first * int(4)],
+                        (true, true) if two => vec![m - inset, m + inset],
+                        (true, true) => vec![m + first * inset],
                         (true, false) => vec![m - h + int(9)],
                         _ => vec![m + h - int(9)],
                     };
                     for spot in spots {
-                        let along = int(s + b.dice.range(-3, 3));
                         let off = spot + int(b.dice.range(-1, 1));
                         let anchor_h = int(b.dice.range(38, 50));
                         let bottom = anchor_h - int(b.dice.range(23, 31));
@@ -524,11 +527,8 @@ pub fn ski_seeded(seed: u64) -> Course {
                     _ if b.dice.below(2) == 0 => -1,
                     _ => 1,
                 };
-                let reach = if lanes.len() == 1 || !(lo_tree && hi_tree) {
-                    h - int(b.dice.range(9, 12))
-                } else {
-                    int(b.dice.range(3, 5))
-                };
+                // (9–12 m in from the edge its tree stands by)
+                let reach = (h - int(b.dice.range(9, 12))).max(0);
                 let length = int(24) + cm(b.dice.range(0, 40));
                 b.vine(
                     &mut c,
@@ -546,9 +546,9 @@ pub fn ski_seeded(seed: u64) -> Course {
 
     banana_arcs(&mut c, &stations);
 
-    // item crates: rows across the run, in both branches of a fork
-    let mut at = 150;
-    while at < len_m - 60 {
+    // item crates: rows across the run about every 240 m, one in the
+    // middle of each fork (in both branches)
+    for at in CRATES {
         let si = int(at);
         let offs: Vec<i32> = match lanes_at(&c, si)[..] {
             [(m, _, _, _)] => vec![m - int(9), m, m + int(9)],
@@ -562,7 +562,6 @@ pub fn ski_seeded(seed: u64) -> Course {
             let gy = c.terrain(p.x, p.z);
             c.crates.push(v3(p.x, gy + int(b.dice.range(16, 24)), p.z));
         }
-        at += 240;
     }
 
     island_trees(&c, &mut b);
@@ -586,7 +585,7 @@ fn island_trees(c: &Course, b: &mut Build) {
                     let clear = marks.iter().all(|m| m.at.flat().dist(p) > int(16));
                     if clear {
                         let y = c.terrain(p.x, p.z) + int(b.dice.range(10, 26));
-                        b.tree(c, p, y);
+                        b.tree(c, p, y, None);
                     }
                 }
             }
@@ -625,3 +624,6 @@ fn landmarks(c: &Course) -> Vec<Landmark> {
         mark(Village, c.length + int(150), 0),
     ]
 }
+
+#[cfg(test)]
+mod tests;

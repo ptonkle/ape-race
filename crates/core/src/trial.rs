@@ -74,14 +74,31 @@ pub const CITY: [u32; 4] = [
     secs(CITY_AUTHOR),
 ];
 
+/// The Ski Slope's target times in hundredths of a second (2026-10-13, set
+/// as the City's were: King Kong alone as a Time Trial runs finishes in
+/// 53.4–75.2 s by kind, Gibbon best; `ski_time_trial_report` in
+/// `tests/ski_ai.rs`). Author: just under the best kind; then the
+/// Jungle's steps above it (7, 10, 15 s).
+pub const SKI_AUTHOR: u32 = 5_300;
+pub const SKI_GOLD: u32 = 6_000;
+pub const SKI_SILVER: u32 = 7_000;
+pub const SKI_BRONZE: u32 = 8_500;
+
+/// The Ski Slope's target times, in race ticks, slowest first.
+pub const SKI: [u32; 4] = [
+    secs(SKI_BRONZE),
+    secs(SKI_SILVER),
+    secs(SKI_GOLD),
+    secs(SKI_AUTHOR),
+];
+
 /// A map's target times, in race ticks, slowest first (Bronze, Silver,
 /// Gold, Author).
 pub fn medals(map: Map) -> [u32; 4] {
     match map {
         Map::Jungle => JUNGLE,
         Map::City => CITY,
-        // stand-in until the Ski Slope's medals are measured
-        Map::Ski => JUNGLE,
+        Map::Ski => SKI,
     }
 }
 

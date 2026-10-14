@@ -502,7 +502,9 @@ impl Ape {
         let pull = down.scale(div(GRAVITY, ONE + mul(grade, grade)));
         let mut v = self.vel.flat();
         let speed = v.len();
-        if speed < SKI_SKATE && wish != V3::ZERO {
+        // (a wish against the motion brakes first, down to a near stop)
+        let against = speed > cm(50) && wish.dot(v) < -mul(speed, ONE / 2);
+        if speed < SKI_SKATE && wish != V3::ZERO && !against {
             // skating off from a stop, as running
             let target = wish.scale(SKI_SKATE);
             let diff = target.sub(v);
@@ -662,5 +664,7 @@ pub fn fall_ticks(h: i32) -> i32 {
     mul(t, crate::fx::int(TICKS_PER_SECOND))
 }
 
+#[cfg(test)]
+mod ski_tests;
 #[cfg(test)]
 mod tests;
