@@ -1158,6 +1158,9 @@ pub struct Frame<'a> {
     pub vivid: bool,
     /// a glowing aura round each racer in its slot's colour (TRIAGE T59)
     pub aura: bool,
+    /// what the racers wear instead of the map's gear (a tile's `gear=`
+    /// preview; `None`: the map's, `models::Gear::on`)
+    pub gear: Option<models::Gear>,
 }
 
 /// How a vine is drawn: its colour, glow and width.
@@ -1318,7 +1321,8 @@ pub fn dynamic(f: &Frame) -> (Batch, Batch) {
             }
         }
         let at = f.apes[k];
-        let pose = racer_pose(race, k, at, f.tick + k as u32 * 53);
+        let mut pose = racer_pose(race, k, at, f.tick + k as u32 * 53);
+        pose.gear = f.gear.unwrap_or(pose.gear);
         models::draw_in(&mut b, r.ape.kind, r.palette, &pose);
         if f.aura {
             let strength = if f.local == Some(k) {
@@ -2045,6 +2049,7 @@ mod tests {
             chains: &[],
             vivid: false,
             aura: false,
+            gear: None,
         })
         .1;
         let (v, _) = b.finish(crate::render::DYNAMIC_BUFFER);
@@ -2094,6 +2099,7 @@ mod tests {
             chains: &[],
             vivid,
             aura: false,
+            gear: None,
         })
         .0
     }

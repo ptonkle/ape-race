@@ -59,6 +59,8 @@ Given by the person on 2026-10-13, to be built in a later session (after their u
 - **The hidden route:** it should be clearly faster but hard. Check the AI: Sloth shouldn't take it, King Kong maybe sometimes.
 - **Build method:** follow MAPS.md (a skeleton with contract types first, then course, art and gear agents in parallel). Budget: the Ski Slope used a lot of the person's session usage, so start fresh.
 
+**Costumes built (2026-10-13):** branch `sector-gear` has `models::Gear::Space` (flight jacket with team scarf, badge and patches, headset, one metal arm, aviator sunglasses; SECOND-ORDER SG1). Switch them on for the map with one line in `models::Gear::on`: `crate::map::Map::Sector => Gear::Space,`. Preview on any map with `?tile=map=ski,gear=space,view=orbit,...`.
+
 ## The models, built ahead (2026-10-13, branch `sector-models`)
 
 Stand-alone builders in `crates/core/src/spacecraft.rs`; no map draws them yet. Each is built in its own metres (+z forward, +y up, about its middle) and placed by a frame: `spacecraft::pose(at, yaw, pitch, roll, scale)`. Animation comes from the tick alone. Glowing parts (engines, eyes, lasers, the sun, the bananas' core) use glow 2 ("sky" in `scene.frag`: full colour, no fog), so they read far away; the planet uses the far-backdrop range (lit, unfogged). `spacecraft::look()` is a starting `Look`: black-blue sky, the light pointing toward a sun below (`light_dir.y` −0.92), its orange bounce lighting down-facing sides.
