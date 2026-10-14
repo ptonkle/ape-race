@@ -1676,6 +1676,49 @@ mod tests {
         assert!(l.fog.iter().all(|v| *v < ONE / 8));
     }
 
+    /// Every instance's middle in a batch.
+    fn middles(b: Batch) -> Vec<V3> {
+        let (v, _) = b.finish(crate::render::DYNAMIC_BUFFER);
+        v.chunks(crate::render::INSTANCE_VALUES)
+            .map(|i| v3(i[3], i[7], i[11]))
+            .collect()
+    }
+
+    #[test]
+    fn a_tether_is_drawn_the_way_its_vine_hangs() {
+        // the person (2026-10-13): vines sideways, up from below, at angles
+        let mut c = Map::Sector.course();
+        let i = c.vines.len() / 2;
+        for dir in [v3(ONE, 0, 0), v3(0, ONE, 0), v3(-ONE, ONE, 0).norm()] {
+            c.sector.as_mut().unwrap().hangs[i] = dir;
+            let a = c.anchor(i, 0);
+            let len = c.vines[i].length;
+            let (vines, _) = scene::flyover_dynamic(&c, 0, false, a);
+            let far = a.add(dir.scale(len * 3 / 4));
+            let near = middles(vines).into_iter().map(|m| m.dist(far)).min().unwrap();
+            assert!(near < int(1), "{dir:?}: {} m off", near / ONE);
+        }
+    }
+
+    #[test]
+    fn the_lobby_ape_stands_on_its_deck_with_the_mothership_behind() {
+        let c = Map::Sector.course();
+        let s = c.sector.as_ref().unwrap();
+        let (feet, _, cam) = preview(&c);
+        assert_eq!(feet, s.lobby.0.sub(v3(0, crate::rules::BODY_DROP, 0)));
+        // the menus' preview uses it (`scene::preview`)
+        assert_eq!(scene::preview(&c).feet, feet);
+        // the mothership is in the lobby's backdrop, beyond the ape
+        let mut b = Batch::new();
+        lobby_backdrop(&mut b, &c, s, cam.eye, 0);
+        let ahead = cam.fwd.flat().norm();
+        let beyond = middles(b)
+            .into_iter()
+            .filter(|m| m.sub(feet).dot(ahead) > int(150) && m.dist(feet) < int(400))
+            .count();
+        assert!(beyond > 40, "{beyond}");
+    }
+
     #[test]
     fn the_backdrop_stays_inside_the_far_plane() {
         let c = Map::Sector.course();
