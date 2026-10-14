@@ -99,6 +99,13 @@ pub struct Look {
     pub light_dir: V3,
     pub light: Rgb,
     pub ground: Rgb,
+    /// an edge light (Sector Ape, lit from below: SECOND-ORDER SM4), added
+    /// where a surface turns away from the eye, so a hull's top reads
+    /// against black space; black (none) on every other map
+    pub rim: Rgb,
+    /// the far plane (`render::FAR` on every map but Sector Ape, whose
+    /// clear space shows its black hole from the start)
+    pub far: i32,
 }
 
 /// The look of a map.
@@ -112,10 +119,12 @@ pub fn look(map: Map) -> Look {
             light_dir: v3(cm(55), cm(80), cm(35)).norm(),
             light: rgb(255, 244, 214),
             ground: rgb(70, 110, 50),
+            rim: [0; 3],
+            far: crate::render::FAR,
         },
         Map::City => crate::cityscape::look(),
         Map::Ski => crate::skiscape::look(),
-        Map::Sector => crate::spacecraft::look(),
+        Map::Sector => crate::sectorscape::look(),
     }
 }
 
@@ -127,7 +136,8 @@ pub fn look_of(c: &Course) -> Look {
         Map::Jungle => look(Map::Jungle),
         // the sun stands behind the skiers, from the hill's fall line
         Map::Ski => crate::skiscape::look_for(c),
-        Map::Sector => crate::spacecraft::look(),
+        // the sun stands below, ahead and to the left of the course
+        Map::Sector => crate::sectorscape::look_for(c),
     }
 }
 
@@ -277,6 +287,9 @@ pub struct Scenery {
     pub values: Vec<i32>,
     pub terrain: Vec<i32>,
     pub chunks: Vec<Chunk>,
+    /// how far from the eye a chunk is drawn (0: `DRAW_DISTANCE`; Sector
+    /// Ape's clear space sees further, `sectorscape::REACH`)
+    pub reach: i32,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -292,8 +305,13 @@ impl Scenery {
     /// The draws of every chunk near `eye`.
     pub fn draws_near(&self, eye: V3) -> Vec<u32> {
         let mut out = Vec::new();
+        let reach = if self.reach > 0 {
+            self.reach
+        } else {
+            DRAW_DISTANCE
+        };
         for ch in &self.chunks {
-            if ch.centre.flat().sub(eye.flat()).len() <= DRAW_DISTANCE {
+            if ch.centre.flat().sub(eye.flat()).len() <= reach {
                 out.extend_from_slice(&ch.draws);
             }
         }
@@ -311,6 +329,7 @@ impl Scenery {
                 centre: V3::ZERO,
                 draws,
             }],
+            reach: 0,
         }
     }
 }
@@ -334,6 +353,9 @@ pub fn scenery(c: &Course) -> Scenery {
     }
     if let Some(ski) = &c.ski {
         return crate::skiscape::scenery(c, ski);
+    }
+    if let Some(s) = &c.sector {
+        return crate::sectorscape::scenery(c, s);
     }
     let n = chunk_count(c);
     let mut batches: Vec<Batch> = (0..n).map(|_| Batch::new()).collect();
@@ -407,6 +429,7 @@ pub(crate) fn assemble(
         values,
         terrain,
         chunks,
+        reach: 0,
     }
 }
 
@@ -1163,6 +1186,9 @@ pub struct Frame<'a> {
     /// what the racers wear instead of the map's gear (a tile's `gear=`
     /// preview; `None`: the map's, `models::Gear::on`)
     pub gear: Option<models::Gear>,
+    /// Sector Ape: flashes of light where something just happened (an ape
+    /// put back on a deck, the door shutting), and the race tick of each
+    pub flashes: &'a [crate::sectorscape::Flash],
 }
 
 /// How a vine is drawn: its colour, glow and width.
@@ -1245,6 +1271,23 @@ pub fn vine_look_on(map: Map, in_reach: bool, vivid: bool, tick: u32) -> VineLoo
             halo: look.width * crate::skiscape::ROPE_HALO,
             ..look
         },
+        // Sector Ape's energy tethers: a bright mint against black space,
+        // with a wide soft glow
+        (Map::Sector, false, false) => VineLook {
+            colour: crate::sectorscape::TETHER,
+            glow: ONE * 3 / 5,
+            halo: look.width * crate::sectorscape::TETHER_HALO,
+            ..look
+        },
+        (Map::Sector, false, true) => VineLook {
+            colour: crate::sectorscape::TETHER_VIVID,
+            halo: look.width * crate::sectorscape::TETHER_HALO,
+            ..look
+        },
+        (Map::Sector, true, _) => VineLook {
+            halo: look.width * crate::sectorscape::TETHER_HALO,
+            ..look
+        },
         _ => look,
     }
 }
@@ -1276,9 +1319,15 @@ pub fn dynamic(f: &Frame) -> (Batch, Batch) {
     let map = Map::of(c);
     // the City's wires carry no leaves
     let leafy = map == Map::Jungle;
+    // Sector Ape's tethers are seen from further, across clear space
+    let near = if map == Map::Sector {
+        crate::sectorscape::TETHER_REACH
+    } else {
+        int(230)
+    };
     for i in 0..c.vines.len() {
         let a = c.anchor(i, tick);
-        if a.flat().sub(eye.flat()).len() > int(230) {
+        if a.flat().sub(eye.flat()).len() > near {
             continue;
         }
         let look = vine_look_on(map, Some(i) == reach, f.vivid, f.tick);
@@ -1286,7 +1335,32 @@ pub fn dynamic(f: &Frame) -> (Batch, Batch) {
         let t = f.tick + i as u32 * 37;
         match f.chains.get(i) {
             Some(chain) => chain_vine(&mut vines, chain, held[i], look, t, leafy),
-            None => vine(&mut vines, a, c.vines[i].length, held[i], look, t, leafy),
+            None => vine_along(
+                &mut vines,
+                a,
+                c.hang(i),
+                c.vines[i].length,
+                held[i],
+                look,
+                t,
+                leafy,
+            ),
+        }
+        // pulses of light running down each tether, and its emitter
+        if map == Map::Sector {
+            let pts = vine_points(f, i, held[i]);
+            crate::sectorscape::tether(&mut vines, &pts, c.hang(i), look, t);
+            // the switch vine: hazard bands and a beacon, red while the
+            // door it shuts is shut
+            if let Some(s) = c.sector.as_deref().filter(|s| s.door.switch == i) {
+                crate::sectorscape::switch_marker(
+                    &mut vines,
+                    &pts,
+                    c.hang(i),
+                    s.door.shut(tick),
+                    t,
+                );
+            }
         }
     }
     item_flowers(&mut vines, f, &held);
@@ -1299,10 +1373,19 @@ pub fn dynamic(f: &Frame) -> (Batch, Batch) {
     if let Some(ski) = &c.ski {
         crate::skiscape::dynamic(&mut b, c, ski, eye, f.tick, tick);
     }
+    if let Some(s) = &c.sector {
+        crate::sectorscape::dynamic(&mut b, c, s, eye, f.tick, tick);
+        crate::sectorscape::flashes(&mut b, f.flashes, tick, f.tick);
+    }
     for (k, r) in race.racers.iter().enumerate() {
         // Floor is Lava (TRIAGE T37): the jaguar, and the ape until the bite
         if let Some(e) = r.eaten {
-            if let Some(j) = e.jaguar(c, tick, 0) {
+            // Sector Ape's jaguar pops in and out of thin air: a flash of
+            // sparkles, and no shadow (there is no floor)
+            if c.sector.is_some() {
+                crate::sectorscape::jaguar_pop(&mut b, &e, c, tick, f.tick);
+            }
+            if let Some(j) = e.jaguar(c, tick, 0).filter(|_| c.sector.is_none()) {
                 models::jaguar(&mut b, &j, RACE_SCALE, &models::BigCat::on(Map::of(c)));
                 let ground = c.floor(j.feet.x, j.feet.z);
                 let high = (j.feet.y - ground).clamp(0, int(4));
@@ -1325,7 +1408,20 @@ pub fn dynamic(f: &Frame) -> (Batch, Batch) {
         let at = f.apes[k];
         let mut pose = racer_pose(race, k, at, f.tick + k as u32 * 53);
         pose.gear = f.gear.unwrap_or(pose.gear);
-        models::draw_in(&mut b, r.ape.kind, r.palette, &pose);
+        // Sector Ape: a finished ape drawn into the black hole stretches
+        // toward it
+        match c
+            .sector
+            .as_deref()
+            .and_then(|s| crate::sectorscape::stretch(s, r, at))
+        {
+            Some(warp) => {
+                let mut own = Batch::new();
+                models::draw_in(&mut own, r.ape.kind, r.palette, &pose);
+                crate::sectorscape::warped(&mut b, own, &warp, at, f.tick + k as u32 * 31);
+            }
+            None => models::draw_in(&mut b, r.ape.kind, r.palette, &pose),
+        }
         if f.aura {
             let strength = if f.local == Some(k) {
                 AURA_OWN
@@ -1337,6 +1433,10 @@ pub fn dynamic(f: &Frame) -> (Batch, Batch) {
         // a soft shadow on the ground, so height reads (as big as the
         // drawn ape)
         let support = c.support(at);
+        // in space, a shadow only on a deck
+        if c.sector.is_some() && support <= c.floor(at.x, at.z) {
+            continue;
+        }
         let feet = at.y - BODY_DROP;
         let high = (feet - support).clamp(0, int(30));
         let size = (cm(110) - high * 2 / 60).max(cm(60)) * RACE_SCALE / 100;
@@ -1365,7 +1465,7 @@ fn vine_points(f: &Frame, i: usize, hands: Option<V3>) -> Vec<V3> {
     match (f.chains.get(i), hands) {
         (Some(chain), _) => chain.pts.to_vec(),
         (None, Some(h)) => vec![a, h],
-        (None, None) => vec![a, a.sub(v3(0, c.vines[i].length, 0))],
+        (None, None) => vec![a, a.add(c.hang(i).scale(c.vines[i].length))],
     }
 }
 
@@ -1417,6 +1517,17 @@ fn item_flowers(b: &mut Batch, f: &Frame, held: &[Option<V3>]) {
                         0,
                     );
                 }
+            }
+            continue;
+        }
+        // on Sector Ape, violet crystals turning beside the tether, and
+        // dull grey ones while its item is taken
+        if Map::of(&race.course) == Map::Sector {
+            for (j, t) in FLOWER_AT.into_iter().enumerate() {
+                let side = if j % 2 == 0 { cm(45) } else { -cm(45) };
+                let at = along(&pts, t).add(right.scale(side));
+                let spin = f.tick as i32 * 500 + (k * 3 + j) as i32 * 9000;
+                crate::sectorscape::crystal(b, at, spin, open);
             }
             continue;
         }
@@ -1636,7 +1747,39 @@ fn catch_up_look(
 
 /// A vine from its anchor: straight down and swaying a little; or, when
 /// held, taut from the anchor to the hands with the rest dangling below.
+#[cfg(test)]
 fn vine(b: &mut Batch, a: V3, length: i32, hands: Option<V3>, look: VineLook, t: u32, leafy: bool) {
+    vine_along(b, a, crate::sector::DOWN, length, hands, look, t, leafy);
+}
+
+/// Two unit directions across `dir` (for a vine's sway): for straight down,
+/// x and z, as the vines always swayed.
+fn across(dir: V3) -> (V3, V3) {
+    if dir == crate::sector::DOWN {
+        return (v3(ONE, 0, 0), v3(0, 0, ONE));
+    }
+    let side = if dir.y.abs() > ONE * 9 / 10 {
+        v3(ONE, 0, 0)
+    } else {
+        V3::UP
+    };
+    let x = dir.cross(side).norm();
+    (x, x.cross(dir).norm())
+}
+
+/// A vine hanging from its anchor along `dir` (its body's "gravity",
+/// `Course::hang`: straight down on every map but Sector Ape).
+#[allow(clippy::too_many_arguments)]
+fn vine_along(
+    b: &mut Batch,
+    a: V3,
+    dir: V3,
+    length: i32,
+    hands: Option<V3>,
+    look: VineLook,
+    t: u32,
+    leafy: bool,
+) {
     let VineLook {
         colour,
         glow,
@@ -1650,7 +1793,7 @@ fn vine(b: &mut Batch, a: V3, length: i32, hands: Option<V3>, look: VineLook, t:
             glow_round(b, a, h, halo, colour);
             let rest = length - rope;
             if rest > cm(30) {
-                let end = h.sub(v3(0, rest, 0));
+                let end = h.add(dir.scale(rest));
                 b.push(Mesh::Cyl, &rod(h, end, width), colour, glow);
                 glow_round(b, h, end, halo, colour);
             }
@@ -1662,8 +1805,12 @@ fn vine(b: &mut Batch, a: V3, length: i32, hands: Option<V3>, look: VineLook, t:
             // sway: the bottom drifts a little, in two directions
             let s = sin((t as i32) * 90);
             let s2 = sin((t as i32) * 70 + 9000);
-            let bottom = a.add(v3(mul(s, cm(50)), -length, mul(s2, cm(40))));
-            let mid = a.lerp(bottom, ONE / 2).add(v3(mul(s, cm(15)), 0, 0));
+            let (x, z) = across(dir);
+            let bottom = a
+                .add(dir.scale(length))
+                .add(x.scale(mul(s, cm(50))))
+                .add(z.scale(mul(s2, cm(40))));
+            let mid = a.lerp(bottom, ONE / 2).add(x.scale(mul(s, cm(15))));
             b.push(Mesh::Cyl, &rod(a, mid, width), colour, glow);
             b.push(Mesh::Cyl, &rod(mid, bottom, width), colour, glow);
             glow_round(b, a, mid, halo, colour);
@@ -1782,15 +1929,18 @@ fn speed_lines(b: &mut Batch, f: &Frame) {
     let Some(i) = f.local else { return };
     let ape = &f.race.racers[i].ape;
     let speed = ape.speed();
-    let from = int(24);
+    // Sector Ape runs about twice as fast: its lines start later, come
+    // thicker and stretch longer
+    let pace = if f.race.course.sector.is_some() { 2 } else { 1 };
+    let from = int(24) * pace;
     if speed < from {
         return;
     }
-    let k = fx::div((speed - from).min(int(20)), int(20));
+    let k = fx::div((speed - from).min(int(20) * pace), int(20) * pace);
     let dir = ape.vel.norm();
     let right = right_of(f.cam.fwd);
     let up = right.cross(f.cam.fwd).norm();
-    let count = 4 + mul(k, int(10)) / ONE;
+    let count = 4 + mul(k, int(10) * pace) / ONE;
     let mut d = fx::Dice(f.tick as u64 / 3);
     for _ in 0..count {
         let x = int(d.range(-6, 6));
@@ -1805,7 +1955,7 @@ fn speed_lines(b: &mut Batch, f: &Frame) {
         if x.abs() < int(2) && y.abs() < int(2) {
             continue;
         }
-        let len = cm(150) + mul(k, int(3));
+        let len = cm(150) + mul(k, int(3) * pace);
         b.push(
             Mesh::Cube,
             &rod(p, p.sub(dir.scale(len)), cm(3)),
@@ -1879,7 +2029,9 @@ pub fn preview(c: &Course) -> Preview {
     let (feet, yaw, camera) = match Map::of(c) {
         Map::City => crate::cityscape::preview(c),
         Map::Ski => crate::skiscape::preview(c),
-        Map::Jungle | Map::Sector => {
+        // a ship's deck, the sun's glow below and the mothership behind
+        Map::Sector => crate::sectorscape::preview(c),
+        Map::Jungle => {
             let pl = c.platforms.first();
             let feet = pl.map_or(c.point(int(4)), |p| {
                 v3(p.centre.x, p.top, p.centre.z).add(p.fwd.scale(p.half_len / 2))
@@ -1904,6 +2056,10 @@ pub fn preview(c: &Course) -> Preview {
 /// The title's flyover: a slow glide down the course, starting `from`
 /// metres along. Over the City a little higher, to see over the cars.
 pub fn flyover_camera(c: &Course, ticks: u32, from: i32) -> Camera {
+    // through space, weaving between the vines (not a glide over ground)
+    if c.sector.is_some() {
+        return crate::sectorscape::flyover_camera(c, ticks, from);
+    }
     let lap = (c.length - int(100)).max(int(1)) as i64;
     let s = ((ticks as i64 * int(6) as i64 / crate::rules::TICKS_PER_SECOND as i64 + from as i64)
         % lap) as i32
@@ -1940,10 +2096,14 @@ pub fn flyover_camera(c: &Course, ticks: u32, from: i32) -> Camera {
 }
 
 /// The sky round the eye for a map that draws its own (the Ski Slope's
-/// dome and mountains), for the menus' ape preview.
-pub fn backdrop(b: &mut Batch, c: &Course, eye: V3) {
+/// dome and mountains, Sector Ape's sun, planet, stars and haze, and the
+/// mothership behind its lobby deck), for the menus' ape preview.
+pub fn backdrop(b: &mut Batch, c: &Course, eye: V3, tick: u32) {
     if c.ski.is_some() {
         crate::skiscape::backdrop(b, c, eye);
+    }
+    if let Some(s) = &c.sector {
+        crate::sectorscape::lobby_backdrop(b, c, s, eye, tick);
     }
 }
 
@@ -1957,15 +2117,23 @@ pub fn flyover_dynamic(c: &Course, tick: u32, vivid: bool, eye: V3) -> (Batch, B
     for i in 0..c.vines.len() {
         let a = c.anchor(i, tick);
         let t = tick + i as u32 * 37;
-        vine(
+        vine_along(
             &mut b,
             a,
+            c.hang(i),
             c.vines[i].length,
             None,
             look,
             t,
             map == Map::Jungle,
         );
+        if map == Map::Sector {
+            let end = a.add(c.hang(i).scale(c.vines[i].length));
+            crate::sectorscape::tether(&mut b, &[a, end], c.hang(i), look, t);
+            if c.sector.as_deref().is_some_and(|s| s.door.switch == i) {
+                crate::sectorscape::switch_marker(&mut b, &[a, end], c.hang(i), false, t);
+            }
+        }
     }
     // the City's helicopters and crane hooks, near the flyover's eye
     if let Some(city) = &c.city {
@@ -1975,6 +2143,9 @@ pub fn flyover_dynamic(c: &Course, tick: u32, vivid: bool, eye: V3) -> (Batch, B
     }
     if let Some(ski) = &c.ski {
         crate::skiscape::dynamic(&mut rest, c, ski, eye, tick, tick);
+    }
+    if let Some(s) = &c.sector {
+        crate::sectorscape::dynamic(&mut rest, c, s, eye, tick, tick);
     }
     (b, rest)
 }
@@ -2053,6 +2224,7 @@ mod tests {
             vivid: false,
             aura: false,
             gear: None,
+            flashes: &[],
         })
         .1;
         let (v, _) = b.finish(crate::render::DYNAMIC_BUFFER);
@@ -2103,6 +2275,7 @@ mod tests {
             vivid,
             aura: false,
             gear: None,
+            flashes: &[],
         })
         .0
     }
@@ -2268,6 +2441,8 @@ mod tests {
                 light_dir: v3(cm(55), cm(80), cm(35)).norm(),
                 light: rgb(255, 244, 214),
                 ground: rgb(70, 110, 50),
+                rim: [0; 3],
+                far: crate::render::FAR,
             }
         );
         // the person (2026-10-12): an orange sunset, not purple. The City's

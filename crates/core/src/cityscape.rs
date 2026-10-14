@@ -31,6 +31,8 @@ pub fn look() -> Look {
         light_dir: v3(-cm(62), cm(30), cm(72)).norm(),
         light: rgb(255, 172, 100),
         ground: rgb(84, 62, 52),
+        rim: [0; 3],
+        far: crate::render::FAR,
     }
 }
 
@@ -3311,6 +3313,7 @@ mod tests {
                 vivid: false,
                 aura: false,
                 gear: None,
+                flashes: &[],
             });
             let (v, _) = vines.finish(DYNAMIC_BUFFER);
             let near = |colour: Rgb| {

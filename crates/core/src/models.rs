@@ -2165,6 +2165,8 @@ const JAG_MOUTH: Rgb = rgb(150, 40, 46);
 const JAG_FANG: Rgb = rgb(250, 248, 236);
 const HELMET_RIM: Rgb = rgb(190, 196, 210);
 const HELMET_GLASS: Rgb = rgb(170, 220, 255);
+/// A halo strength that `scene.frag` draws as glass (2 to 3).
+const GLASS: i32 = ONE * 2;
 
 /// The big cat's coat and build: the jaguar's, or on the Ski Slope a snow
 /// leopard's (the person, 2026-10-13).
@@ -2463,16 +2465,34 @@ fn bubble_helmet(rig: &mut Rig, h: &Frame, neck: V3) {
         .base
         .then(&Affine::translate(middle))
         .then(&Affine::scale(v3(d, d, d)));
+    // glass (`scene.frag`: a glow strength from 2 to 3): faint over the
+    // face, a crisp bright rim at its outline (TRIAGE T78)
     rig.b
-        .push_halo(Mesh::Sphere, &glass, HELMET_GLASS, ONE * 2 / 5);
-    for (x, y, z, s) in [(-9, 21, 22, 7), (-15, 12, 25, 3)] {
-        let at = h.at(cm(x), cm(y), cm(z) + cm(5));
-        rig.glow(
-            Mesh::Ico,
-            Affine::translate(at).then(&Affine::scale(v3(cm(s), cm(s) / 2, cm(s) / 2))),
-            rgb(255, 255, 255),
-            ONE,
-        );
+        .push_halo(Mesh::Sphere, &glass, HELMET_GLASS, GLASS + ONE * 3 / 5);
+    // the classic cartoon glints: two hard white streaks curving round
+    // the top of the glass, a long one and a short one
+    for (from, to, w) in [(-40, 10, 3), (18, 30, 2)] {
+        let n = 3;
+        for k in 0..n {
+            let a0 = deg(from + (to - from) * k / n);
+            let a1 = deg(from + (to - from) * (k + 1) / n);
+            let on = |a: i32| {
+                let r = d / 2 - cm(1);
+                h.at(
+                    -mul(fx::sin(a), r) * 4 / 10,
+                    mul(fx::cos(a), r) * 9 / 10,
+                    cm(5),
+                )
+                .add(h.z.scale(mul(fx::sin(a + deg(40)), r) / 2))
+                .add(h.y.scale(cm(3)))
+            };
+            rig.glow(
+                Mesh::Cyl,
+                rod(on(a0), on(a1), cm(w)),
+                rgb(255, 255, 255),
+                ONE,
+            );
+        }
     }
 }
 
@@ -2775,7 +2795,8 @@ mod tests {
         // the glass dome over the head, the collar and two glints; nothing
         // else changes
         assert_eq!((glass, none), (1, 0));
-        assert_eq!(space.len(), plain.len() + 4);
+        // (two collar rings and two glints of three strokes each)
+        assert_eq!(space.len(), plain.len() + 8);
         assert!(space.iter().any(|x| x.colour == HELMET_RIM));
         assert!(plain.iter().all(|x| x.colour != HELMET_RIM));
         // no spacesuit: the same coat

@@ -1,6 +1,6 @@
 # Ape Race
 
-A 3D vine-swinging race in the browser, on two maps: the **Jungle** and the **City** (New York at dusk). Swing from vine to vine, let go at the right moment, and carry your momentum to the finish. Race one to three AI apes, or up to four players online. Played with a mouse and keyboard (desktop only).
+A 3D vine-swinging race in the browser, on four maps: the **Jungle**, the **City** (New York at dusk), the **Ski Slope** (noon) and **Sector Ape** (open space after Star Fox, lit by a sun far below). Swing from vine to vine, let go at the right moment, and carry your momentum to the finish. Race one to three AI apes, or up to four players online. Played with a mouse and keyboard (desktop only).
 
 Live at https://ptonkle.github.io/ape-race/.
 
@@ -11,7 +11,7 @@ The design is in [`BRIEF.md`](BRIEF.md) and the build decisions in [`PLAN.md`](P
 | Goal | How |
 | --- | --- |
 | Win | Reach the finish arch first. The Jungle runs about 1.8 km from the start tree and turns both ways. |
-| Maps | Pick **Jungle** or **City** on Race Setup, Time Trial, or (the host) in the online lobby. Bests, medals, the ghost and replays are kept per map. |
+| Maps | Pick **Jungle**, **City**, **Ski Slope** or **Sector Ape** on Race Setup, Time Trial, or (the host) in the online lobby. Bests, medals, the ghost and replays are kept per map. On Sector Ape the vines are energy tethers hanging every way (sideways, up, at angles) from ships and debris, the speedometer reads to 300 km/h, and with Floor is Lava the space jaguar pops out of nowhere when you cross into open space. |
 | Swing | Press and **hold the left mouse button** near a vine to grab it. Let go to fly. Speed is kept: a grab redirects your speed along the swing, and letting go on the way up adds a little more. |
 | Drive | Hold **W** on a vine to drive forward along the swing (A/D steer it). The drive is strongest when slow and fades as you speed up, so at speed your line and when you let go count. You never need to swing back and forth. |
 | Catching | Hold the grab button and you catch the first vine that comes within reach (3.6–5.2 m, by ape). No timing needed. |
@@ -71,11 +71,12 @@ Needs Rust with the `wasm32-unknown-unknown` target, `wasm-bindgen-cli` 0.2.127,
 | `crates/core/src/fx.rs`, `geom.rs` | Q16.16 fixed point, integer trigonometry, vectors and matrices (the core has no floats) |
 | `crates/core/src/ape.rs` | one ape's physics: swinging on a rope, flying, running, grabs, the Grab Cooldown |
 | `crates/core/src/rules.rs` | every tuning number, and the six apes' stats |
-| `crates/core/src/map.rs` | the list of maps (`Map::ALL`: Jungle, City), each one's key and course |
+| `crates/core/src/map.rs` | the list of maps (`Map::ALL`: Jungle, City, Ski Slope, Sector Ape), each one's key and course |
 | `crates/core/src/course.rs` | a course: centreline, vines, mushrooms, crates, platforms, bananas, starts; the Jungle's layout and scenery placement |
 | `crates/core/src/city.rs`, `city/layout.rs` | the City: its layout contract (blocks, cars, boats, river, bridge, what each vine hangs from), the river's water, moving bouncers; the streets with sharp corners, the bridge, the vines and cars |
 | `crates/core/src/cityscape.rs`, `vehicles.rs`, `sky.rs` | drawing the City (buildings, Times Square, the river and its sun path, the wire glow), its cars, cabs and boats; the skies |
 | `crates/core/src/sector.rs`, `sector/layout.rs`, `sector/rules.rs`, `ape/space.rs` | Sector Ape: the layout contract (vine directions, bodies, boundary, door, mechs, wreck, black hole, set pieces, lobby, routes), the course (spine, stations, decks, the Hulk, the wreck, the armada, the finish), the race rules (the boundary's reset or the lava kill, the switch door, the pull past the finish), and the ape in open space (vines every way, the slingshot, swept hits on bodies and the door); `examples/sector_trace`, `sector_report`, `sector_stats`, `sector_think_cost`, `sector_bench` measure it |
+| `crates/core/src/sectorscape.rs`, `spacecraft.rs` | drawing Sector Ape (the sun below and the edge light, the planet, stars and haze, tethers along their vines' directions, decks, the Hulk and its door, landmarks, the black hole on the horizon, the lobby, the flyover through the routes, the space jaguar's pop) and its models (the mothership, the wreck, mechs, fighters, battles, debris, the banana black hole) |
 | `crates/core/src/trial.rs`, `app/medals.rs`, `replay.rs` | Time Trial medal times per map, the medals shown, replays and the ghost |
 | `crates/core/src/race.rs`, `items.rs`, `ai.rs` | the race loop, items, and the AI driver |
 | `crates/core/src/camera.rs`, `focus.rs`, `scene.rs`, `models.rs`, `mesh.rs`, `render.rs` | the chase, orbit and pan cameras, which racer the camera follows, the drawn world, the six ape models, unit meshes, the instance-draw contract |

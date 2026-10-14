@@ -132,6 +132,7 @@ mod tests {
             tick: r.tick,
             at,
             from: at,
+            pop: false,
         });
         assert_eq!(of(&r, 0), None, "eaten");
     }

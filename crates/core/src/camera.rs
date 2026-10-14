@@ -44,7 +44,17 @@ pub struct Chase {
     pub prev_fov: i32,
     /// the course's ground, which the eye stays above
     pub terrain: Terrain,
+    /// how fast the map runs (Q16; ONE on every map but Sector Ape, about
+    /// twice as fast: `SPACE_PACE`): the view widens up to `FAST` times
+    /// this, and further than elsewhere
+    pub pace: i32,
 }
+
+/// Sector Ape's pace (the person: about double the other maps), and how
+/// much wider its view opens at full speed.
+pub const SPACE_PACE: i32 = ONE * 2;
+const FOV_SPACE: i32 = deg(104);
+const BACK_SPACE: i32 = cm(1500);
 
 impl Chase {
     pub fn new(at: V3, yaw: i32, terrain: Terrain) -> Chase {
@@ -60,6 +70,7 @@ impl Chase {
             prev_target: at,
             prev_fov: FOV_REST,
             terrain,
+            pace: ONE,
         };
         c.place(at);
         c.prev_eye = c.eye;
@@ -101,11 +112,16 @@ impl Chase {
             self.yaw = fx::wrap(self.yaw + mul(diff, rate));
             self.pitch += mul(PITCH_REST - self.pitch, ONE / 90);
         }
-        let k = fx::div(speed.min(FAST), FAST);
+        let (fast, fov_fast, back_fast) = if self.pace == ONE {
+            (FAST, FOV_FAST, BACK_FAST)
+        } else {
+            (mul(FAST, self.pace), FOV_SPACE, BACK_SPACE)
+        };
+        let k = fx::div(speed.min(fast), fast);
         // ease in the speed so a short burst does not jolt the view
-        let fov = fx::lerp(FOV_REST, FOV_FAST, mul(k, k));
+        let fov = fx::lerp(FOV_REST, fov_fast, mul(k, k));
         self.fov += (fov - self.fov) / 20;
-        let back = fx::lerp(BACK_REST, BACK_FAST, k);
+        let back = fx::lerp(BACK_REST, back_fast, k);
         self.back += (back - self.back) / 20;
         self.place(at);
     }
@@ -300,6 +316,28 @@ mod tests {
         }
         assert!(fast.fov > slow.fov + deg(15));
         assert!(fast.back > slow.back);
+    }
+
+    #[test]
+    fn on_sector_ape_the_view_keeps_widening_to_twice_the_speed() {
+        // the person (2026-10-13): about double the speed, so the camera
+        // widens further; every other map stops at `FAST`
+        let at = v3(0, int(20), 0);
+        let run = |pace: i32, speed: i32| {
+            let mut c = Chase::new(at, 0, Terrain::Hills);
+            c.pace = pace;
+            for _ in 0..400 {
+                c.follow(at, v3(0, 0, speed), v3(0, 0, ONE), true);
+            }
+            (c.fov, c.back)
+        };
+        let (jungle, _) = run(ONE, int(84));
+        let (half, _) = run(SPACE_PACE, int(42));
+        let (full, back) = run(SPACE_PACE, int(84));
+        assert!(full > jungle + deg(8), "{} vs {}", full / ONE, jungle / ONE);
+        assert!(full > half + deg(15));
+        assert!(back > BACK_FAST);
+        assert_eq!(run(ONE, int(84)).0, run(ONE, int(42)).0);
     }
 
     #[test]

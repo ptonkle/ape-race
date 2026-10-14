@@ -155,7 +155,7 @@ impl App {
         };
         models::draw_in(&mut b, self.settings.kind, self.settings.palette(), &pose);
         if let Some(c) = self.course_of(map) {
-            crate::scene::backdrop(&mut b, c, self.preview_camera().eye);
+            crate::scene::backdrop(&mut b, c, self.preview_camera().eye, self.ticks);
         }
         let vines = self
             .course_of(map)

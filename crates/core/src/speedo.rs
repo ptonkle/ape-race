@@ -25,27 +25,155 @@ pub fn kmh(speed: i32) -> i32 {
 /// at 94–110 km/h (half to 97% of the time), a person's lower.
 pub const HYPE: [i32; 3] = [50, 62, REDLINE_KMH];
 
+/// A speedometer's scale: what the dial reads to, where it turns red, its
+/// hype levels, and how far apart its numbers and ticks are. Every map's
+/// is `Dial::STANDARD` but Sector Ape's, about twice as fast
+/// (`Dial::SPACE`, the person: up to ~300 km/h).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Dial {
+    pub top: i32,
+    pub redline: i32,
+    pub hype: [i32; 3],
+    /// a number every this many km/h, a tick every `tick`
+    pub number: i32,
+    pub tick: i32,
+}
+
+impl Dial {
+    /// The dial on the Jungle, the City and the Ski Slope.
+    pub const STANDARD: Dial = Dial {
+        top: TOP_KMH,
+        redline: REDLINE_KMH,
+        hype: HYPE,
+        number: 40,
+        tick: 10,
+    };
+
+    /// Sector Ape's: about twice the pace, the hype levels with it.
+    pub const SPACE: Dial = Dial {
+        top: 300,
+        redline: REDLINE_KMH * 2,
+        hype: [HYPE[0] * 2, HYPE[1] * 2, REDLINE_KMH * 2],
+        number: 50,
+        tick: 25,
+    };
+
+    /// The dial for a map.
+    pub fn on(map: crate::map::Map) -> Dial {
+        match map {
+            crate::map::Map::Sector => Dial::SPACE,
+            _ => Dial::STANDARD,
+        }
+    }
+
+    /// How hyped the dial is, 0 to 3, from km/h.
+    pub fn hype(&self, kmh: i32) -> u8 {
+        self.hype.iter().filter(|h| kmh >= **h).count() as u8
+    }
+
+    /// How hyped the dial looks, continuously: 0 at the first hype level,
+    /// 1 at the top of the dial, as text with two decimals.
+    pub fn amount_text(&self, kmh: i32) -> String {
+        let pct = ((kmh - self.hype[0]) * 100 / (self.top - self.hype[0])).clamp(0, 100);
+        format!("{}.{:02}", pct / 100, pct % 100)
+    }
+
+    /// The needle's angle in degrees for a reading (0 is straight up); it
+    /// pins a little past the top.
+    pub fn needle_degrees(&self, kmh: i32) -> i32 {
+        let k = kmh.clamp(0, self.top + self.top / 28);
+        -SWEEP / 2 + k * SWEEP / self.top
+    }
+
+    /// The CSS transform that turns the needle.
+    pub fn needle(&self, kmh: i32) -> String {
+        format!("rotate({}deg)", self.needle_degrees(kmh))
+    }
+
+    /// What a speed (Q16 m/s) on this dial is worth on the standard dial:
+    /// the same share of the way round. The sky's colours at speed (TRIAGE
+    /// T20) and the hype's shout read it.
+    pub fn standard(&self, speed: i32) -> i32 {
+        (speed as i64 * Dial::STANDARD.top as i64 / self.top as i64) as i32
+    }
+
+    fn arc(&self, r: i32, from_kmh: i32, to_kmh: i32, colour: &str, width: i32) -> String {
+        let (x0, y0) = at(r, self.needle_degrees(from_kmh));
+        let (x1, y1) = at(r, self.needle_degrees(to_kmh));
+        let large = if self.needle_degrees(to_kmh) - self.needle_degrees(from_kmh) > 180 {
+            1
+        } else {
+            0
+        };
+        format!(
+            "<path d=\"M {} {} A {} {} 0 {large} 1 {} {}\" fill=\"none\" stroke=\"{colour}\" stroke-width=\"{}\" stroke-linecap=\"round\"/>",
+            n(x0),
+            n(y0),
+            n(r),
+            n(r),
+            n(x1),
+            n(y1),
+            n(width)
+        )
+    }
+
+    /// The dial's face, without the needle: rim, coloured bands, ticks and
+    /// numbers, in a 200 × 200 box centred at (100, 100).
+    pub fn face(&self) -> String {
+        let mut s = String::new();
+        s.push_str("<circle cx=\"100\" cy=\"100\" r=\"96\" class=\"speedo-rim\"/>");
+        s.push_str("<circle cx=\"100\" cy=\"100\" r=\"88\" class=\"speedo-face\"/>");
+        s.push_str(&self.arc(int(78), 0, self.hype[0], "#7cc04a", int(7)));
+        s.push_str(&self.arc(int(78), self.hype[0], self.hype[1], "#ffd447", int(7)));
+        s.push_str(&self.arc(int(78), self.hype[1], self.redline, "#ff9a3c", int(7)));
+        s.push_str(&self.arc(int(78), self.redline, self.top, "#ff4b3a", int(7)));
+        let mut k = 0;
+        while k <= self.top {
+            let d = self.needle_degrees(k);
+            let major = k % self.number == 0;
+            let (x0, y0) = at(int(if major { 64 } else { 69 }), d);
+            let (x1, y1) = at(int(73), d);
+            s.push_str(&format!(
+                "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" class=\"{}\"/>",
+                n(x0),
+                n(y0),
+                n(x1),
+                n(y1),
+                if major { "tick major" } else { "tick" }
+            ));
+            if major {
+                let (x, y) = at(int(51), d);
+                s.push_str(&format!(
+                    "<text x=\"{}\" y=\"{}\" class=\"speedo-num\">{k}</text>",
+                    n(x),
+                    n(y + int(4))
+                ));
+            }
+            k += self.tick;
+        }
+        s
+    }
+}
+
 pub fn hype(kmh: i32) -> u8 {
-    HYPE.iter().filter(|h| kmh >= **h).count() as u8
+    Dial::STANDARD.hype(kmh)
 }
 
 /// How hyped the dial looks, continuously (TRIAGE row 15, a try): 0 at the
 /// first hype level, 1 at the top of the dial, as text with two decimals
 /// for the page's glow and shake.
 pub fn amount_text(kmh: i32) -> String {
-    let pct = ((kmh - HYPE[0]) * 100 / (TOP_KMH - HYPE[0])).clamp(0, 100);
-    format!("{}.{:02}", pct / 100, pct % 100)
+    Dial::STANDARD.amount_text(kmh)
 }
 
 /// The needle's angle in degrees for a reading (0 is straight up).
 pub fn needle_degrees(kmh: i32) -> i32 {
-    let k = kmh.clamp(0, TOP_KMH + 5);
-    -SWEEP / 2 + k * SWEEP / TOP_KMH
+    Dial::STANDARD.needle_degrees(kmh)
 }
 
 /// The CSS transform that turns the needle.
 pub fn needle(kmh: i32) -> String {
-    format!("rotate({}deg)", needle_degrees(kmh))
+    Dial::STANDARD.needle(kmh)
 }
 
 /// A Q16 value as text with one decimal, for SVG coordinates.
@@ -68,61 +196,10 @@ fn at(r: i32, d: i32) -> (i32, i32) {
     (int(100) + mul(r, fx::sin(a)), int(100) - mul(r, fx::cos(a)))
 }
 
-fn arc(r: i32, from_kmh: i32, to_kmh: i32, colour: &str, width: i32) -> String {
-    let (x0, y0) = at(r, needle_degrees(from_kmh));
-    let (x1, y1) = at(r, needle_degrees(to_kmh));
-    let large = if needle_degrees(to_kmh) - needle_degrees(from_kmh) > 180 {
-        1
-    } else {
-        0
-    };
-    format!(
-        "<path d=\"M {} {} A {} {} 0 {large} 1 {} {}\" fill=\"none\" stroke=\"{colour}\" stroke-width=\"{}\" stroke-linecap=\"round\"/>",
-        n(x0),
-        n(y0),
-        n(r),
-        n(r),
-        n(x1),
-        n(y1),
-        n(width)
-    )
-}
-
 /// The dial's face, without the needle: rim, coloured bands, ticks and
 /// numbers, in a 200 × 200 box centred at (100, 100).
 pub fn face() -> String {
-    let mut s = String::new();
-    s.push_str("<circle cx=\"100\" cy=\"100\" r=\"96\" class=\"speedo-rim\"/>");
-    s.push_str("<circle cx=\"100\" cy=\"100\" r=\"88\" class=\"speedo-face\"/>");
-    s.push_str(&arc(int(78), 0, HYPE[0], "#7cc04a", int(7)));
-    s.push_str(&arc(int(78), HYPE[0], HYPE[1], "#ffd447", int(7)));
-    s.push_str(&arc(int(78), HYPE[1], REDLINE_KMH, "#ff9a3c", int(7)));
-    s.push_str(&arc(int(78), REDLINE_KMH, TOP_KMH, "#ff4b3a", int(7)));
-    let mut k = 0;
-    while k <= TOP_KMH {
-        let d = needle_degrees(k);
-        let major = k % 40 == 0;
-        let (x0, y0) = at(int(if major { 64 } else { 69 }), d);
-        let (x1, y1) = at(int(73), d);
-        s.push_str(&format!(
-            "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" class=\"{}\"/>",
-            n(x0),
-            n(y0),
-            n(x1),
-            n(y1),
-            if major { "tick major" } else { "tick" }
-        ));
-        if major {
-            let (x, y) = at(int(51), d);
-            s.push_str(&format!(
-                "<text x=\"{}\" y=\"{}\" class=\"speedo-num\">{k}</text>",
-                n(x),
-                n(y + int(4))
-            ));
-        }
-        k += 10;
-    }
-    s
+    Dial::STANDARD.face()
 }
 
 /// The banana needle, pointing straight up from the centre; the page turns
@@ -172,6 +249,29 @@ mod tests {
         assert_eq!(hype(65), 2);
         // a good human pace across the ground reaches the top
         assert_eq!(hype(78), 3);
+    }
+
+    #[test]
+    fn sector_apes_dial_reads_to_300_with_the_hype_levels_doubled() {
+        // the person (2026-10-13): about double the other maps, ~300 km/h
+        let d = Dial::on(crate::map::Map::Sector);
+        assert_eq!(d.top, 300);
+        assert_eq!(d.needle_degrees(150), 0);
+        assert_eq!(d.hype(99), 0);
+        assert_eq!(d.hype(2 * 78), 3);
+        for k in [0, 50, 100, 150, 200, 250, 300] {
+            assert!(d.face().contains(&format!(">{k}</text>")), "{k}");
+        }
+        assert_eq!(d.standard(int(84)), int(84) * 140 / 300);
+        // every other map keeps the standard dial, unchanged
+        for m in [
+            crate::map::Map::Jungle,
+            crate::map::Map::City,
+            crate::map::Map::Ski,
+        ] {
+            assert_eq!(Dial::on(m), Dial::STANDARD);
+        }
+        assert_eq!(Dial::STANDARD.standard(int(30)), int(30));
     }
 
     #[test]
