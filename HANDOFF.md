@@ -26,6 +26,7 @@ A fresh session starts from this file, not from memory.
 
 ## What passed
 
+- Ski Slope art branch `ski-art` (group B: noon look, sky dome and far-haze shader modes, snow, fences, forest, lifts, landmarks, pink rope vines, minimap branches; ski-course and ski-gear merged in), 2026-10-13: `cargo fmt`, `cargo clippy --workspace --all-targets -D warnings` clean, `cargo test --workspace` (329 core) and `--test jungle_unchanged` pass, `BUILDER_ENGINES=chromium ./scripts/check.sh` BUILDER CHECK PASSED (Chromium only). SECOND-ORDER B1-B14.
 - Ski Slope gear and weather branch `ski-gear` (group X: skis, helmets and goggles on the Ski Slope; Weather Clear/Snowing; PROTOCOL 6), 2026-10-13: `cargo fmt`, `cargo clippy --workspace --all-targets -D warnings` clean; `cargo test --release --workspace` 309 core, 4 AI (5 ignored), 13 boundary, 3 City AI (2 ignored), 2 Jungle-unchanged, 19 online; `BUILDER_ENGINES=chromium ./scripts/check.sh` BUILDER CHECK PASSED; `BUILDER_ENGINES=chromium ./scripts/check-online.sh` ONLINE CHECK PASSED (Chromium only). SECOND-ORDER X1–X9.
 
 - City course branch (group C: layout, water, moving bouncers, AI and medals per map; main merged in), 2026-10-12: `cargo fmt --check`, `cargo clippy --workspace --all-targets -D warnings`, `cargo test --workspace` (287 core, 4 Jungle AI, 3 City AI, 2 Jungle-unchanged, 13 boundary, 17 online), `./scripts/build.sh`, and `BUILDER_ENGINES=chromium ./scripts/check.sh`: BUILDER CHECK PASSED (Chromium only). City AI and medals: SECOND-ORDER C11–C13.

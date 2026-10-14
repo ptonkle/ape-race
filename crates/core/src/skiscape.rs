@@ -685,7 +685,7 @@ fn seg_distance(p: V3, a: V3, b: V3) -> i32 {
     if l2 == 0 {
         return p.sub(a).len();
     }
-    let t = (p.sub(a).dot64(d) * ONE as i64 / l2).clamp(0, ONE as i64) as i32;
+    let t = (p.sub(a).dot64(d) as i128 * ONE as i128 / l2 as i128).clamp(0, ONE as i128) as i32;
     p.sub(a.lerp(b, t)).len()
 }
 
