@@ -343,8 +343,8 @@ fn deck(b: &mut Batch, pl: &Platform, kind: DeckKind) {
         );
     };
     // the plating: tiles in two shades
-    let tiles_x = (hw * 2 / int(4)).clamp(1, 8);
-    let tiles_z = (hl * 2 / int(4)).clamp(1, 12);
+    let tiles_x = (hw * 2 / int(4)).clamp(1, 6);
+    let tiles_z = (hl * 2 / int(4)).clamp(1, 8);
     let (tw, tl) = (hw * 2 / tiles_x, hl * 2 / tiles_z);
     for i in 0..tiles_x {
         for j in 0..tiles_z {
@@ -494,7 +494,7 @@ fn deck(b: &mut Batch, pl: &Platform, kind: DeckKind) {
             ring(b, hw.min(hl) * 3 / 5, 36, rgb(255, 214, 56), ONE);
             ring(b, hw.min(hl) * 2 / 5, 28, rgb(255, 246, 236), ONE / 2);
             for sz in [-1, 1] {
-                let n = (hw * 2 / int(3)).clamp(4, 40);
+                let n = (hw * 2 / int(3)).clamp(4, 24);
                 for k in 0..n {
                     for row in 0..2 {
                         let x = -hw + (k * 2 + 1) * hw / n;
@@ -927,7 +927,7 @@ fn debris_field(s: &mut Sink, c: &Course, l: &SectorLayout) {
     while at < c.length + int(60) {
         let p = c.point(at.min(c.length));
         let right = right_of(c.heading_at(at));
-        for _ in 0..3 {
+        for _ in 0..2 {
             let side = if dice.below(2) == 0 { 1 } else { -1 };
             let out = bd.side + int(dice.range(25, 140));
             let y = int(dice.range(-110, 90));
