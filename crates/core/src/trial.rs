@@ -94,13 +94,13 @@ pub const SKI: [u32; 4] = [
 
 /// Sector Ape's target times in hundredths of a second (2026-10-13, set as
 /// the others' were: King Kong alone as a Time Trial runs finishes in
-/// 47.3–88.1 s by kind, the Gibbon best; `sector_time_trial_report` in
+/// 57.0–90.9 s by kind, the Orangutan best; `sector_time_trial_report` in
 /// `tests/sector_ai.rs`, SECOND-ORDER SC rows). Author: just under the
 /// best kind; then the Jungle's steps above it (7, 10, 15 s).
-pub const SECTOR_AUTHOR: u32 = 4_700;
-pub const SECTOR_GOLD: u32 = 5_400;
-pub const SECTOR_SILVER: u32 = 6_400;
-pub const SECTOR_BRONZE: u32 = 7_900;
+pub const SECTOR_AUTHOR: u32 = 5_600;
+pub const SECTOR_GOLD: u32 = 6_300;
+pub const SECTOR_SILVER: u32 = 7_300;
+pub const SECTOR_BRONZE: u32 = 8_800;
 
 /// Sector Ape's target times, in race ticks, slowest first.
 pub const SECTOR: [u32; 4] = [
