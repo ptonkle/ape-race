@@ -1060,14 +1060,14 @@ fn start_deck(s: &mut Sink, c: &Course) {
             let foot = front.add(right.scale(side * pl.half_width));
             b.push(
                 Mesh::Cyl,
-                &rod(v3(foot.x, top, foot.z), v3(foot.x, top + int(8), foot.z), cm(30)),
+                &rod(v3(foot.x, top, foot.z), v3(foot.x, top + int(13), foot.z), cm(30)),
                 WHITE,
                 0,
             );
         }
         b.push(
             Mesh::Cube,
-            &placed(v3(front.x, top + int(8), front.z), yaw, v3(pl.half_width * 2, cm(90), cm(20))),
+            &placed(v3(front.x, top + int(13), front.z), yaw, v3(pl.half_width * 2, cm(90), cm(20))),
             RED,
             ONE / 6,
         );
@@ -1701,7 +1701,7 @@ const DOME: i32 = int(560);
 const RANGE_AT: i32 = int(470);
 const RANGE_FOOT: i32 = int(170);
 /// How far each is hazed toward the fog: the range and the peak.
-const RANGE_HAZE: i32 = ONE * 2 / 5;
+const RANGE_HAZE: i32 = ONE / 2;
 const PEAK_HAZE: i32 = ONE / 6;
 /// The glow that marks a sky dome shape, and a far backdrop's (plus its
 /// haze), for `scene.frag`.
@@ -1732,7 +1732,7 @@ pub fn backdrop(b: &mut Batch, c: &Course, eye: V3) {
         let yaw = base + k * fx::TURN / count + dice.range(-deg(4), deg(4));
         // leave the peak's own place clear
         let off = fx::wrap(yaw - base - PEAK_BEARING);
-        let tall = int(dice.range(18, 62)) + RANGE_FOOT;
+        let tall = int(dice.range(12, 46)) + RANGE_FOOT;
         let wide = int(dice.range(200, 320));
         if off.abs() < deg(9) {
             continue;
@@ -1751,7 +1751,36 @@ pub fn backdrop(b: &mut Batch, c: &Course, eye: V3) {
         );
     }
     peak(b, eye, base + PEAK_BEARING);
+    // the valley haze: a ring of the fog's own colour just inside the
+    // range, from a little under the horizon down, so the mountains rise
+    // out of the haze far off instead of standing at the forest's edge
+    let ring = 32;
+    for k in 0..ring {
+        let a = k * fx::TURN / ring;
+        let dir = facing(a, 0);
+        let at = eye.flat().add(dir.scale(HAZE_AT));
+        let w = mul(HAZE_AT, ONE * 21 / 100);
+        b.push(
+            Mesh::Cube,
+            &panel(
+                v3(at.x, eye.y - HAZE_BELOW - int(150), at.z),
+                right_of(dir),
+                V3::UP,
+                dir,
+                w,
+                int(300),
+                int(2),
+            ),
+            FOG,
+            FAR_GLOW + ONE * 99 / 100,
+        );
+    }
 }
+
+/// The valley haze's ring: its distance from the eye, and how far under
+/// the eye its top is.
+const HAZE_AT: i32 = int(445);
+const HAZE_BELOW: i32 = int(14);
 
 /// One mountain: a pyramid with its foot's middle at `foot`, turned `yaw`,
 /// `wide` across and `tall`, its top pushed over by `lean`, in `rock`,
@@ -1887,6 +1916,99 @@ mod tests {
             }
             let q = spot(&c, s, e.r + int(60));
             assert!(snow_height(&c, s, e.r + int(60)) > c.terrain(q.x, q.z) + int(5));
+        }
+    }
+
+    /// Every instance in a batch's values: (centre, colour, glow).
+    fn shapes(values: &[i32]) -> Vec<(V3, Rgb, i32)> {
+        values
+            .chunks(crate::render::INSTANCE_VALUES)
+            .map(|i| (v3(i[3], i[7], i[11]), [i[12], i[13], i[14]], i[15]))
+            .collect()
+    }
+
+    #[test]
+    fn noon_is_a_high_white_sun_under_a_deep_blue_sky() {
+        // the person (2026-10-13): noon, clear; a look no other map has
+        let l = scene::look(Map::Ski);
+        assert!(l.light_dir.y > fx::sin(deg(55)), "the sun is high");
+        let [r, g, b] = l.light;
+        assert!(r > ONE * 9 / 10 && g > ONE * 9 / 10 && b > ONE * 9 / 10, "white light");
+        assert!(ZENITH[2] > ZENITH[0] * 4 && ZENITH[2] > ZENITH[1] * 2, "a deep blue overhead");
+        assert!(FOG[2] > FOG[0] && FOG.iter().all(|c| *c > ONE * 3 / 4), "a pale blue haze");
+        for other in [Map::Jungle, Map::City] {
+            let o = scene::look(other);
+            assert_ne!(o.fog, l.fog);
+            assert!(o.light_dir.y < l.light_dir.y, "the highest sun of the maps");
+        }
+    }
+
+    #[test]
+    fn the_ski_slopes_vines_are_pink_ropes_apart_from_the_reach_and_catch_up_looks() {
+        let rope = scene::vine_look_on(Map::Ski, false, false, 0);
+        assert_eq!(rope.colour, ROPE_PINK);
+        assert!(rope.halo > 0, "a soft glow round each rope");
+        let reach = scene::vine_look_on(Map::Ski, true, false, 0);
+        assert_ne!(reach.colour, rope.colour);
+        assert_eq!(reach.colour, scene::vine_look(true, false, 0).colour, "the shared reach yellow");
+        assert_eq!(scene::vine_look_on(Map::Ski, false, true, 0).colour, ROPE_VIVID);
+        // and apart from the fences' orange, the item flowers' violet and
+        // the lift chairs
+        for other in [FENCE, scene::PETAL, CHAIRS[0], CHAIRS[1]] {
+            let d: i32 = (0..3).map(|k| (other[k] - ROPE_PINK[k]).abs()).sum();
+            assert!(d > ONE / 2, "{other:?} too near the ropes");
+        }
+    }
+
+    #[test]
+    fn the_scenery_draws_fences_lifts_and_every_landmark() {
+        let c = Map::Ski.course();
+        let ski = c.ski.as_ref().unwrap();
+        let s = scenery(&c, ski);
+        let all = shapes(&s.values);
+        let fence = all.iter().filter(|(_, col, _)| *col == FENCE).count();
+        assert!(fence as i32 > 2 * c.length / POST_EVERY, "a fence along both edges: {fence}");
+        // a chair on every chair of every lift (those carrying vines too)
+        for (k, l) in ski.lifts.iter().enumerate() {
+            let chairs = all.iter().filter(|(_, col, _)| *col == CHAIRS[k % 2]).count() as i32;
+            assert!(chairs >= 2 * 2 * (l.chairs() - 1), "lift {k}: {chairs} chair shapes");
+            for t in &l.towers {
+                assert!(
+                    all.iter().any(|(p, col, _)| *col == STEEL && p.flat().sub(t.flat()).len() < int(1)),
+                    "a tower at each foot"
+                );
+            }
+        }
+        for m in &ski.landmarks {
+            let near = all
+                .iter()
+                .filter(|(p, _, _)| p.flat().sub(m.at.flat()).len() < int(60))
+                .count();
+            assert!(near > 20, "{:?} drawn: {near} shapes", m.kind);
+        }
+        // the budget (MAPS: about 20k, 6-7k at once)
+        assert!(all.len() < 22_000, "{} shapes", all.len());
+        // nothing bounces on this map, so no mushrooms are drawn
+        assert!(c.mushrooms.is_empty());
+    }
+
+    #[test]
+    fn the_sky_dome_and_the_range_are_drawn_round_the_eye() {
+        let c = Map::Ski.course();
+        for eye in [c.point(int(100)).add(up(int(10))), c.point(int(1500)).add(up(int(40)))] {
+            let mut b = Batch::new();
+            backdrop(&mut b, &c, eye);
+            let (values, _) = b.finish(crate::render::DYNAMIC_BUFFER);
+            let all = shapes(&values);
+            let dome: Vec<_> = all.iter().filter(|(_, _, g)| *g == DOME_GLOW).collect();
+            assert_eq!(dome.len(), 1);
+            assert_eq!(dome[0].0, eye, "the dome is centred on the eye");
+            let far = all.iter().filter(|(_, _, g)| *g > FAR_GLOW && *g < DOME_GLOW).count();
+            assert!(far > 40, "the range, the peak and the haze: {far}");
+            // all of them inside the far plane
+            for (p, _, _) in &all {
+                assert!(p.sub(eye).len() < crate::render::FAR);
+            }
         }
     }
 }

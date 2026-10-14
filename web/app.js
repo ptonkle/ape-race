@@ -336,6 +336,12 @@ function drawMinimap(m) {
   ctx.beginPath();
   for (let i = 0; i < m.line.length; i += m.stride) ctx.lineTo(m.line[i], m.line[i + 1]);
   ctx.stroke();
+  // a fork's other branch (the Ski Slope)
+  m.branches.forEach((b) => {
+    ctx.beginPath();
+    for (let i = 0; i < b.length; i += m.stride) ctx.lineTo(b[i], b[i + 1]);
+    ctx.stroke();
+  });
   ctx.fillStyle = m.finish_colour;
   ctx.beginPath();
   ctx.arc(m.finish[0], m.finish[1], m.dot, 0, m.circle);

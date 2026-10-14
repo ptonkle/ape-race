@@ -1993,15 +1993,37 @@ impl App {
                 1000 - pad - ((q.z - lo_z) as i64 * (1000 - 2 * pad) as i64 / span as i64) as i32;
             (x, y)
         };
-        let line: Vec<i32> = c
-            .path
-            .iter()
+        // the run: on the Ski Slope down each fork's left branch, with the
+        // right branches drawn beside (`branches`)
+        let lane = |s: i32, k: usize| {
+            c.point(s)
+                .add(crate::geom::right_of(c.heading_at(s)).scale(c.lanes(s)[k].0))
+        };
+        let line: Vec<i32> = (0..c.path.len())
             .step_by(10)
-            .flat_map(|q| {
-                let (x, y) = to(*q);
+            .flat_map(|i| {
+                let (x, y) = to(lane(i as i32 * crate::course::STEP, 0));
                 [x, y]
             })
             .collect();
+        let branches: Vec<Vec<i32>> = c
+            .ski
+            .as_ref()
+            .map(|ski| {
+                ski.forks
+                    .iter()
+                    .map(|f| {
+                        let step = int(10);
+                        (0..=(f.to - f.from) / step)
+                            .flat_map(|k| {
+                                let (x, y) = to(lane(f.from + k * step, 1));
+                                [x, y]
+                            })
+                            .collect()
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
         let apes: Vec<Value> = p
             .race
             .racers
@@ -2030,7 +2052,7 @@ impl App {
         }
         let (fx_, fy) = to(*c.path.last().unwrap_or(&V3::ZERO));
         json!({
-            "size": 1000, "stride": 2, "line": line, "apes": apes, "finish": [fx_, fy],
+            "size": 1000, "stride": 2, "line": line, "branches": branches, "apes": apes, "finish": [fx_, fy],
             "dot": MINIMAP_DOT, "me_dot": MINIMAP_ME_DOT, "width": 22, "ring_width": 8,
             "track": "rgba(240, 230, 190, 0.75)", "finish_colour": "#ffffff",
             "ring": "rgba(0, 0, 0, 0.6)", "me_ring": "#ffe066",
@@ -2743,6 +2765,37 @@ mod tests {
         assert!(ui["hud"]["minimap"]["apes"].is_array());
         let (_, dynamic, _) = a.frame();
         assert!(!dynamic.is_empty());
+    }
+
+    #[test]
+    fn the_ski_slopes_minimap_shows_both_branches_of_each_fork() {
+        let mut a = app();
+        a.act("menu.race", "");
+        a.act("setup.map", "ski");
+        a.act("menu.start", "");
+        let ui: Value = serde_json::from_str(&a.ui()).unwrap();
+        let m = &ui["hud"]["minimap"];
+        let branches = m["branches"].as_array().unwrap();
+        assert_eq!(branches.len(), 2, "one more branch per fork");
+        let line: Vec<i64> = m["line"].as_array().unwrap().iter().filter_map(|v| v.as_i64()).collect();
+        for b in branches {
+            let b: Vec<i64> = b.as_array().unwrap().iter().filter_map(|v| v.as_i64()).collect();
+            assert!(b.len() >= 8);
+            // the branch's middle is apart from every point of the run's line
+            let (x, y) = (b[b.len() / 2 & !1], b[(b.len() / 2 & !1) + 1]);
+            let near = line
+                .chunks(2)
+                .map(|p| (p[0] - x).abs() + (p[1] - y).abs())
+                .min()
+                .unwrap();
+            assert!(near > 4, "the branch's middle is {near} from the line");
+        }
+        // the other maps have none
+        let mut j = app();
+        j.act("menu.race", "");
+        j.act("menu.start", "");
+        let ui: Value = serde_json::from_str(&j.ui()).unwrap();
+        assert!(ui["hud"]["minimap"]["branches"].as_array().unwrap().is_empty());
     }
 
     fn ui_of(a: &mut App) -> Value {
