@@ -163,6 +163,7 @@ impl Difficulty {
                 jitter: SKI_HESITATE[k],
                 drive: SKI_DRIVE[k],
                 noise: SKI_NOISE[k],
+                ideal_hop: SKI_HOP[k],
                 ..t
             };
         }
@@ -232,9 +233,10 @@ impl Difficulty {
 
 /// The Ski Slope's reaction times, easiest level first (see
 /// [`Difficulty::tuning_on`]).
-const SKI_HESITATE: [u32; 4] = [6, 4, 0, 0];
-const SKI_DRIVE: [u32; 4] = [1, 3, 7, DUTY];
-const SKI_NOISE: [i32; 4] = [int(6), int(5), int(1), 0];
+const SKI_HESITATE: [u32; 4] = [6, 2, 1, 0];
+const SKI_DRIVE: [u32; 4] = [2, 5, 7, DUTY];
+const SKI_NOISE: [i32; 4] = [int(6), int(4), int(2), 0];
+const SKI_HOP: [i32; 4] = [int(22), int(24), int(26), int(28)];
 
 /// The City's Monkey (see [`Difficulty::tuning_on`]).
 const CITY_MONKEY_HESITATE: u32 = 12;

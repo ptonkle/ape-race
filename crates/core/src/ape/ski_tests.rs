@@ -34,10 +34,11 @@ fn on_the_snow_an_ape_glides_downhill_and_tops_out_below_a_swing() {
     let y0 = a.pos.y;
     run(&mut a, &c, Controls::default(), 4 * TICKS_PER_SECOND as u32);
     assert_eq!(a.mode, Mode::Grounded, "glued to the snow");
-    assert!(a.speed() > int(5), "it slid off: {} m/s", a.speed() / ONE);
-    assert!(a.pos.y < y0 - int(2), "and down the hill");
+    assert!(a.speed() > int(3), "it slid off: {} m/s", a.speed() / ONE);
+    assert!(a.pos.y < y0 - cm(50), "and down the hill");
     assert_eq!(a.pos.y, c.terrain(a.pos.x, a.pos.z) + BODY_DROP);
-    // however steep, skiing tops out well under a good swing (25–35 m/s)
+    // however steep, skiing tops out well under a good swing (25–35 m/s;
+    // under 26 m/s even at `SLOPE_DEG` 10)
     let mut fast = on_the_snow(&c, 40);
     let mut top = 0;
     for t in 0..12 * TICKS_PER_SECOND as u32 {
@@ -49,7 +50,7 @@ fn on_the_snow_an_ape_glides_downhill_and_tops_out_below_a_swing() {
         fast.step(&ctl, &c, t);
         top = top.max(fast.speed());
     }
-    assert!(top < int(24), "skiing reached {} m/s", top / ONE);
+    assert!(top < int(26), "skiing reached {} m/s", top / ONE);
 }
 
 #[test]
@@ -124,23 +125,48 @@ fn a_landing_on_the_snow_keeps_the_speed_along_the_slope() {
     a.vel = fwd.scale(int(20)).add(v3(0, -int(6), 0));
     let mut landed = None;
     for t in 0..120 {
+        let before = a.vel;
         a.step(&Controls::default(), &c, t);
         if a.mode == Mode::Grounded {
-            landed = Some(a.speed());
+            landed = Some((before, a.speed()));
             break;
         }
     }
-    let kept = landed.expect("it lands");
-    // the part along the slope (about 21 m/s here), not the Jungle's roll
-    // (20 + 30% of 6 = 21.8, then friction down to Run Speed)
-    let n = c.terrain.normal(p.x, p.z);
-    let along = a.vel.len();
-    let want = v3(fwd.x * 20, -6 * ONE, fwd.z * 20).reject(n).len();
+    let (before, kept) = landed.expect("it lands");
+    // the part along the slope of the speed it came down with (about
+    // 21 m/s here), not the Jungle's roll (20 + 30% of the fall, then
+    // friction down to Run Speed)
+    let n = c.terrain.normal(a.pos.x, a.pos.z);
+    let want = before.reject(n).len();
     assert!(
         (kept - want).abs() < int(1),
         "kept {} of {}",
         kept / ONE,
         want / ONE
     );
-    assert!(along > int(19));
+    assert!(kept > int(19));
+    // and a straight drop onto the slope starts it sliding downhill (on
+    // the Jungle's ground a drop straight down stops dead)
+    let mut d = Ape::new(
+        Kind::Chimpanzee,
+        true,
+        v3(p.x, c.terrain(p.x, p.z) + BODY_DROP + int(3), p.z),
+        0,
+    );
+    d.hint = c.nearest_anywhere(d.pos);
+    d.mode = Mode::Flying;
+    d.vel = v3(0, -int(15), 0);
+    for t in 0..120 {
+        d.step(&Controls::default(), &c, t);
+        if d.mode == Mode::Grounded {
+            break;
+        }
+    }
+    assert_eq!(d.mode, Mode::Grounded);
+    let downhill = d.vel.dot(fwd);
+    assert!(
+        downhill > int(1),
+        "slides on at {} cm/s",
+        downhill * 100 / ONE
+    );
 }

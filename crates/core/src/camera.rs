@@ -408,14 +408,15 @@ mod tests {
             c.follow(at, V3::ZERO, v3(0, 0, ONE), true);
         }
         assert!(c.eye.y >= crate::course::ground(c.eye.x, c.eye.z) + cm(80) - 2);
-        // and above the ski hill on the Ski Slope, looking up it
+        // and above the ski hill on the Ski Slope: behind the start, where
+        // the hill rises above the Jungle's ground, looking down it
         let ski = crate::ski::ski();
-        let p = ski.point(int(300));
-        let at = v3(p.x, ski.terrain(p.x, p.z) + int(2), p.z);
-        let mut c = Chase::new(at, fx::wrap(fx::HALF), ski.terrain);
+        let p = ski.point(-int(20));
+        let at = v3(p.x, ski.terrain(p.x, p.z) + int(1), p.z);
+        let mut c = Chase::new(at, 0, ski.terrain);
         c.turn(0, deg(40));
         for _ in 0..50 {
-            c.follow(at, V3::ZERO, v3(0, 0, -ONE), true);
+            c.follow(at, V3::ZERO, v3(0, 0, ONE), true);
         }
         assert!(c.eye.y >= ski.terrain(c.eye.x, c.eye.z) + cm(80) - 2);
     }

@@ -56,17 +56,17 @@ pub const FORKS: [Fork; 2] = [
     Fork {
         from: int(330),
         to: int(670),
-        left: int(30),
-        right: int(22),
-        branch_half: int(15),
+        left: int(35),
+        right: int(27),
+        branch_half: int(20),
         ramp: int(60),
     },
     Fork {
         from: int(1090),
         to: int(1360),
-        left: int(20),
-        right: int(30),
-        branch_half: int(14),
+        left: int(26),
+        right: int(36),
+        branch_half: int(20),
         ramp: int(55),
     },
 ];
@@ -75,23 +75,31 @@ pub const FORKS: [Fork; 2] = [
 type Spot = (i32, i32);
 
 /// The chairlifts, top of the hill first: each (top terminal, bottom
-/// terminal) as (metres along the run, metres right of its line). Each
-/// bottom terminal stands near the next lift's top terminal. Lifts 2 and 4
-/// run down a fork's branch.
-const LIFTS: &[(Spot, Spot)] = &[
-    ((-24, 28), (296, -42)),
-    ((288, -34), (700, -30)),
-    ((706, -38), (1060, 40)),
-    ((1066, 48), (1392, 30)),
-    ((1398, 38), (1905, 32)),
+/// terminal) as (metres along the run, metres right of its line), and the
+/// gauge between its ropes. Each bottom terminal stands near the next
+/// lift's top terminal. Lifts 2 and 4 run down a fork's branch, just
+/// outside its outer fence, with a wide gauge so the inner rope's chairs
+/// hang 4 m in over the branch; the others cross the run at a slant. No
+/// tower or terminal stands in a lane (the Art's B6: apes passed through
+/// them): towers slide along the line out of the lanes (`lift`).
+const LIFTS: &[(Spot, Spot, i32)] = &[
+    ((-24, 33), (296, -44), 6),
+    ((288, -57), (700, -57), 12),
+    ((706, -38), (1060, 40), 6),
+    ((1066, 58), (1392, 58), 12),
+    ((1398, 38), (1905, 32), 6),
 ];
 
 /// The haul rope's height above each support, and the lifts' other sizes.
 pub const ROPE_HEIGHT: i32 = int(44);
-const GAUGE: i32 = int(6);
 const CHAIR_EVERY: i32 = int(8);
 /// Towers stand at most this far apart.
 const TOWER_EVERY: i32 = int(50);
+/// A tower's foot stands at least this far outside every lane, slid along
+/// its line by up to this many metres to get there (else it is left out:
+/// a longer span).
+const TOWER_CLEAR: i32 = int(2);
+const TOWER_SLIDE: i32 = 40;
 
 /// A lane's vine takes a chair this close to its spot (flat), if the seat
 /// is over a lane this far in from its edges.
@@ -100,12 +108,16 @@ const CHAIR_IN: i32 = int(3);
 /// A conifer stands this far outside the edge of the lane it serves (behind
 /// the fence, or on the island), and its branch reaches this far at most.
 const TRUNK_OUT: i32 = cm(150);
-const BRANCH_MAX: i32 = int(14);
+const BRANCH_MAX: i32 = int(16);
 /// A helicopter's rotor hub above where its cable leaves the belly.
 const ROTOR_UP: i32 = int(3);
 /// The helicopters: over the station nearest this far along, in this lane
 /// (0 the left branch of a fork, or the middle of the run).
 const HELICOPTERS: [i32; 2] = [int(1220), int(1450)];
+
+/// The run is this wide either side of its line (each fork's branch
+/// `branch_half`, 20 m).
+pub const HALF_WIDTH: i32 = int(27);
 
 /// Rows of item crates, metres along.
 const CRATES: [i32; 7] = [150, 490, 740, 990, 1225, 1480, 1720];
@@ -121,6 +133,22 @@ struct Build {
     /// chairs that carry a vine: (lift, chair, side)
     used: Vec<(usize, i32, i32)>,
     dice: Dice,
+    /// where the island landmarks stand (metres along): no tree on their
+    /// island from `CLEAR_BEFORE` before them to `CLEAR_AFTER` past
+    clearings: Vec<i32>,
+}
+
+/// The stretch of an island kept clear of trees in front of its landmark
+/// (the Art's B7: the trees hid the Snowman and the Ice Ape).
+const CLEAR_BEFORE: i32 = int(40);
+const CLEAR_AFTER: i32 = int(12);
+
+impl Build {
+    fn in_clearing(&self, s: i32) -> bool {
+        self.clearings
+            .iter()
+            .any(|&m| s > m - CLEAR_BEFORE && s < m + CLEAR_AFTER)
+    }
 }
 
 /// A point `off` metres right of the run's line at `s` metres along, on
@@ -265,7 +293,13 @@ impl Build {
         }
         // the nearest lane edge a tree may stand by, of a lane it is over
         let mut edge: Option<(i32, i32, i32)> = None;
-        for (m, h, lo_tree, hi_tree) in lanes_at(c, along) {
+        let lanes = lanes_at(c, along);
+        let split = lanes.len() == 2;
+        let cleared = self.in_clearing(along);
+        for (k, &(m, h, lo_tree, hi_tree)) in lanes.iter().enumerate() {
+            // (an island's edge: none in front of its landmark)
+            let lo_tree = lo_tree && !(split && k == 1 && cleared);
+            let hi_tree = hi_tree && !(split && k == 0 && cleared);
             for (sign, ok) in [(-1, lo_tree), (1, hi_tree)] {
                 let to_edge = h - (off - m) * sign;
                 let fits = ok && (0..=BRANCH_MAX - TRUNK_OUT).contains(&to_edge);
@@ -304,10 +338,13 @@ impl Build {
         offs: &[i32],
         anchor_y: i32,
         length: i32,
+        span: Option<(i32, i32)>,
     ) -> Vec<usize> {
         let lanes = lanes_at(c, along);
         let lo = lanes.first().map_or(-c.half_width, |&(m, h, _, _)| m - h);
         let hi = lanes.last().map_or(c.half_width, |&(m, h, _, _)| m + h);
+        // (or across one branch of a fork, fence to island)
+        let (lo, hi) = span.unwrap_or((lo, hi));
         let a = pt(c, along, lo - TRUNK_OUT);
         let b = pt(c, along, hi + TRUNK_OUT);
         let ta = self.tree(c, a, anchor_y, None);
@@ -355,22 +392,42 @@ impl Build {
 }
 
 /// A chairlift from `top` to `bottom` (each metres along, metres right),
-/// with towers evenly spaced between.
-fn lift(c: &Course, top: (i32, i32), bottom: (i32, i32)) -> Lift {
+/// `gauge` metres between its ropes, with towers evenly spaced between,
+/// each slid along the line to the nearest place clear of the lanes.
+fn lift(c: &Course, top: Spot, bottom: Spot, gauge: i32) -> Lift {
     let t = on_ground(c, pt(c, int(top.0), int(top.1)));
     let b = on_ground(c, pt(c, int(bottom.0), int(bottom.1)));
     let run = t.sub(b).flat();
     let len = run.len();
+    let dir = run.norm();
     let n = (len + TOWER_EVERY - 1) / TOWER_EVERY;
-    let towers = (1..n)
-        .map(|k| on_ground(c, b.add(run.scale(fx::div(k, n)))))
-        .collect();
+    let mut towers: Vec<V3> = Vec::new();
+    for k in 1..n {
+        let d = mul(len, fx::div(k, n));
+        let clear = |d: i32| {
+            let p = b.add(dir.scale(d));
+            let (s, off) = place(c, p);
+            !in_lane(c, s, off, -TOWER_CLEAR)
+        };
+        let last = towers.last().map_or(0, |t| t.flat().sub(b.flat()).dot(dir));
+        let mut at = None;
+        for step in 0..=TOWER_SLIDE {
+            for e in [d - int(step), d + int(step)] {
+                if at.is_none() && e > last + int(10) && e < len - int(10) && clear(e) {
+                    at = Some(e);
+                }
+            }
+        }
+        if let Some(e) = at {
+            towers.push(on_ground(c, b.add(dir.scale(e))));
+        }
+    }
     Lift {
         bottom: b,
         top: t,
         towers,
         rope_height: ROPE_HEIGHT,
-        gauge: GAUGE,
+        gauge: int(gauge),
         chair_every: CHAIR_EVERY,
     }
 }
@@ -379,6 +436,9 @@ fn lift(c: &Course, top: (i32, i32), bottom: (i32, i32)) -> Lift {
 /// and landmarks, different vines and trees (for the AI's tests).
 pub fn ski_seeded(seed: u64) -> Course {
     let mut c = centreline("ski", LEGS);
+    // a wide snowfield (the person, 2026-10-13: "widen the run a bit";
+    // the Jungle's and the City's are 20 m)
+    c.half_width = HALF_WIDTH;
     let fall = c.heading_at(0);
     c.terrain = Terrain::Slope {
         top: c.path[0],
@@ -395,8 +455,14 @@ pub fn ski_seeded(seed: u64) -> Course {
         },
         used: Vec::new(),
         dice: Dice(seed),
+        clearings: Vec::new(),
     };
-    b.lay.lifts = LIFTS.iter().map(|&(t, bt)| lift(&c, t, bt)).collect();
+    b.clearings = landmarks(&c)
+        .iter()
+        .filter(|m| matches!(m.kind, LandmarkKind::Snowman | LandmarkKind::IceApe))
+        .map(|m| m.s)
+        .collect();
+    b.lay.lifts = LIFTS.iter().map(|&(t, bt, g)| lift(&c, t, bt, g)).collect();
     let len_m = c.length / ONE;
 
     // the summit platform; the starters stand across it
@@ -421,7 +487,7 @@ pub fn ski_seeded(seed: u64) -> Course {
     // edge, on a wire between two conifers, hanging to a metre above the deck
     let edge = START_LEN + cm(150);
     let offs: Vec<i32> = (-3..=3).map(|k| int(3) * k).collect();
-    b.wire(&mut c, edge, &offs, deck + int(30), int(29));
+    b.wire(&mut c, edge, &offs, deck + int(30), int(29), None);
 
     // the stations
     let mut stations: Vec<Vec<usize>> = Vec::new();
@@ -437,7 +503,7 @@ pub fn ski_seeded(seed: u64) -> Course {
             // off the summit: close, and not too high, on a second wire
             let g = c.terrain(c.point(si).x, c.point(si).z);
             let offs = [-int(6), 0, int(6)];
-            here = b.wire(&mut c, si, &offs, g + int(46), int(30));
+            here = b.wire(&mut c, si, &offs, g + int(46), int(30), None);
         } else {
             // a helicopter over this station?
             let heli = helis.first().copied().filter(|&h| si + int(12) >= h);
@@ -482,6 +548,7 @@ pub fn ski_seeded(seed: u64) -> Course {
                                 &[off],
                                 g + anchor_h,
                                 anchor_h - bottom,
+                                None,
                             ));
                         }
                     }
@@ -501,20 +568,48 @@ pub fn ski_seeded(seed: u64) -> Course {
                     let here_lanes = lanes_at(&c, along);
                     let (m, h, lo_tree, hi_tree) = here_lanes[k.min(here_lanes.len() - 1)];
                     // (9 m in from an edge, for the branch from its tree)
-                    let inset = (h - int(9)).max(int(4));
+                    let inset = (h - int(11)).max(int(4));
+                    // (a branch as wide as the run gets a middle lane too,
+                    // on a wire across it; one of the three left out)
+                    let wide = h >= int(18) && !b.in_clearing(along);
                     let spots = match (lo_tree, hi_tree) {
+                        (true, true) if wide => match b.dice.below(4) {
+                            0 => vec![m - inset, m, m + inset],
+                            1 => vec![m - inset, m],
+                            2 => vec![m, m + inset],
+                            _ => vec![m - inset, m + inset],
+                        },
                         (true, true) if two => vec![m - inset, m + inset],
                         (true, true) => vec![m + first * inset],
                         (true, false) => vec![m - h + int(9)],
                         _ => vec![m + h - int(9)],
                     };
                     for spot in spots {
+                        if spot == m {
+                            let anchor_h = int(b.dice.range(38, 50));
+                            let length = int(b.dice.range(23, 31));
+                            match b.vine(&mut c, along, m, anchor_h, anchor_h - length, false) {
+                                Some(v) => here.push(v),
+                                None => {
+                                    let p = pt(&c, along, m);
+                                    let y = c.terrain(p.x, p.z) + anchor_h;
+                                    let span = Some((m - h, m + h));
+                                    here.extend(b.wire(&mut c, along, &[m], y, length, span));
+                                }
+                            }
+                            continue;
+                        }
                         let off = spot + int(b.dice.range(-1, 1));
                         let anchor_h = int(b.dice.range(38, 50));
                         let bottom = anchor_h - int(b.dice.range(23, 31));
-                        if let Some(v) = b.vine(&mut c, along, off, anchor_h, bottom, false) {
-                            here.push(v);
-                        }
+                        // (or the other side of the branch, by its fence,
+                        // where its island is kept clear)
+                        let v = b
+                            .vine(&mut c, along, off, anchor_h, bottom, false)
+                            .or_else(|| {
+                                b.vine(&mut c, along, 2 * m - off, anchor_h, bottom, false)
+                            });
+                        here.extend(v);
                     }
                 }
             }
@@ -533,18 +628,16 @@ pub fn ski_seeded(seed: u64) -> Course {
                 // (9–12 m in from the edge its tree stands by)
                 let reach = (h - int(b.dice.range(9, 12))).max(0);
                 let length = int(24) + cm(b.dice.range(0, 40));
-                b.vine(
-                    &mut c,
-                    int(s + 7),
-                    m + sign * reach,
-                    int(27),
-                    int(27) - length,
-                    true,
-                );
+                let (at, off) = (int(s + 7), m + sign * reach);
+                if b.vine(&mut c, at, off, int(27), int(27) - length, true)
+                    .is_none()
+                {
+                    b.vine(&mut c, at, 2 * m - off, int(27), int(27) - length, true);
+                }
             }
         }
         station += 1;
-        s += b.dice.range(22, 28);
+        s += b.dice.range(20, 25);
     }
 
     banana_arcs(&mut c, &stations);
@@ -554,7 +647,7 @@ pub fn ski_seeded(seed: u64) -> Course {
     for at in CRATES {
         let si = int(at);
         let offs: Vec<i32> = match lanes_at(&c, si)[..] {
-            [(m, _, _, _)] => vec![m - int(9), m, m + int(9)],
+            [(m, h, _, _)] => vec![m - h / 2, m, m + h / 2],
             ref two => two
                 .iter()
                 .flat_map(|&(m, _, _, _)| [m - int(4), m + int(4)])
@@ -586,7 +679,7 @@ fn island_trees(c: &Course, b: &mut Build) {
                     let off = lo + mul(hi - lo, b.dice.range(0, 100) * ONE / 100);
                     let p = pt(c, s, off);
                     let clear = marks.iter().all(|m| m.at.flat().dist(p) > int(16));
-                    if clear {
+                    if clear && !b.in_clearing(s) {
                         let y = c.terrain(p.x, p.z) + int(b.dice.range(10, 26));
                         b.tree(c, p, y, None);
                     }
@@ -619,10 +712,10 @@ fn landmarks(c: &Course) -> Vec<Landmark> {
     vec![
         // behind the start, clear of the chase camera there
         mark(Summit, -int(46), 0),
-        mark(Snowman, int(420), island(int(420))),
+        mark(Snowman, int(400), island(int(400))),
         mark(Lodge, int(700), -int(72)),
         mark(SkiJump, int(890), int(58)),
-        mark(IceApe, int(1160), island(int(1160))),
+        mark(IceApe, int(1150), island(int(1150))),
         mark(FrozenFalls, int(1420), -int(56)),
         mark(Village, c.length + int(150), 0),
     ]
