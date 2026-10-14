@@ -26,7 +26,7 @@
 //! The scene (`scene.rs`) calls in here for a course with a `SectorLayout`;
 //! the other maps' drawing does not change.
 
-use crate::course::{Course, Platform, STEP};
+use crate::course::{Course, Platform};
 use crate::fx::{self, cm, deg, int, mul, ratio, sin, Dice, ONE, TURN};
 use crate::geom::{facing, right_of, v3, yaw_of, Affine, V3};
 use crate::mesh::Mesh;
@@ -650,13 +650,65 @@ fn hulk(b: &mut Batch, body: &Body, door: &crate::sector::Door) {
         HULK_GREY,
         0,
     );
+    // the bore's lining: dark plates (the sun below cannot reach inside),
+    // ribbed, with a lit strip down the roof
+    part(
+        b,
+        Mesh::Cube,
+        v3(ox, oy + dh - cm(15), 0),
+        v3(dw * 2, cm(30), h.z * 2),
+        BORE,
+        0,
+    );
+    for sx in [-1, 1] {
+        part(
+            b,
+            Mesh::Cube,
+            v3(ox + sx * (dw - cm(15)), oy, 0),
+            v3(cm(30), dh * 2, h.z * 2),
+            shade(BORE, 130),
+            0,
+        );
+    }
+    for sx in [-1, 0, 1] {
+        part(
+            b,
+            Mesh::Cube,
+            v3(ox + sx * dw / 2, oy + dh - cm(35), 0),
+            v3(cm(40), cm(10), h.z * 2),
+            rgb(220, 240, 255),
+            SKY_GLOW,
+        );
+    }
+    let ribs = (h.z * 2 / int(8)).clamp(2, 20);
+    for k in 1..ribs {
+        let z = -h.z + k * h.z * 2 / ribs;
+        part(
+            b,
+            Mesh::Cube,
+            v3(ox, oy + dh - cm(50), z),
+            v3(dw * 2, cm(40), cm(50)),
+            shade(BORE, 160),
+            0,
+        );
+        for sx in [-1, 1] {
+            part(
+                b,
+                Mesh::Cube,
+                v3(ox + sx * (dw - cm(45)), oy, z),
+                v3(cm(40), dh * 2, cm(50)),
+                shade(BORE, 160),
+                0,
+            );
+        }
+    }
     // the bore's lights: strips along its walls, and hazard frames round
     // both mouths
     for sx in [-1, 1] {
         part(
             b,
             Mesh::Cube,
-            v3(ox + sx * (dw - cm(15)), oy + dh - cm(60), 0),
+            v3(ox + sx * (dw - cm(40)), oy + dh - cm(60), 0),
             v3(cm(25), cm(25), h.z * 2),
             NEON,
             SKY_GLOW,
@@ -664,7 +716,7 @@ fn hulk(b: &mut Batch, body: &Body, door: &crate::sector::Door) {
         part(
             b,
             Mesh::Cube,
-            v3(ox + sx * (dw - cm(15)), oy - dh + cm(40), 0),
+            v3(ox + sx * (dw - cm(40)), oy - dh + cm(40), 0),
             v3(cm(25), cm(25), h.z * 2),
             NEON_WARM,
             ONE,
@@ -796,6 +848,8 @@ fn hulk(b: &mut Batch, body: &Body, door: &crate::sector::Door) {
     }
 }
 
+/// The inside of the Hulk's bore: dark plates.
+const BORE: Rgb = rgb(30, 30, 38);
 /// The freighter's hull: a rusty red, its armour a dark grey.
 const HULK: Rgb = rgb(138, 70, 58);
 const HULK_GREY: Rgb = rgb(84, 88, 98);
@@ -925,9 +979,12 @@ pub fn dynamic(b: &mut Batch, c: &Course, s: &SectorLayout, eye: V3, tick: u32, 
         }
     }
     let (at, r) = s.black_hole;
-    if at.dist(eye) < int(900) {
-        sc::black_hole(b, &black_hole_frame(c, at), r, tick);
-    }
+    sc::black_hole(
+        b,
+        &seen_from(eye, &black_hole_frame(c, at), HOLE_NEAR),
+        r,
+        tick,
+    );
     for p in &s.set_pieces {
         set_piece(b, p, eye, tick, race_tick);
     }
@@ -1301,6 +1358,28 @@ pub fn black_hole_frame(c: &Course, at: V3) -> Affine {
         .then(&Affine::rot_x(-BLACK_HOLE_TILT))
 }
 
+/// Beyond this distance the black hole is drawn shrunk toward the eye
+/// (`seen_from`), so it shows on the horizon from anywhere on the course
+/// without the far plane cutting it.
+const HOLE_NEAR: i32 = int(300);
+
+/// A frame `f` as seen from `eye`, brought in to `near` if it is further:
+/// moved along the line of sight and shrunk by the same share, so it looks
+/// exactly as big and in the same place, but stays inside the far plane.
+fn seen_from(eye: V3, f: &Affine, near: i32) -> Affine {
+    let d = f.t.dist(eye);
+    if d <= near {
+        return *f;
+    }
+    let k = fx::div(near, d);
+    Affine {
+        c0: f.c0.scale(k),
+        c1: f.c1.scale(k),
+        c2: f.c2.scale(k),
+        t: eye.add(f.t.sub(eye).scale(k)),
+    }
+}
+
 /// How far the disc is stood up from lying flat.
 const BLACK_HOLE_TILT: i32 = deg(60);
 
@@ -1623,24 +1702,18 @@ pub fn preview(c: &Course) -> (V3, i32, Camera) {
     )
 }
 
-/// The title's flyover on Sector Ape: a glide through space along the
-/// course, weaving gently up and down and side to side between the vines
-/// and looking a little ahead, so the bodies drift past on every side.
+/// The title's flyover on Sector Ape: a flight through space along the
+/// course, not a flat glide. Between the features it weaves gently a few
+/// metres over the spine; where the track splits it takes a route through
+/// the debris (the Hulk's corridor, between the wreck's halves), flying
+/// along that route's vines a little above their ends, easing in and out.
 pub fn flyover_camera(c: &Course, ticks: u32, from: i32) -> Camera {
     let lap = (c.length - int(100)).max(int(1)) as i64;
     let s = ((ticks as i64 * int(9) as i64 / crate::rules::TICKS_PER_SECOND as i64 + from as i64)
         % lap) as i32
         + int(40);
-    let at = |s: i32| {
-        let p = c.point(s);
-        let right = right_of(c.heading_at(s));
-        let w = sin(s / 3);
-        let h = sin(s / 4 + 9_000);
-        p.add(right.scale(mul(w, int(14))))
-            .add(v3(0, int(6) + mul(h, int(8)), 0))
-    };
-    let eye = at(s);
-    let look = at(s + int(36)).sub(v3(0, int(4), 0));
+    let eye = fly_line(c, s);
+    let look = fly_line(c, s + int(30)).sub(v3(0, int(2), 0));
     Camera {
         eye,
         fwd: look.sub(eye).norm(),
@@ -1648,9 +1721,79 @@ pub fn flyover_camera(c: &Course, ticks: u32, from: i32) -> Camera {
     }
 }
 
-/// How far apart the flyover's samples are, for tests.
-#[allow(dead_code)]
-const FLY_STEP: i32 = STEP;
+/// The flyover's line at `s` metres along: the spine, a weave, and the
+/// route it takes where the track splits.
+fn fly_line(c: &Course, s: i32) -> V3 {
+    let p = c.point(s);
+    let right = right_of(c.heading_at(s));
+    let weave = (
+        mul(sin(s / 3), int(5)),
+        int(6) + mul(sin(s / 4 + 9_000), int(3)),
+    );
+    let (across, up) = match c.sector.as_deref().and_then(|l| fly_route(c, l, s)) {
+        Some(((a, u), k)) => (fx::lerp(weave.0, a, k), fx::lerp(weave.1, u, k)),
+        None => weave,
+    };
+    let q = p.add(right.scale(across));
+    v3(q.x, up, q.z)
+}
+
+/// Where the flyover goes at `s` on a route through a split, if it is on
+/// one: (across, height) a little above that route's vines' ends, and how
+/// far it has eased onto it (0..=ONE). It takes the door's route (through
+/// the Hulk's corridor), else the one furthest out (between the wreck's
+/// halves); never the hidden one.
+fn fly_route(c: &Course, l: &SectorLayout, s: i32) -> Option<((i32, i32), i32)> {
+    let ease = int(45);
+    let r = l
+        .routes
+        .iter()
+        .filter(|r| !r.hidden && r.vines.len() >= 2 && s > r.from - ease && s < r.to + ease)
+        .max_by_key(|r| {
+            let out: i64 = r
+                .vines
+                .iter()
+                .filter_map(|&v| c.vines.get(v))
+                .map(|v| (v.anchor.flat().sub(c.point(v.at)).len() / ONE) as i64)
+                .sum();
+            (r.door, out / r.vines.len() as i64)
+        })?;
+    let mut pts: Vec<(i32, i32, i32)> = r
+        .vines
+        .iter()
+        .filter(|&&v| v < c.vines.len())
+        .map(|&v| {
+            let tip = c.tip(v, 0);
+            let (at, across) = c.progress(tip, c.nearest_anywhere(tip));
+            (at, across, tip.y + int(3))
+        })
+        .collect();
+    pts.sort_by_key(|p| p.0);
+    let (first, last) = (pts[0], pts[pts.len() - 1]);
+    let (a, u) = if s <= first.0 {
+        (first.1, first.2)
+    } else if s >= last.0 {
+        (last.1, last.2)
+    } else {
+        let k = pts
+            .windows(2)
+            .position(|w| s >= w[0].0 && s < w[1].0)
+            .unwrap_or(0);
+        let (p0, p1) = (pts[k], pts[k + 1]);
+        let t = fx::div(s - p0.0, (p1.0 - p0.0).max(1));
+        (fx::lerp(p0.1, p1.1, t), fx::lerp(p0.2, p1.2, t))
+    };
+    // eased on before the first vine and off after the last
+    let k = if s < first.0 {
+        fx::div((s - (first.0 - ease)).max(0), ease)
+    } else if s > last.0 {
+        ONE - fx::div((s - last.0).min(ease), ease)
+    } else {
+        ONE
+    };
+    let k = mul(mul(k, k), int(3) - 2 * k);
+    Some(((a, u), k))
+}
 
 #[cfg(test)]
 mod tests {
@@ -1695,7 +1838,11 @@ mod tests {
             let len = c.vines[i].length;
             let (vines, _) = scene::flyover_dynamic(&c, 0, false, a);
             let far = a.add(dir.scale(len * 3 / 4));
-            let near = middles(vines).into_iter().map(|m| m.dist(far)).min().unwrap();
+            let near = middles(vines)
+                .into_iter()
+                .map(|m| m.dist(far))
+                .min()
+                .unwrap();
             assert!(near < int(1), "{dir:?}: {} m off", near / ONE);
         }
     }
