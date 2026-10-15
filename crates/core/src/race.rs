@@ -545,7 +545,8 @@ impl Race {
             }
         }
         if got > 0 {
-            r.ape.bananas = (r.ape.bananas + got).min(rules::BANANAS_FULL);
+            r.ape.bananas =
+                (r.ape.bananas + got).min(rules::BANANAS_FULL * rules::BANANA_PIECES);
             self.events.push(Event::Reward {
                 who,
                 what: Reward::Banana,
@@ -909,6 +910,18 @@ mod tests {
             r.step(&[Controls::default(); 2]);
         }
         assert_eq!(r.racers[0].ape.bananas, 3);
+        // TRIAGE T60: the pieces stop at the full 20 bananas
+        let full = rules::BANANAS_FULL * rules::BANANA_PIECES;
+        r.racers[1].ape.bananas = full - 1;
+        r.racers[1].ape.pos = start;
+        r.racers[1].ape.vel = v3(0, 0, int(20));
+        r.racers[1].ape.mode = Mode::Flying;
+        for _ in 0..60 {
+            r.step(&[Controls::default(); 2]);
+        }
+        assert!(r.racers[1].took.iter().all(|t| *t));
+        assert_eq!(r.racers[1].ape.bananas, full);
+        assert_eq!(r.racers[1].ape.whole_bananas(), rules::BANANAS_FULL);
     }
 
     #[test]

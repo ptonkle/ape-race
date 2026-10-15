@@ -1431,15 +1431,16 @@ mod tests {
     #[test]
     fn banana_arcs_hang_under_vines_along_the_course() {
         // TRIAGE T43: enough for a good run to fill up, in arcs of five
-        // round the bottom of a vine's swing, clear of the ground
-        use crate::rules::BANANAS_FULL;
+        // round the bottom of a vine's swing, clear of the ground (T60: an
+        // arc is one banana in five pieces)
+        use crate::rules::{BANANAS_FULL, BANANA_PIECES};
         let c = Course::jungle();
         let n = c.bananas.len();
         assert!(
-            n >= 3 * BANANAS_FULL as usize && n.is_multiple_of(5),
-            "{n} bananas"
+            n >= 3 * (BANANAS_FULL * BANANA_PIECES) as usize && n.is_multiple_of(5),
+            "{n} banana pieces"
         );
-        for arc in c.bananas.chunks(5) {
+        for arc in c.bananas.chunks(BANANA_PIECES as usize) {
             let mid = arc[2];
             // under a vine's end, a body's middle below the hands
             let under = c.vines.iter().any(|v| {

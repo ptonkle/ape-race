@@ -2053,7 +2053,7 @@ impl App {
             },
             "item": [self.t("hud.item"), item],
             // the course's bananas taken (TRIAGE T43)
-            "bananas": [self.t("hud.bananas"), format!("{}/{}", me.ape.bananas, rules::BANANAS_FULL)],
+            "bananas": [self.t("hud.bananas"), format!("{}/{}", me.ape.whole_bananas(), rules::BANANAS_FULL)],
             "item_key": me.item.map(|i| i.key()).unwrap_or(""),
             // the held item as a picture (TRIAGE T19)
             "item_icon": me.item.map(crate::items::icon_svg).unwrap_or_default(),

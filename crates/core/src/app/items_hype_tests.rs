@@ -193,3 +193,16 @@ fn a_replay_makes_no_call_outs() {
     let (sounds, flash) = speed_up(&mut a, 600, |k| (k as i32).min(110));
     assert!(sounds.is_empty() && flash == 0, "{sounds:?} {flash}");
 }
+
+#[test]
+fn the_hud_counts_whole_bananas_out_of_twenty() {
+    // TRIAGE T60: five pieces on the course make one banana
+    let mut a = app();
+    a.act("menu.race", "");
+    a.act("menu.start", "");
+    let p = a.play.as_mut().unwrap();
+    let me = p.local;
+    p.race.racers[me].ape.bananas = 37;
+    let ui = ui_of(&mut a);
+    assert_eq!(ui["hud"]["bananas"][1], "7/20");
+}

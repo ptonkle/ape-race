@@ -687,8 +687,8 @@ fn a_bounce_pushes_the_ape_on_along_its_heading() {
 }
 
 #[test]
-fn a_hundred_bananas_raise_the_top_speed_a_fifth() {
-    // TRIAGE T43: terminal speed is where gravity meets the drag; the drag
+fn a_full_count_of_bananas_raises_the_top_speed_a_fifth() {
+    // TRIAGE T43 (T60: 20 bananas, five pieces each): terminal speed is where gravity meets the drag; the drag
     // falls with the bananas the last grab counted
     let c = one_vine();
     let terminal = |n: u32| {
@@ -704,7 +704,7 @@ fn a_hundred_bananas_raise_the_top_speed_a_fifth() {
         ape.speed()
     };
     let none = terminal(0);
-    let full = terminal(BANANAS_FULL);
+    let full = terminal(BANANAS_FULL * BANANA_PIECES);
     let ratio = fx::div(full, none);
     assert!(
         (ONE * 118 / 100..=ONE * 122 / 100).contains(&ratio),
@@ -713,10 +713,11 @@ fn a_hundred_bananas_raise_the_top_speed_a_fifth() {
         none / ONE
     );
     // more than the full count adds nothing
-    assert_eq!(terminal(BANANAS_FULL * 2), full);
-    // half way is part way
-    let half = terminal(BANANAS_FULL / 2);
+    assert_eq!(terminal(BANANAS_FULL * BANANA_PIECES * 2), full);
+    // half way is part way, and so is a piece short of the full count
+    let half = terminal(BANANAS_FULL * BANANA_PIECES / 2);
     assert!(half > none && half < full);
+    assert!(terminal(BANANAS_FULL * BANANA_PIECES - 1) < full);
 }
 
 #[test]
@@ -739,7 +740,9 @@ fn bananas_count_from_the_next_grab_and_a_hit_drops_some() {
     assert!(caught);
     assert_eq!(ape.banana_drag, 30);
     ape.hit(ONE, 10, V3::ZERO);
-    assert_eq!(ape.bananas, 30 - BANANAS_DROPPED);
+    // TRIAGE T60: two of the 20 bananas, ten pieces, as 10 of 100 were
+    assert_eq!(ape.bananas, 30 - BANANAS_DROPPED * BANANA_PIECES);
+    assert_eq!((ape.bananas, ape.whole_bananas()), (20, 4));
     ape.bananas = 4;
     ape.hit(ONE, 10, V3::ZERO);
     assert_eq!(ape.bananas, 0);

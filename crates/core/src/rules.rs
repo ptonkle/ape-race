@@ -84,11 +84,18 @@ pub const BANANA_PICKUP: i32 = cm(120);
 /// At this many bananas the ape's top speed is 20% higher: drag falls by
 /// `BANANAS_DRAG_CUT` thousandths at the full count, in steps, and terminal
 /// speed under quadratic drag goes as one over the square root of the drag
-/// (1 / sqrt(0.694) = 1.20). More are not counted.
-pub const BANANAS_FULL: u32 = 100;
+/// (1 / sqrt(0.694) = 1.20). More are not counted. (TRIAGE T60: 20, down
+/// from 100, with the same cut at the full count.)
+pub const BANANAS_FULL: u32 = 20;
 pub const BANANAS_DRAG_CUT: i64 = 306;
-/// A hit (Banana, Stick or Hook) costs this many of them.
-pub const BANANAS_DROPPED: u32 = 10;
+/// TRIAGE T60: what the course hangs are pieces of a banana, this many to
+/// one (an arc of five is one banana), so the 20 fill along the course as
+/// the 100 did and every race plays out exactly as before; the drag falls
+/// a step a piece, as it fell a step a banana.
+pub const BANANA_PIECES: u32 = 5;
+/// A hit (Banana, Stick or Hook) costs this many bananas (a tenth of the
+/// full count, as 10 of 100 did).
+pub const BANANAS_DROPPED: u32 = 2;
 /// How fast WASD bring the ape to its running velocity on the ground.
 pub const RUN_ACCEL: i32 = int(40);
 
