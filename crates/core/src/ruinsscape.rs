@@ -1612,10 +1612,9 @@ pub fn lobby_spot(c: &Course, r: &RuinsLayout) -> (V3, V3) {
             let along = l.at.sub(feet).flat().dot(mouth.sub(feet).flat().norm());
             let side = off(l.at, feet);
             side > int(32) || side as i64 * 100 > along as i64 * 47
-        })
-            && skyline_ruins(c, r)
-                .iter()
-                .all(|&(_, p)| off(p, feet) > int(24))
+        }) && skyline_ruins(c, r)
+            .iter()
+            .all(|&(_, p)| off(p, feet) > int(24))
             && r.hangers.iter().all(|h| match *h {
                 crate::ruins::Hanger::Tree { trunk } => off(trunk, feet) > int(9),
                 _ => true,

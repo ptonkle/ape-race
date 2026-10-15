@@ -288,14 +288,21 @@ mod tests {
             let c = a.course_of(Map::Ruins).unwrap();
             let cam = a.preview_camera();
             // nearly level, not pitched down at the feet
-            assert!(cam.fwd.y.abs() < fx::sin(deg(4)), "{w}x{h}: pitch {}", cam.fwd.y);
+            assert!(
+                cam.fwd.y.abs() < fx::sin(deg(4)),
+                "{w}x{h}: pitch {}",
+                cam.fwd.y
+            );
             // the mouth on screen, left of the ape and right of the menus
             let mouth = c.ruins.as_deref().unwrap().mouth.opening.centre;
             let (mx, my) = cam.screen(fx::div(w, h), mouth).unwrap();
             let (mx, my) = (mx / ONE, my / ONE);
             let (x, y) = ape_on_screen(&a);
             let Dock::Side(dock) = a.dock() else { panic!() };
-            assert!(mx > dock * 100 / w && mx < x, "{w}x{h}: mouth at {mx}%, ape {x}%");
+            assert!(
+                mx > dock * 100 / w && mx < x,
+                "{w}x{h}: mouth at {mx}%, ape {x}%"
+            );
             assert!((15..=70).contains(&my), "{w}x{h}: mouth {my}% down");
             assert!((40..=70).contains(&y), "{w}x{h}: ape at {y}% down");
         }
