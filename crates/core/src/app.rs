@@ -2784,6 +2784,8 @@ fn cue_for(e: &Event, local: usize) -> Option<Cue> {
             Happening::Rebound => Cue::Bounce,
             // (Sunset Ruins; the art may give it its own sound)
             Happening::Spiked => Cue::Hit,
+            // its sound comes with the reward
+            Happening::Launched => return None,
             Happening::Wall => return None,
         }),
         Event::Countdown { .. } => Some(Cue::Beep),
@@ -2803,6 +2805,7 @@ fn cue_for(e: &Event, local: usize) -> Option<Cue> {
             crate::race::Reward::Mushroom => Cue::Bounce,
             crate::race::Reward::Catchup => Cue::Catchup,
             crate::race::Reward::Banana => Cue::Banana,
+            crate::race::Reward::Shortcut => Cue::Boost,
         }),
         _ => None,
     }

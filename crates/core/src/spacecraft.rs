@@ -35,6 +35,8 @@ const INTERIOR: Rgb = rgb(46, 46, 54);
 const RIB: Rgb = rgb(96, 100, 112);
 const EMBER: Rgb = rgb(255, 120, 30);
 const ALARM: Rgb = rgb(255, 40, 40);
+/// The wreck passage's launch rings (T88): the shortcut boosts.
+const LAUNCH: Rgb = rgb(60, 255, 200);
 
 const BANANA: Rgb = rgb(255, 214, 56);
 const BANANA_TIP: Rgb = rgb(90, 64, 30);
@@ -501,6 +503,10 @@ pub struct Passage {
     pub entry: V3,
     pub exit: V3,
     pub axis: V3,
+    /// unit directions across the opening: along the hull (`width`'s way)
+    /// and up it (`height`'s way)
+    pub across: V3,
+    pub up: V3,
     /// the clear opening: across the axis along the hull (`width`) and up
     /// the hull (`height`), and the passage's length, in world metres
     pub width: i32,
@@ -513,9 +519,10 @@ pub struct Passage {
 /// taller each way than the opening.
 pub const RECESS: i32 = cm(120);
 
-/// The default opening through the wreck, metres: 10 wide by 7 tall (the
-/// map session sizes it; the hull allows up to 17 by 18).
-pub const WRECK_GAP: (i32, i32) = (int(10), int(7));
+/// The default opening through the wreck, metres: 14 wide by 10 tall
+/// (T88: was 10 by 7, too fine a needle to thread; the hull allows up to
+/// 17 by 18).
+pub const WRECK_GAP: (i32, i32) = (int(14), int(10));
 
 /// The two halves' frames: the stern drifts back, yawing and rolling; the
 /// bow drifts on, nose down and rolled the other way. The gap between the
@@ -560,6 +567,8 @@ pub fn wreck_passage(f: &Affine, gap: (i32, i32)) -> Passage {
         entry,
         exit,
         axis: exit.sub(entry).norm(),
+        across: bow.apply_dir(v3(0, 0, ONE)).norm(),
+        up: bow.apply_dir(v3(0, ONE, 0)).norm(),
         width: bow.apply_dir(v3(0, 0, w)).len(),
         height: bow.apply_dir(v3(0, h, 0)).len(),
         length: entry.dist(exit),
@@ -763,6 +772,34 @@ fn hollow(b: &mut Batch, bow: &Affine, tick: u32, gap: (i32, i32)) {
         RIB,
         0,
     );
+    // the launch rings (T88: going through boosts): glowing frames round
+    // the opening, mouth to mouth, lit in turn from the entry (ship -x) to
+    // the exit, the way the boost throws; on the opening's edge, clear of it
+    let lit = (tick / 8 % 5) as i32;
+    for k in 0..5 {
+        let x = -hw / 2 + int(1) + k * (hw - int(2)) / 4;
+        let c = if k == lit { LAUNCH } else { shade(LAUNCH, 55) };
+        for s in [1, -1] {
+            put(
+                b,
+                bow,
+                Mesh::Cube,
+                v3(x, s * (h / 2 + cm(20)), z0),
+                v3(cm(60), cm(40), w + cm(40)),
+                c,
+                ONE,
+            );
+            put(
+                b,
+                bow,
+                Mesh::Cube,
+                v3(x, 0, z0 + s * (w / 2)),
+                v3(cm(60), h, cm(40)),
+                c,
+                ONE,
+            );
+        }
+    }
 }
 
 /// A torn face where the hull broke (`dir` 1: the bow's, facing aft; -1:
@@ -2371,8 +2408,8 @@ mod tests {
         assert!(s.iter().filter(|x| x.colour == SCORCH).count() >= 10);
         // a clear way through: nothing in the opening, mouth to mouth
         let p = wreck_passage(&f, WRECK_GAP);
-        assert!((p.width - int(10)).abs() < ONE / 10);
-        assert!((p.height - int(7)).abs() < ONE / 10);
+        assert!((p.width - int(14)).abs() < ONE / 10);
+        assert!((p.height - int(10)).abs() < ONE / 10);
         assert!((p.length - int(HULL_W) - cm(120)).abs() < ONE / 10);
         let (_, bow) = halves(&f);
         let up = bow.apply_dir(v3(0, ONE, 0));

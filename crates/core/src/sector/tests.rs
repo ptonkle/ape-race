@@ -28,10 +28,7 @@ fn empty() -> SectorLayout {
             shut_at: None,
         },
         mechs: Vec::new(),
-        wreck: Wreck {
-            frame: Affine::IDENTITY,
-            gap: crate::spacecraft::WRECK_GAP,
-        },
+        wreck: Wreck::new(Affine::IDENTITY, crate::spacecraft::WRECK_GAP),
         black_hole: (v3(0, int(20), int(600)), int(20)),
         set_pieces: Vec::new(),
         lobby: (V3::ZERO, 0),

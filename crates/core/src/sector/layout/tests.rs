@@ -1,7 +1,7 @@
 //! Sector Ape's layout (`sector()` and its seeded layouts).
 
 use super::*;
-use crate::ape::{Ape, Controls, Mode, HIT_RADIUS};
+use crate::ape::{Ape, Controls, Happening, Mode, HIT_RADIUS};
 use crate::fx::cm;
 use crate::rules::Kind;
 use crate::spacecraft::{wreck_passage, MechKind};
@@ -280,8 +280,8 @@ fn the_wreck_passage_is_clear_and_the_hull_round_it_solid() {
             sweep_hits(up.scale(-(p.height / 2 + int(2)))),
             "no hull below it"
         );
-        // and the gap is 10 by 7 m
-        assert!((p.width - int(10)).abs() < ONE / 100 && (p.height - int(7)).abs() < ONE / 100);
+        // and the gap is 14 by 10 m (T88)
+        assert!((p.width - int(14)).abs() < ONE / 100 && (p.height - int(10)).abs() < ONE / 100);
         // its snipe vine is on its line short of the mouth
         let route = s.routes.iter().find(|r| r.hidden).expect("a hidden route");
         let snipe = c.tip(route.vines[0], 0);
@@ -293,6 +293,63 @@ fn the_wreck_passage_is_clear_and_the_hull_round_it_solid() {
             along / ONE,
             off / ONE
         );
+    }
+}
+
+/// T88: flying into the wreck's passage on the way on launches the ape
+/// straight down it, faster (at least `PASSAGE_FLOOR`), once; it threads the
+/// rest without touching the hull. Going in the wrong way does nothing.
+#[test]
+fn flying_into_the_wreck_passage_launches_the_ape_through_it() {
+    let lift = v3(0, crate::rules::BODY_DROP / 2, 0);
+    for c in layouts() {
+        let s = lay(&c);
+        let p = s.wreck.passage;
+        // (speed along it, drift across it and up it, m/s; and which way)
+        for (speed, side, up, on) in [(45, 3, 2, true), (15, 0, 2, true), (30, 0, 0, false)] {
+            let (mouth, way) = if on {
+                (p.entry, p.axis)
+            } else {
+                (p.exit, p.axis.scale(-ONE))
+            };
+            let start = mouth.sub(way.scale(int(12))).add(lift);
+            let mut a = Ape::new_on(&c, Kind::Chimpanzee, true, start, 0);
+            a.vel = way
+                .scale(int(speed))
+                .add(p.across.scale(int(side)))
+                .add(p.up.scale(int(up)));
+            a.mode = Mode::Flying;
+            a.hint = c.nearest_anywhere(start);
+            let (mut launches, mut hits) = (0, 0);
+            for t in 0..360 {
+                let before = a.vel;
+                a.step(&Controls::default(), &c, t);
+                if a.happened.contains(&Happening::Launched) {
+                    launches += 1;
+                    let want = (before.len() + PASSAGE_LAUNCH).max(PASSAGE_FLOOR);
+                    assert!(
+                        a.vel.dot(p.axis) > want - ONE,
+                        "launched at {} m/s, want {}",
+                        a.vel.dot(p.axis) / ONE,
+                        want / ONE
+                    );
+                    assert!(a.vel.reject(p.axis).len() < ONE, "not straight down it");
+                }
+                if a.happened.contains(&Happening::Wall) || a.happened.contains(&Happening::Rebound)
+                {
+                    hits += 1;
+                }
+                if a.pos.sub(mouth).dot(way) > p.length + int(5) {
+                    break;
+                }
+            }
+            if on {
+                assert_eq!((launches, hits), (1, 0), "{speed} m/s in");
+                assert!(a.pos.sub(p.exit).dot(p.axis) > 0, "not through");
+            } else {
+                assert_eq!(launches, 0, "launched going back");
+            }
+        }
     }
 }
 

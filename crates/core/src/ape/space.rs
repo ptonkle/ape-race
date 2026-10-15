@@ -5,7 +5,9 @@
 
 use super::*;
 use crate::fx::int;
-use crate::sector::{sweep, Hanger, Model, Touch, REBOUND_BOOST, SECTOR_TOP, SLING};
+use crate::sector::{
+    sweep, Hanger, Model, Touch, PASSAGE_FLOOR, PASSAGE_LAUNCH, REBOUND_BOOST, SECTOR_TOP, SLING,
+};
 
 /// The ape's ball for hits with ships and debris: round the middle of its
 /// body (the hands are `BODY_DROP / 2` above, the feet as far below).
@@ -116,6 +118,33 @@ impl Ape {
             let top = (speed + gain).min(SECTOR_TOP).max(speed);
             self.vel = self.vel.with_len(top);
         }
+    }
+
+    /// The wreck's launch (T88): flying into its passage's opening on the
+    /// way on, the ape is turned straight down the passage and sped up by
+    /// `PASSAGE_LAUNCH` (at least to `PASSAGE_FLOOR`, never past
+    /// `SECTOR_TOP`), so the hidden shortcut pays and threads itself once
+    /// in. Only on the tick it goes in (its middle outside the opening at
+    /// the start of the tick, inside at the end).
+    pub(super) fn passage_launch(&mut self, course: &Course, before: V3) {
+        let Some(s) = course.sector.as_deref() else {
+            return;
+        };
+        if self.swinging().is_some() {
+            return;
+        }
+        let w = &s.wreck;
+        let lift = v3(0, BODY_DROP / 2, 0);
+        if !w.in_passage(self.pos.sub(lift)) || w.in_passage(before.sub(lift)) {
+            return;
+        }
+        let axis = w.passage.axis;
+        if self.vel.dot(axis) <= 0 {
+            return;
+        }
+        let speed = (self.vel.len() + PASSAGE_LAUNCH).clamp(PASSAGE_FLOOR, SECTOR_TOP);
+        self.vel = axis.scale(speed);
+        self.happened.push(Happening::Launched);
     }
 
     /// The ships, debris and (while shut) the door: the body's ball swept

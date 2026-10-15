@@ -81,6 +81,13 @@ pub const SLING: i32 = int(10);
 /// the new velocity (never past `SECTOR_TOP`).
 pub const REBOUND_BOOST: i32 = int(8);
 
+/// Flying into the wreck's passage (T88, the hidden shortcut) launches the
+/// ape: its velocity is turned straight down the passage (so it threads
+/// the rest of it) and this much is added to its speed (never past
+/// `SECTOR_TOP`), at least `PASSAGE_FLOOR` in all.
+pub const PASSAGE_LAUNCH: i32 = int(20);
+pub const PASSAGE_FLOOR: i32 = int(60);
+
 /// The switch vine shuts the door once it is swung this far forward of
 /// the way it hangs.
 pub const DOOR_ANGLE: i32 = deg(55);
@@ -482,12 +489,33 @@ impl MechPath {
     }
 }
 
-/// The wreck: its frame (as `spacecraft::pose`) and its passage's gap
-/// (`spacecraft::wreck_passage`).
+/// The wreck: its frame (as `spacecraft::pose`), its passage's gap and the
+/// passage itself (`spacecraft::wreck_passage`, worked out once: the ape
+/// tests it every tick for the launch, `PASSAGE_LAUNCH`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Wreck {
     pub frame: Affine,
     pub gap: (i32, i32),
+    pub passage: crate::spacecraft::Passage,
+}
+
+impl Wreck {
+    pub fn new(frame: Affine, gap: (i32, i32)) -> Wreck {
+        Wreck {
+            frame,
+            gap,
+            passage: crate::spacecraft::wreck_passage(&frame, gap),
+        }
+    }
+
+    /// Whether `p` is inside the passage's clear opening, mouth to mouth.
+    pub fn in_passage(&self, p: V3) -> bool {
+        let q = &self.passage;
+        let d = p.sub(q.middle);
+        d.dot(q.axis).abs() < q.length / 2
+            && d.dot(q.across).abs() < q.width / 2
+            && d.dot(q.up).abs() < q.height / 2
+    }
 }
 
 /// Scenery that moves on its own clock (from the race tick).

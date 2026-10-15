@@ -32,12 +32,17 @@ const SECTIONS: [(i32, &str); 9] = [
     (2330, "armada"),
 ];
 
+/// The stretch timed for the wreck's three ways (metres along).
+const WRECK_SPLIT: (i32, i32) = (1100, 1360);
+
 struct Run {
     finish: Option<f64>,
     at: i32,
     resets: u32,
     top: i32,
     hidden: bool,
+    /// seconds from 1100 m to 1360 m (the wreck, all three ways)
+    wreck: f64,
     /// seconds in each section (to the first time past its end)
     split: Vec<f64>,
 }
@@ -56,6 +61,7 @@ fn run(course: Course, kind: Kind, level: Difficulty, equal: bool) -> Run {
     let w = race.course.sector.as_ref().unwrap().wreck;
     let pass = tool_core::spacecraft::wreck_passage(&w.frame, w.gap);
     let mut reached = vec![None; SECTIONS.len()];
+    let (mut w0, mut w1) = (None, None);
     while race.clock < 150 * TICKS_PER_SECOND as u32 && race.phase != Phase::Done {
         let c = think(&race, 0, &mut brain);
         race.step(&[c]);
@@ -71,6 +77,12 @@ fn run(course: Course, kind: Kind, level: Difficulty, equal: bool) -> Run {
         let along = d.dot(pass.axis);
         hidden |= along.abs() < pass.length / 2 && d.reject(pass.axis).len() < pass.width / 2;
         let p = race.racers[0].progress / ONE;
+        if w0.is_none() && p >= WRECK_SPLIT.0 {
+            w0 = Some(race.clock);
+        }
+        if w1.is_none() && p >= WRECK_SPLIT.1 {
+            w1 = Some(race.clock);
+        }
         for (k, (end, _)) in SECTIONS.iter().enumerate() {
             if reached[k].is_none() && (p >= *end || race.racers[0].finish.is_some()) {
                 reached[k] = Some(race.clock);
@@ -91,6 +103,10 @@ fn run(course: Course, kind: Kind, level: Difficulty, equal: bool) -> Run {
         resets,
         top: top / ONE,
         hidden,
+        wreck: match (w0, w1) {
+            (Some(a), Some(b)) => (b - a) as f64 / TICKS_PER_SECOND as f64,
+            _ => f64::NAN,
+        },
         split,
     }
 }
@@ -171,7 +187,11 @@ fn main() {
                 format!(
                     "{t}{}{}",
                     "r".repeat(r.resets as usize),
-                    if r.hidden { "*" } else { "" }
+                    if r.hidden {
+                        format!("*{:.1}", r.wreck)
+                    } else {
+                        format!("({:.1})", r.wreck)
+                    }
                 )
             })
             .collect();
@@ -193,6 +213,23 @@ fn main() {
             })
             .collect();
         println!("           sections: {}", means.join(", "));
+        let wreck = |through: bool| {
+            let t: Vec<f64> = row
+                .iter()
+                .filter(|r| r.hidden == through && !r.wreck.is_nan())
+                .map(|r| r.wreck)
+                .collect();
+            format!(
+                "{:.1} s ({} runs)",
+                t.iter().sum::<f64>() / t.len().max(1) as f64,
+                t.len()
+            )
+        };
+        println!(
+            "           1100-1360 m: through the passage {}, the other ways {}",
+            wreck(true),
+            wreck(false)
+        );
     }
     println!("(r: a reset onto a deck; *: through the wreck's passage)");
 }
