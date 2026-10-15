@@ -295,6 +295,27 @@ pub struct Scenery {
 pub struct Chunk {
     pub centre: V3,
     pub draws: Vec<u32>,
+    /// the flat box its shapes and ground lie in (x and z, least then
+    /// most); None counts only the centre (the Jungle, the City, Sector
+    /// Ape). The Ski Slope sets it (`bound_chunks`, TRIAGE T62) so a chunk
+    /// is drawn as soon as any of it is nearer than the reach, and none
+    /// pops in where the fog would show it.
+    pub bounds: Option<[i32; 4]>,
+}
+
+impl Chunk {
+    /// How near (flat) `eye` any of the chunk can be: to its box when it
+    /// has one, else to its centre.
+    pub fn nearest(&self, eye: V3) -> i32 {
+        match self.bounds {
+            Some([x0, z0, x1, z1]) => {
+                let dx = (x0 - eye.x).max(eye.x - x1).max(0);
+                let dz = (z0 - eye.z).max(eye.z - z1).max(0);
+                v3(dx, 0, dz).len()
+            }
+            None => self.centre.flat().sub(eye.flat()).len(),
+        }
+    }
 }
 
 /// Chunks whose middle is further than this from the eye are not drawn.
@@ -317,6 +338,74 @@ impl Scenery {
         out
     }
 
+    /// The draws of the chunks the eye can see some of with the fog's far
+    /// end `fog_far` metres off. A scenery whose chunks know their size
+    /// (the Ski Slope, `bound_chunks`) draws every chunk any part of which
+    /// is nearer than that (and so never pops one in where the fog would
+    /// show it, TRIAGE T62), and only those; the others draw as
+    /// `draws_near`.
+    pub fn draws_in(&self, eye: V3, fog_far: i32) -> Vec<u32> {
+        if !self.chunks.iter().any(|ch| ch.bounds.is_some()) {
+            return self.draws_near(eye);
+        }
+        let reach = if self.reach > 0 {
+            self.reach.min(fog_far)
+        } else {
+            fog_far
+        };
+        let mut out = Vec::new();
+        for ch in &self.chunks {
+            if ch.nearest(eye) <= reach {
+                out.extend_from_slice(&ch.draws);
+            }
+        }
+        out
+    }
+
+    /// Sets each chunk's `bounds`: the flat box round all of its shapes
+    /// (their middle give or take their largest half-size) and its
+    /// ground's vertices.
+    pub fn bound_chunks(&mut self) {
+        use crate::mesh::VERTEX_VALUES;
+        use crate::render::{BYTES_PER_VALUE, DRAW_VALUES, INSTANCE_VALUES};
+        for ch in &mut self.chunks {
+            let mut b = [i32::MAX, i32::MAX, i32::MIN, i32::MIN];
+            let mut take = |x: i32, z: i32, r: i32| {
+                b = [
+                    b[0].min(x - r),
+                    b[1].min(z - r),
+                    b[2].max(x + r),
+                    b[3].max(z + r),
+                ];
+            };
+            for d in ch.draws.chunks(DRAW_VALUES) {
+                if d[1] == crate::mesh::Mesh::Terrain as u32 {
+                    let (first, count) = (d[4] as usize, d[5] as usize);
+                    for v in self.terrain[first * VERTEX_VALUES..(first + count) * VERTEX_VALUES]
+                        .chunks(VERTEX_VALUES)
+                    {
+                        take(v[0], v[2], 0);
+                    }
+                    continue;
+                }
+                let from = d[2] as usize / BYTES_PER_VALUE;
+                let n = d[3] as usize;
+                for s in self.values[from..from + n * INSTANCE_VALUES].chunks(INSTANCE_VALUES) {
+                    // the axes are the columns: (s0, s4, s8) and so on
+                    let half = (0..3)
+                        .map(|k| v3(s[k], s[4 + k], s[8 + k]).len())
+                        .max()
+                        .unwrap_or(0)
+                        / 2;
+                    take(s[3], s[11], half);
+                }
+            }
+            if b[0] <= b[2] {
+                ch.bounds = Some(b);
+            }
+        }
+    }
+
     /// A scenery of one chunk that is always drawn.
     pub fn single(b: Batch) -> Scenery {
         let mut values = Vec::new();
@@ -327,6 +416,7 @@ impl Scenery {
             chunks: vec![Chunk {
                 centre: V3::ZERO,
                 draws,
+                bounds: None,
             }],
             reach: 0,
         }
@@ -422,7 +512,11 @@ pub(crate) fn assemble(
         } else {
             c.path[(k * CHUNK + CHUNK / 2).min(last)]
         };
-        chunks.push(Chunk { centre, draws });
+        chunks.push(Chunk {
+            centre,
+            draws,
+            bounds: None,
+        });
     }
     Scenery {
         values,
@@ -1520,6 +1614,17 @@ fn item_flowers(b: &mut Batch, f: &Frame, held: &[Option<V3>]) {
             }
             continue;
         }
+        // on the Ski Slope, gold Christmas stars beside the rope, and dull
+        // silver ones while its item is taken (TRIAGE T68)
+        if Map::of(&race.course) == Map::Ski {
+            for (j, t) in FLOWER_AT.into_iter().enumerate() {
+                let side = if j % 2 == 0 { cm(55) } else { -cm(55) };
+                let at = along(&pts, t).add(right.scale(side));
+                let spin = fx::sin(f.tick as i32 * 40 + (k * 3 + j) as i32 * 9000) / 12;
+                crate::skiscape::star(b, at, right, up, spin, open);
+            }
+            continue;
+        }
         for (j, t) in FLOWER_AT.into_iter().enumerate() {
             // beside the vine, on alternate sides as the camera sees it
             let side = if j % 2 == 0 { cm(40) } else { -cm(40) };
@@ -2284,6 +2389,59 @@ mod tests {
         let marks =
             coloured(b.clone(), Mesh::Blob, PETAL).len() + coloured(b, Mesh::Sphere, BUD).len();
         assert_eq!(marks, 0, "flowers drawn with no items allowed");
+    }
+
+    #[test]
+    fn the_ski_slopes_item_vines_carry_gold_stars_not_flowers() {
+        // TRIAGE T68: three gold five-pointed stars up the rope's middle
+        // (no petals), dull silver ones while taken, none with no items
+        use crate::skiscape::{STAR_DULL, STAR_GOLD};
+        let e = crate::race::Entry {
+            name: "P".into(),
+            kind: crate::rules::Kind::Chimpanzee,
+            driver: crate::race::Driver::Local,
+            palette: 0,
+        };
+        let mut race = Race::new(Map::Ski.course(), &[e], false, 1);
+        let k = 0;
+        let v = race.crate_vines[k];
+        let a = race.course.anchor(v, race.tick);
+        let len = race.course.vines[v].length;
+        let mid = a.sub(v3(0, len / 2, 0));
+        let near = |ps: Vec<V3>| -> Vec<V3> {
+            ps.into_iter()
+                .filter(|p| p.flat().sub(a.flat()).len() < int(3))
+                .collect()
+        };
+        let b = vines_seen(&race, mid, false);
+        assert!(
+            near(coloured(b.clone(), Mesh::Blob, PETAL)).is_empty(),
+            "no petals"
+        );
+        let points = near(coloured(b, Mesh::Spike, STAR_GOLD));
+        assert_eq!(points.len(), 15, "five points on each of three stars");
+        for p in &points {
+            let down = a.y - p.y;
+            assert!(
+                down > len / 5 && down < len * 4 / 5,
+                "a point {} m down",
+                down / ONE
+            );
+        }
+        // a gold apart from the in-reach yellow: more orange
+        let reach = vine_look_on(Map::Ski, true, false, 0).colour;
+        assert!(STAR_GOLD[1] * 10 < reach[1] * 9 && STAR_GOLD[2] < reach[2] / 2);
+        // taken: dull stars, no gold
+        race.crates[k] = 5;
+        let b = vines_seen(&race, mid, false);
+        assert!(near(coloured(b.clone(), Mesh::Spike, STAR_GOLD)).is_empty());
+        assert_eq!(near(coloured(b, Mesh::Spike, STAR_DULL)).len(), 15);
+        // no item allowed: no stars
+        race.items = crate::items::ItemSet::NONE;
+        let b = vines_seen(&race, mid, false);
+        let marks = near(coloured(b.clone(), Mesh::Spike, STAR_GOLD)).len()
+            + near(coloured(b, Mesh::Spike, STAR_DULL)).len();
+        assert_eq!(marks, 0, "stars drawn with no items allowed");
     }
 
     #[test]

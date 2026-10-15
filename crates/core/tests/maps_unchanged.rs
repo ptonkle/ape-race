@@ -89,9 +89,13 @@ const CITY: (u32, u64, u64) = (
     11_378_391_952_088_175_385,
     16_180_813_438_469_971_061,
 );
+/// The Ski Slope's, retaken 2026-10-14 for TRIAGE T74 (low vines at
+/// every station, two across the whole run): a deliberate layout change,
+/// so a Ski Slope replay saved before it no longer plays back the same.
+/// The City's and the Jungle's are untouched.
 const SKI: (u32, u64, u64) = (
-    4_028_052_118,
-    18_252_567_823_338_794_397,
-    15_656_785_493_259_502_054,
+    266_190_231,
+    16_287_703_392_448_572_623,
+    6_905_027_659_217_288_284,
 );
 const JUNGLE_LAVA: u64 = 17_624_450_600_069_762_721;

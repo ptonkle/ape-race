@@ -120,6 +120,19 @@ impl Batch {
         }
     }
 
+    /// Gives every shape the colour and glow `f` makes of its colour and
+    /// glow (a blizzard burying the far backdrop and whitening the sky's
+    /// dome, `snow::in_storm`).
+    pub fn restyle(&mut self, f: impl Fn(Rgb, i32) -> (Rgb, i32)) {
+        for list in &mut self.lists {
+            for s in list.chunks_mut(INSTANCE_VALUES) {
+                let (c, g) = f([s[12], s[13], s[14]], s[15]);
+                s[12..15].copy_from_slice(&c);
+                s[15] = g;
+            }
+        }
+    }
+
     /// The instance values, and one draw per mesh that has any.
     pub fn finish(self, buffer: u32) -> (Vec<i32>, Vec<u32>) {
         let mut values = Vec::new();

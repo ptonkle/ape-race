@@ -53,8 +53,11 @@ pub fn look() -> Look {
     Look {
         sky: SKY,
         fog: FOG,
-        // the clear mountain air: the haze starts late and ends far
-        fog_range: (int(110), int(440)),
+        // the clear mountain air: the haze starts late and ends far (it
+        // was 110-440 m; brought in to 360 m, TRIAGE T62, so the chunks the
+        // fog hides are fewer: every chunk any of which is nearer than its
+        // far end is drawn, about 8,500 shapes on average, and none pops in)
+        fog_range: (int(100), int(360)),
         light_dir: facing(SUN_BEARING, SUN_HIGH),
         light: LIGHT,
         ground: BOUNCE,
@@ -265,16 +268,44 @@ fn on_snow(c: &Course, p: V3) -> V3 {
 
 // ---- the output: shapes sorted into the course's chunks ----
 
+/// Each chunk's shapes are sorted three ways across the course (TRIAGE
+/// T62): the left bank's forest, the piste and what stands near it, and
+/// the right bank's. Each is drawn while any of it is nearer than the
+/// fog's far end, so a far bank is left out when only the piste can be
+/// seen.
+const BANDS: usize = 3;
+/// Shapes further than this either side of the centreline (metres) are
+/// in a bank's band.
+const BAND_EDGE: i32 = int(45);
+
 struct Sink<'a> {
     c: &'a Course,
     n: usize,
+    /// `BANDS` batches a chunk, chunk by chunk
     batches: Vec<Batch>,
 }
 
 impl Sink<'_> {
     fn at(&mut self, p: V3) -> &mut Batch {
         let k = scene::chunk_of(self.c, p, self.n);
-        &mut self.batches[k]
+        let i = self.c.nearest_anywhere(p);
+        let a = p
+            .flat()
+            .sub(self.c.path[i])
+            .dot(right_of(self.c.heading[i]));
+        let band = if a < -BAND_EDGE {
+            0
+        } else if a > BAND_EDGE {
+            2
+        } else {
+            1
+        };
+        &mut self.batches[k * BANDS + band]
+    }
+
+    /// Chunk `k`'s piste band (the finish arch's, which is drawn in place).
+    fn piste(&mut self, k: usize) -> &mut Batch {
+        &mut self.batches[k * BANDS + 1]
     }
 }
 
@@ -297,7 +328,7 @@ fn build(c: &Course, ski: &SkiLayout) -> (Scenery, Vec<(&'static str, usize)>) {
     let mut s = Sink {
         c,
         n,
-        batches: (0..n).map(|_| Batch::new()).collect(),
+        batches: (0..n * BANDS).map(|_| Batch::new()).collect(),
     };
     let mut parts = Vec::new();
     let mut done = 0;
@@ -331,12 +362,74 @@ fn build(c: &Course, ski: &SkiLayout) -> (Scenery, Vec<(&'static str, usize)>) {
         landmark(&mut s, c, m);
     }
     start_deck(&mut s, c);
-    finish_arch(&mut s.batches[n - 2], c);
+    finish_arch(s.piste(n - 2), c);
     tally(&s, "landmarks");
     forest(&mut s, c, ski);
     tally(&s, "forest");
     let (terrain, ranges) = terrain(c, n);
-    (scene::assemble(c, s.batches, terrain, ranges), parts)
+    (assemble(c, s.batches, terrain, ranges), parts)
+}
+
+/// The Ski Slope's scenery from its banded shapes and its ground: the
+/// terrain's one instance first, then each chunk's three bands and its
+/// ground, each a chunk of its own that knows the box it lies in, so it is
+/// drawn from the moment any of it is nearer than the fog's far end
+/// (TRIAGE T62, `Scenery::draws_in`).
+fn assemble(
+    c: &Course,
+    batches: Vec<Batch>,
+    terrain: Vec<i32>,
+    ranges: Vec<(usize, u32, u32)>,
+) -> Scenery {
+    let last = c.path.len() - 1;
+    let n = batches.len() / BANDS;
+    let mut values = Vec::new();
+    let mut identity = Batch::new();
+    identity.push(Mesh::Terrain, &Affine::IDENTITY, [ONE; 3], 0);
+    identity.finish_into(crate::render::STATIC_BUFFER, &mut values);
+    let centre = |k: usize| {
+        if k == n - 1 {
+            c.point(c.length + OUTRO / 2)
+        } else {
+            c.path[(k * CHUNK + CHUNK / 2).min(last)]
+        }
+    };
+    let mut chunks = Vec::new();
+    for (j, b) in batches.into_iter().enumerate() {
+        let draws = b.finish_into(crate::render::STATIC_BUFFER, &mut values);
+        if !draws.is_empty() {
+            chunks.push(scene::Chunk {
+                centre: centre(j / BANDS),
+                draws,
+                bounds: None,
+            });
+        }
+    }
+    for (k, first, count) in ranges {
+        if count > 0 {
+            chunks.push(scene::Chunk {
+                centre: centre(k),
+                draws: vec![
+                    crate::render::STATIC_BUFFER,
+                    Mesh::Terrain as u32,
+                    0,
+                    1,
+                    first,
+                    count,
+                    crate::render::GROUND,
+                ],
+                bounds: None,
+            });
+        }
+    }
+    let mut scenery = Scenery {
+        values,
+        terrain,
+        chunks,
+        reach: 0,
+    };
+    scenery.bound_chunks();
+    scenery
 }
 
 // ---- the snow ----
@@ -2492,6 +2585,61 @@ fn peak(b: &mut Batch, eye: V3, yaw: i32) {
     }
 }
 
+// ---- the item vines' stars ----
+
+/// An item vine's Christmas star (TRIAGE T68): a deep gold, warmer and
+/// more orange than the in-reach yellow, round a warm white heart, with a
+/// soft gold glow; told apart from a rope in reach by its shape (five
+/// points) and count (three up the rope). While the item is taken: dull
+/// silver, no glow.
+pub(crate) const STAR_GOLD: Rgb = rgb(255, 178, 24);
+const STAR_HEART: Rgb = rgb(255, 246, 214);
+pub(crate) const STAR_DULL: Rgb = rgb(150, 156, 170);
+const STAR_HALO: Rgb = rgb(255, 170, 40);
+
+/// A five-pointed star facing the camera (`right` and `up` its screen
+/// axes) at `at`, one point up when `spin` is 0: faceted points round a
+/// faceted heart; `lit` gold and glowing, else dull silver and smaller.
+pub fn star(b: &mut Batch, at: V3, right: V3, up: V3, spin: i32, lit: bool) {
+    let face = up.cross(right).norm();
+    let (colour, glow, size) = if lit {
+        (STAR_GOLD, ONE / 2, ONE)
+    } else {
+        (STAR_DULL, 0, ONE * 3 / 4)
+    };
+    let sz = |v: i32| mul(v, size);
+    for p in 0..5 {
+        let a = spin + fx::QUARTER + p * fx::TURN / 5;
+        let out = right.scale(fx::cos(a)).add(up.scale(sin(a)));
+        let across = face.cross(out).norm();
+        // a point: a five-sided spike lying in the star's face, its tip out
+        let point = Affine {
+            c0: across.scale(sz(cm(36))),
+            c1: out.scale(sz(cm(64))),
+            c2: face.scale(sz(cm(18))),
+            t: at.add(out.scale(sz(cm(46)))),
+        };
+        b.push(Mesh::Spike, &point, colour, glow);
+    }
+    let heart = Affine {
+        c0: right.scale(sz(cm(46))),
+        c1: up.scale(sz(cm(46))),
+        c2: face.scale(sz(cm(26))),
+        t: at,
+    };
+    if lit {
+        b.push(Mesh::Octa, &heart, STAR_HEART, ONE * 3 / 4);
+        b.push_halo(
+            Mesh::Sphere,
+            &placed(at, 0, v3(cm(190), cm(190), cm(190))),
+            STAR_HALO,
+            ONE * 2 / 5,
+        );
+    } else {
+        b.push(Mesh::Octa, &heart, STAR_DULL, 0);
+    }
+}
+
 // ---- the preview spot and the flyover ----
 
 /// A place on the Ski Slope to show an ape on the selection screen: on
@@ -2638,6 +2786,59 @@ mod tests {
         assert!(all.len() < 22_000, "{} shapes", all.len());
         // nothing bounces on this map, so no mushrooms are drawn
         assert!(c.mushrooms.is_empty());
+    }
+
+    #[test]
+    fn every_shape_short_of_the_fogs_end_is_drawn_so_no_chunk_pops_in() {
+        // TRIAGE T62: along the course, any shape some of which is nearer
+        // than the fog's far end is in a chunk being drawn (in each
+        // weather), and the chunks wholly past it are not
+        use crate::render::{BYTES_PER_VALUE, DRAW_VALUES, INSTANCE_VALUES};
+        let c = Map::Ski.course();
+        let s = scene::scenery(&c);
+        let all: usize = s.values.len() / INSTANCE_VALUES;
+        for w in crate::snow::Weather::ALL {
+            let far = crate::snow::sky_in(w, look()).fog_range.1;
+            for k in (0..c.path.len()).step_by(37) {
+                let eye = c.path[k].add(up(int(6)));
+                let d = s.draws_in(eye, far);
+                let mut drawn = vec![false; all];
+                for d in d.chunks(DRAW_VALUES) {
+                    if d[1] == Mesh::Terrain as u32 {
+                        continue;
+                    }
+                    let from = d[2] as usize / BYTES_PER_VALUE / INSTANCE_VALUES;
+                    for i in from..from + d[3] as usize {
+                        drawn[i] = true;
+                    }
+                }
+                let mut seen = 0;
+                for (i, v) in s.values.chunks(INSTANCE_VALUES).enumerate().skip(1) {
+                    let at = v3(v[3], eye.y, v[11]);
+                    // a shape's middle well inside the fog's end
+                    if at.dist(eye) < far - int(20) {
+                        seen += 1;
+                        assert!(
+                            drawn[i],
+                            "{w:?}: a shape {} m off is not drawn",
+                            at.dist(eye) / ONE
+                        );
+                    }
+                }
+                let n = drawn.iter().filter(|d| **d).count();
+                assert!(
+                    n >= seen && n < all,
+                    "{w:?}: {n} of {all} drawn, {seen} in sight"
+                );
+            }
+        }
+        // the Jungle's chunks are drawn as before
+        let j = crate::course::Course::jungle();
+        let js = scene::scenery(&j);
+        assert_eq!(
+            js.draws_in(j.path[300], int(170)),
+            js.draws_near(j.path[300])
+        );
     }
 
     #[test]

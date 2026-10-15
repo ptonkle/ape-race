@@ -43,7 +43,7 @@ fn the_weather_is_in_settings_clear_by_default_and_kept_after_a_reload() {
         .iter()
         .map(|o| o["text"].as_str().unwrap())
         .collect();
-    assert_eq!(texts, ["Clear", "Snowing"]);
+    assert_eq!(texts, ["Clear", "Snowing", "Blizzard"]);
     a.act("settings.weather", "snowing");
     assert_eq!(a.settings.weather, Weather::Snowing);
     let saved = ui_of(&mut a)["save"].as_str().unwrap().to_string();
@@ -53,6 +53,12 @@ fn the_weather_is_in_settings_clear_by_default_and_kept_after_a_reload() {
     a.act("settings.weather", "hail");
     assert_eq!(a.settings.weather, Weather::Snowing);
     assert_eq!(Settings::parse("{\"map\":\"ski\"}").weather, Weather::Clear);
+    // and a blizzard is kept too (TRIAGE T63)
+    a.act("settings.weather", "blizzard");
+    assert_eq!(a.settings.weather, Weather::Blizzard);
+    let saved = ui_of(&mut a)["save"].as_str().unwrap().to_string();
+    let b = App::new(include_str!("../../../../data/strings.json"), &saved, 7).unwrap();
+    assert_eq!(b.settings.weather, Weather::Blizzard);
 }
 
 #[test]
@@ -114,6 +120,46 @@ fn snow_falls_on_the_ski_slope_only_and_greys_its_sky() {
 }
 
 #[test]
+fn a_blizzard_is_thicker_whiter_and_hides_the_mountains_on_the_ski_slope_only() {
+    // TRIAGE T63: the Jungle and the City are untouched by it too
+    for map in [Map::Jungle, Map::City] {
+        let clear = title_on(map, Weather::Clear).frame();
+        let storm = title_on(map, Weather::Blizzard).frame();
+        assert!(clear == storm, "{map:?} changed by a blizzard");
+    }
+    let (_, ci, _) = title_on(Map::Ski, Weather::Clear).frame();
+    let (sv, si, _) = title_on(Map::Ski, Weather::Snowing).frame();
+    let storm = title_on(Map::Ski, Weather::Blizzard);
+    assert!(storm.snowing());
+    let (bv, bi, _) = storm.frame();
+    let flakes = |v: &Vec<i32>| (v.len() - ci.len()) / render::INSTANCE_VALUES;
+    assert!(
+        flakes(&bi) > flakes(&si) * 3 / 2,
+        "{} flakes in the blizzard, {} in the snow",
+        flakes(&bi),
+        flakes(&si)
+    );
+    assert_ne!(bv, sv, "a blizzard's sky is not the snow's");
+    // no far mountain shows: every backdrop glow is hazed into the fog
+    let glows = |v: &Vec<i32>| -> Vec<i32> {
+        v.chunks(render::INSTANCE_VALUES)
+            .map(|s| s[15])
+            .filter(|g| (ONE * 5 / 2..ONE * 7 / 2).contains(g))
+            .collect()
+    };
+    assert!(
+        glows(&ci).iter().any(|g| *g < ONE * 3),
+        "mountains in clear air"
+    );
+    let buried = glows(&bi);
+    assert!(!buried.is_empty());
+    assert!(
+        buried.iter().all(|g| *g > ONE * 7 / 2 - ONE / 50),
+        "a mountain shows through the blizzard"
+    );
+}
+
+#[test]
 fn snow_changes_nothing_in_a_race_but_the_drawing() {
     let run = |weather: Weather| {
         let mut a = app();
@@ -129,6 +175,7 @@ fn snow_changes_nothing_in_a_race_but_the_drawing() {
     };
     let clear = run(Weather::Clear);
     let snow = run(Weather::Snowing);
+    let blizzard = run(Weather::Blizzard);
     let at = |a: &App| -> Vec<(V3, V3)> {
         let p = a.play.as_ref().unwrap();
         assert_eq!(p.race.course.name, "ski");
@@ -139,6 +186,7 @@ fn snow_changes_nothing_in_a_race_but_the_drawing() {
             .collect()
     };
     assert_eq!(at(&clear), at(&snow), "the same race in any weather");
+    assert_eq!(at(&clear), at(&blizzard), "the same race in a blizzard");
     assert!(snow.snowing());
     assert!(snow.frame().1.len() > clear.frame().1.len());
 }

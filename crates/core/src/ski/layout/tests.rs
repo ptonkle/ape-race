@@ -249,7 +249,8 @@ fn every_lane_has_a_way_on_and_low_vines_to_climb_back_by() {
     for c in courses() {
         // walking down each lane (both branches at a fork), there is always
         // a vine ahead within 36 m over that lane (stations are 22–28 m
-        // apart, each vine up to 3 m off), and a low one within 70 m
+        // apart, each vine up to 3 m off), and a low one within 36 m (one
+        // at every station, TRIAGE T74; it was 70 m, every other)
         for k in 0..2 {
             let mut s = int(20);
             while s < c.length - int(60) {
@@ -274,7 +275,7 @@ fn every_lane_has_a_way_on_and_low_vines_to_climb_back_by() {
                 );
                 if s > int(60) && s < c.length - int(100) {
                     assert!(
-                        (0..n).any(|i| over(i, int(70), true)),
+                        (0..n).any(|i| over(i, int(36), true)),
                         "no low vine ahead at {} m in lane {k}",
                         s / ONE
                     );
@@ -411,6 +412,40 @@ fn the_jaguar_comes_in_from_the_edge_of_the_branch_an_ape_is_in() {
                     side / ONE
                 );
             }
+        }
+    }
+}
+
+#[test]
+fn across_the_whole_run_low_vines_hang_by_both_fences_at_every_station() {
+    // TRIAGE T74: where the run is not forked, a skiing ape has a low vine
+    // (its end within 4 m of the snow) ahead within 30 m on its own half
+    // of the run, left or right
+    for c in courses() {
+        let low: Vec<(i32, i32)> = c
+            .vines
+            .iter()
+            .filter(|v| v.anchor.y - v.length - c.terrain(v.anchor.x, v.anchor.z) <= int(4))
+            .map(|v| c.progress(v.anchor, c.nearest_anywhere(v.anchor)))
+            .collect();
+        let mut s = int(60);
+        while s < c.length - int(100) {
+            let whole = (0..9).all(|k| {
+                let [x, y] = c.lanes(s - int(40) + k * int(10));
+                x == y
+            });
+            if whole {
+                for side in [-1, 1] {
+                    assert!(
+                        low.iter()
+                            .any(|&(vs, off)| vs > s && vs <= s + int(30) && off * side > 0),
+                        "no low vine ahead on the {} at {} m",
+                        if side < 0 { "left" } else { "right" },
+                        s / ONE
+                    );
+                }
+            }
+            s += int(4);
         }
     }
 }
