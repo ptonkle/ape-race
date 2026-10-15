@@ -22,7 +22,7 @@ The standard map-build steps (MAPS.md "Build steps"), one row each. Status is on
 | 16 | Other maps unchanged | Done | All tests pass on main, release and debug (a debug-only overflow found and fixed) |
 | 17 | Docs | In progress | SECOND-ORDER rows written; README, MAPS.md, HANDOFF to do |
 | 18 | Full checks | In progress | Early run on main passed in Chromium (browser and online); deployed without the full three-browser run, on your word |
-| 19 | Deploy | Done | 1.10.0 at 23:20, 1.10.1 at 23:45; fixes follow as 1.10.x |
+| 19 | Deploy | Done | 1.10.0 at 23:20, 1.10.1 at 23:45, 1.10.2 (river) at 23:58; fixes follow as 1.10.x |
 
 ## This map's features
 
@@ -37,9 +37,9 @@ One row per concept from the brief, plus any added later (your feedback, a new i
 | Dense jungle | Brief | Done | n/a | Done | Done |
 | Banana-bunch and moai ape ruins | Brief | Done | n/a | Done | Done |
 | River with rapids and current | Brief | Done | Done | Done | Done |
-| The current carries you downstream only, never sideways | Your feedback (1.10.0) | n/a | In progress | In progress | Not started |
+| The current carries you downstream only, never sideways | Your feedback (1.10.0) | n/a | Done | Done | Done |
 | Snapping turtles (bouncers) | Brief | Done | Done | Done | In progress |
-| Turtles stay in the water, clear of the statues | Your feedback (1.10.0) | n/a | In progress | In progress | Not started |
+| Turtles stay in the water, clear of the statues | Your feedback (1.10.0) | Done | n/a | Done | Done |
 | Waterfall and ravine reset | Brief | Done | Done | Done | Done |
 | Rope bridge, three gorillas wide | Brief | Done | n/a | Done | Done |
 | Boost vines launch into the mouth | Brief | Done | Done | Done | Done |
@@ -48,7 +48,7 @@ One row per concept from the brief, plus any added later (your feedback, a new i
 | Waterfall from the mouth | Brief | Done | n/a | Done | Done |
 | Banana-glyph stonework, pulsing glow | Brief | Done | n/a | Done | Done |
 | Darker temple lighting | Brief | Done | n/a | Done | Done |
-| You can see into the temple from the bridge and through the mouth | Your feedback (1.10.0) | Done | n/a | Done | Done |
+| You can see into the temple from the bridge and through the mouth | Your feedback (1.10.0, again on 1.10.1) | In progress | n/a | In progress | Not started |
 | Wall panels sit flush along every wall, past the bends | Your feedback (1.10.0) | In progress | n/a | In progress | In progress |
 | Floor spike traps | Brief | Done | Done | Done | Done |
 | Trip wires → trapdoors after 0.75 s | Brief | Done | Done | Done | Done |
@@ -63,3 +63,4 @@ One row per concept from the brief, plus any added later (your feedback, a new i
 | Ravine sides read as rocky cliffs | In-game shots | Done | n/a | Done | Done |
 | Banana pile heaped at random, not in rings | Your feedback | Done | n/a | Done | Done |
 | Lobby camera shows your ape with the temple mouth behind | Your feedback (1.10.1) | n/a | n/a | In progress | Not started |
+| Lobby ape stands on the surface, not sunk in | Your feedback (1.10.2) | n/a | n/a | In progress | Not started |
