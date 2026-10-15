@@ -35,7 +35,7 @@ def canvas_drawn(page):
 
 def chosen_map(page):
     """The keys of the map cards marked chosen on the setup's grid."""
-    return page.eval_on_selector_all("[id='setup.map'] .tile.chosen", "ts => ts.map(t => t.dataset.value)")
+    return page.eval_on_selector_all("[id='setup.map'] .tile.chosen, [id='setup.map'] .card.chosen", "ts => ts.map(t => t.dataset.value)")
 
 
 def run(page, check, engine):
@@ -211,13 +211,15 @@ def run(page, check, engine):
     # The City (2026-10-12): the map grid on Race Setup (TRIAGE T54), the
     # ape preview moves onto the chosen map, and the race runs there
     page.click("[id='menu.race']")
-    options = page.eval_on_selector_all("[id='setup.map'] .tile", "ts => ts.map(t => t.innerText.trim())")
+    options = page.eval_on_selector_all("[id='setup.map'] .tile, [id='setup.map'] .card", "ts => ts.map(t => t.innerText.trim())")
     maps = [STRINGS["map.jungle"], STRINGS["map.city"], STRINGS["map.ski"], STRINGS["map.sector"], STRINGS["map.ruins"], STRINGS["map.bay"], STRINGS["map.random"]]
     check(options == maps, f"Race Setup offers every map and Random as cards {options}")
     pictures = page.eval_on_selector_all(
-        "[id='setup.map'] .tile-hero img", "is => is.map(i => i.complete && i.naturalWidth > 0)"
+        "[id='setup.map'] .tile-hero img, [id='setup.map'] .card img", "is => is.map(i => i.complete && i.naturalWidth > 0)"
     )
-    check(pictures == [True], f"the chosen map shows its picture large {pictures}")
+    # docked beside the ape, every card shows its picture (TRIAGE T82);
+    # otherwise the chosen map's picture shows large
+    check(pictures and all(pictures), f"the map pictures load {pictures}")
     check(chosen_map(page) == ["jungle"], "the Jungle's card is marked at first")
     page.click("[id='setup.map.city']")
     page.wait_for_timeout(300)
@@ -313,9 +315,9 @@ def run(page, check, engine):
     page.wait_for_timeout(300)
     check(chosen_map(page) == ["random"], "Random is chosen by its card")
     hero = page.eval_on_selector(
-        "[id='setup.map'] .tile-hero", "f => [f.innerText.trim(), f.querySelector('img').complete && f.querySelector('img').naturalWidth > 0]"
+        "[id='setup.map'] .tile-hero, [id='setup.map'] .card.chosen", "f => [f.innerText.trim(), f.querySelector('img').complete && f.querySelector('img').naturalWidth > 0]"
     )
-    check(hero == [STRINGS["map.random"], True], f"Random shows its own picture large {hero}")
+    check(hero == [STRINGS["map.random"], True], f"Random shows its own picture {hero}")
     page.click("[id='menu.start']")
     page.wait_for_function("() => document.getElementById('hud-place').innerText.includes('/')", timeout=10000)
     page.wait_for_function("() => document.getElementById('hud-reward').innerText.trim() !== ''", timeout=10000)

@@ -221,7 +221,7 @@ def run_engine(p, engine, origin):
     except Exception:
         shown = False
     check(shown, "A's choice of the City shows in B's lobby")
-    disabled = b.page.eval_on_selector_all(by_id("lobby.map") + " .tile", "ts => ts.map(t => t.disabled)")
+    disabled = b.page.eval_on_selector_all(by_id("lobby.map") + " .tile, " + by_id("lobby.map") + " .card", "ts => ts.map(t => t.disabled)")
     check(disabled and all(disabled), f"B cannot press a map card {disabled}")
     if os.environ.get("ONLINE_SHOTS"):
         out = pathlib.Path(os.environ["ONLINE_SHOTS"])
