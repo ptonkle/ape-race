@@ -67,6 +67,6 @@ One row per concept from the brief, plus any added later (your feedback, a new i
 | Banana pile heaped at random, not in rings | Your feedback | Done | n/a | Done | Done |
 | Lobby camera shows your ape with the temple mouth behind | Your feedback (1.10.1) | Done | n/a | Done | Done |
 | Lobby ape stands on the surface, not sunk in | Your feedback (1.10.2) | Done | n/a | Done | Done |
-| The Sloth finishes every layout | AI report (1.10.3) | n/a | In progress | n/a | Not started |
-| AI levels stay 6 s apart with the solid face | Ordering test (1.11.1) | n/a | In progress | n/a | Not started |
-| The camera stays out of the floor and walls just inside the mouth | Mouth shots (1.10.4) | n/a | In progress | In progress | Not started |
+| The Sloth finishes every layout | AI report (1.10.3) | n/a | Done | Done | Done |
+| AI levels stay 6 s apart with the solid face | Ordering test (1.11.1) | n/a | Done | Done | Done |
+| The camera stays out of the floor and walls just inside the mouth | Mouth shots (1.10.4) | n/a | Done | Done | Done |
