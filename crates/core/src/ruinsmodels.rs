@@ -732,7 +732,11 @@ pub fn rope_bridge(b: &mut Batch, f: &Affine, len: i32) {
             v3(cm(pick(k, 72, -8, 8)), 0, z),
             &Affine::rot_y(skew),
             v3(BRIDGE_WIDTH + cm(30), cm(10), cm(38)),
-            if k.is_multiple_of(3) { PLANK_DARK } else { PLANK },
+            if k.is_multiple_of(3) {
+                PLANK_DARK
+            } else {
+                PLANK
+            },
             0,
         );
     }

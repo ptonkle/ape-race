@@ -36,6 +36,12 @@ const RING: i32 = 90;
 const SHORT: i32 = 12;
 /// The bridge crosses this far along.
 const BRIDGE_AT: i32 = LIP - 6;
+/// The corridor's and the chamber's stations are pinned here: 14 m short
+/// of the bend into the chamber (`CHAMBER` − 32 to `CHAMBER`) and of the
+/// turn in (`TURN_IN` to + 32), and 5 m past each.
+const CORNER_PINS: [i32; 4] = [CHAMBER - 46, CHAMBER + 5, TURN_IN - 14, TURN_IN + 37];
+/// The river's last station, just short of the bridge.
+const LAST_RIVER: i32 = BRIDGE_AT - 14;
 
 const LEGS: &[Leg] = &[
     // the river
@@ -162,7 +168,7 @@ pub fn ruins_seeded(seed: u64) -> Course {
     // Third 1: the river's stations, vines from the banks' trees and ruins
     let mut s = 32;
     let mut station = 0;
-    while s <= BRIDGE_AT - 22 {
+    while s <= LAST_RIVER {
         let h = c.heading_at(int(s));
         let r = right_of(h);
         let skip = if station == 0 || dice.below(6) == 0 {
@@ -240,7 +246,15 @@ pub fn ruins_seeded(seed: u64) -> Course {
             );
         }
         station += 1;
-        s += dice.range(22, 28);
+        let next = s + dice.range(22, 28);
+        // the last station stands 14 m short of the bridge: from one 22 m
+        // or more short, the weaker AI levels swung to and fro there for
+        // seconds with nothing in reach (RT1)
+        s = if next > BRIDGE_AT - 22 && s < LAST_RIVER - 12 {
+            LAST_RIVER
+        } else {
+            next
+        };
     }
 
     // the river: its centreline every 40 m, falling with the land
@@ -508,7 +522,16 @@ pub fn ruins_seeded(seed: u64) -> Course {
             );
         }
         station += 1;
-        s += dice.range(22, 26);
+        let mut next = s + dice.range(22, 26);
+        // a station 14 m short of each bend and one 5 m past it (MAPS.md:
+        // without them the AI swung to and fro at the chamber's door and
+        // at the turn in, RT1)
+        for pin in CORNER_PINS {
+            if s < pin - 10 && next > pin {
+                next = pin;
+            }
+        }
+        s = next;
     }
 
     c.vines = put.vines;
