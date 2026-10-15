@@ -294,6 +294,9 @@ const RUINS_HESITATE: [u32; 4] = [12, 16, 5, 0];
 const RUINS_JITTER: [u32; 4] = [6, 5, 5, 0];
 const RUINS_DRIVE: [u32; 4] = [2, 3, 5, DUTY];
 const RUINS_NOISE: [i32; 4] = [int(8), int(4), int(3), 0];
+/// On Sunset Ruins, how near a low vine over the river must be for a
+/// swimmer to swim for it and catch it, not for the bank (RT10).
+const RUINS_SWIM_TO: i32 = int(16);
 
 /// Which map's tuning a brain uses (at most one is set; none is the Jungle).
 #[derive(Debug, Clone, Copy)]
@@ -688,23 +691,42 @@ pub fn think(race: &Race, who: usize, brain: &mut Brain) -> Controls {
                 // it holds W toward the nearer bank
                 brain.plan = None;
                 brain.cands.clear();
-                let bank = course
-                    .ruins
-                    .is_some()
-                    .then(|| course.water_exit(ape.pos))
-                    .flatten()
-                    .map(|(to, _)| to.flat().sub(ape.pos.flat()))
-                    .filter(|d| d.len() > cm(20));
-                match bank {
-                    Some(d) => Controls {
+                // (Sunset Ruins: a low vine over the river it ran for from
+                // a bank is caught from the water; swimming back to the
+                // bank it ran from, it ran for the same vine again: RT10)
+                let low = brain
+                    .target
+                    .filter(|_| course.ruins.is_some() && ape.climb.is_none())
+                    .filter(|&t| !drawn_up(course, t, tick))
+                    .filter(|&t| course.vine_bottom(t, tick) <= ape.pos.y + ape.phys.reach - MARGIN)
+                    .map(|t| course.anchor(t, tick).flat().sub(ape.pos.flat()))
+                    .filter(|d| d.len() < RUINS_SWIM_TO);
+                if let Some(d) = low {
+                    Controls {
                         fwd: 1,
                         yaw: yaw_of(d),
+                        grab: true,
                         ..Controls::default()
-                    },
-                    None => Controls {
-                        yaw: ape.yaw,
-                        ..Controls::default()
-                    },
+                    }
+                } else {
+                    let bank = course
+                        .ruins
+                        .is_some()
+                        .then(|| course.water_exit(ape.pos))
+                        .flatten()
+                        .map(|(to, _)| to.flat().sub(ape.pos.flat()))
+                        .filter(|d| d.len() > cm(20));
+                    match bank {
+                        Some(d) => Controls {
+                            fwd: 1,
+                            yaw: yaw_of(d),
+                            ..Controls::default()
+                        },
+                        None => Controls {
+                            yaw: ape.yaw,
+                            ..Controls::default()
+                        },
+                    }
                 }
             }
             Mode::Grounded => {
@@ -1581,7 +1603,17 @@ fn on_ground(a: &Ape, course: &Course, tick: u32, brain: &mut Brain) -> Controls
     let Some(t) = target else {
         return c;
     };
-    let to = course.anchor(t, tick).flat().sub(a.pos.flat());
+    let an = course.anchor(t, tick);
+    let to = an.flat().sub(a.pos.flat());
+    // (Sunset Ruins: a low vine over the river is run for along the bank
+    // until it is near enough to swim to: heading straight for it from
+    // far off ran it into the water again and again, RT10)
+    if course.ruins.is_some()
+        && to.len() > RUINS_SWIM_TO
+        && course.water(v3(an.x, a.pos.y, an.z)).is_some()
+    {
+        return c;
+    }
     c.yaw = yaw_of(to);
     brain.cands = ahead(course, a, prog - int(20), tick, tune);
     if !brain.cands.contains(&t) {
