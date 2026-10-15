@@ -304,7 +304,11 @@ pub fn scenery(c: &Course, r: &RuinsLayout) -> Scenery {
         let mo = r.marks.mouth;
         let mp = c.point(mo);
         let mh = c.heading_at(mo);
-        let face = v3(mp.x, floor, mp.z).sub(mh.scale(int(1)));
+        // (its top 5 m under the temple floor: from the floor, its top
+        // tier's crags and mossy ledges rose up to 4.5 m over it, 1-5 m
+        // inside the mouth, an olive slab on the way in, RS23)
+        let sunk = int(5);
+        let face = v3(mp.x, floor - sunk, mp.z).sub(mh.scale(int(1)));
         push(mp, &mut |b| {
             crag(
                 b,
@@ -312,7 +316,7 @@ pub fn scenery(c: &Course, r: &RuinsLayout) -> Scenery {
                 mh.neg(),
                 -int(120),
                 int(120),
-                floor - (lip_h - depth),
+                floor - sunk - (lip_h - depth),
                 84,
                 30,
             )
@@ -1231,18 +1235,9 @@ pub fn dynamic(b: &mut Batch, c: &Course, r: &RuinsLayout, eye: V3, t: u32, tick
             }
             s += int(10);
         }
-        // a glow in the throat, so the way in reads from the bridge
-        let mo = r.mouth.opening;
-        b.push_halo(
-            Mesh::Sphere,
-            &crate::render::placed(
-                v3(mo.centre.x, floor + int(4), mo.centre.z).add(mo.fwd.scale(int(10))),
-                0,
-                v3(int(26), int(12), int(26)),
-            ),
-            rgb(255, 160, 60),
-            ONE / 3,
-        );
+        // (no glow in the throat: since the mouth's plug went, RS21, its
+        // flattened halo lay on the floor past the mouth as an olive slab,
+        // RS23; the braziers light the way in)
     }
     // the glyphs: in the corridor's panels and up its walls, round the
     // chamber; pulsing

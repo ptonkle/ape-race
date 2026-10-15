@@ -5,7 +5,7 @@
 //! last two.
 
 use crate::fx::{self, cm, deg, int, mul, ONE};
-use crate::geom::{facing, yaw_of, V3};
+use crate::geom::{facing, right_of, yaw_of, V3};
 use crate::render::Camera;
 use crate::ski::Terrain;
 use crate::skiscape::Crown;
@@ -58,6 +58,9 @@ pub struct Chase {
     pub reach: i32,
     /// how fast the reach is changing (a tick)
     pub reach_speed: i32,
+    /// the temple the eye keeps inside of (Sunset Ruins; none on the
+    /// other maps), SECOND-ORDER RS22
+    pub temple: Option<Arc<Temple>>,
 }
 
 /// The reach while no tree is in the way.
@@ -103,6 +106,7 @@ impl Chase {
             crowns: Arc::from(Vec::new()),
             reach: FREE,
             reach_speed: 0,
+            temple: None,
         };
         c.place(at, V3::ZERO);
         c.prev_eye = c.eye;
@@ -114,6 +118,16 @@ impl Chase {
     /// it starts clear of them).
     pub fn with_crowns(mut self, at: V3, crowns: Arc<[Crown]>) -> Chase {
         self.crowns = crowns;
+        self.eye = self.target;
+        self.place(at, V3::ZERO);
+        self.prev_eye = self.eye;
+        self.prev_target = self.target;
+        self
+    }
+
+    /// The same camera, keeping inside `temple` (placed again at `at`).
+    pub fn with_temple(mut self, at: V3, temple: Option<Arc<Temple>>) -> Chase {
+        self.temple = temple;
         self.eye = self.target;
         self.place(at, V3::ZERO);
         self.prev_eye = self.eye;
@@ -180,10 +194,14 @@ impl Chase {
         } else {
             self.eye.lerp(eye, ONE * 2 / 5)
         };
-        self.eye = if self.crowns.is_empty() {
+        let eye = if self.crowns.is_empty() {
             eye
         } else {
             self.clear_of_trees(target, eye, vel.scale(LOOK_AHEAD))
+        };
+        self.eye = match &self.temple {
+            Some(t) => t.kept_in(target, eye),
+            None => eye,
         };
         self.target = target;
     }
@@ -330,6 +348,134 @@ fn open_reach(from: V3, dir: V3, at: i32, len: i32, near: &[&Crown], gap: i32) -
         d = next;
     }
     len
+}
+
+/// Sunset Ruins' temple as the chase camera sees it (SECOND-ORDER RS22):
+/// the room the eye stays in once it is past the facade. In front of the
+/// facade the eye is free (the ground keeps it up); in the facade and the
+/// mouth's reveal it stays in the opening (under the reveal's roof, which
+/// is the mouth's top); past that, in a corridor section or the chamber,
+/// over the temple floor and under the ceiling. (1.10.4: following an ape
+/// in, the eye rode 15 m up over the reveal's roof, and the roof's top
+/// hid the ape and the lower half of the view.)
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Temple {
+    /// the opening's middle at the floor, and the way in (flat, unit)
+    face: V3,
+    inward: V3,
+    /// half the opening's width, and its top (a height)
+    half: i32,
+    top: i32,
+    /// the temple floor's height
+    floor: i32,
+    /// each corridor section: its floor's start, way along (flat, unit),
+    /// length, half width and ceiling height
+    rooms: Vec<(V3, V3, i32, i32, i32)>,
+    /// the chamber: its centre (at the floor), radius and roof height
+    chamber: (V3, i32, i32),
+}
+
+/// How far in front of the facade its stone starts (the painted lips, 6 m),
+/// and how far behind it the mouth's reveal runs (12 m), each with the
+/// eye's gap (`ruinsmodels::temple_face`).
+const FACE_FRONT: i32 = -cm(660);
+const REVEAL_BACK: i32 = cm(1260);
+/// How near a wall or roof the eye may come, and how far over the floor
+/// it stays (as over the ground).
+const WALL_GAP: i32 = cm(60);
+const FLOOR_GAP: i32 = cm(80);
+/// How far past its ends a corridor section's walls run.
+const SECTION_RUN: i32 = cm(200);
+/// The step along the line from the ape to the eye when keeping inside.
+const ROOM_STEP: i32 = cm(20);
+
+impl Temple {
+    pub fn of(r: &crate::ruins::RuinsLayout) -> Temple {
+        let mo = r.mouth.opening;
+        let floor = mo.centre.y - mo.half.y;
+        let rooms = r
+            .corridor
+            .iter()
+            .filter_map(|s| {
+                let line = s.to.sub(s.from).flat();
+                let len = line.len();
+                (len > 0).then(|| (s.from, line.norm(), len, s.half_width, s.height))
+            })
+            .collect();
+        let ch = r.chamber;
+        Temple {
+            face: V3 { y: floor, ..mo.centre },
+            inward: mo.fwd.flat().norm(),
+            half: mo.half.x,
+            top: mo.centre.y + mo.half.y,
+            floor,
+            rooms,
+            chamber: (ch.centre, ch.radius, ch.height),
+        }
+    }
+
+    /// Whether the eye may be at `p`.
+    pub fn open(&self, p: V3) -> bool {
+        let d = p.sub(self.face);
+        let inn = d.dot(self.inward);
+        if inn < FACE_FRONT {
+            return true;
+        }
+        if p.y < self.floor + FLOOR_GAP {
+            return false;
+        }
+        if inn <= REVEAL_BACK {
+            let side = d.dot(right_of(self.inward)).abs();
+            return side <= self.half - WALL_GAP && p.y <= self.top - WALL_GAP;
+        }
+        let in_room = self.rooms.iter().any(|&(from, fwd, len, half, height)| {
+            let a = p.flat().sub(from.flat());
+            let along = a.dot(fwd);
+            along >= -SECTION_RUN
+                && along <= len + SECTION_RUN
+                && a.dot(right_of(fwd)).abs() <= half - WALL_GAP
+                && p.y <= from.y + height - WALL_GAP
+        });
+        let (centre, radius, height) = self.chamber;
+        in_room
+            || (p.flat().dist(centre.flat()) <= radius - WALL_GAP
+                && p.y <= centre.y + height - WALL_GAP)
+    }
+
+    /// The eye `eye` kept inside, following the ape's `target`: near the
+    /// mouth it rides no higher than the opening's top (rising again
+    /// gently away from it, a metre for every two), so it follows the ape
+    /// in under the lintel rather than over it; then it is brought in
+    /// toward the ape as far as the line between them stays inside: from
+    /// the ape out, the furthest point before it would leave the room. An
+    /// ape outside the room (in a pit, say) is left be.
+    pub fn kept_in(&self, target: V3, eye: V3) -> V3 {
+        let t_in = target.sub(self.face).dot(self.inward);
+        let off = (FACE_FRONT - t_in).max(t_in - REVEAL_BACK).max(0);
+        let cap = (self.top - WALL_GAP + off / 2).max(target.y);
+        let eye = V3 {
+            y: eye.y.min(cap),
+            ..eye
+        };
+        if !self.open(target) {
+            return eye;
+        }
+        let line = eye.sub(target);
+        let len = line.len();
+        if len < ROOM_STEP {
+            return eye;
+        }
+        let dir = line.norm();
+        let mut d = 0;
+        while d < len {
+            let next = (d + ROOM_STEP).min(len);
+            if !self.open(target.add(dir.scale(next))) {
+                return target.add(dir.scale(d));
+            }
+            d = next;
+        }
+        eye
+    }
 }
 
 /// The replay's orbit camera (TRIAGE T23): it circles the followed ape on
@@ -607,6 +753,79 @@ mod tests {
             "eases in and out: {xs:?}"
         );
         assert_eq!(pan.blend(to, 0), to, "ends on the new view");
+    }
+
+    #[test]
+    fn on_sunset_ruins_the_eye_stays_in_the_temple_as_the_apes_go_in() {
+        // RS22: following an ape in through the mouth, the eye rode over
+        // the reveal's roof and its top hid the view's lower half. AI
+        // races on several seeds, a chase camera on each ape from the
+        // ravine to 150 m into the corridor: past the facade the eye is
+        // over the temple floor, and while the ape is in the room the eye
+        // is too (in the opening, under its top; in the corridor)
+        use crate::ai::Brain;
+        use crate::race::{Driver, Entry, Race};
+        use crate::rules::Kind;
+        for seed in [1u64, 2, 3] {
+            let course = crate::ruins::ruins();
+            let r = course.ruins.clone().unwrap();
+            let temple = Arc::new(Temple::of(&r));
+            let floor = r.chamber.centre.y;
+            let (from, to) = (r.marks.lip - int(40), r.marks.mouth + int(150));
+            let entries: Vec<Entry> = Kind::ALL[..4]
+                .iter()
+                .map(|&kind| Entry {
+                    name: String::new(),
+                    kind,
+                    driver: Driver::Ai,
+                    palette: 0,
+                })
+                .collect();
+            let mut race = Race::new(course, &entries, false, seed);
+            let mut brains: Vec<Brain> = (0..entries.len())
+                .map(|i| Brain::new(race.ai_level, race.dice.0 ^ (0x9E37_79B9 * (i as u64 + 1))))
+                .collect();
+            let mut chases: Vec<Chase> = race
+                .racers
+                .iter()
+                .map(|x| {
+                    Chase::new(x.ape.pos, race.course.start_yaw, race.course.terrain)
+                        .with_temple(x.ape.pos, Some(Arc::clone(&temple)))
+                })
+                .collect();
+            let limit = crate::rules::TICKS_PER_SECOND as u32 * 150;
+            let mut checked = 0;
+            while race.tick < limit && race.racers.iter().any(|x| x.progress < to) {
+                crate::replay::drive(&mut race, &mut brains, usize::MAX, Default::default());
+                let last = race.course.heading.len() - 1;
+                for (i, c) in chases.iter_mut().enumerate() {
+                    let a = &race.racers[i].ape;
+                    let ahead = race.course.heading[(a.hint + 8).min(last)];
+                    c.follow(a.pos, a.vel, ahead, true);
+                    let s = race.racers[i].progress;
+                    if s < from || s > to {
+                        continue;
+                    }
+                    let (e, t) = (c.eye, c.target);
+                    let why = format!(
+                        "seed {seed} ape {i} tick {} at {} m: eye {:?} ({} m in, {} cm over the floor)",
+                        race.tick,
+                        s / ONE,
+                        e,
+                        e.sub(temple.face).dot(temple.inward) / ONE,
+                        (e.y - floor) * 100 / ONE
+                    );
+                    if e.sub(temple.face).dot(temple.inward) > 0 {
+                        assert!(e.y >= floor + cm(50), "under the floor: {why}");
+                    }
+                    if temple.open(t) {
+                        assert!(temple.open(e), "in the stone: {why}");
+                    }
+                    checked += 1;
+                }
+            }
+            assert!(checked > 1000, "seed {seed}: only {checked} looks");
+        }
     }
 
     #[test]
