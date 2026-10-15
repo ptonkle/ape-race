@@ -200,6 +200,9 @@ pub struct Course {
     /// Sunset Ruins' river, turtles, ravine, bridge, temple, traps and
     /// chamber (`ruins.rs`); `None` on the other maps
     pub ruins: Option<Box<crate::ruins::RuinsLayout>>,
+    /// Banana Bay Battle's ships, water, barrels, dock, island and cannon
+    /// fire (`bay.rs`); `None` on the other maps
+    pub bay: Option<Box<crate::bay::BayLayout>>,
 }
 
 /// A straight street of a course with sharp corners (the City). The
@@ -797,6 +800,7 @@ pub(crate) fn centreline(name: &'static str, legs: &[Leg]) -> Course {
         terrain: crate::ski::Terrain::Hills,
         sector: None,
         ruins: None,
+        bay: None,
     }
 }
 

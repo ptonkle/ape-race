@@ -138,6 +138,8 @@ pub fn medals(map: Map) -> [u32; 4] {
         Map::Ski => SKI,
         Map::Sector => SECTOR,
         Map::Ruins => RUINS,
+        // STAND-IN (Banana Bay Battle's skeleton): the Jungle's until measured
+        Map::Bay => JUNGLE,
     }
 }
 

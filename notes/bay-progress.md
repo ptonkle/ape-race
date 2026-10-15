@@ -5,12 +5,12 @@ The standard map-build steps (MAPS.md "Build steps"), one row each. Status is on
 | # | Step | Status | Notes |
 | --- | --- | --- | --- |
 | 1 | Brief and answers | Done | `briefs/banana-bay-battle.md` |
-| 2 | Skeleton and contract | In progress | Skeleton agent |
+| 2 | Skeleton and contract | Done | `Map::Bay`, `bay.rs` BayLayout contract, stand-in course, PROTOCOL 11 (on main 85d0e5a) |
 | 3 | Ape costumes | In progress | Gear agent: pirate outfit |
 | 4 | Models | In progress | Models agent: ships, barrels, chest |
-| 5 | Sky and lighting | Not started | 3 pm Caribbean |
-| 6 | Course layout | Not started | Starts when the contract is on main |
-| 7 | Map rules | Not started | Water reset, barrel wall, bouncy barrels |
+| 5 | Sky and lighting | Not started | 3 pm Caribbean; Squall weather |
+| 6 | Course layout | In progress | Course agent: dock, ~20 ships, island |
+| 7 | Map rules | In progress | Water reset, barrel wall, bouncy barrels |
 | 8 | Art placed on the course | Not started | |
 | 9 | Lobby spot and flyover | Not started | |
 | 10 | AI validation | Not started | |
@@ -44,3 +44,4 @@ One row per concept from the brief, plus any added later. Stages: **Model**, **G
 | Low-detail monkey pirates fighting on decks | Brief | In progress | n/a | Not started | Not started |
 | Doubloons on item vines | Brief | In progress | n/a | Not started | Not started |
 | Finish island with a chest of golden bananas | Brief | In progress | n/a | Not started | Not started |
+| Squall weather (rain, dark sky, rough swell, lightning) | Your answer | Not started | n/a | Not started | Not started |

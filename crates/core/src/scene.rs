@@ -125,6 +125,7 @@ pub fn look(map: Map) -> Look {
         Map::Ski => crate::skiscape::look(),
         Map::Sector => crate::sectorscape::look(),
         Map::Ruins => crate::ruinsscape::look(),
+        Map::Bay => crate::bayscape::look(),
     }
 }
 
@@ -140,6 +141,8 @@ pub fn look_of(c: &Course) -> Look {
         Map::Sector => crate::sectorscape::look_for(c),
         // the sunset down the river, its sun 30° off the fall
         Map::Ruins => crate::ruinsscape::look_for(c),
+        // STAND-IN (Banana Bay Battle's skeleton): a plain 3 pm light
+        Map::Bay => crate::bayscape::look(),
     }
 }
 
@@ -461,6 +464,9 @@ pub fn scenery(c: &Course) -> Scenery {
     }
     if let Some(r) = &c.ruins {
         return crate::ruinsscape::scenery(c, r);
+    }
+    if let Some(b) = &c.bay {
+        return crate::bayscape::scenery(c, b);
     }
     jungle_scenery(c)
 }
@@ -1805,6 +1811,9 @@ pub fn catch_up_colour(map: Map, vivid: bool) -> Rgb {
         // STAND-IN (Sunset Ruins' skeleton): a hot pink against its
         // Jungle-green vines; the art agent chooses against the sunset
         (Map::Ruins, false) => rgb(250, 70, 160),
+        // STAND-IN (Banana Bay Battle's skeleton): a hot orange against the
+        // turquoise water; the art agent chooses
+        (Map::Bay, false) => rgb(255, 120, 40),
         // the colourblind mode (TRIAGE T33): told from the map's vivid
         // vine by brightness, not hue alone, and kept off the item flowers'
         // violet: a deep red-orange under the bright green vines, a dark
@@ -1816,6 +1825,7 @@ pub fn catch_up_colour(map: Map, vivid: bool) -> Rgb {
         (Map::Ski, true) => rgb(20, 40, 230),
         (Map::Sector, true) => rgb(255, 60, 70),
         (Map::Ruins, true) => rgb(200, 0, 120),
+        (Map::Bay, true) => rgb(230, 60, 0),
     }
 }
 
@@ -2132,7 +2142,8 @@ pub fn preview(c: &Course) -> Preview {
         // a stone ledge on the riverbank, the temple's mouth ahead and the
         // sunset over its shoulder
         Map::Ruins => crate::ruinsscape::preview(c),
-        Map::Jungle => {
+        // STAND-IN (Banana Bay Battle's skeleton): the Jungle's start tree
+        Map::Jungle | Map::Bay => {
             let pl = c.platforms.first();
             let feet = pl.map_or(c.point(int(4)), |p| {
                 v3(p.centre.x, p.top, p.centre.z).add(p.fwd.scale(p.half_len / 2))
@@ -2186,6 +2197,7 @@ pub fn flyover_camera(c: &Course, ticks: u32, from: i32) -> Camera {
         Map::Ski => int(16),
         Map::Sector => int(20),
         Map::Ruins => int(14),
+        Map::Bay => int(14),
     };
     let eye = v3(p.x, c.terrain(p.x, p.z) + lift, p.z);
     // down the Ski Slope's hill, the glide looks down it too
