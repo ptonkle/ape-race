@@ -240,9 +240,14 @@ impl River {
             let along = along.clamp(0, len);
             let t = fx::div(along, len);
             let mid = a.at.flat().add(dir.scale(along));
-            let off = p.sub(mid).len_xz() as i64;
-            let half = fx::lerp(a.half_width, b.half_width, t) as i64;
-            if off > half || best.is_some_and(|(o, _)| o <= off) {
+            let half = fx::lerp(a.half_width, b.half_width, t);
+            // (off the water by squares first: no square root, RT7)
+            let off = p.sub(mid).flat();
+            if off.longer_than(half) {
+                continue;
+            }
+            let off = off.len() as i64;
+            if best.is_some_and(|(o, _)| o <= off) {
                 continue;
             }
             let water = Water {
@@ -355,11 +360,12 @@ pub struct Slab {
 impl Slab {
     /// Whether `p` is inside.
     pub fn contains(&self, p: V3) -> bool {
+        // (the cheap tests first: `right_of` is a square root, and the
+        // AI's copies of the ape ask this thousands of times a tick, RT7)
         let d = p.sub(self.centre);
-        let across = crate::geom::right_of(self.fwd);
-        d.dot(across).abs() <= self.half.x
-            && d.y.abs() <= self.half.y
+        d.y.abs() <= self.half.y
             && d.dot(self.fwd).abs() <= self.half.z
+            && d.dot(crate::geom::right_of(self.fwd)).abs() <= self.half.x
     }
 }
 

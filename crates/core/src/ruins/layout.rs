@@ -171,10 +171,12 @@ pub fn ruins_seeded(seed: u64) -> Course {
     while s <= LAST_RIVER {
         let h = c.heading_at(int(s));
         let r = right_of(h);
+        // (the middle lane always has a vine: a station of two vines by
+        // the banks left the weaker AI levels swinging bank to bank, RT6)
         let skip = if station == 0 || dice.below(6) == 0 {
             3
         } else {
-            dice.below(3) as i32
+            2 * dice.below(2) as i32
         };
         let mut here = Vec::new();
         for lane in 0..3 {
@@ -190,7 +192,7 @@ pub fn ruins_seeded(seed: u64) -> Course {
                     (lane - 1) * 10 + dice.range(-2, 2),
                 )
             };
-            let along = s + dice.range(-3, 3);
+            let along = s + dice.range(-2, 2);
             let base = c.point(int(along)).add(r.scale(int(off)));
             let side = if off < 0 || (off == 0 && dice.below(2) == 0) {
                 -1
@@ -249,11 +251,16 @@ pub fn ruins_seeded(seed: u64) -> Course {
         let next = s + dice.range(22, 28);
         // the last station stands 14 m short of the bridge: from one 22 m
         // or more short, the weaker AI levels swung to and fro there for
-        // seconds with nothing in reach (RT1)
-        s = if next > BRIDGE_AT - 22 && s < LAST_RIVER - 12 {
+        // seconds with nothing in reach (RT1). The hop to it is never
+        // longer than the others: pinned from 29–34 m back it was a hop
+        // the weaker levels stalled short of, so a station halfway comes
+        // first (RT6)
+        s = if s >= LAST_RIVER || next < LAST_RIVER - 10 {
+            next
+        } else if LAST_RIVER - s <= 28 {
             LAST_RIVER
         } else {
-            next
+            s + (LAST_RIVER - s) / 2
         };
     }
 
@@ -338,11 +345,11 @@ pub fn ruins_seeded(seed: u64) -> Course {
     let bh = c.heading_at(int(BRIDGE_AT));
     let br = right_of(bh);
     let bp = c.point(int(BRIDGE_AT));
-    let deck = lip_h + int(28);
+    let deck = lip_h + int(34);
     let mut boost = Vec::new();
     for off in [-10, 0, 10] {
         let a = bp.add(br.scale(int(off)));
-        boost.push(put.push(v3(a.x, deck, a.z), int(18), int(BRIDGE_AT), Hanger::Bridge));
+        boost.push(put.push(v3(a.x, deck, a.z), int(24), int(BRIDGE_AT), Hanger::Bridge));
     }
     stations.push(boost.clone());
     let mp = c.point(int(MOUTH));

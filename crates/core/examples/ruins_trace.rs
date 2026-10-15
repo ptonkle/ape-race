@@ -2,7 +2,8 @@
 //! height and speed, and where it hit walls, landed, swam or was stuck.
 //!
 //! `cargo run --release -p tool_core --example ruins_trace -- LEVEL [SEED [KIND [RUN]]]` (a kind other than the
-//! Chimpanzee races with its own stats)
+//! Chimpanzee races with its own stats; with `RUINS_TRACE_CANDS=1` its
+//! target and candidates too)
 use tool_core::ai::{think, Brain, Difficulty};
 use tool_core::ape::{Happening, Mode};
 use tool_core::fx::ONE;
@@ -69,6 +70,12 @@ fn main() {
                 a.speed() / ONE,
                 line
             );
+            if std::env::var("RUINS_TRACE_CANDS").is_ok() {
+                println!(
+                    "        target {:?} cands {:?} expect {:?}",
+                    brain.target, brain.cands, brain.expect
+                );
+            }
             line.clear();
         }
     }
