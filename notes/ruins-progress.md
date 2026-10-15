@@ -18,7 +18,7 @@ The standard map-build steps (MAPS.md "Build steps"), one row each. Status is on
 | 12 | Step and frame cost | In progress | |
 | 13 | Colourblind and JOJO MODE | In progress | |
 | 14 | Map card | Not started | Copy of the Jungle's today |
-| 15 | Screenshots at 1920×1080 | In progress | Ape photos retaking; in-game shots coming |
+| 15 | Screenshots at 1920×1080 | In progress | Ape photos done (19, on the journal); in-game shots coming |
 | 16 | Other maps unchanged | Done | `jungle_unchanged`, `maps_unchanged`, `sector_unchanged` pass |
 | 17 | Docs | In progress | SECOND-ORDER rows written; README, MAPS.md, HANDOFF to do |
 | 18 | Full checks | Not started | `scripts/timed-checks.sh` |
@@ -32,6 +32,7 @@ One row per concept from the brief, plus any added later (your feedback, a new i
 | --- | --- | --- | --- | --- | --- |
 | Sunset sky (yellow → crimson) | Brief | Done | n/a | In progress | Not started |
 | Explorer outfit | Brief | Done | n/a | Done | Done |
+| Outfit stands apart from fur in the sunset | 1080p shots | In progress | n/a | Not started | Not started |
 | Jaguar pith helmet | Your feedback | Done | n/a | Done | Done |
 | Dense jungle | Brief | Done | n/a | In progress | Not started |
 | Banana-bunch and moai ape ruins | Brief | Done | n/a | In progress | Not started |
