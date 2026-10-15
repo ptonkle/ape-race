@@ -2016,8 +2016,10 @@ fn stage_batch() -> Batch {
 /// A place on a map to show an ape on the selection screen, in front of
 /// the map's own scenery (`scenery(c).draws_near(camera.eye)`): where its
 /// feet stand, the way it faces (toward the camera), and the camera. On
-/// the Jungle the start platform's deck, the jungle behind; on the City a
-/// street corner in Midtown at dusk (`cityscape::preview`).
+/// the Jungle the start platform's deck near its front edge (room behind
+/// for the lobby's lineup, TRIAGE T76), the drop into the jungle and the
+/// course's vines behind; on the City out on the bridge at dusk
+/// (`cityscape::preview`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Preview {
     pub feet: V3,
@@ -2034,7 +2036,7 @@ pub fn preview(c: &Course) -> Preview {
         Map::Jungle => {
             let pl = c.platforms.first();
             let feet = pl.map_or(c.point(int(4)), |p| {
-                v3(p.centre.x, p.top, p.centre.z).add(p.fwd.scale(p.half_len / 2))
+                v3(p.centre.x, p.top, p.centre.z).add(p.fwd.scale(p.half_len - cm(240)))
             });
             let fwd = c.heading_at(0);
             let eye = feet.add(fwd.scale(-cm(290))).add(v3(0, cm(125), 0));

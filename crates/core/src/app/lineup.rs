@@ -301,10 +301,27 @@ mod tests {
                 assert_eq!(under, s.feet.y, "{map:?}: ape {i} stands on something");
                 assert!(
                     (s.feet.y - spot.feet.y).abs() <= DROP_MOST,
-                    "{map:?}: ape {i} {} m from the spot's height",
-                    (s.feet.y - spot.feet.y) as f64 / ONE as f64
+                    "{map:?}: ape {i} {} cm from the spot's height",
+                    (s.feet.y - spot.feet.y) * 100 / ONE
                 );
             }
+        }
+    }
+
+    #[test]
+    fn near_a_deck_edge_the_row_steps_back_less_and_stays_on_the_deck() {
+        let c = Map::Sector.course();
+        let (spot, look, _) = super::super::menu_dock::preview_spot(Some(&c));
+        let on = |p: V3| (c.support(p.add(v3(0, BODY_DROP, 0))) - spot.y).abs() <= DROP_MOST;
+        // out toward the edge behind the spot, to 1.2 m short of it
+        let mut edge = spot;
+        while on(edge.add(look.scale(cm(10)))) {
+            edge = edge.add(look.scale(cm(10)));
+        }
+        let anchor = edge.sub(look.scale(cm(120)));
+        let feet = row(Some(&c), anchor, look, 4);
+        for (i, f) in feet.iter().enumerate().skip(1) {
+            assert!(on(*f), "ape {i} stepped off the deck");
         }
     }
 
