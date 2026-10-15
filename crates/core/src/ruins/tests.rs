@@ -405,3 +405,180 @@ fn clear_of_everything_means_nothing_holds_an_ape() {
         assert!(clear > 1000, "{clear}");
     }
 }
+
+/// How many ticks ape 0, dropped from the floor's height into trapdoor
+/// `k`'s pit `along`/`across` from the door's middle just as it opens,
+/// takes to be out (back over the floor, or on a vine), driving `c`
+/// (facing along the course). None if not out in `limit` ticks.
+fn time_out_of_pit(k: usize, along: i32, across: i32, c: Controls, limit: u32) -> Option<u32> {
+    let mut r = running(false);
+    let tick = r.tick;
+    let door = {
+        let s = r.course.ruins.as_deref_mut().unwrap();
+        s.traps[k].tripped_at = Some(tick - TRAP_DELAY);
+        s.traps[k].door
+    };
+    let floor = door.centre.y;
+    let right = crate::geom::right_of(door.fwd);
+    let p = door
+        .centre
+        .add(door.fwd.scale(along))
+        .add(right.scale(across));
+    put(
+        &mut r,
+        v3(p.x, floor + crate::rules::BODY_DROP, p.z),
+        V3::ZERO,
+        Mode::Flying,
+    );
+    let c = Controls {
+        yaw: crate::geom::yaw_of(door.fwd),
+        ..c
+    };
+    for n in 0..limit {
+        r.step(&[c]);
+        let a = &r.racers[0].ape;
+        let feet = a.feet();
+        let lay = r.course.ruins.as_deref().unwrap();
+        let open = lay.traps[k].open(r.tick);
+        let over = open && lay.over_door(k, feet);
+        if a.swinging().is_some() || (!over && feet.y >= floor - cm(50)) {
+            return Some(n + 1);
+        }
+    }
+    None
+}
+
+/// Every point of every pit (2 m apart, 1 m in from the door's edges):
+/// the worst time out (ticks) with no keys and with W + grab held, and
+/// the last place either worst got worse.
+fn worst_out_of_pits(limit: u32) -> (u32, u32, String) {
+    let lay = ruins();
+    let lay = lay.ruins.as_ref().unwrap();
+    let door = lay.traps[0].door;
+    let (hz, hx) = (door.half.z - int(1), door.half.x - int(1));
+    let keys = Controls {
+        fwd: 1,
+        grab: true,
+        ..Controls::default()
+    };
+    let (mut idle, mut held) = (0, 0);
+    let mut worst = String::new();
+    for k in 0..lay.traps.len() {
+        let mut along = -hz;
+        while along <= hz {
+            let mut across = -hx;
+            while across <= hx {
+                let a = time_out_of_pit(k, along, across, Controls::default(), limit)
+                    .unwrap_or(limit + 1);
+                let b = time_out_of_pit(k, along, across, keys, limit).unwrap_or(limit + 1);
+                if a > idle || b > held {
+                    worst = format!(
+                        "pit {k}, {} m along, {} m across",
+                        along / ONE,
+                        across / ONE
+                    );
+                }
+                idle = idle.max(a);
+                held = held.max(b);
+                across += int(2);
+            }
+            along += int(2);
+        }
+    }
+    (idle, held, worst)
+}
+
+#[test]
+fn an_ape_in_a_pit_is_out_within_three_seconds_or_two_with_w_and_grab() {
+    let tps = crate::rules::TICKS_PER_SECOND as u32;
+    let (idle, held, worst) = worst_out_of_pits(20 * tps);
+    // (hundredths of a second)
+    let s = |t: u32| t * 100 / tps;
+    let say = format!(
+        "{} cs with no keys, {} cs with W + grab (worst {worst})",
+        s(idle),
+        s(held)
+    );
+    assert!(
+        idle <= 3 * tps && held <= 2 * tps,
+        "out of a pit after {say}"
+    );
+}
+
+/// How many shapes the frame's vines batch has, looking down the
+/// corridor at trapdoor `k`'s door from 20 m before it.
+fn vine_shapes(r: &Race, k: usize) -> usize {
+    let door = r.course.ruins.as_ref().unwrap().traps[k].door;
+    let eye = door
+        .centre
+        .sub(door.fwd.scale(int(20)))
+        .add(v3(0, int(4), 0));
+    let cam = crate::render::Camera {
+        eye,
+        fwd: door.fwd,
+        fov: crate::fx::deg(70),
+    };
+    let apes: Vec<V3> = r.racers.iter().map(|x| x.ape.pos).collect();
+    let b = crate::scene::dynamic(&crate::scene::Frame {
+        race: r,
+        cam: &cam,
+        apes: &apes,
+        local: Some(0),
+        tick: r.tick,
+        chains: &[],
+        vivid: false,
+        gear: None,
+        flashes: &[],
+    })
+    .0;
+    let (v, _) = b.finish(crate::render::DYNAMIC_BUFFER);
+    v.len() / crate::render::INSTANCE_VALUES
+}
+
+#[test]
+fn a_door_never_shuts_on_an_ape_in_its_pit_and_its_vines_stay_drawn() {
+    let mut r = running(false);
+    r.tick += TRAP_DELAY + TRAP_OPEN;
+    let t0 = r.tick;
+    let shut = vine_shapes(&r, 0);
+    // tripped long ago: the door shuts in 5 ticks
+    let at = t0 + 5 - TRAP_DELAY - TRAP_OPEN;
+    r.course.ruins.as_deref_mut().unwrap().traps[0].tripped_at = Some(at);
+    let open = vine_shapes(&r, 0);
+    assert!(
+        open > shut,
+        "the pit vines are drawn while open: {shut} then {open}"
+    );
+    // an ape down in the pit, held there
+    let door = r.course.ruins.as_ref().unwrap().traps[0].door;
+    let deep = v3(door.centre.x, door.centre.y - int(2), door.centre.z);
+    for _ in 0..crate::rules::TICKS_PER_SECOND as u32 * 3 {
+        put(&mut r, deep, V3::ZERO, Mode::Flying);
+        r.step(&[Controls::default()]);
+        let lay = r.course.ruins.as_ref().unwrap();
+        assert!(
+            lay.traps[0].open(r.tick),
+            "shut on the ape at tick {}",
+            r.tick - t0
+        );
+        let v = lay.traps[0].vines[0];
+        assert!(!lay.vine_up(v, r.tick));
+        assert_eq!(
+            vine_shapes(&r, 0),
+            open,
+            "the pit vines drawn as long as they hang"
+        );
+    }
+    // out of the pit: it shuts within `TRAP_HOLD`, its vines go up
+    put(
+        &mut r,
+        door.centre.add(door.fwd.scale(int(20))),
+        V3::ZERO,
+        Mode::Flying,
+    );
+    for _ in 0..TRAP_HOLD + 1 {
+        r.step(&[Controls::default()]);
+    }
+    assert!(!r.course.ruins.as_ref().unwrap().traps[0].open(r.tick));
+    assert_eq!(vine_shapes(&r, 0), shut);
+}
