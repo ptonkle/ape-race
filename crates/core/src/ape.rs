@@ -668,6 +668,12 @@ impl Ape {
                 return;
             }
         }
+        // (Sunset Ruins: in the air, well over anything that could hold
+        // it, there is nothing to land on, RT7)
+        if course.ruins.is_some() && self.mode != Mode::Grounded && course.ruins_clear(self.pos) {
+            self.spikes(course, tick);
+            return;
+        }
         let support = match course.ruins {
             Some(_) => course.support_at(self.pos, tick),
             None => course.support(self.pos),

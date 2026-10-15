@@ -112,13 +112,14 @@ pub const SECTOR: [u32; 4] = [
 
 /// Sunset Ruins' target times in hundredths of a second (2026-10-14, set
 /// as the Jungle's were: King Kong alone as a Time Trial runs finishes in
-/// 54.9–71.4 s by kind, Lemur best; `tests/ruins_ai.rs`
-/// `ruins_time_trial_report`). Author just under the best kind, then the
-/// Jungle's steps of 7, 10 and 15 s.
-pub const RUINS_AUTHOR: u32 = 5_400;
-pub const RUINS_GOLD: u32 = 6_100;
-pub const RUINS_SILVER: u32 = 7_100;
-pub const RUINS_BRONZE: u32 = 8_600;
+/// 56.8–61.9 s by kind, Lemur best, the Proboscis 80.1 s; `tests/ruins_ai.rs`
+/// `ruins_time_trial_report`, re-measured after the layout fixes of RT6).
+/// Author just under the best kind, then the Jungle's steps of 7, 10 and
+/// 15 s.
+pub const RUINS_AUTHOR: u32 = 5_600;
+pub const RUINS_GOLD: u32 = 6_300;
+pub const RUINS_SILVER: u32 = 7_300;
+pub const RUINS_BRONZE: u32 = 8_800;
 
 /// Sunset Ruins' target times, in race ticks, slowest first.
 pub const RUINS: [u32; 4] = [

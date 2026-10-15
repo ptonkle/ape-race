@@ -365,3 +365,43 @@ fn pit_vines_hang_only_while_the_trapdoor_is_open() {
     assert_eq!(c.support_at(over, open), pit);
     assert_eq!(c.support_at(over, 10), c.support(over));
 }
+
+/// The step's shortcut (RT7) is exact: wherever `ruins_clear` says nothing
+/// can hold an ape, its feet are over `support_at` (the river, the land,
+/// the bridge's bank, the start's rock), on several layouts, at heights
+/// from the floor up.
+#[test]
+fn clear_of_everything_means_nothing_holds_an_ape() {
+    use crate::rules::BODY_DROP;
+    for k in 0..4u64 {
+        let c = if k == 0 {
+            ruins()
+        } else {
+            ruins_seeded(0x2B1_5E75_0001 + k * 7919)
+        };
+        let mut clear = 0;
+        let mut s = -int(20);
+        while s < c.length {
+            let at = c.point(s.max(0));
+            let r = crate::geom::right_of(c.heading_at(s.max(0)));
+            for side in (-32..=32).step_by(2) {
+                let p = at.add(r.scale(int(side)));
+                let land = c.terrain(p.x, p.z);
+                for up in (-2..40).step_by(2) {
+                    let q = v3(p.x, land + int(up) + BODY_DROP, p.z);
+                    if c.ruins_clear(q) {
+                        clear += 1;
+                        let feet = q.y - BODY_DROP;
+                        assert!(
+                            feet > c.support_at(q, 0),
+                            "layout {k}: {} m along, {side} m across, {up} m up",
+                            s / ONE
+                        );
+                    }
+                }
+            }
+            s += int(3);
+        }
+        assert!(clear > 1000, "{clear}");
+    }
+}
