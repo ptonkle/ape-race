@@ -17,3 +17,4 @@ The person left the build running ("Run until the full build is done") and is aw
 - Pirate outfits and the navy jaguar merged (35b0b42); shots on the journal.
 - Sky, sea and Squall merged (42be1ba); shots on the journal. Known small issue: the Settings panel's weather select shows the Ski Slope's list, so it reads Clear while the setting is Squall (SECOND-ORDER BS2); to fix before deploy.
 - AI and medals merged: Sloth 76.8, Monkey 67.1, Ape 59.7, King Kong 49.7 s over 16 layouts; medals Author 0:35, Gold 0:42, Silver 0:52, Bronze 1:07.
+- Art placed on the course merged (a99a2fe). In-game shots found: the chase camera clips into decks and rigging, the chest is too small, the ropes glow like light beams, lumpy barrels. A polish agent is on them. A lobby, flyover and map card agent and a docs and Settings-weather agent are also running.
