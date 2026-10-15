@@ -381,7 +381,44 @@ function patchChildren(old, fresh) {
   while (old.childNodes.length > want.length) old.lastChild.remove();
 }
 
+// An open dropdown (TRIAGE T65, the person: it still closed whenever a
+// lobby ping or a player's ape changed): the browser closes a select's
+// list when the page around it changes, so the menus wait while one is
+// open, and catch up when it closes (a choice, Escape, Enter or Tab, a
+// click anywhere, or the focus leaving it).
+let openSelect = null;
+
+function selectOpened(s) {
+  openSelect = s;
+}
+
+function selectClosed() {
+  if (!openSelect) return;
+  openSelect = null;
+  drawMenus();
+}
+
+document.addEventListener("pointerdown", (e) => {
+  const s = e.target.closest && e.target.closest("#menus select");
+  if (s && s !== openSelect) selectOpened(s);
+  else selectClosed();
+}, true);
+// after the change is sent (a redraw first would put back the old value)
+document.addEventListener("change", () => setTimeout(selectClosed, 0), true);
+document.addEventListener("focusout", (e) => { if (e.target === openSelect) selectClosed(); }, true);
+document.addEventListener("keydown", (e) => {
+  if (!openSelect) {
+    if (e.target.matches && e.target.matches("#menus select") && (e.key === " " || e.key === "ArrowDown" && e.altKey)) selectOpened(e.target);
+  } else if (e.key === "Escape" || e.key === "Enter" || e.key === "Tab") {
+    setTimeout(selectClosed, 0);
+  }
+}, true);
+
 function drawMenus() {
+  if (openSelect) {
+    if (openSelect.isConnected) return;
+    openSelect = null;
+  }
   const text = JSON.stringify(ui.panels || []);
   if (text === panelsText) return;
   panelsText = text;

@@ -164,6 +164,24 @@ def run_engine(p, engine, origin):
         b.page.wait_for_function(EQUAL_SHOWS, arg=[STRINGS["setup.equal"], want], timeout=WAIT_MS)
     kept = b.page.evaluate("ids => ids.map(id => document.getElementById(id).__mark === id)", marks)
     check(all(kept), f"B's lobby keeps its elements while the host changes a setting {kept}")
+    # TRIAGE T65 again (the person: a dropdown still closed on every ping or
+    # ape change): while B's dropdown is open its menus hold still, and they
+    # catch up once it closes
+    b.page.dispatch_event(by_id("lobby.palette"), "pointerdown", {"bubbles": True})
+    a.click("lobby.equal")
+    a.page.wait_for_timeout(300)
+    b.page.wait_for_timeout(1500)
+    held = b.page.evaluate(EQUAL_SHOWS, [STRINGS["setup.equal"], STRINGS["off"]])
+    check(held, "B's menus hold still while its dropdown is open")
+    b.page.keyboard.press("Escape")
+    try:
+        b.page.wait_for_function(EQUAL_SHOWS, arg=[STRINGS["setup.equal"], STRINGS["on"]], timeout=WAIT_MS)
+        caught_up = True
+    except Exception:
+        caught_up = False
+    check(caught_up, "B's menus catch up once the dropdown closes")
+    a.click("lobby.equal")
+    b.page.wait_for_function(EQUAL_SHOWS, arg=[STRINGS["setup.equal"], STRINGS["off"]], timeout=WAIT_MS)
     b.click("lobby.ready")
     ok = a.enabled("lobby.start")
     check(ok, "A's Start comes on once B is Ready")
