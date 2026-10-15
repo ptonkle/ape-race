@@ -14,6 +14,10 @@ use crate::rules::Kind;
 /// How long the Copy button reads Copied, in milliseconds.
 const COPIED_MS: i64 = 1500;
 
+/// How long a joiner keeps trying to get back into its room (after a
+/// refresh, or when the host's link drops) before it gives up (TRIAGE T72).
+pub(crate) const REJOIN_MS: i64 = 30_000;
+
 /// The lobby's Screech! button (TRIAGE T44) is hidden for now (T57). The
 /// `lobby.screech` action, the online message and the sound stay, so it
 /// comes back by setting this to true with the person's sound file
@@ -43,6 +47,14 @@ pub struct OnlinePlay {
     /// the last messages of a session that has been left (its Leave or
     /// Dissolve), still to send
     parting: Vec<online::Outgoing>,
+    /// the room to remember for a refresh (TRIAGE T72), for the page's
+    /// session storage: Some("") forgets it
+    memo_out: Option<String>,
+    /// the room this tab is in by room code, and whether as its host
+    memo: Option<(String, bool)>,
+    /// a joiner trying to get back into its room since then (TRIAGE T72);
+    /// `Some(None)` until the first frame gives the clock
+    rejoin: Option<Option<i64>>,
 }
 
 impl App {
@@ -57,7 +69,33 @@ impl App {
                 self.online_act("online.room", value);
                 self.online_act("online.join", "");
             }
+            // the room this tab was in before a refresh (TRIAGE T72)
+            "flag.rejoin" if self.online.session.is_none() => self.rejoin(value),
             _ => {}
+        }
+    }
+
+    /// Back into the room remembered before a refresh, as the same browser
+    /// (its client id), so the host gives back its seat: a host opens its
+    /// room again under the same code, a joiner joins it (TRIAGE T72).
+    fn rejoin(&mut self, memo: &str) {
+        let Ok(m) = serde_json::from_str::<Value>(memo) else {
+            return;
+        };
+        let Some(code) = m["room"].as_str().and_then(online::clean_code) else {
+            return;
+        };
+        if let Some(id) = m["id"].as_str().filter(|id| !id.is_empty()) {
+            self.online.client_id = id.to_string();
+        }
+        self.go(Screen::Online);
+        self.online.room = code.clone();
+        let room = App::room_name(&code);
+        if m["host"].as_bool() == Some(true) {
+            self.open_session(true, json!({"op": "host_room", "room": room}));
+        } else {
+            self.open_session(false, json!({"op": "join_room", "room": room}));
+            self.online.rejoin = Some(None);
         }
     }
 
@@ -89,9 +127,20 @@ impl App {
             let _ = o.set_ai_count(self.settings.ai_count as usize, self.now_ms);
             let _ = o.set_equal_stats(self.settings.equal_stats, self.now_ms);
             let _ = o.set_lava(self.settings.lava, self.now_ms);
+            let _ = o.set_weather(self.settings.weather, self.now_ms);
         }
         self.online.session = Some(o);
         self.online.status = String::new();
+        self.online.rejoin = None;
+        // remembered for a refresh (TRIAGE T72); a pasted code is not
+        let memo = (!self.online.room.is_empty()).then(|| (self.online.room.clone(), host));
+        self.online.memo_out = Some(match &memo {
+            Some((room, host)) => {
+                json!({"room": room, "host": host, "id": self.online.client_id}).to_string()
+            }
+            None => String::new(),
+        });
+        self.online.memo = memo;
         self.online.requests.push(request);
         self.go(Screen::Lobby);
     }
@@ -112,6 +161,15 @@ impl App {
         }
         self.online.invite.clear();
         self.online.reply.clear();
+        self.forget_room();
+    }
+
+    /// The room is left or gone: nothing to rejoin after a refresh.
+    fn forget_room(&mut self) {
+        if self.online.memo.take().is_some() {
+            self.online.memo_out = Some(String::new());
+        }
+        self.online.rejoin = None;
     }
 
     pub(super) fn online_act(&mut self, id: &str, value: &str) {
@@ -236,6 +294,18 @@ impl App {
                     self.save = true;
                 }
             }
+            // the host's weather for everyone (TRIAGE T67)
+            "lobby.weather" => {
+                if let (Some(w), Some(o)) = (
+                    crate::snow::Weather::from_key(value),
+                    &mut self.online.session,
+                ) {
+                    if o.set_weather(w, now).is_ok() {
+                        self.settings.weather = w;
+                        self.save = true;
+                    }
+                }
+            }
             "lobby.lava" => {
                 let on = value == "on";
                 if let Some(o) = &mut self.online.session {
@@ -344,19 +414,55 @@ impl App {
             return;
         }
         let status = o.status().clone();
+        let underway = o.underway();
+        // a joiner getting back into its room (TRIAGE T72): in, still
+        // trying, or out of time
+        if let Some(since) = self.online.rejoin {
+            let since = since.unwrap_or(now);
+            self.online.rejoin = Some(Some(since));
+            match status {
+                Status::Lobby | Status::Racing => self.online.rejoin = None,
+                Status::Joining | Status::Lost
+                    if !underway && now - since > REJOIN_MS && self.screen == Screen::Lobby =>
+                {
+                    self.online.status = "online.rejoin_failed".to_string();
+                    self.online.requests.push(json!({"op": "leave"}));
+                    self.online.session = None;
+                    self.forget_room();
+                    self.go(Screen::Online);
+                    return;
+                }
+                _ => {}
+            }
+        }
         match status {
             // the host pressed Rematch
             Status::Lobby if self.screen == Screen::Race => self.go(Screen::Lobby),
+            // the host's link dropped in the lobby: try the room again, as
+            // after a refresh (TRIAGE T72), in case the host comes back
+            Status::Lost if self.screen == Screen::Lobby && self.joined_by_room() => {
+                let since = self.online.rejoin.flatten().unwrap_or(now);
+                let room = App::room_name(&self.online.room);
+                self.open_session(false, json!({"op": "join_room", "room": room}));
+                self.online.rejoin = Some(Some(since));
+            }
             Status::Refused { .. } | Status::Dissolved | Status::Lost
                 if self.screen == Screen::Lobby =>
             {
                 self.online.status = status_key(&status).to_string();
                 self.online.requests.push(json!({"op": "leave"}));
                 self.online.session = None;
+                self.forget_room();
                 self.go(Screen::Online);
             }
             _ => {}
         }
+    }
+
+    /// A joiner in a room by its code (not a pasted code), which it can
+    /// join again.
+    fn joined_by_room(&self) -> bool {
+        matches!(&self.online.memo, Some((room, false)) if *room == self.online.room)
     }
 
     /// After each tick of an online race: hits this browser's items made on
@@ -382,12 +488,31 @@ impl App {
 
     // ---- what the page shows ----
 
+    /// The names of the racers whose updates have stopped coming, for the
+    /// HUD (TRIAGE T71), or None.
+    pub(super) fn stalled_names(&self, p: &Play) -> Option<String> {
+        if !p.online {
+            return None;
+        }
+        let o = self.online.session.as_ref()?;
+        let names: Vec<&str> = o
+            .stalled(self.now_ms)
+            .into_iter()
+            .filter_map(|i| p.race.racers.get(i).map(|r| r.name.as_str()))
+            .collect();
+        (!names.is_empty()).then(|| names.join(", "))
+    }
+
     fn status_text(&self) -> String {
         if !self.online.status.is_empty() {
             return self.t(&self.online.status);
         }
         match &self.online.session {
             None => self.t("online.idle"),
+            Some(o) if *o.status() == Status::Joining && o.underway() => self.t("online.underway"),
+            Some(o) if *o.status() == Status::Joining && self.online.rejoin.is_some() => {
+                self.t("online.rejoining")
+            }
             Some(o) => self.t(status_key(o.status())),
         }
     }
@@ -525,6 +650,17 @@ impl App {
             self.palette_select("lobby.palette"),
             json!({ "type": "stats", "label": self.t("setup.stats"), "rows": self.stats_rows(&stats) }),
         ];
+        // the host's weather for everyone, next to the map that has it
+        // (TRIAGE T67)
+        if view.map == crate::map::Map::Ski {
+            let weather = if view.is_host {
+                self.weather_select("lobby.weather")
+            } else {
+                json!({ "type": "list", "id": "lobby.weather", "rows": [[self.t("lobby.weather"),
+                    self.t(&format!("weather.{}", view.weather.key()))]] })
+            };
+            mine.insert(0, weather);
+        }
         if view.is_host {
             mine.insert(0, self.map_tiles("lobby.map", view.map, false));
             let options: Vec<Value> = (0..=view.max_ai)
@@ -656,6 +792,10 @@ impl App {
     pub(super) fn online_ui(&mut self, v: &mut Value) {
         if !self.online.requests.is_empty() {
             v["net_requests"] = Value::Array(std::mem::take(&mut self.online.requests));
+        }
+        // the room for the page's session storage (TRIAGE T72)
+        if let Some(memo) = self.online.memo_out.take() {
+            v["save_online"] = json!(memo);
         }
         if let Some(p) = &self.play {
             if p.online {

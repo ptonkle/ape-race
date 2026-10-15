@@ -491,9 +491,19 @@ impl App {
     /// and the view is on the Ski Slope (a race, the title's flyover, the
     /// setup's preview), never on the lineup.
     pub(crate) fn snowing(&self) -> bool {
-        self.settings.weather == crate::snow::Weather::Snowing
+        self.weather() == crate::snow::Weather::Snowing
             && self.stage != Stage::Lineup
             && self.shown_map() == Map::Ski
+    }
+
+    /// The weather shown: online (the lobby and an online race) the host's
+    /// for everyone (TRIAGE T67), else this player's setting.
+    pub(crate) fn weather(&self) -> crate::snow::Weather {
+        let online = self.screen == Screen::Lobby || self.play.as_ref().is_some_and(|p| p.online);
+        match &self.online.session {
+            Some(o) if online => o.weather(),
+            _ => self.settings.weather,
+        }
     }
 
     /// The map the 3D view is on: a race's own, else the menus'.
@@ -566,7 +576,7 @@ impl App {
             .map(|w| json!({ "value": w.key(), "text": self.t(&format!("weather.{}", w.key())) }))
             .collect();
         json!({ "type": "select", "id": id, "label": self.t(id),
-                "value": self.settings.weather.key(), "options": options })
+                "value": self.weather().key(), "options": options })
     }
 
     /// A map's name, as shown.
@@ -2076,6 +2086,8 @@ impl App {
                 self.t("hud.replay")
             } else if p.focus.racer != p.local {
                 self.t("hud.spectate")
+            } else if let Some(names) = self.stalled_names(p) {
+                format!("{} {names}", self.t("hud.stalled"))
             } else if self.pointer_locked {
                 String::new()
             } else {

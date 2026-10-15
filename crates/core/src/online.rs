@@ -55,7 +55,8 @@
 //!    [`Online::set_kind`], [`Online::set_name`], [`Online::set_ready`],
 //!    [`Online::screech`] (anyone; then play the screech once for each
 //!    [`Online::take_screeches`] counts), and on the host
-//!    [`Online::set_ai_count`], [`Online::set_equal_stats`], [`Online::set_map`] and
+//!    [`Online::set_ai_count`], [`Online::set_equal_stats`], [`Online::set_map`],
+//!    [`Online::set_weather`] (TRIAGE T67) and
 //!    [`Online::start`]`(seed, now_ms)` (refused unless every joined human is
 //!    Ready and there are at least two apes).
 //! 5. **Race start:** when [`Online::take_race_start`] gives a [`RaceStart`],
@@ -95,6 +96,7 @@ use crate::items::ItemSet;
 use crate::map::Map;
 use crate::race::{Driver, Entry, Item, Race, Summon};
 use crate::rules::{Kind, TICKS_PER_SECOND};
+use crate::snow::Weather;
 
 /// The protocol version. A joiner with another one is refused. 2: the Vine
 /// item's summoned vines (TRIAGE T12) and the Item `vine`. 3: renaming in
@@ -104,7 +106,12 @@ use crate::rules::{Kind, TICKS_PER_SECOND};
 /// 5: the map (the City, 2026-10-12) in `Roster` and `Start`.
 /// 6: the Ski Slope (2026-10-13): the map `ski`, which a client of 5
 /// could not read in a Roster or a Start.
-pub const PROTOCOL: u32 = 7;
+/// 7: ape colour palettes (TRIAGE T49).
+/// 8: the host's Ski Slope weather in `Roster` and `Start` (TRIAGE T67);
+/// `near` in `Ping` and the host passing race messages on between joiners
+/// with no link of their own (T71); `Underway` for a player back from a
+/// refresh mid-race (T72).
+pub const PROTOCOL: u32 = 8;
 /// The most apes in a race, humans and AI together.
 pub const MAX_APES: usize = 4;
 /// The most AI apes the host may add.
@@ -116,6 +123,12 @@ pub const RETRY_MS: i64 = 500;
 pub const ROSTER_EVERY_MS: i64 = 1000;
 /// How often everyone pings everyone.
 pub const PING_EVERY_MS: i64 = 500;
+/// A peer heard from this recently counts as reachable: it goes in this
+/// browser's `near` list (TRIAGE T71). Three pings.
+pub const NEAR_MS: i64 = 1500;
+/// A remote ape still racing with no state for this long is shown as
+/// stalled (TRIAGE T71).
+pub const STALL_MS: i64 = 1500;
 /// How often an ape's state is sent: 20 times a second.
 pub const STATE_EVERY_MS: i64 = 50;
 /// How far behind its owner a remote ape is drawn.
@@ -288,6 +301,8 @@ pub struct RaceStart {
     pub map: Map,
     /// Floor is Lava (TRIAGE T37), the host's choice
     pub lava: bool,
+    /// the Ski Slope's weather, the host's choice (TRIAGE T67)
+    pub weather: Weather,
 }
 
 /// An item hit for this browser to apply to an ape it owns.
@@ -337,6 +352,8 @@ pub struct LobbyView {
     pub map: Map,
     /// Floor is Lava (TRIAGE T37)
     pub lava: bool,
+    /// the Ski Slope's weather, the host's choice (TRIAGE T67)
+    pub weather: Weather,
     /// This browser's Ready mark, as last asked for.
     pub ready: bool,
     /// Joiner: the host changed a setting since this browser readied
@@ -385,6 +402,9 @@ enum Msg {
         /// Floor is Lava (TRIAGE T37, PROTOCOL 4)
         #[serde(default)]
         lava: bool,
+        /// the Ski Slope's weather (TRIAGE T67, PROTOCOL 8)
+        #[serde(default)]
+        weather: Weather,
     },
     Pick {
         kind: Kind,
@@ -406,6 +426,11 @@ enum Msg {
     Ping {
         id: String,
         stamp: i64,
+        /// the client ids this browser hears directly (TRIAGE T71,
+        /// PROTOCOL 8): the host passes race messages on to a joiner that
+        /// does not hear their sender
+        #[serde(default)]
+        near: Vec<String>,
     },
     Pong {
         stamp: i64,
@@ -425,10 +450,17 @@ enum Msg {
         /// Floor is Lava (TRIAGE T37, PROTOCOL 4)
         #[serde(default)]
         lava: bool,
+        /// the Ski Slope's weather (TRIAGE T67, PROTOCOL 8)
+        #[serde(default)]
+        weather: Weather,
     },
     Started {
         round: u32,
     },
+    /// Host to a player whose seat is in the race under way but whose
+    /// browser has lost it (a refresh, TRIAGE T72): it is out of this
+    /// race and seated for the next round.
+    Underway,
     /// An ape's state: round, index, the owner's race tick, position,
     /// velocity, mode, yaw.
     State {
@@ -491,6 +523,10 @@ enum Owner {
 struct Peer {
     id: Option<String>,
     rtts: VecDeque<i64>,
+    /// when anything last came from it
+    heard_ms: Option<i64>,
+    /// the client ids it hears directly, from its pings (TRIAGE T71)
+    near: BTreeSet<String>,
 }
 
 impl Peer {
@@ -540,6 +576,8 @@ struct RaceState {
     reported: BTreeMap<usize, u32>,
     last_finish_ms: i64,
     last_results_ms: i64,
+    /// when this browser's race began, for [`Online::stalled`]
+    began_ms: i64,
     /// Apes whose owner has left.
     gone: BTreeSet<usize>,
     host_gone: bool,
@@ -579,6 +617,12 @@ pub struct Online {
     items: ItemSet,
     /// the map: set by the host, shown in every lobby, sent with the start
     map: Map,
+    /// the Ski Slope's weather (TRIAGE T67): set by the host, in the
+    /// roster and the start
+    weather: Weather,
+    /// Joiner: the host said its race is under way without this browser
+    /// (TRIAGE T72); seated again for the next round.
+    underway: bool,
     peers: BTreeMap<PeerId, Peer>,
     outbox: Vec<Outgoing>,
     last_hello_ms: i64,
@@ -621,6 +665,8 @@ impl Online {
             lava: false,
             items: ItemSet::ALL,
             map: Map::default(),
+            weather: Weather::default(),
+            underway: false,
             peers: BTreeMap::new(),
             outbox: Vec::new(),
             last_hello_ms: now_ms,
@@ -737,6 +783,7 @@ impl Online {
             equal: self.equal_stats,
             map: self.map,
             lava: self.lava,
+            weather: self.weather,
         }
     }
 
@@ -806,11 +853,16 @@ impl Online {
             }
             return;
         }
-        let Some(client) = client else { return };
-        self.client_left(&client, now_ms);
         if let Some(race) = &mut self.race {
             race.unacked.remove(peer);
         }
+        let Some(client) = client else { return };
+        // the same browser back on a new link (a refresh, TRIAGE T72): the
+        // old link closing is not that player leaving
+        if self.peer_of_client(&client).is_some() {
+            return;
+        }
+        self.client_left(&client, now_ms);
     }
 
     fn client_left(&mut self, client: &str, now_ms: i64) {
@@ -846,12 +898,16 @@ impl Online {
             return;
         };
         let peer = peer.to_string();
-        self.peers.entry(peer.clone()).or_default();
+        self.peers.entry(peer.clone()).or_default().heard_ms = Some(now_ms);
         let from_host = self.host_peer.as_ref() == Some(&peer);
+        if self.is_host {
+            self.pass_on(&peer, &msg, text);
+        }
         match msg {
-            Msg::Ping { id, stamp } => {
+            Msg::Ping { id, stamp, near } => {
                 if let Some(p) = self.peers.get_mut(&peer) {
                     p.id = Some(id);
+                    p.near = near.into_iter().collect();
                 }
                 self.send(&peer, &Msg::Pong { stamp });
             }
@@ -905,7 +961,13 @@ impl Online {
                 equal,
                 map,
                 lava,
-            } if from_host => self.on_roster(round, humans, ai, equal, map, lava),
+                weather,
+            } if from_host => self.on_roster(round, humans, ai, equal, (map, lava, weather)),
+            Msg::Underway if from_host => {
+                if self.status == Status::Joining {
+                    self.underway = true;
+                }
+            }
             Msg::Dissolve if from_host => {
                 if matches!(self.status, Status::Joining | Status::Lobby) {
                     self.status = Status::Dissolved;
@@ -920,6 +982,7 @@ impl Online {
                 items,
                 map,
                 lava,
+                weather,
             } if from_host => {
                 let waiting = matches!(self.status, Status::Lobby | Status::Joining);
                 if waiting && humans.iter().any(|h| h.id == self.client_id) && round >= self.round {
@@ -930,6 +993,7 @@ impl Online {
                     self.items = items.clean();
                     self.map = map;
                     self.lava = lava;
+                    self.weather = weather;
                     self.begin_race(seed, now_ms);
                 }
                 if self.race.as_ref().is_some_and(|r| r.round == round) {
@@ -997,6 +1061,63 @@ impl Online {
         }
     }
 
+    /// Host, during a race: passes a joiner's race message on to the
+    /// joiners that do not hear that joiner themselves (TRIAGE T71). With no
+    /// TURN server two players' browsers may find no path to each other
+    /// (SECOND-ORDER N2) while both reach the host; their apes' states
+    /// then come the long way round, through the host. A State or a Vine
+    /// goes to every such joiner (a repeat is dropped as already seen); a Hit
+    /// goes to its victim's browser, the sender having sent it here because
+    /// it does not reach that browser (see [`Online::send_hit`]).
+    fn pass_on(&mut self, from: &PeerId, msg: &Msg, text: &str) {
+        if self.status != Status::Racing {
+            return;
+        }
+        let Some(sender) = self.peers.get(from).and_then(|p| p.id.clone()) else {
+            return;
+        };
+        let to: Vec<PeerId> = match msg {
+            Msg::State { .. } | Msg::Vine { .. } => self
+                .peers
+                .iter()
+                .filter(|(k, p)| {
+                    *k != from
+                        && p.id.as_ref().is_some_and(|id| *id != sender)
+                        && !p.near.contains(&sender)
+                })
+                .map(|(k, _)| k.clone())
+                .collect(),
+            Msg::Hit { victim, .. } if !self.owns(*victim) => {
+                let owner = self
+                    .race
+                    .as_ref()
+                    .and_then(|r| r.owners.get(*victim).cloned());
+                match owner {
+                    Some(Owner::Human(id)) if id != sender => {
+                        self.peer_of_client(&id).into_iter().collect()
+                    }
+                    _ => Vec::new(),
+                }
+            }
+            _ => Vec::new(),
+        };
+        for peer in to {
+            self.outbox.push(Outgoing {
+                to: Some(peer),
+                text: text.to_string(),
+            });
+        }
+    }
+
+    /// The client ids this browser has heard from in the last [`NEAR_MS`].
+    fn near(&self, now_ms: i64) -> Vec<String> {
+        self.peers
+            .values()
+            .filter(|p| p.heard_ms.is_some_and(|t| now_ms - t <= NEAR_MS))
+            .filter_map(|p| p.id.clone())
+            .collect()
+    }
+
     fn on_hello(
         &mut self,
         peer: &PeerId,
@@ -1014,6 +1135,13 @@ impl Online {
             self.send(peer, &Msg::Refuse { reason });
             return;
         }
+        // the newest link speaks for this browser: an older one with its id
+        // is a tab that refreshed or crashed (TRIAGE T72)
+        for (k, p) in self.peers.iter_mut() {
+            if k != peer && p.id.as_deref() == Some(id.as_str()) {
+                p.id = None;
+            }
+        }
         if let Some(p) = self.peers.get_mut(peer) {
             p.id = Some(id.clone());
         }
@@ -1022,7 +1150,13 @@ impl Online {
                 .race
                 .as_ref()
                 .is_some_and(|r| r.owners.contains(&Owner::Human(id.clone())));
-            if !racing {
+            if racing {
+                // A Hello comes only from a browser that is not racing: this
+                // seat's browser lost its race (a refresh, TRIAGE T72). It is
+                // out of this race and keeps its seat for the next round.
+                self.client_left(&id, now);
+                self.send(peer, &Msg::Underway);
+            } else {
                 self.send(
                     peer,
                     &Msg::Refuse {
@@ -1113,8 +1247,7 @@ impl Online {
         humans: Vec<Human>,
         ai: usize,
         equal: bool,
-        map: Map,
-        lava: bool,
+        (map, lava, weather): (Map, bool, Weather),
     ) {
         if round < self.round {
             return;
@@ -1140,7 +1273,8 @@ impl Online {
         let changed = ai != self.ai_count
             || equal != self.equal_stats
             || map != self.map
-            || lava != self.lava;
+            || lava != self.lava
+            || weather != self.weather;
         if round > self.round {
             self.settings_changed = false;
         } else if was_ready && changed {
@@ -1152,7 +1286,13 @@ impl Online {
         self.equal_stats = equal;
         self.map = map;
         self.lava = lava;
+        self.weather = weather;
         let seated = self.humans.iter().any(|h| h.id == self.client_id);
+        // a roster is the lobby: seated again after a race under way
+        // (TRIAGE T72)
+        if seated {
+            self.underway = false;
+        }
         self.status = if seated {
             Status::Lobby
         } else {
@@ -1392,6 +1532,28 @@ impl Online {
         self.map
     }
 
+    /// Host: the Ski Slope's weather for everyone (TRIAGE T67). Ready
+    /// marks stay (T61); the joiners see it at once.
+    pub fn set_weather(&mut self, weather: Weather, now_ms: i64) -> Result<(), OnlineError> {
+        self.host_lobby()?;
+        if self.weather != weather {
+            self.weather = weather;
+            self.roster_changed(now_ms);
+        }
+        Ok(())
+    }
+
+    /// The weather, as the host set it: the lobby's and the race's.
+    pub fn weather(&self) -> Weather {
+        self.weather
+    }
+
+    /// Joiner: the host's race is under way without this browser (back
+    /// from a refresh, TRIAGE T72); it is seated for the next round.
+    pub fn underway(&self) -> bool {
+        self.underway
+    }
+
     /// True when every joined human but the host has pressed Ready Up.
     pub fn all_ready(&self) -> bool {
         self.humans.iter().skip(1).all(|h| h.ready)
@@ -1493,6 +1655,7 @@ impl Online {
             items: self.items,
             map: self.map,
             lava: self.lava,
+            weather: self.weather,
         };
         self.race = Some(RaceState {
             round: self.round,
@@ -1510,6 +1673,7 @@ impl Online {
             reported: BTreeMap::new(),
             last_finish_ms: now_ms,
             last_results_ms: now_ms,
+            began_ms: now_ms,
             gone: BTreeSet::new(),
             host_gone: false,
             applied: BTreeSet::new(),
@@ -1537,6 +1701,7 @@ impl Online {
             items: self.items,
             map: self.map,
             lava: self.lava,
+            weather: self.weather,
         };
         let to: Vec<PeerId> = race.unacked.iter().cloned().collect();
         for peer in to {
@@ -1634,6 +1799,7 @@ impl Online {
             let ping = Msg::Ping {
                 id: self.client_id.clone(),
                 stamp: now_ms,
+                near: self.near(now_ms),
             };
             self.broadcast(&ping);
         }
@@ -1771,6 +1937,7 @@ impl Online {
             equal_stats: self.equal_stats,
             map: self.map,
             lava: self.lava,
+            weather: self.weather,
             ready,
             settings_changed: self.settings_changed,
             can_start: self.is_host && self.in_lobby() && self.all_ready() && self.apes() >= 2,
@@ -1838,6 +2005,27 @@ impl Online {
         self.broadcast(&msg);
     }
 
+    /// The remote apes still racing whose owner's states have stopped
+    /// coming for [`STALL_MS`] (or never came): drawn where last seen, and
+    /// the HUD says so (TRIAGE T71) instead of the ape freezing silently.
+    pub fn stalled(&self, now_ms: i64) -> Vec<usize> {
+        let Some(race) = &self.race else {
+            return Vec::new();
+        };
+        let fin = self.final_fin();
+        (0..race.owners.len())
+            .filter(|i| !self.owns(*i) && !race.gone.contains(i) && fin[*i] == Fin::Racing)
+            .filter(|i| {
+                let last = race
+                    .samples
+                    .get(i)
+                    .and_then(|l| l.back())
+                    .map_or(race.began_ms, |s| s.got);
+                now_ms - last > STALL_MS
+            })
+            .collect()
+    }
+
     /// Where each remote ape should be drawn now: about
     /// [`INTERP_DELAY_MS`] behind its owner, interpolated between states, or
     /// carried along its velocity for at most [`EXTRAPOLATE_MS`] when states
@@ -1893,7 +2081,18 @@ impl Online {
             item,
         };
         let to = match owner {
-            Owner::Human(id) => self.peer_of_client(&id),
+            // straight to the victim's browser when it hears this one; else
+            // through the host, which passes it on (TRIAGE T71)
+            Owner::Human(id) => {
+                let direct = self.peer_of_client(&id).filter(|peer| {
+                    self.is_host
+                        || self
+                            .peers
+                            .get(peer)
+                            .is_some_and(|p| p.near.contains(&self.client_id))
+                });
+                direct.or_else(|| self.host_peer.clone())
+            }
             Owner::Ai => self.host_peer.clone(),
         };
         match to {
