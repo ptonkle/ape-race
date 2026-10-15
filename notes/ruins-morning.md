@@ -17,6 +17,12 @@ The person went to bed at about 00:10 after playing 1.10.0–1.10.2. Each fix be
 | Wall panels not flush in some sections; their banana glyphs can't be seen | In progress | |
 | Stuck in spike pits; pit vines disappear | In progress | |
 
+## Also overnight
+
+| Item | Status | Version |
+| --- | --- | --- |
+| Patch notes: a "What's new" panel in the game (the version label opens it too, a "New" marker after an update) and a patch-notes page on the site, from one file | In progress | |
+
 ## Questions for the morning
 
 (none yet)
