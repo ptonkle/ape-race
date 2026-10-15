@@ -143,8 +143,6 @@ impl App {
         self.online.memo = memo;
         self.online.requests.push(request);
         self.go(Screen::Lobby);
-        // a new room: no race won in it yet (TRIAGE T76)
-        self.winner = None;
     }
 
     /// The transport room for a code: the protocol version keeps browsers
@@ -397,8 +395,6 @@ impl App {
             self.sounds.push(crate::sound::SCREECH.to_string());
         }
         if let Some(start) = o.take_race_start() {
-            // the next race: the last winner stops dancing (TRIAGE T76)
-            self.winner = None;
             // the host's map, built here if this browser has not shown it
             self.ensure_world(start.map);
             let course = self

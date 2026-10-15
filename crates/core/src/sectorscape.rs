@@ -2007,7 +2007,7 @@ fn lobby_spot(c: &Course, s: &SectorLayout) -> (V3, V3) {
             let fwd = pl.fwd.flat().norm();
             let right = right_of(fwd);
             let edge = v3(pl.centre.x, pl.top, pl.centre.z)
-                .sub(right.scale(pl.half_width - LOBBY_IN))
+                .sub(right.scale(pl.half_width - cm(250)))
                 .sub(fwd.scale(pl.half_len / 3));
             (edge, facing(yaw_of(fwd) + LOBBY_LOOK, 0))
         }
@@ -2018,11 +2018,6 @@ fn lobby_spot(c: &Course, s: &SectorLayout) -> (V3, V3) {
 /// The lobby's view: this far round to the left of the course's way (a
 /// little back toward the start, away from the start row's girder).
 const LOBBY_LOOK: i32 = deg(105);
-
-/// How far in from the deck's edge the ape stands: room behind it for
-/// the lobby's lineup (TRIAGE T76: the other apes stand back from yours
-/// toward the edge).
-const LOBBY_IN: i32 = cm(400);
 
 /// Where an ape stands behind the menus (`lobby_spot`), the way it faces
 /// (toward the camera) and the camera.
