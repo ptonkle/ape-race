@@ -68,6 +68,8 @@ pub use layout::{
     SHIP_OFFSET, WATER_LEVEL,
 };
 
+#[cfg(test)]
+mod course_tests;
 mod layout;
 mod rules;
 #[cfg(test)]

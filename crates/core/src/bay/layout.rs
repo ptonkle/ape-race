@@ -12,8 +12,9 @@
 //!   its swing yard across the course (lanes 9 m apart, never on the mast
 //!   itself), every 12–28 m along; one low rope per ship over its deck, 3 m
 //!   above it, for a grounded ape to jump to. A galleon's or frigate's
-//!   mainmast carries none. Sails: every sail a swing can reach is furled,
-//!   torn or shot away; only the royals of the bare mainmasts stay set.
+//!   mainmast carries none. Sails: none is set (the ships lie at anchor):
+//!   every one is furled, torn or shot away, since an ape flies as high as
+//!   the royals.
 //! - **The island** (the finish): its beach starts just past the last
 //!   ship's bow; a row of palms over the beach, then the finish, then the
 //!   treasure chest on past it.
@@ -299,24 +300,18 @@ pub fn bay_seeded(seed: u64) -> Course {
         let specs = masts(p.kind);
         let mut ship_masts = Vec::new();
         for spec in &specs {
-            let n = spec.yards.len();
             let yards = spec
                 .yards
                 .iter()
-                .enumerate()
-                .map(|(y, &(height, half))| Yard {
+                .map(|&(height, half)| Yard {
                     height: int(height),
                     half_span: int(half),
-                    // only a bare mainmast's royal stays set: every other
-                    // sail is where a swing could pass
-                    sail: if !spec.ropes && y == n - 1 {
-                        Sail::Set
-                    } else {
-                        match dice.below(10) {
-                            0..=4 => Sail::Furled,
-                            5..=7 => Sail::Torn,
-                            _ => Sail::Missing,
-                        }
+                    // none set: an ape flies as high as the royals (a
+                    // set royal on a bare mainmast was touched, 44 m up)
+                    sail: match dice.below(10) {
+                        0..=4 => Sail::Furled,
+                        5..=7 => Sail::Torn,
+                        _ => Sail::Missing,
                     },
                 })
                 .collect();
