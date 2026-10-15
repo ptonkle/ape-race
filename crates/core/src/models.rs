@@ -2675,8 +2675,8 @@ mod tests {
 
     #[test]
     fn the_jaguar_is_a_spotted_cat_at_the_racers_scale() {
-        // TRIAGE T37: four legs, a tail, rosettes; twice life size, as the
-        // racers are drawn, so it reads next to them
+        // TRIAGE T37: four legs, a tail, rosettes; at the scale the racers
+        // are drawn (T73: three times life size), so it reads next to them
         let base = crate::jaguar::Jaguar {
             feet: v3(int(5), int(1), int(7)),
             yaw: deg(30),

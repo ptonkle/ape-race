@@ -34,7 +34,6 @@ const LEAF: [Rgb; 4] = [
 ];
 const VINE: Rgb = rgb(150, 210, 70);
 const VINE_REACH: Rgb = rgb(255, 236, 90);
-const VINE_USED: Rgb = rgb(240, 84, 72);
 const BANANA_YELLOW: Rgb = rgb(255, 216, 40);
 const BANANA_STALK: Rgb = rgb(92, 62, 30);
 const VINE_LEAF: Rgb = rgb(90, 170, 60);
@@ -1181,8 +1180,6 @@ pub struct Frame<'a> {
     pub chains: &'a [crate::vinesim::Chain],
     /// the colourblind mode (TRIAGE T33): vivid vines, in reach near white
     pub vivid: bool,
-    /// a glowing aura round each racer in its slot's colour (TRIAGE T59)
-    pub aura: bool,
     /// what the racers wear instead of the map's gear (a tile's `gear=`
     /// preview; `None`: the map's, `models::Gear::on`)
     pub gear: Option<models::Gear>,
@@ -1331,7 +1328,7 @@ pub fn dynamic(f: &Frame) -> (Batch, Batch) {
             continue;
         }
         let look = vine_look_on(map, Some(i) == reach, f.vivid, f.tick);
-        let look = catch_up_look(race, f.local, i, Some(i) == reach, look);
+        let look = catch_up_look(race, f.local, i, Some(i) == reach, look, map, f.vivid);
         let t = f.tick + i as u32 * 37;
         match f.chains.get(i) {
             Some(chain) => chain_vine(&mut vines, chain, held[i], look, t, leafy),
@@ -1421,14 +1418,6 @@ pub fn dynamic(f: &Frame) -> (Batch, Batch) {
                 crate::sectorscape::warped(&mut b, own, &warp, at, f.tick + k as u32 * 31);
             }
             None => models::draw_in(&mut b, r.ape.kind, r.palette, &pose),
-        }
-        if f.aura {
-            let strength = if f.local == Some(k) {
-                AURA_OWN
-            } else {
-                AURA_GLOW
-            };
-            aura(&mut b, r.ape.kind, &pose, aura_colour(k, f.vivid), strength);
         }
         // a soft shadow on the ground, so height reads (as big as the
         // drawn ape)
@@ -1574,9 +1563,10 @@ pub fn flower(b: &mut Batch, at: V3, right: V3, up: V3, spin: i32) {
 }
 
 /// How big the racers are drawn, percent of life size (TRIAGE T40: twice,
-/// so opponents are easier to see). Only the drawing grows: the physics
-/// (reach, hit ranges, `BODY_DROP`) keeps its sizes.
-pub const RACE_SCALE: i32 = 200;
+/// so opponents are easier to see; T73: three times, in place of the
+/// auras). Only the drawing grows: the physics (reach, hit ranges,
+/// `BODY_DROP`) keeps its sizes. The jaguar is drawn at it too.
+pub const RACE_SCALE: i32 = 300;
 
 /// Racer `k`'s pose this frame, drawn at `at` (its hands) at `RACE_SCALE`.
 /// A grounded ape is drawn about its feet, so it still stands on the floor.
@@ -1599,82 +1589,6 @@ pub fn racer_pose(race: &Race, k: usize, at: V3, tick: u32) -> Pose {
         gear: models::Gear::on(Map::of(&race.course)),
         dance: dance.map(|(d, _)| d),
     }
-}
-
-/// Each start slot's aura (TRIAGE T59): player 1 blue, 2 red, 3 green,
-/// 4 purple, light and saturated so they read against every map's sky,
-/// ground and vines (Jungle green, City cyan, Ski Slope pink) at the
-/// strength the halo pass adds them.
-pub const AURA: [Rgb; 4] = [
-    rgb(60, 140, 255),
-    rgb(255, 50, 40),
-    rgb(50, 235, 70),
-    rgb(185, 70, 255),
-];
-/// The colourblind mode's (TRIAGE T33): the same four told apart by
-/// brightness and blue as well as hue (after Okabe and Ito's blue,
-/// vermilion, bluish green and reddish purple).
-pub const AURA_BLIND: [Rgb; 4] = [
-    rgb(30, 130, 255),
-    rgb(255, 110, 0),
-    rgb(0, 215, 160),
-    rgb(240, 120, 210),
-];
-
-/// Slot `k`'s aura colour (a fifth ape and on: round again).
-pub fn aura_colour(k: usize, vivid: bool) -> Rgb {
-    let set = if vivid { AURA_BLIND } else { AURA };
-    set[k % set.len()]
-}
-
-/// How strongly the aura adds its colour round another ape, and round the
-/// one the camera follows (subtler: it is always in the middle of the
-/// view, and the glow is there to find the others).
-pub const AURA_GLOW: i32 = ONE * 7 / 10;
-pub const AURA_OWN: i32 = ONE * 3 / 10;
-
-/// A soft aura round the ape posed `pose`, `colour` at `strength` (TRIAGE
-/// T59): the far side of a shell round its body, drawn in the halo pass
-/// (`Batch::push_halo` with a negative strength), so the ape hides the
-/// middle of it and the glow shows round its outline, fading outward. It
-/// follows the body: long down the rope when swinging, round the body in
-/// the air and on the ground.
-pub fn aura(b: &mut Batch, kind: crate::rules::Kind, pose: &Pose, colour: Rgb, strength: i32) {
-    // about the drawn ape's length, hands to feet
-    let h = BODY_DROP * pose.scale / 100 * models::size_of(kind) / 100;
-    let shell = match pose.rope {
-        Some(up) => rod(
-            pose.hands.add(up.scale(h / 4)),
-            pose.hands.sub(up.scale(h * 23 / 20)),
-            h,
-        ),
-        None if pose.grounded => {
-            let centre = pose.hands.sub(v3(0, BODY_DROP - h * 2 / 5, 0));
-            placed(centre, pose.yaw, v3(h * 6 / 5, h * 6 / 5, h * 6 / 5))
-        }
-        None => {
-            // in the air the body leans into its flight as `models` leans
-            // it (up to about 50 degrees), arms reaching ahead
-            let flat = pose.vel.flat();
-            let way = if flat.len() > ONE / 100 {
-                flat.norm()
-            } else {
-                V3::ZERO
-            };
-            let lean = mul(fx::div(flat.len(), int(12)).min(ONE), cm(120));
-            let axis = V3::UP.add(way.scale(lean)).norm();
-            let centre = pose
-                .hands
-                .sub(v3(0, BODY_DROP / 2, 0))
-                .add(way.scale(h / 4));
-            rod(
-                centre.sub(axis.scale(h * 7 / 10)),
-                centre.add(axis.scale(h * 7 / 10)),
-                h * 11 / 10,
-            )
-        }
-    };
-    b.push_halo(Mesh::Sphere, &shell, colour, -strength);
 }
 
 /// The course's bananas (TRIAGE T43) the viewer has not taken, near the
@@ -1724,19 +1638,48 @@ fn pickup_banana(b: &mut Batch, at: V3, spin: i32) {
     b.push(Mesh::Cyl, &rod(points[4], tip, cm(8)), BANANA_STALK, 0);
 }
 
+/// Each map's catch-up vine colour (TRIAGE T66), chosen against that map's
+/// own vines, the shared in-reach yellow and the item markers' violet:
+/// the Jungle's coral red against its green vines (T45's), the City's hot
+/// magenta against its cyan wires and orange dusk, the Ski Slope's emerald
+/// against its pink ropes, orange fences and white snow, Sector Ape's hot
+/// rose against its mint tethers and black space. On the maps whose vines
+/// glow it glows too (the map's halo is kept).
+pub fn catch_up_colour(map: Map, vivid: bool) -> Rgb {
+    match (map, vivid) {
+        (Map::Jungle, false) => rgb(240, 84, 72),
+        (Map::City, false) => rgb(255, 60, 190),
+        (Map::Ski, false) => rgb(30, 220, 90),
+        (Map::Sector, false) => rgb(255, 80, 110),
+        // the colourblind mode (TRIAGE T33): told from the map's vivid
+        // vine by brightness, not hue alone, and kept off the item flowers'
+        // violet: a deep red-orange under the bright green vines, a dark
+        // magenta under the bright cyan wires, a strong blue (on the blue
+        // and yellow axis most colourblind eyes keep) under the bright pink
+        // ropes, a deep red under the pale mint tethers
+        (Map::Jungle, true) => rgb(255, 70, 0),
+        (Map::City, true) => rgb(255, 40, 200),
+        (Map::Ski, true) => rgb(20, 40, 230),
+        (Map::Sector, true) => rgb(255, 60, 70),
+    }
+}
+
 /// A catch-up vine (TRIAGE T45: an opponent swung on it, the viewer has
-/// not) glows coral red, apart from the in-reach yellow (which wins) and
-/// the item vines' flowers; any other vine keeps its look.
+/// not) glows in its map's catch-up colour (T66), apart from the in-reach
+/// look (which wins) and the item vines' markers; any other vine keeps its
+/// look.
 fn catch_up_look(
     race: &Race,
     viewer: Option<usize>,
     i: usize,
     in_reach: bool,
     look: VineLook,
+    map: Map,
+    vivid: bool,
 ) -> VineLook {
     if !in_reach && viewer.is_some_and(|v| race.catch_up_vine(v, i)) {
         VineLook {
-            colour: VINE_USED,
+            colour: catch_up_colour(map, vivid),
             glow: look.glow.max(ONE * 9 / 20),
             ..look
         }
@@ -2172,8 +2115,8 @@ mod tests {
     }
 
     #[test]
-    fn racers_are_drawn_twice_life_size_and_stand_on_the_ground() {
-        // TRIAGE T40
+    fn racers_are_drawn_three_times_life_size_and_stand_on_the_ground() {
+        // TRIAGE T40 (T73: three times)
         for kind in crate::rules::Kind::ALL {
             let mut race = one_racer(kind);
             let a = &mut race.racers[0].ape;
@@ -2189,7 +2132,7 @@ mod tests {
             let (lo, hi) = heights(big);
             let (lo1, hi1) = heights(life);
             assert!(
-                (hi - lo) * 10 >= (hi1 - lo1) * 18,
+                (hi - lo) * 10 >= (hi1 - lo1) * 28,
                 "{kind:?}: {} vs {} cm tall",
                 (hi - lo) * 100 / ONE,
                 (hi1 - lo1) * 100 / ONE
@@ -2222,7 +2165,6 @@ mod tests {
             tick: 10,
             chains: &[],
             vivid: false,
-            aura: false,
             gear: None,
             flashes: &[],
         })
@@ -2273,7 +2215,6 @@ mod tests {
             tick: 10,
             chains: &[],
             vivid,
-            aura: false,
             gear: None,
             flashes: &[],
         })
@@ -2481,6 +2422,77 @@ mod tests {
         let u = uniforms();
         assert_eq!(&u[0..3], &[j.light_dir.x, j.light_dir.y, j.light_dir.z]);
         assert_eq!(fog_range(), j.fog_range);
+    }
+
+    #[test]
+    fn each_maps_catch_up_vines_stand_apart_from_its_own_vines() {
+        // TRIAGE T66: far in colour from the map's vine, the in-reach look
+        // and the item markers; in the colourblind mode by brightness too
+        let luma = |c: Rgb| (c[0] * 30 + c[1] * 59 + c[2] * 11) / 100;
+        let far = |a: Rgb, b: Rgb| (0..3).map(|k| (a[k] - b[k]).abs()).sum::<i32>();
+        let markers = [PETAL, crate::cityscape::SPARK];
+        for map in Map::ALL {
+            for vivid in [false, true] {
+                let c = catch_up_colour(map, vivid);
+                let vine = vine_look_on(map, false, vivid, 0).colour;
+                let reach = vine_look_on(map, true, vivid, 0).colour;
+                for (what, other) in [("vine", vine), ("reach", reach)]
+                    .into_iter()
+                    .chain(markers.map(|m| ("marker", m)))
+                {
+                    assert!(
+                        far(c, other) > ONE / 2,
+                        "{map:?} {vivid}: {c:?} too near the {what} {other:?}"
+                    );
+                }
+                if vivid {
+                    for other in [vine, reach] {
+                        assert!(
+                            (luma(c) - luma(other)).abs() > ONE / 4,
+                            "{map:?}: {c:?} as bright as {other:?}"
+                        );
+                    }
+                }
+            }
+        }
+        // each map its own
+        let mut all: Vec<Rgb> = Map::ALL.map(|m| catch_up_colour(m, false)).to_vec();
+        all.dedup();
+        assert_eq!(all.len(), Map::ALL.len());
+    }
+
+    #[test]
+    fn a_catch_up_vine_is_drawn_in_its_maps_colour_and_keeps_its_glow() {
+        // TRIAGE T66 (T45): an opponent has swung on vine `v`, the viewer
+        // not; the in-reach look still wins
+        for map in Map::ALL {
+            let e = |k| crate::race::Entry {
+                name: format!("P{k}"),
+                kind: crate::rules::Kind::Chimpanzee,
+                driver: crate::race::Driver::Local,
+                palette: 0,
+            };
+            let mut race = Race::new(map.course(), &[e(0), e(1)], false, 1);
+            let v = race.course.vines.len() / 3;
+            race.used = vec![0; race.course.vines.len()];
+            race.used[v] = 0b10;
+            assert!(race.catch_up_vine(0, v));
+            let a = race.course.anchor(v, race.tick);
+            let mid = a.add(race.course.hang(v).scale(race.course.vines[v].length / 2));
+            for vivid in [false, true] {
+                let want = catch_up_colour(map, vivid);
+                let look = vine_look_on(map, false, vivid, 0);
+                let mut b = vines_seen(&race, mid, vivid);
+                let halos = coloured(b.take_halos(), Mesh::Cyl, want);
+                let rods = coloured(b, Mesh::Cyl, want);
+                assert!(!rods.is_empty(), "{map:?} {vivid}: no catch-up vine");
+                assert_eq!(
+                    !halos.is_empty(),
+                    look.halo > 0,
+                    "{map:?} {vivid}: its glow"
+                );
+            }
+        }
     }
 
     #[test]

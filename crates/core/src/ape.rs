@@ -82,8 +82,9 @@ pub struct Ape {
     /// vine's boost, set by the race on the grab; kept in the ape so the
     /// AI's copies plan with it)
     pub release_bonus: i32,
-    /// bananas collected (TRIAGE T43), up to `BANANAS_FULL`: they lower
-    /// the drag, so the top speed rises
+    /// banana pieces collected (TRIAGE T43; T60: `BANANA_PIECES` to a
+    /// banana, `whole_bananas`), up to `BANANAS_FULL` bananas: they lower the
+    /// drag, so the top speed rises
     pub bananas: u32,
     /// the bananas the drag counts: `bananas` as of the last grab. A
     /// banana taken mid-swing or mid-flight counts from the next grab, so
@@ -335,8 +336,14 @@ impl Ape {
     /// The drag now, in hundred-millionths per metre: the kind's, less up
     /// to `BANANAS_DRAG_CUT` thousandths of it for the bananas collected.
     pub fn drag_now(&self) -> i64 {
-        let n = self.banana_drag.min(BANANAS_FULL) as i64;
-        self.phys.drag as i64 * (1000 - BANANAS_DRAG_CUT * n / BANANAS_FULL as i64)
+        let full = (BANANAS_FULL * BANANA_PIECES) as i64;
+        let n = (self.banana_drag as i64).min(full);
+        self.phys.drag as i64 * (1000 - BANANAS_DRAG_CUT * n / full)
+    }
+
+    /// The whole bananas collected (TRIAGE T60), as the HUD counts them.
+    pub fn whole_bananas(&self) -> u32 {
+        self.bananas / BANANA_PIECES
     }
 
     fn drag(&mut self, course: &Course) {
@@ -679,7 +686,7 @@ impl Ape {
         }
         self.release_bonus = 0;
         // and drops some bananas (TRIAGE T43)
-        self.bananas = self.bananas.saturating_sub(BANANAS_DROPPED);
+        self.bananas = self.bananas.saturating_sub(BANANAS_DROPPED * BANANA_PIECES);
         self.happened.push(Happening::Knocked);
     }
 }

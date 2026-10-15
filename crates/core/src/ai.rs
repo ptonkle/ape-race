@@ -1615,7 +1615,7 @@ pub struct Trial {
     pub landings: u32,
     /// ticks spent on the ground
     pub ground_ticks: u32,
-    /// bananas held at the end (TRIAGE T43)
+    /// whole bananas held at the end (TRIAGE T43, T60)
     pub bananas: u32,
     /// Floor is Lava (TRIAGE T37): the race clock when the jaguar ate it
     pub eaten: Option<u32>,
@@ -1758,7 +1758,7 @@ fn trial_with(
         let t = &mut out[i];
         t.finish = r.finish;
         t.progress = r.progress;
-        t.bananas = r.ape.bananas;
+        t.bananas = r.ape.whole_bananas();
         if r.finish.is_none() && r.eaten.is_some() && t.eaten.is_none() {
             t.eaten = Some(race.clock);
         }
