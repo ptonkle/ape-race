@@ -360,7 +360,7 @@ fn the_hosts_map_shows_in_every_lobby_and_the_race_runs_on_it() {
     assert!(p.apps[1].scene_version() > v);
     let ui: Value = serde_json::from_str(&p.apps[1].ui()).unwrap();
     let shown = ui["panels"].to_string();
-    assert!(shown.contains("City"), "{shown}");
+    assert!(shown.contains("Concrete Jungle"), "{shown}");
     // the map grid (TRIAGE T54): the host's to press, the joiner's
     // read-only with the host's pick marked
     let grid = |ui: &Value| {
