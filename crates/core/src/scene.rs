@@ -1564,9 +1564,10 @@ pub fn flower(b: &mut Batch, at: V3, right: V3, up: V3, spin: i32) {
 }
 
 /// How big the racers are drawn, percent of life size (TRIAGE T40: twice,
-/// so opponents are easier to see). Only the drawing grows: the physics
-/// (reach, hit ranges, `BODY_DROP`) keeps its sizes.
-pub const RACE_SCALE: i32 = 200;
+/// so opponents are easier to see; T73: three times, in place of the
+/// auras). Only the drawing grows: the physics (reach, hit ranges,
+/// `BODY_DROP`) keeps its sizes. The jaguar is drawn at it too.
+pub const RACE_SCALE: i32 = 300;
 
 /// Racer `k`'s pose this frame, drawn at `at` (its hands) at `RACE_SCALE`.
 /// A grounded ape is drawn about its feet, so it still stands on the floor.
@@ -2086,8 +2087,8 @@ mod tests {
     }
 
     #[test]
-    fn racers_are_drawn_twice_life_size_and_stand_on_the_ground() {
-        // TRIAGE T40
+    fn racers_are_drawn_three_times_life_size_and_stand_on_the_ground() {
+        // TRIAGE T40 (T73: three times)
         for kind in crate::rules::Kind::ALL {
             let mut race = one_racer(kind);
             let a = &mut race.racers[0].ape;
@@ -2103,7 +2104,7 @@ mod tests {
             let (lo, hi) = heights(big);
             let (lo1, hi1) = heights(life);
             assert!(
-                (hi - lo) * 10 >= (hi1 - lo1) * 18,
+                (hi - lo) * 10 >= (hi1 - lo1) * 28,
                 "{kind:?}: {} vs {} cm tall",
                 (hi - lo) * 100 / ONE,
                 (hi1 - lo1) * 100 / ONE
