@@ -38,6 +38,7 @@ pub mod race;
 pub mod render;
 pub mod replay;
 pub mod rules;
+pub mod ruinsmodels;
 pub mod scene;
 pub mod sector;
 pub mod sectorscape;

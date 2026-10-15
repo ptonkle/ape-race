@@ -14,6 +14,7 @@ use crate::fx::{self, deg, int, mul, ratio, ONE, TURN};
 use crate::geom::{facing, v3, Affine, V3};
 use crate::models;
 use crate::render::{self, Batch, Camera};
+use crate::ruinsmodels as ruins;
 use crate::spacecraft::{self as sc, Gait, Mech, MechKind};
 
 use super::App;
@@ -54,6 +55,9 @@ pub struct Gallery {
     pub hold: bool,
     /// moves the camera's target off the model's middle (metres)
     pub aim: V3,
+    /// a Sunset Ruins model instead (`ruinsmodels::GALLERY`), drawn under
+    /// the sunset
+    pub ruins: Option<usize>,
 }
 
 impl Gallery {
@@ -66,10 +70,12 @@ impl Gallery {
             at: 0,
             hold: false,
             aim: V3::ZERO,
+            ruins: None,
         };
         for (i, pair) in spec.split(',').enumerate() {
             if i == 0 {
                 g.model = MODELS.iter().position(|m| *m == pair).unwrap_or(0);
+                g.ruins = ruins::GALLERY.iter().position(|m| *m == pair);
                 continue;
             }
             let Some((k, v)) = pair.split_once('=') else {
@@ -97,6 +103,9 @@ impl Gallery {
 
     /// The model's middle and its rough radius, metres.
     fn framing(&self) -> (V3, i32) {
+        if let Some(r) = self.ruins {
+            return ruins::framing(ruins::GALLERY[r]);
+        }
         match self.key() {
             "mothership" => (V3::ZERO, int(125)),
             "wreck" => (V3::ZERO, int(135)),
@@ -142,6 +151,9 @@ impl Gallery {
             gait: Gait::March,
             phase: 0,
         };
+        if let Some(r) = self.ruins {
+            return ruins::gallery(b, ruins::GALLERY[r], &f, tick);
+        }
         match self.key() {
             "mothership" => sc::mothership(b, &f, tick),
             "hulk" | "deck" | "station" | "tether" => {
@@ -233,7 +245,11 @@ impl App {
     /// The gallery's frame: its view values, instances and draws.
     pub(super) fn gallery_frame(&self, g: &Gallery) -> (Vec<i32>, Vec<i32>, Vec<u32>) {
         let cam = g.camera();
-        let look = sc::look();
+        let look = if g.ruins.is_some() {
+            ruins::look()
+        } else {
+            sc::look()
+        };
         let view = render::view_values(
             &cam,
             self.aspect(),
@@ -247,7 +263,11 @@ impl App {
             look.far,
         );
         let mut b = Batch::new();
-        sc::stars(&mut b, cam.eye, 500);
+        if g.ruins.is_some() {
+            ruins::sky(&mut b, cam.eye, ruins::SUN_YAW);
+        } else {
+            sc::stars(&mut b, cam.eye, 500);
+        }
         g.draw(&mut b, self.ticks);
         let halos = b.take_halos();
         let mut values = Vec::new();
