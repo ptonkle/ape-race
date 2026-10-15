@@ -1511,7 +1511,7 @@ impl App {
             }
         };
         let (mut vines, mut batch) = (vines, batch);
-        if weather.falls() {
+        if self.snowing() {
             crate::snow::flakes(&mut batch, cam.eye, self.ticks, weather);
             batch.reglow(|g| crate::snow::bury_backdrop(g, weather));
         }
