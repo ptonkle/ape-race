@@ -615,7 +615,7 @@ pub fn moai_head(b: &mut Batch, f: &Affine, k: u32, big: bool) {
     if big {
         // the ahu: a long low platform of fitted blocks behind and under
         for i in -3..=3 {
-            let h = 6 + (hash(k, 10 + i as u32) % 3) as i32;
+            let h = 6 + (hash(k, (10 + i) as u32) % 3) as i32;
             put(
                 b,
                 f,
