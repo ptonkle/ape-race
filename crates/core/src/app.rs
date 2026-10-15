@@ -616,7 +616,9 @@ impl App {
 
     /// A Weather select (`settings.weather` in Settings, `setup.weather`
     /// on a setup, `lobby.weather`), labelled by its id, offering `map`'s
-    /// weathers (`None`, Random: every one, each shown only on its map).
+    /// weathers (`None`, Settings and Random: every one, each shown only on
+    /// its map, so each but Clear names that map: "Squall (Banana Bay
+    /// Battle)"; SECOND-ORDER BW1).
     pub(crate) fn weather_select(&self, id: &str, map: Option<Map>) -> Value {
         let list: &[crate::snow::Weather] = match map {
             Some(m) => crate::snow::Weather::offered(m),
@@ -624,7 +626,14 @@ impl App {
         };
         let options: Vec<Value> = list
             .iter()
-            .map(|w| json!({ "value": w.key(), "text": self.t(&format!("weather.{}", w.key())) }))
+            .map(|w| {
+                let name = self.t(&format!("weather.{}", w.key()));
+                let text = match (map, w.home()) {
+                    (None, Some(home)) => format!("{name} ({})", self.map_name(home)),
+                    _ => name,
+                };
+                json!({ "value": w.key(), "text": text })
+            })
             .collect();
         let value = match map {
             Some(m) => self.weather().on(m),
@@ -2033,9 +2042,9 @@ impl App {
         ];
         // Speed Colours shows once unlocked (TRIAGE row 26)
         if let Some(items) = panels[0]["items"].as_array_mut() {
-            // the Ski Slope's (Banana Bay Battle's squall is chosen on its
-            // own setup and lobby: SECOND-ORDER BS2)
-            items.push(self.weather_select("settings.weather", Some(Map::Ski)));
+            // every weather, each naming its map, so a squall chosen on the
+            // bay reads Squall here, not Clear (SECOND-ORDER BS2, BW1)
+            items.push(self.weather_select("settings.weather", None));
             if self.settings.colours_unlocked {
                 items.push(json!({ "type": "toggle", "id": "settings.speed_colours",
                   "label": self.t("settings.speed_colours"), "value": self.settings.speed_colours }));
