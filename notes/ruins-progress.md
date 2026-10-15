@@ -12,7 +12,7 @@ The standard map-build steps (MAPS.md "Build steps"), one row each. Status is on
 | 6 | Course layout | Done | 1.75 km: river, bridge, corridor, 300° chamber |
 | 7 | Map rules | Done | Current, ravine reset, bridge boost, spikes, trapdoors |
 | 8 | Art placed on the course | Done | Placed and polished (1.10.1): lit entrance, cliffs, random pile, glyphs in step; panel glyph sockets and one jog panel still off |
-| 9 | Lobby spot and flyover | In progress | Flyover done; lobby looks at the ground (your feedback), being fixed |
+| 9 | Lobby spot and flyover | In progress | Lobby fixed in 1.11.2; the online lobby's framing still hides the mouth |
 | 10 | AI validation | Done | Ordered over 32 layouts: Sloth 88.1, Monkey 78.2, Ape 71.9, King Kong 64.7 s; river, bridge and turn-in stalls fixed |
 | 11 | Medal times | Done | Author 0:56, Gold 1:03, Silver 1:13, Bronze 1:28 (re-measured) |
 | 12 | Step and frame cost | Done | Worst step 2.75 ms over 2,000 frames (was 7.1); race results unchanged by the speed-ups |
@@ -51,8 +51,8 @@ One row per concept from the brief, plus any added later (your feedback, a new i
 | Banana-glyph stonework, pulsing glow | Brief | Done | n/a | Done | Done |
 | Darker temple lighting | Brief | Done | n/a | Done | Done |
 | You can see into the temple from the bridge and through the mouth | Your feedback (1.10.0, again on 1.10.1) | Done | n/a | Done | Done |
-| Wall panels sit flush along every wall, past the bends | Your feedback (1.10.0, again on 1.10.2) | In progress | n/a | In progress | Not started |
-| Banana glyphs on the wall panels can be seen and glow | Your feedback (1.10.2) | In progress | n/a | In progress | Not started |
+| Wall panels sit flush along every wall, past the bends | Your feedback (1.10.0, again on 1.10.2) | Done | n/a | Done | Done |
+| Banana glyphs on the wall panels can be seen and glow | Your feedback (1.10.2) | Done | n/a | Done | Done |
 | Floor spike traps | Brief | Done | Done | Done | Done |
 | Trip wires → trapdoors after 0.75 s | Brief | Done | Done | Done | Done |
 | Glowing banana-spike pits | Brief | Done | Done | Done | In progress |
@@ -65,8 +65,8 @@ One row per concept from the brief, plus any added later (your feedback, a new i
 | Sun low and to the side, raking across the temple face | Models review, your choice | n/a | n/a | Done | Done |
 | Ravine sides read as rocky cliffs | In-game shots | Done | n/a | Done | Done |
 | Banana pile heaped at random, not in rings | Your feedback | Done | n/a | Done | Done |
-| Lobby camera shows your ape with the temple mouth behind | Your feedback (1.10.1) | n/a | n/a | In progress | Not started |
-| Lobby ape stands on the surface, not sunk in | Your feedback (1.10.2) | n/a | n/a | In progress | Not started |
-| The Sloth finishes every layout | AI report (1.10.3) | n/a | In progress | n/a | Not started |
-| AI levels stay 6 s apart with the solid face | Ordering test (1.11.1) | n/a | In progress | n/a | Not started |
-| The camera stays out of the floor and walls just inside the mouth | Mouth shots (1.10.4) | n/a | In progress | In progress | Not started |
+| Lobby camera shows your ape with the temple mouth behind | Your feedback (1.10.1) | Done | n/a | Done | Done |
+| Lobby ape stands on the surface, not sunk in | Your feedback (1.10.2) | Done | n/a | Done | Done |
+| The Sloth finishes every layout | AI report (1.10.3) | n/a | Done | Done | Done |
+| AI levels stay 6 s apart with the solid face | Ordering test (1.11.1) | n/a | Done | Done | Done |
+| The camera stays out of the floor and walls just inside the mouth | Mouth shots (1.10.4) | n/a | Done | Done | Done |

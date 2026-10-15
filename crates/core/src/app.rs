@@ -339,7 +339,7 @@ pub struct Play {
 /// Slope, 1.4 the map grid and kept best replays, 1.5 auras and palettes,
 /// 1.6 finish dances),
 /// patch (fixes only).
-pub const VERSION: &str = "1.11.2";
+pub const VERSION: &str = "1.11.3";
 
 pub struct App {
     strings: BTreeMap<String, String>,
@@ -1233,6 +1233,11 @@ impl App {
         if let Some(ski) = &race.course.ski {
             let crowns = crate::skiscape::crowns(&race.course, ski);
             chase = chase.with_crowns(at, crowns.into());
+        }
+        // on Sunset Ruins the eye keeps inside the temple (RS25)
+        if let Some(r) = &race.course.ruins {
+            let temple = crate::camera::Temple::of(r);
+            chase = chase.with_temple(at, Some(std::sync::Arc::new(temple)));
         }
         // Sector Ape runs about twice as fast: the view opens wider
         if race.course.sector.is_some() {
@@ -2394,7 +2399,8 @@ fn restore(p: &mut Play, save: replay::SavePoint) {
     p.since_out = None;
     let f = &p.race.racers[p.focus.racer];
     p.chase = Chase::new(f.ape.pos, p.chase.yaw, p.race.course.terrain)
-        .with_crowns(f.ape.pos, p.chase.crowns.clone());
+        .with_crowns(f.ape.pos, p.chase.crowns.clone())
+        .with_temple(f.ape.pos, p.chase.temple.clone());
 }
 
 /// The course's way forward a little ahead of centreline sample `hint`.
@@ -2414,7 +2420,8 @@ fn follow_speed(p: &mut Play) {
 fn refocus(p: &mut Play, from: Camera, ticks: u32) {
     let f = &p.race.racers[p.focus.racer];
     p.chase = Chase::new(f.ape.pos, p.chase.yaw, p.race.course.terrain)
-        .with_crowns(f.ape.pos, p.chase.crowns.clone());
+        .with_crowns(f.ape.pos, p.chase.crowns.clone())
+        .with_temple(f.ape.pos, p.chase.temple.clone());
     p.prev[p.focus.racer] = f.ape.pos;
     p.out_for = 0;
     p.danced = 0;
