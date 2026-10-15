@@ -203,7 +203,10 @@ fn the_replays_list_names_each_runs_map_and_plays_it_there() {
     b.act("menu.replays", "");
     let ui = ui_of(&mut b);
     let run = item(&ui, "replays.watch.0").unwrap();
-    assert!(run["text"].as_str().unwrap().contains("Concrete Jungle"), "{run}");
+    assert!(
+        run["text"].as_str().unwrap().contains("Concrete Jungle"),
+        "{run}"
+    );
     assert_eq!(run["disabled"], false);
     b.act("replays.watch.0", "");
     let p = b.play.as_ref().unwrap();
