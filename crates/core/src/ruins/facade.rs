@@ -115,6 +115,7 @@ mod tests {
             kind: Kind::Chimpanzee,
             driver: Driver::Local,
             palette: 0,
+            costume: crate::costume::Costume::Own,
         };
         let mut r = Race::new(ruins(), &[entry], false, 1);
         while r.phase != Phase::Running {

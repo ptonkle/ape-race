@@ -13,6 +13,7 @@ fn running(lava: bool) -> Race {
         kind: Kind::Chimpanzee,
         driver: Driver::Local,
         palette: 0,
+        costume: crate::costume::Costume::Own,
     }];
     let mut r = Race::new(bay(), &entries, false, 1);
     r.lava = lava;

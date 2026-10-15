@@ -27,6 +27,7 @@ fn ski_race(seed: u64, focus: usize, trees: bool) -> (Vec<(V3, V3)>, std::sync::
         kind: k,
         driver: Driver::Ai,
         palette: 0,
+        costume: crate::costume::Costume::Own,
     })
     .collect();
     let race = Race::new(course, &entries, false, seed);

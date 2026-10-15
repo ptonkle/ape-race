@@ -3620,13 +3620,16 @@ pub fn lineup_camera(aspect: i32) -> Camera {
 
 /// One ape on the selection screen, turning a full circle every 6 s.
 pub fn showcase(b: &mut Batch, kind: Kind, tick: u32) {
-    showcase_in(b, kind, 0, tick);
+    showcase_in(b, kind, 0, Gear::None, tick);
 }
 
 /// As `showcase`, in palette `palette` (TRIAGE T49).
-pub fn showcase_in(b: &mut Batch, kind: Kind, palette: u8, tick: u32) {
+pub fn showcase_in(b: &mut Batch, kind: Kind, palette: u8, gear: Gear, tick: u32) {
     let yaw = ((tick as i64 % 720) * TURN as i64 / 720) as i32;
-    let pose = Pose::standing(V3::ZERO, yaw, tick);
+    let pose = Pose {
+        gear,
+        ..Pose::standing(V3::ZERO, yaw, tick)
+    };
     draw_in(b, kind, palette, &pose);
 }
 

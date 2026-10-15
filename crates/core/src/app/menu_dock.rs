@@ -236,6 +236,7 @@ impl App {
                 &mut b,
                 self.settings.kind,
                 self.settings.palette(),
+                self.settings.costume.gear(map),
                 self.ticks,
             );
             return (Batch::new(), b);
@@ -243,7 +244,7 @@ impl App {
         let (feet, _) = self.preview_at();
         let yaw = ((self.ticks as i64 % 720) * TURN as i64 / 720) as i32;
         let pose = models::Pose {
-            gear: models::Gear::on(map),
+            gear: self.settings.costume.gear(map),
             ..models::Pose::standing(feet, yaw, self.ticks)
         };
         models::draw_in(&mut b, self.settings.kind, self.settings.palette(), &pose);

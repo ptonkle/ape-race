@@ -657,6 +657,40 @@ fn every_seats_colours_reach_every_browser_and_its_race() {
     }
 }
 
+#[test]
+fn every_seats_costume_reaches_every_browser_and_its_race() {
+    // TRIAGE T89 (PROTOCOL 12): a costume chosen before joining and one
+    // changed in the lobby (its first message lost) show on every browser,
+    // and every race dresses each ape in its own on any map
+    use tool_core::costume::Costume;
+    let mut net = Net::new(3, 5, 30, 20);
+    net.nodes[2] = Online::join("client2", "Player 2", KINDS[2], 0).with_costume(Costume::Pirate);
+    net.arrive_in_order();
+    net.lb.loss_permille = 300;
+    net.lb.drops.push((1, 0, "\"pick\"".into()));
+    let now = net.now;
+    net.nodes[1].set_costume(Costume::Ski, now).unwrap();
+    net.nodes[0].set_costume(Costume::Bare, now).unwrap();
+    net.run(5000);
+    let want = [Costume::Bare, Costume::Ski, Costume::Pirate];
+    for (i, node) in net.nodes.iter().enumerate() {
+        let worn: Vec<Costume> = node.lobby().seats.iter().map(|s| s.costume).collect();
+        assert_eq!(worn, want, "node {i}");
+    }
+    net.lb.loss_permille = 0;
+    let now = net.now;
+    net.nodes[0].set_ai_count(1, now).unwrap();
+    net.ready_all();
+    let now = net.now;
+    net.nodes[0].start(9, now).unwrap();
+    net.run(500);
+    for i in 0..3 {
+        let worn: Vec<Costume> = net.race(i).racers.iter().map(|r| r.costume).collect();
+        assert_eq!(&worn[..3], want, "node {i}");
+        assert_eq!(worn[3], Costume::Own, "the AI ape wears the map's own");
+    }
+}
+
 // ---- the race --------------------------------------------------------------
 
 /// A lobby of `humans` with `ai` AI apes, started and running.

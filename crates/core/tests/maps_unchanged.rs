@@ -26,6 +26,7 @@ fn race_hash(course: Course, lava: bool) -> u64 {
             kind,
             driver: Driver::Ai,
             palette: 0,
+            costume: tool_core::costume::Costume::Own,
         })
         .collect();
     let mut race = Race::new(course, &entries, false, 7);

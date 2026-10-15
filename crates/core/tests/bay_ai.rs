@@ -165,6 +165,7 @@ fn four_ai_apes_race_the_bay_and_none_passes_through_a_set_sail() {
             kind,
             driver: Driver::Ai,
             palette: 0,
+            costume: tool_core::costume::Costume::Own,
         })
         .collect();
     let mut race = Race::new(bay(), &entries, false, 7);
@@ -216,6 +217,7 @@ fn every_level_gets_off_every_deck_back_onto_the_line() {
                     kind: Kind::Chimpanzee,
                     driver: Driver::Ai,
                     palette: 0,
+                    costume: tool_core::costume::Costume::Own,
                 }];
                 let course = bay();
                 let b = course.bay.as_deref().unwrap().clone();

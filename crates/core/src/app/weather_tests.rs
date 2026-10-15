@@ -82,8 +82,10 @@ fn the_ski_slopes_setup_offers_the_weather_beside_the_colours_and_no_other_map_d
         let all = items(&ui);
         assert_eq!(all[0]["id"], "setup.map");
         assert_eq!(all[2]["id"], "setup.palette");
-        assert_eq!(all[3]["id"], "setup.weather", "{menu}: beside the colours");
-        assert_eq!(all[3]["label"], "Weather");
+        // the costume (TRIAGE T89) pairs with the colours; the weather next
+        assert_eq!(all[3]["id"], "setup.costume", "{menu}");
+        assert_eq!(all[4]["id"], "setup.weather", "{menu}: after the colours");
+        assert_eq!(all[4]["label"], "Weather");
         a.act("setup.weather", "snowing");
         assert_eq!(a.settings.weather, Weather::Snowing);
         assert_eq!(

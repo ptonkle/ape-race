@@ -110,6 +110,7 @@ fn entries(n: usize) -> Vec<Entry> {
             kind: Kind::Chimpanzee,
             driver: Driver::Local,
             palette: 0,
+            costume: crate::costume::Costume::Own,
         })
         .collect()
 }

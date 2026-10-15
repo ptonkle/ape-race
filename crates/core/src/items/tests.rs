@@ -17,6 +17,7 @@ fn race_of(kinds: &[Kind], equal: bool) -> Race {
             kind: *k,
             driver: Driver::Local,
             palette: 0,
+            costume: crate::costume::Costume::Own,
         })
         .collect();
     let mut r = Race::new(course, &entries, equal, 7);

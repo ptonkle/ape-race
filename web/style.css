@@ -598,6 +598,10 @@ body[data-dock] .panel.setup > .actions .button:not(:first-child) { background: 
    Random, TRIAGE T64) share the row under the picture */
 body[data-dock] .panel.setup .field { gap: 0.15rem 0.5rem; }
 body[data-dock] .panel.setup .field select { font-size: 0.95rem; padding: 0.15rem 0.3rem; }
+/* the costume select (TRIAGE T89): its locked options carry their hint
+   ("Beat <map>'s Author time"), shown whole in the opened list; the closed
+   box stays short so it pairs with the colours on one row */
+body[data-dock] .panel.setup select[id$=".costume"] { max-width: 6.2rem; font-size: 0.8rem; }
 body[data-dock] .panel.setup .tile { flex: 1 1 auto; font-size: 0.76rem; padding: 0.25rem 0.3rem; }
 body[data-dock] .panel.setup .tile-row { flex-wrap: nowrap; gap: 0.25rem; }
 body[data-dock] .panel.setup .tiles { grid-template-columns: minmax(0, 1fr); }

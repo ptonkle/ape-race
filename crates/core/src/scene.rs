@@ -1788,8 +1788,9 @@ pub fn racer_pose(race: &Race, k: usize, at: V3, tick: u32) -> Pose {
         stunned: a.stun > 0,
         tick,
         scale: RACE_SCALE,
-        // the Ski Slope's skis, helmet and goggles
-        gear: models::Gear::on(Map::of(&race.course)),
+        // its costume (TRIAGE T89): the map's own gear (the Ski Slope's
+        // skis, helmet and goggles), none, or one unlocked elsewhere
+        gear: race.racers[k].costume.gear(Map::of(&race.course)),
         dance: dance.map(|(d, _)| d),
     }
 }
@@ -2358,6 +2359,7 @@ mod tests {
             kind,
             driver: crate::race::Driver::Local,
             palette: 0,
+            costume: crate::costume::Costume::Own,
         };
         Race::new(Course::jungle(), &[e], false, 1)
     }
@@ -2553,6 +2555,7 @@ mod tests {
             kind: crate::rules::Kind::Chimpanzee,
             driver: crate::race::Driver::Local,
             palette: 0,
+            costume: crate::costume::Costume::Own,
         };
         let mut race = Race::new(Map::Ski.course(), &[e], false, 1);
         let k = 0;
@@ -2781,6 +2784,7 @@ mod tests {
                 kind: crate::rules::Kind::Chimpanzee,
                 driver: crate::race::Driver::Local,
                 palette: 0,
+                costume: crate::costume::Costume::Own,
             };
             let mut race = Race::new(map.course(), &[e(0), e(1)], false, 1);
             let v = race.course.vines.len() / 3;

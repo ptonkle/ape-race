@@ -23,6 +23,7 @@ fn main() {
             kind,
             driver: Driver::Ai,
             palette: 0,
+            costume: tool_core::costume::Costume::Own,
         })
         .collect();
     let mut race = Race::new(map.course(), &entries, false, 7);

@@ -215,6 +215,7 @@ fn ai_starters_fan_out_onto_different_start_vines() {
             kind,
             driver: Driver::Ai,
             palette: 0,
+            costume: tool_core::costume::Costume::Own,
         })
         .collect();
     let mut race = Race::new(Course::jungle(), &entries, false, 7);

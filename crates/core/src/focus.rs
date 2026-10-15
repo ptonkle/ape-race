@@ -95,6 +95,7 @@ mod tests {
                 kind: Kind::ALL[i],
                 driver: if i == 0 { Driver::Local } else { Driver::Ai },
                 palette: 0,
+                costume: crate::costume::Costume::Own,
             })
             .collect();
         Race::new(Course::test_line(&[]), &entries, false, 1)

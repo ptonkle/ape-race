@@ -184,6 +184,7 @@ function select(item) {
   item.options.forEach((o) => {
     const opt = make("option", "", o.text);
     opt.value = o.value;
+    opt.disabled = o.disabled === true;
     input.append(opt);
   });
   input.value = item.value;

@@ -353,6 +353,7 @@ mod tests {
                 kind,
                 driver: Driver::Ai,
                 palette: 0,
+                costume: crate::costume::Costume::Own,
             })
             .collect();
         let mut race = Race::new(course, &entries, false, 1);

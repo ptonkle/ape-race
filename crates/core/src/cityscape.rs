@@ -3185,6 +3185,7 @@ mod tests {
             kind: crate::rules::Kind::Chimpanzee,
             driver: crate::race::Driver::Local,
             palette: 0,
+            costume: crate::costume::Costume::Own,
         };
         crate::race::Race::new(c, &[e], false, 1)
     }

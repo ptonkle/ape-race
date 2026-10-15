@@ -30,6 +30,7 @@ fn main() {
             kind,
             driver: Driver::Ai,
             palette: 0,
+            costume: tool_core::costume::Costume::Own,
         })
         .collect();
     let course = Map::Sector.course();

@@ -36,6 +36,7 @@ fn main() {
         kind: Kind::Chimpanzee,
         driver: Driver::Ai,
         palette: 0,
+        costume: tool_core::costume::Costume::Own,
     }];
     let mut race = Race::new(Map::Ski.course(), &entries, true, 7);
     let mut top = 0;

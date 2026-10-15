@@ -121,7 +121,8 @@ impl App {
         } else {
             Online::join(&id, &name, kind, self.now_ms)
         }
-        .with_palette(self.settings.palette());
+        .with_palette(self.settings.palette())
+        .with_costume(self.settings.costume);
         if host {
             let _ = o.set_map(self.settings.map, self.now_ms);
             let _ = o.set_random_map(self.settings.random_map, self.now_ms);
@@ -261,6 +262,16 @@ impl App {
                     self.save = true;
                     if let Some(o) = &mut self.online.session {
                         let _ = o.set_palette(self.settings.palette(), now);
+                    }
+                }
+            }
+            "lobby.costume" => {
+                if let Some(c) = crate::costume::Costume::from_key(value) {
+                    if self.settings.set_costume(c) {
+                        self.save = true;
+                        if let Some(o) = &mut self.online.session {
+                            let _ = o.set_costume(c, now);
+                        }
                     }
                 }
             }
@@ -626,10 +637,18 @@ impl App {
                     None => self.t("item.none"),
                 };
                 // the ape, and its colours when not the classic (TRIAGE T49)
-                let worn = if s.palette == 0 {
+                // and its costume when not the map's own (TRIAGE T89)
+                let mut extras = Vec::new();
+                if s.palette != 0 {
+                    extras.push(self.palette_name(s.kind, s.palette));
+                }
+                if !s.costume.is_own() {
+                    extras.push(self.t(&format!("costume.{}", s.costume.key())));
+                }
+                let worn = if extras.is_empty() {
                     ape(s.kind)
                 } else {
-                    format!("{} ({})", ape(s.kind), self.palette_name(s.kind, s.palette))
+                    format!("{} ({})", ape(s.kind), extras.join(", "))
                 };
                 json!([s.name, worn, ready, ping, s.me])
             })
@@ -656,6 +675,7 @@ impl App {
                     "value": self.settings.kind.key(), "options": kinds,
                     "text": ape(self.settings.kind) }),
             self.palette_select("lobby.palette"),
+            self.costume_select("lobby.costume"),
             json!({ "type": "stats", "label": self.t("setup.stats"), "rows": self.stats_rows(&stats) }),
         ];
         // the host's weather for everyone, next to the map that has it

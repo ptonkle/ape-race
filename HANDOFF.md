@@ -4,6 +4,12 @@ Stage 9, written by the agent. `C5 Consolidate in your own words`.
 
 A fresh session starts from this file, not from memory.
 
+## Unlockable costumes (TRIAGE T89, 2026-10-15, agent branch, not deployed)
+
+- Beat a map's Author time in any mode (a race against AIs, a Time Trial, any items, online) and its costume unlocks: Yeti Peak's ski gear, Sector Ape's flight jacket, Sunset Ruins' explorer, Banana Bay Battle's pirate. Wear it on any ape on any map: the Costume select beside Colours on Race Setup and in the lobby (Map's own, the default; None; the four, locked ones greyed with "Beat <map>'s Author time"). Old Author bests unlock on load.
+- Code: `costume.rs`, `Settings.costume`/`costumes`, `Entry`/`Racer.costume`, `scene::racer_pose`; online PROTOCOL 12. Tests `app/costume_tests.rs`, `costume.rs`, `tests/online.rs` `every_seats_costume_reaches_every_browser_and_its_race`. SECOND-ORDER UC1-UC8; shots `notes/costume-shots/`.
+- Checks in the worktree: fmt, clippy, debug `cargo test` passed; `check.sh` PASSED in Chromium only (292 s; the first run failed the 1280x720 Race Setup fit, fixed, UC3); `check-online.sh` PASSED in Chromium (84 s). Firefox and WebKit not run. No version bump or patch note yet (UC8).
+
 ## Start here (2026-10-15): Banana Bay Battle
 
 - **Read `notes/bay-morning.md` first**: the state, the questions for the person, and the drafted v1.12.0 patch notes.

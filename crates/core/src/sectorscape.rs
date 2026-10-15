@@ -2262,6 +2262,7 @@ mod tests {
             kind: crate::rules::Kind::Gorilla,
             driver: crate::race::Driver::Local,
             palette: 0,
+            costume: crate::costume::Costume::Own,
         };
         let mut race = crate::race::Race::new(c.clone(), &[e], false, 1);
         let (hole, r) = s.black_hole;
@@ -2291,6 +2292,7 @@ mod tests {
             kind: crate::rules::Kind::Gorilla,
             driver: crate::race::Driver::Local,
             palette: 0,
+            costume: crate::costume::Costume::Own,
         };
         let race = crate::race::Race::new(c, &[e], false, 1);
         assert!(!race.crate_vines.is_empty() && !race.items.is_empty());
