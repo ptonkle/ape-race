@@ -1,0 +1,29 @@
+T62, the Ski Slope's chunk loads: measurements (2026-10-14)
+
+Pop-in (cargo run --release -p tool_core --example ski_chunks -- [old|0] [WEATHER]):
+the eye 6 m over each centreline sample, a chunk change counted when any of
+the chunk shows through the fog (more than 2%).
+
+                         shapes drawn at once   chunk changes seen   worst seen
+  before (old rule), pre-T74 layout   mean 4,609  most 6,252        34              100%
+  before (old rule), T74 layout       mean 5,135  most 6,911       134              100%
+  after, Clear (fog 100-360 m)        mean 8,553  most 10,767        0                0%
+  after, Snowing (fog 60-288 m)       mean 7,260  most 9,341         0                0%
+  after, Blizzard (fog 12-130 m)      mean 4,140  most 5,978         0                0%
+
+Browser frame time, Ski Slope title flyover, Chromium with SwiftShader
+(software rendering) at 960x540, 40 s each, on a machine at load 55-70
+(other agents running), so absolute numbers are meaningless; the two runs
+were interleaved:
+
+  before (v1): 119 frames, median 383 ms, 95th 700 ms, 99th 917 ms, worst 1233 ms
+  after  (v1):  90 frames, median 517 ms, 95th 983 ms, 99th 1433 ms, worst 1433 ms
+  before (v2): 146 frames, median 283 ms, 95th 667 ms, 99th 767 ms, worst 867 ms
+  after  (v2): 103 frames, median 417 ms, 95th 917 ms, 99th 1367 ms, worst 1583 ms
+
+Software rendering pays for every drawn shape, so it shows the extra
+shapes (about 1.4x); a real GPU should not notice ~10k low-poly instances.
+
+Core step cost (examples/frame_cost.rs -- ski 3000, native, same load,
+interleaved): median 222/218 us before, 198/223 us after; the worst step
+is noise at this load (37/29 ms before, 7/16 ms after).
