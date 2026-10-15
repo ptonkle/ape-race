@@ -8,3 +8,4 @@ The person left the build running ("Run until the full build is done") and is aw
 
 ## What happened
 
+- Skeleton merged (85d0e5a): Banana Bay Battle is in the map list with a stand-in course (the Jungle's layout); PROTOCOL 11. It is selectable in the picker on main, harmless while not deployed (SECOND-ORDER BB4).
