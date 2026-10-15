@@ -123,6 +123,7 @@ fn a_ship_knows_its_rigging_and_its_outline() {
 #[test]
 fn hangers_name_real_rigging_and_the_ship_under_an_ape_is_found() {
     let mut b = bay().bay.unwrap();
+    b.ships.clear();
     b.ships.push(brig(v3(int(100), 0, int(50))));
     b.ships.push(brig(v3(int(200), 0, int(50))));
     let yard = Hanger::Yard {
@@ -159,6 +160,8 @@ fn hangers_name_real_rigging_and_the_ship_under_an_ape_is_found() {
 #[test]
 fn a_cannonball_flies_from_its_port_to_its_target_in_each_cycle() {
     let mut b = bay().bay.unwrap();
+    b.ships.clear();
+    b.volleys.clear();
     b.ships.push(brig(v3(int(100), 0, int(50))));
     b.ships.push(brig(v3(int(100), 0, int(10))));
     let target = v3(int(100), int(2), int(14));
