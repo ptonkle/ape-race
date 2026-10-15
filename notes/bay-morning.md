@@ -7,6 +7,7 @@ The person left the build running ("Run until the full build is done") and is aw
 1. **30 ships, not ~20.** Ropes can only hang from masts, so a rope every ~25 m needs a ship every 45–50 m: 20 ships made a 40 s race. 30 ships (the top of your 20–30) gives a Monkey about 68 s. More ships or wider gaps would make it longer. (SECOND-ORDER BC2)
 2. **No sails are set on the race line.** Every sail the course swings past is furled, torn or missing, so no ape ever passes through canvas. Ships off to the side, or high above the line, could carry full sails for the look if you want. (BC)
 3. **The dock is a tall pier, 12 m above the water.** From a low pier the AI swung back and forth at the start for about 8 s. (BC3)
+5. **The lobby view**: the ape stands at the pier's seaward end, with the first galleon's rig filling the top half and the planks the lower third. Is that the spot you want? (BL6)
 4. **The navy flag is made up**: purple with a gold chevron and a white ring. (BM5)
 
 ## What happened
@@ -19,3 +20,4 @@ The person left the build running ("Run until the full build is done") and is aw
 - AI and medals merged: Sloth 76.8, Monkey 67.1, Ape 59.7, King Kong 49.7 s over 16 layouts; medals Author 0:35, Gold 0:42, Silver 0:52, Bronze 1:07.
 - Art placed on the course merged (a99a2fe). In-game shots found: the chase camera clips into decks and rigging, the chest is too small, the ropes glow like light beams, lumpy barrels. A polish agent is on them. A lobby, flyover and map card agent and a docs and Settings-weather agent are also running.
 - Polish round 1 merged: the camera keeps out of hulls and yards, the chest is oversized and overflowing, ropes read as rope, sea and sky follow colourblind and JOJO MODE. Round 2 running: cream sails, a background battle either side, waterlines.
+- Lobby, flyover and map card merged. The ape stands at the pier's seaward end with the first galleon behind. Browser frame cost is no worse than the Ruins.
