@@ -67,11 +67,19 @@ const FOAM: Rgb = rgb(240, 250, 248);
 
 const PIRATE_HULL: Rgb = rgb(40, 32, 30);
 const PIRATE_WALE: Rgb = rgb(120, 34, 30);
-const PIRATE_SAIL: Rgb = rgb(198, 184, 152);
-const PIRATE_PATCH: Rgb = rgb(150, 132, 104);
+/// Weathered cream canvas, stained (BQ1: (198,184,152) unlit read as a
+/// teal-grey slab under the sea's bounce).
+const PIRATE_SAIL: Rgb = rgb(226, 208, 168);
+const PIRATE_PATCH: Rgb = rgb(170, 140, 98);
 const NAVY_HULL: Rgb = rgb(30, 50, 98);
 const NAVY_STRIPE: Rgb = rgb(226, 178, 60);
-const NAVY_SAIL: Rgb = rgb(246, 244, 232);
+const NAVY_SAIL: Rgb = rgb(250, 248, 238);
+/// How much the canvas glows: sailcloth is thin, so the 3 pm sun shows
+/// through it and its shaded side stays cream instead of taking the
+/// sea's teal bounce (BQ1).
+const CANVAS_GLOW: i32 = ONE * 11 / 20;
+/// A furled roll's folds, a little darker.
+const ROLL_GLOW: i32 = ONE * 2 / 5;
 
 const DECK: Rgb = rgb(184, 142, 92);
 const DECK_DARK: Rgb = rgb(140, 104, 66);
@@ -124,6 +132,10 @@ const STEEL: Rgb = rgb(200, 206, 214);
 const MUSKET: Rgb = rgb(92, 60, 36);
 
 const SMOKE: Rgb = rgb(236, 234, 228);
+/// A burning ship's smoke at its root.
+const SMOKE_DARK: Rgb = rgb(62, 58, 56);
+/// Foam round a hull or a barrel: pale, a little of the sea in it.
+const WAKE: Rgb = rgb(214, 240, 236);
 const FLASH: Rgb = rgb(255, 170, 50);
 
 // ---------------------------------------------------------------------------
@@ -1033,7 +1045,7 @@ fn stays(b: &mut Batch, f: &Affine, s: &Ship, p: &Paint, k: u32) {
             v3(0, foot + h / 2, clew_z + l / 2),
             v3(dm(2), h, l),
             p.sail,
-            0,
+            CANVAS_GLOW,
         ),
         Sail::Torn => {
             put(
@@ -1043,7 +1055,7 @@ fn stays(b: &mut Batch, f: &Affine, s: &Ship, p: &Paint, k: u32) {
                 v3(0, foot + h * 7 / 10, clew_z + l * 3 / 10),
                 v3(dm(2), h * 6 / 10, l * 6 / 10),
                 p.sail,
-                0,
+                CANVAS_GLOW,
             );
             put_turned(
                 b,
@@ -1053,7 +1065,7 @@ fn stays(b: &mut Batch, f: &Affine, s: &Ship, p: &Paint, k: u32) {
                 &Affine::rot_x(deg(pick(k, 33, -15, 15))),
                 v3(dm(2), h / 4, l / 6),
                 shade(p.sail, 90),
-                0,
+                CANVAS_GLOW,
             );
         }
         Sail::Furled => bar(
@@ -1064,7 +1076,7 @@ fn stays(b: &mut Batch, f: &Affine, s: &Ship, p: &Paint, k: u32) {
             tip,
             dm(4),
             shade(p.sail, 92),
-            0,
+            CANVAS_GLOW,
         ),
         Sail::Missing => {}
     }
@@ -1118,7 +1130,7 @@ fn gaff_sail(b: &mut Batch, f: &Affine, s: &Ship, m: usize, state: Sail, p: &Pai
             mid,
             v3(dm(2), h, reach - dm(4)),
             p.sail,
-            0,
+            CANVAS_GLOW,
         ),
         Sail::Furled => bar(
             b,
@@ -1128,7 +1140,7 @@ fn gaff_sail(b: &mut Batch, f: &Affine, s: &Ship, m: usize, state: Sail, p: &Pai
             v3(0, boom_y + dm(3), z1),
             dm(6),
             shade(p.sail, 92),
-            0,
+            CANVAS_GLOW,
         ),
         Sail::Torn => {
             for (i, t) in [15, 85].into_iter().enumerate() {
@@ -1139,9 +1151,9 @@ fn gaff_sail(b: &mut Batch, f: &Affine, s: &Ship, m: usize, state: Sail, p: &Pai
                     f,
                     Mesh::Cube,
                     v3(0, gaff_y - len / 2, z),
-                    v3(dm(2), len, reach / 5),
+                    v3(dm(2), len, reach / 9),
                     p.sail,
-                    0,
+                    CANVAS_GLOW,
                 );
             }
         }
@@ -1176,7 +1188,7 @@ fn yard_and_sail(b: &mut Batch, f: &Affine, y: &Spar, state: Sail, p: &Paint, si
                 v3(0, top - y.drop / 2, z + dm(1)),
                 v3(span, y.drop, dm(2)),
                 sail,
-                0,
+                CANVAS_GLOW,
             );
             put(
                 b,
@@ -1184,8 +1196,8 @@ fn yard_and_sail(b: &mut Batch, f: &Affine, y: &Spar, state: Sail, p: &Paint, si
                 Mesh::Cube,
                 v3(0, top - y.drop * 45 / 100, z + dm(5)),
                 v3(span * 80 / 100, y.drop * 70 / 100, dm(3)),
-                shade(sail, 96),
-                0,
+                shade(sail, 97),
+                CANVAS_GLOW,
             );
             if side == Side::Pirate && !k.is_multiple_of(3) {
                 // a patch
@@ -1198,7 +1210,7 @@ fn yard_and_sail(b: &mut Batch, f: &Affine, y: &Spar, state: Sail, p: &Paint, si
                     v3(px, py, z + dm(7)),
                     v3(span / 6, y.drop / 5, cm(4)),
                     PIRATE_PATCH,
-                    0,
+                    ONE / 4,
                 );
             }
             if side == Side::Navy {
@@ -1210,73 +1222,113 @@ fn yard_and_sail(b: &mut Batch, f: &Affine, y: &Spar, state: Sail, p: &Paint, si
                     v3(0, top - y.drop / 5, z + dm(7)),
                     v3(span * 82 / 100, cm(14), cm(4)),
                     shade(sail, 88),
-                    0,
+                    CANVAS_GLOW,
                 );
             }
         }
         Sail::Furled => {
+            // a rolled bundle along the yard (BQ1: one even bar read as a
+            // slab): fat in the bunt at the middle, thinning toward the
+            // yardarms, tied with two dark gaskets
+            let fat = w * 3 / 2 + dm(4);
+            let thin = w + dm(2);
+            let y0 = top - fat / 2 + dm(1);
+            let roll = shade(sail, 93);
             bar(
                 b,
                 f,
                 Mesh::Hex,
-                v3(-y.half * 9 / 10, top - dm(2), z),
-                v3(y.half * 9 / 10, top - dm(2), z),
-                dm(6).max(w * 2),
-                shade(sail, 92),
-                0,
+                v3(-y.half / 4, y0, z + dm(1)),
+                v3(y.half / 4, y0, z + dm(1)),
+                fat,
+                roll,
+                ROLL_GLOW,
             );
+            for s in [-1, 1] {
+                bar(
+                    b,
+                    f,
+                    Mesh::Taper,
+                    v3(s * y.half / 5, y0 + (fat - thin) / 4, z),
+                    v3(s * y.half * 9 / 10, top - thin / 3, z),
+                    thin,
+                    shade(sail, 88),
+                    ROLL_GLOW,
+                );
+                let x = s * y.half * 2 / 5;
+                bar(
+                    b,
+                    f,
+                    Mesh::Hex,
+                    v3(x - cm(6), y0, z),
+                    v3(x + cm(6), y0, z),
+                    thin + cm(6),
+                    RIGGING,
+                    0,
+                );
+            }
         }
         Sail::Torn => {
-            // a strip along the yard
+            // a ragged band left along the yard
             put(
                 b,
                 f,
                 Mesh::Cube,
-                v3(0, top - y.drop / 16, z + dm(1)),
-                v3(span, y.drop / 8, dm(2)),
+                v3(0, top - y.drop / 20, z + dm(1)),
+                v3(span, y.drop / 10, dm(2)),
                 sail,
-                0,
+                CANVAS_GLOW,
             );
-            // ragged strips hanging at each end, of uneven length
+            // ragged strips hanging at each end, of uneven length and
+            // width, a little apart and a little askew, each ending in a
+            // tattered point
             for s in [-1, 1] {
-                for j in 0..2 {
-                    let wide = span / 9;
-                    let x = s * (span / 2 - wide / 2 - j * wide);
-                    let len = y.drop * pick(k, 20 + j as u32 + (s + 1) as u32 * 5, 45, 95) / 100;
-                    put(
+                let mut edge = span / 2;
+                for j in 0..3 {
+                    let salt = 20 + j as u32 + (s + 1) as u32 * 5;
+                    let wide = span * pick(k, salt + 50, 4, 6) / 100;
+                    let x = s * (edge - wide / 2);
+                    edge -= wide + span * pick(k, salt + 60, 1, 2) / 100;
+                    let len = y.drop * pick(k, salt, 40, 95) / 100;
+                    let lean = Affine::rot_z(deg(pick(k, salt + 70, -4, 4)));
+                    put_turned(
                         b,
                         f,
                         Mesh::Cube,
                         v3(x, top - len / 2, z + dm(1)),
+                        &lean,
                         v3(wide, len, dm(2)),
-                        shade(sail, 100 - j * 6),
-                        0,
+                        shade(sail, 100 - j * 4),
+                        CANVAS_GLOW,
                     );
-                    // a tattered end
                     put_turned(
                         b,
                         f,
                         Mesh::Shard,
-                        v3(x, top - len - dm(3), z + dm(1)),
+                        v3(x, top - len - dm(4), z + dm(1)),
                         &Affine::rot_z(deg(pick(k, 30 + j as u32, -20, 20))),
-                        v3(wide * 8 / 10, dm(8), dm(2)),
-                        shade(sail, 90),
-                        0,
+                        v3(wide * 9 / 10, dm(10), dm(2)),
+                        shade(sail, 94),
+                        CANVAS_GLOW,
                     );
                 }
             }
-            // a few short tatters hanging from the middle strip
-            for j in 0..3 {
-                let x = (j - 1) * span / 6 + pick(k, 40 + j as u32, -6, 6) * span / 100;
+            // short tatters along the band
+            for j in 0..4 {
+                let x = (j * 2 - 3) * span / 10 + pick(k, 40 + j as u32, -5, 5) * span / 100;
                 put_turned(
                     b,
                     f,
                     Mesh::Shard,
-                    v3(x, top - y.drop / 8 - dm(5), z + dm(1)),
-                    &Affine::rot_z(deg(pick(k, 43 + j as u32, -15, 15))),
-                    v3(span / 14, dm(12), dm(2)),
-                    shade(sail, 92),
-                    0,
+                    v3(x, top - y.drop / 10 - dm(4), z + dm(1)),
+                    &Affine::rot_z(deg(pick(k, 43 + j as u32, -18, 18))),
+                    v3(
+                        span / 16,
+                        dm(10) + pick(k, 47 + j as u32, 0, 8) * cm(1),
+                        dm(2),
+                    ),
+                    shade(sail, 95),
+                    CANVAS_GLOW,
                 );
             }
         }
@@ -1290,8 +1342,8 @@ fn yard_and_sail(b: &mut Batch, f: &Affine, y: &Spar, state: Sail, p: &Paint, si
                 v3(s * span * 4 / 10, top - dm(8), z),
                 &Affine::rot_z(deg(10 * s)),
                 v3(span / 10, dm(16), dm(2)),
-                shade(sail, 85),
-                0,
+                shade(sail, 90),
+                CANVAS_GLOW,
             );
         }
     }
@@ -2741,6 +2793,278 @@ pub const GALLERY: [&str; 18] = [
     "flags",
     "bayall",
 ];
+
+// ---------------------------------------------------------------------------
+// The background battle (BQ2): low-detail ships, fire and smoke for the
+// fight outside the course's barrels, seen from 60 m and further.
+
+/// Ship `s` in low detail (in its own frame, as `ship`): a hull block with
+/// its wale, a bow and a stern castle, the deck, each mast as one taper,
+/// each yard as one bar with its sail as `Sail` says (one or two shapes),
+/// the gaff sail and a flag at the tallest masthead. About 30 shapes
+/// against `ship`'s 300 or more; still, so it goes in the chunked
+/// scenery. `k` varies the patches.
+pub fn ship_far(b: &mut Batch, f: &Affine, s: &Ship, k: u32) {
+    let p = paint(s.side);
+    let (len, beam, deck) = (s.length, s.beam, s.deck);
+    let body = len * 74 / 100;
+    let aft = -len / 2 + body / 2;
+    put(
+        b,
+        f,
+        Mesh::Bevel,
+        v3(0, deck / 2 - dm(10), aft + len / 20),
+        v3(beam, deck + dm(20), body),
+        p.hull,
+        0,
+    );
+    put(
+        b,
+        f,
+        Mesh::Cube,
+        v3(0, deck * 55 / 100, aft + len / 20),
+        v3(beam + cm(12), dm(6), body + cm(10)),
+        p.wale,
+        0,
+    );
+    // the bow: a ramp narrowing forward
+    put_turned(
+        b,
+        f,
+        Mesh::Wedge,
+        v3(0, deck / 2, len / 2 - len / 8),
+        &Affine::rot_y(0),
+        v3(beam * 8 / 10, deck + dm(10), len / 4),
+        p.hull,
+        0,
+    );
+    put(
+        b,
+        f,
+        Mesh::Cube,
+        v3(0, deck + dm(1), aft + len / 20),
+        v3(beam * 85 / 100, dm(2), body * 96 / 100),
+        DECK,
+        0,
+    );
+    // the raised decks as blocks
+    for &(from, to, h) in s.raised.iter().take(2) {
+        let (lo, hi) = (from.min(to), from.max(to));
+        put(
+            b,
+            f,
+            Mesh::Cube,
+            v3(0, (deck + h) / 2, (lo + hi) / 2),
+            v3(beam * 9 / 10, h - deck + dm(4), hi - lo),
+            p.hull,
+            0,
+        );
+    }
+    let tallest = s.masts.iter().map(|m| m.height).max().unwrap_or(0);
+    for (mi, mast) in s.masts.iter().enumerate() {
+        let top = s.deck + mast.height;
+        bar(
+            b,
+            f,
+            Mesh::Taper,
+            v3(0, deck, mast.along),
+            v3(0, top, mast.along),
+            beam * 7 / 100,
+            MAST,
+            0,
+        );
+        let ys = spars(s, mi);
+        for (i, y) in ys.iter().enumerate() {
+            put(
+                b,
+                f,
+                Mesh::Cube,
+                y.at,
+                v3(y.half * 2, dm(3), dm(3)),
+                MAST,
+                0,
+            );
+            let span = y.half * 2 * 92 / 100;
+            let top = y.at.y - dm(2);
+            let z = y.at.z + dm(3);
+            match mast.yards[i].sail {
+                Sail::Set => {
+                    put(
+                        b,
+                        f,
+                        Mesh::Cube,
+                        v3(0, top - y.drop / 2, z + dm(2)),
+                        v3(span, y.drop, dm(4)),
+                        p.sail,
+                        CANVAS_GLOW,
+                    );
+                    if s.side == Side::Pirate && (k + i as u32).is_multiple_of(2) {
+                        put(
+                            b,
+                            f,
+                            Mesh::Cube,
+                            v3(span / 5, top - y.drop / 2, z + dm(5)),
+                            v3(span / 5, y.drop / 4, cm(4)),
+                            PIRATE_PATCH,
+                            ONE / 4,
+                        );
+                    }
+                }
+                Sail::Furled => put(
+                    b,
+                    f,
+                    Mesh::Hex,
+                    v3(0, top - dm(3), z),
+                    v3(span, dm(7), dm(7)),
+                    shade(p.sail, 90),
+                    ROLL_GLOW,
+                ),
+                Sail::Torn => {
+                    put(
+                        b,
+                        f,
+                        Mesh::Cube,
+                        v3(-span / 4, top - y.drop / 4, z + dm(2)),
+                        v3(span / 2, y.drop / 2, dm(3)),
+                        p.sail,
+                        CANVAS_GLOW,
+                    );
+                    put(
+                        b,
+                        f,
+                        Mesh::Shard,
+                        v3(span / 3, top - y.drop / 3, z + dm(2)),
+                        v3(span / 4, y.drop * 2 / 3, dm(3)),
+                        shade(p.sail, 94),
+                        CANVAS_GLOW,
+                    );
+                }
+                Sail::Missing => {}
+            }
+        }
+        if let Some(Sail::Set) = mast.gaff {
+            let reach = mast.height * 4 / 10;
+            put(
+                b,
+                f,
+                Mesh::Cube,
+                v3(0, deck + mast.height * 35 / 100, mast.along - reach / 2),
+                v3(dm(3), mast.height * 4 / 10, reach),
+                p.sail,
+                CANVAS_GLOW,
+            );
+        }
+        if mast.height == tallest {
+            // the colours, hung still at the masthead
+            let c = match s.side {
+                Side::Pirate => FLAG_BLACK,
+                Side::Navy => ENSIGN,
+            };
+            let size = beam * 45 / 100;
+            put(
+                b,
+                f,
+                Mesh::Cube,
+                v3(0, top - size / 2, mast.along - size * 3 / 4),
+                v3(cm(8), size, size * 3 / 2),
+                c,
+                ONE / 6,
+            );
+        }
+    }
+}
+
+/// A far ship's fire at `tick` (its frame's origin on the burning deck):
+/// flickering flames and a dark smoke column leaning downwind (+z), puffs
+/// rising and spreading as they go. `k` sets the phase.
+pub fn fire_far(b: &mut Batch, f: &Affine, tick: u32, k: u32) {
+    for i in 0..3u32 {
+        let flick = wave(tick, 5 + i as i32, pick(k + i, 60, 0, TURN));
+        let h = dm(30) + mul(flick, dm(10));
+        let x = cm(pick(k + i, 61, -250, 250));
+        put(
+            b,
+            f,
+            Mesh::Spike,
+            v3(x, h / 2, cm(pick(k + i, 62, -300, 300))),
+            v3(dm(18) + mul(flick, dm(4)), h, dm(18)),
+            if i == 1 { BANANA } else { FLASH },
+            ONE,
+        );
+    }
+    // the column: puffs that rise 30 m over 8 s and spread, then begin again
+    let life = 960u32;
+    for i in 0..6u32 {
+        let age = ((tick + k * 97 + i * life / 6) % life) as i32 * ONE / life as i32;
+        let rise = mul(age, int(30)) + dm(20);
+        let lean = mul(mul(age, age), int(14));
+        let s = dm(25) + mul(age, int(7));
+        put(
+            b,
+            f,
+            Mesh::Blob,
+            v3(cm(pick(k + i, 63, -100, 100)), rise, lean),
+            v3(s, s * 8 / 10, s),
+            mix(SMOKE_DARK, SMOKE, ONE / 3 + age / 2),
+            ONE * 2 / 5,
+        );
+    }
+}
+
+/// A far broadside's muzzle smoke (its frame's +z pointing out of the
+/// port) at `age` (0 fired, ONE gone): a flash, then two pale puffs
+/// drifting out and up. Three shapes at most, against `smoke_puff`'s
+/// dozen, for guns 60 m and more away.
+pub fn smoke_far(b: &mut Batch, f: &Affine, age: i32, k: u32) {
+    let age = age.clamp(0, ONE);
+    if age >= ONE {
+        return;
+    }
+    if age < ONE / 10 {
+        put(
+            b,
+            f,
+            Mesh::Octa,
+            v3(0, 0, dm(10)),
+            v3(dm(12), dm(12), dm(20)),
+            FLASH,
+            ONE,
+        );
+    }
+    let fade = ONE - mul(age, age);
+    for i in 0..2u32 {
+        let grow = dm(14) + mul(fx::sqrt(age), int(4));
+        let s = mul(grow, fade);
+        put(
+            b,
+            f,
+            Mesh::Blob,
+            v3(
+                cm(pick(k + i, 64, -120, 120)),
+                mul(age, int(3 + i as i32)),
+                mul(fx::sqrt(age), int(4 + i as i32 * 2)),
+            ),
+            v3(s, s * 7 / 10, s),
+            SMOKE,
+            ONE / 2,
+        );
+    }
+}
+
+/// A light foam collar where something meets the sea (its frame's origin
+/// at the waterline): a flat pale hexagon `w` across and `l` along, under
+/// whatever floats in it.
+pub fn foam(b: &mut Batch, f: &Affine, w: i32, l: i32) {
+    put(
+        b,
+        f,
+        Mesh::Hex,
+        v3(0, cm(3), 0),
+        v3(w, cm(6), l),
+        WAKE,
+        ONE / 4,
+    );
+}
 
 /// Sets the sails of `s` as listed, mast by mast (fore first), each
 /// mast's yards lowest first, then its gaff; entries past the list stay.

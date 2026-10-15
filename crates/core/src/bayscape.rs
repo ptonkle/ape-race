@@ -43,6 +43,7 @@ use crate::rules::TICKS_PER_SECOND;
 use crate::scene::{Look, Scenery};
 use crate::snow::Weather;
 
+pub mod battle;
 pub mod fleet;
 
 /// The sun's height over the horizon: 3 pm, high but not overhead.
