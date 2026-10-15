@@ -86,7 +86,7 @@ fn race_setup_and_time_trial_offer_every_map_as_a_grid_of_pictures() {
             assert_eq!(o["id"], format!("setup.map.{}", m.key()));
             assert_eq!(o["text"], a.map_name(m));
         }
-        assert_eq!(grid["options"][1]["text"], "City");
+        assert_eq!(grid["options"][1]["text"], "Concrete Jungle");
         a.act("setup.map", "city");
         let grid = item(&ui_of(&mut a), "setup.map").unwrap();
         assert_eq!(cards(&grid).1, ["city"], "the City's card is marked");
@@ -124,7 +124,7 @@ fn choosing_the_city_moves_the_preview_onto_it_and_races_there() {
     a.act("menu.start", "");
     assert_eq!(a.play.as_ref().unwrap().race.course.name, "city");
     assert_eq!(a.shown, Shown::World(Map::City));
-    assert_eq!(ui_of(&mut a)["hud"]["map"][1], "City");
+    assert_eq!(ui_of(&mut a)["hud"]["map"][1], "Concrete Jungle");
     // the title flies over the last chosen map
     a.act("menu.main", "");
     assert_eq!(a.shown, Shown::World(Map::City));
@@ -203,7 +203,7 @@ fn the_replays_list_names_each_runs_map_and_plays_it_there() {
     b.act("menu.replays", "");
     let ui = ui_of(&mut b);
     let run = item(&ui, "replays.watch.0").unwrap();
-    assert!(run["text"].as_str().unwrap().contains("City"), "{run}");
+    assert!(run["text"].as_str().unwrap().contains("Concrete Jungle"), "{run}");
     assert_eq!(run["disabled"], false);
     b.act("replays.watch.0", "");
     let p = b.play.as_ref().unwrap();

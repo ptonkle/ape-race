@@ -3257,7 +3257,7 @@ mod tests {
         b.load_replays(&saved);
         b.act("menu.replays", "");
         let shown = texts(&ui_of(&mut b)["panels"]);
-        assert!(shown.contains("★ Best · Jungle · Time Trial"), "{shown}");
+        assert!(shown.contains("★ Best · Canopy Run · Time Trial"), "{shown}");
         b.act("replays.watch.0", "");
         assert!(b.play.as_ref().unwrap().replay.is_some());
         b.act("replay.exit", "");
@@ -3294,7 +3294,7 @@ mod tests {
         b.act("menu.replays", "");
         let shown = texts(&ui_of(&mut b)["panels"]);
         assert!(
-            shown.contains("★ Best · Jungle · Time Trial · Chimpanzee · 1:15.00 · older layout"),
+            shown.contains("★ Best · Canopy Run · Time Trial · Chimpanzee · 1:15.00 · older layout"),
             "{shown}"
         );
         assert!(shown.contains(r#""disabled":false"#), "{shown}");
