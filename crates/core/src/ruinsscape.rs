@@ -2,9 +2,10 @@
 //! from, `ruinsmodels.rs` the models; art phase 2, 2026-10-14, SECOND-ORDER
 //! RS rows).
 //!
-//! **The hour: a vibrant sunset, clear.** The sun stands 7° up, 30° to the
-//! left of the river's fall (`SUN_OFF`), so it is in view down the river
-//! and burns round the temple's facade from the bridge. Past the temple
+//! **The hour: a vibrant sunset, clear.** The sun stands 7° up, 100° to
+//! the left of the river's fall (`SUN_OFF`, RA11): it rakes across the
+//! temple's face from the side, so its carved depth shows, and it hangs
+//! over the left bank, in view whenever an ape looks across the river. Past the temple
 //! mouth the light goes dark (`ruinsmodels::look_inside`), lit by the
 //! pulsing banana glyphs; in the round chamber the skylight's shaft lights
 //! the pile (`chamber_look`). `look_at` blends them by where the eye is.
@@ -19,7 +20,6 @@
 //! the trip wires and trapdoors (from the race's trap state), the pits,
 //! the pile and the skylight.
 
-
 use crate::course::Course;
 use crate::fx::{self, cm, deg, int, mul, sin, ONE, TURN};
 use crate::geom::{right_of, v3, yaw_of, Affine, V3};
@@ -30,8 +30,9 @@ use crate::ruinsmodels as m;
 use crate::rules::TICKS_PER_SECOND;
 use crate::scene::{self, Look, Scenery};
 
-/// The sun's bearing off the river's fall (to the left, +yaw).
-pub const SUN_OFF: i32 = deg(30);
+/// The sun's bearing off the river's fall (to the left, +yaw): just in
+/// front of the temple's face, so its light grazes it (RA11).
+pub const SUN_OFF: i32 = deg(100);
 
 /// Sunset Ruins' vines: jade ropes, glowing faintly, that read against
 /// the gold and crimson sky and the dark temple alike.
@@ -312,7 +313,9 @@ pub fn scenery(c: &Course, r: &RuinsLayout) -> Scenery {
     let frame = Affine::translate(br.from)
         .then(&Affine::looking(span, V3::UP))
         .then(&Affine::scale(v3(kx, ONE, ONE)));
-    push(br.from.lerp(br.to, ONE / 2), &mut |b| m::rope_bridge(b, &frame, len));
+    push(br.from.lerp(br.to, ONE / 2), &mut |b| {
+        m::rope_bridge(b, &frame, len)
+    });
     for (end, toward) in [(br.from, br.to), (br.to, br.from)] {
         let out = end.sub(toward).flat().norm();
         let foot = end.add(out.scale(int(2)));
@@ -324,7 +327,7 @@ pub fn scenery(c: &Course, r: &RuinsLayout) -> Scenery {
                 &block(
                     v3(foot.x, land + h / 2 - cm(60), foot.z),
                     out,
-                    v3(br.width + int(3), h, int(5)),
+                    v3(br.width + int(3), h, int(8)),
                 ),
                 STONE,
                 0,
@@ -334,7 +337,7 @@ pub fn scenery(c: &Course, r: &RuinsLayout) -> Scenery {
                 &block(
                     v3(foot.x, br.from.y - cm(40), foot.z),
                     out,
-                    v3(br.width + int(3), cm(80), int(5)),
+                    v3(br.width + int(3), cm(80), int(8)),
                 ),
                 MOSS,
                 0,
@@ -386,18 +389,31 @@ pub fn scenery(c: &Course, r: &RuinsLayout) -> Scenery {
                 let l = &r.landmarks[landmark];
                 // a kapok rooted behind the ruin
                 let back = l.at.sub(anchor).flat();
-                let back = if back.len() > 0 { back.norm() } else { V3::ZERO };
+                let back = if back.len() > 0 {
+                    back.norm()
+                } else {
+                    V3::ZERO
+                };
                 let t = l.at.add(back.scale(int(9)));
                 v3(t.x, c.terrain(t.x, t.z), t.z)
             }
             _ => continue,
         };
         let h = (anchor.y - trunk.y).max(int(10));
-        let f = m::pose(trunk, pick(i as u32, 21, 0, TURN), fx::div(h + int(6), int(24)));
+        let f = m::pose(
+            trunk,
+            pick(i as u32, 21, 0, TURN),
+            fx::div(h + int(6), int(24)),
+        );
         let fork = trunk.add(v3(0, h * 4 / 5, 0));
         push(trunk, &mut |b| {
             m::jungle_tree(b, &f, m::Tree::Kapok, i as u32);
-            b.push(Mesh::Taper, &rod(fork, anchor.add(v3(0, cm(40), 0)), cm(90)), TRUNK, 0);
+            b.push(
+                Mesh::Taper,
+                &rod(fork, anchor.add(v3(0, cm(40), 0)), cm(90)),
+                TRUNK,
+                0,
+            );
             b.push(
                 Mesh::Blob,
                 &crate::render::placed(anchor.add(v3(0, int(1), 0)), 0, v3(int(4), int(2), int(4))),
@@ -410,11 +426,7 @@ pub fn scenery(c: &Course, r: &RuinsLayout) -> Scenery {
     // the jungle: dense on both banks, cleared round the ruins, the
     // bridge's towers, the lobby and the start camera
     let lobby = lobby_spot(c, r).0;
-    let mut clear: Vec<(V3, i32)> = r
-        .landmarks
-        .iter()
-        .map(|l| (l.at, int(13)))
-        .collect();
+    let mut clear: Vec<(V3, i32)> = r.landmarks.iter().map(|l| (l.at, int(13))).collect();
     clear.push((br.from, int(12)));
     clear.push((br.to, int(12)));
     clear.push((lobby, int(16)));
@@ -426,7 +438,7 @@ pub fn scenery(c: &Course, r: &RuinsLayout) -> Scenery {
             for (ri, &(lo, hi)) in rows.iter().enumerate() {
                 k += 1;
                 // the outer rows thinner
-                if ri >= 3 && hash(k, 30) % 2 == 0 {
+                if ri >= 3 && hash(k, 30).is_multiple_of(2) {
                     continue;
                 }
                 let along = s + int(pick(k, 31, -3, 3));
@@ -468,7 +480,7 @@ pub fn scenery(c: &Course, r: &RuinsLayout) -> Scenery {
                     continue;
                 }
                 let p = v3(p.x, floor - cm(30), p.z);
-                let kind = if hash(k, 42) % 2 == 0 {
+                let kind = if hash(k, 42).is_multiple_of(2) {
                     m::Tree::Kapok
                 } else {
                     m::Tree::Fig
@@ -485,32 +497,12 @@ pub fn scenery(c: &Course, r: &RuinsLayout) -> Scenery {
     corridor_stone(c, r, &mut push);
     chamber_stone(r, &mut push);
 
-    // the lobby: a mossy stone ledge on the riverbank
-    let (feet, look) = lobby_spot(c, r);
-    push(feet, &mut |b| {
-        let land = c.terrain(feet.x, feet.z);
-        let h = feet.y - land + int(2);
-        b.push(
-            Mesh::Cube,
-            &block(v3(feet.x, feet.y - h / 2, feet.z), look, v3(int(10), h, int(9))),
-            STONE,
-            0,
-        );
-        b.push(
-            Mesh::Blob,
-            &block(
-                v3(feet.x, feet.y - cm(10), feet.z).sub(look.scale(int(3))),
-                look,
-                v3(int(6), cm(40), int(3)),
-            ),
-            MOSS,
-            0,
-        );
-    });
-
     let (terrain, ranges) = ground(c, r, n);
     scene::assemble(c, batches, terrain, ranges)
 }
+
+/// Draws into the batch of the chunk a point falls in.
+type Put<'a> = dyn FnMut(V3, &mut dyn FnMut(&mut Batch)) + 'a;
 
 /// The landmarks along the river are drawn this many times their size.
 const LANDMARK_SCALE: i32 = ONE * 7 / 2;
@@ -536,7 +528,7 @@ fn near_turtle_lane(r: &RuinsLayout, p: V3) -> bool {
 /// The corridor's stone: per section, the walls (a carved panel band at
 /// the apes' height) and the ceiling; the floor in tiles, open over the
 /// trapdoors (whose leaves are drawn each frame) down to their pits.
-fn corridor_stone(c: &Course, r: &RuinsLayout, push: &mut dyn FnMut(V3, &mut dyn FnMut(&mut Batch))) {
+fn corridor_stone(c: &Course, r: &RuinsLayout, push: &mut Put) {
     let floor = r.chamber.centre.y;
     let inside_chamber = |p: V3| p.flat().sub(r.chamber.centre.flat()).len() < r.chamber.radius;
     for (k, sec) in r.corridor.iter().enumerate() {
@@ -559,7 +551,8 @@ fn corridor_stone(c: &Course, r: &RuinsLayout, push: &mut dyn FnMut(V3, &mut dyn
                 b.push(
                     Mesh::Cube,
                     &block(
-                        v3(face.x, floor + wall_h / 2 - int(2), face.z).add(right.scale(side * int(1))),
+                        v3(face.x, floor + wall_h / 2 - int(2), face.z)
+                            .add(right.scale(side * int(1))),
                         fwd,
                         v3(int(2), wall_h, len + int(4)),
                     ),
@@ -594,7 +587,11 @@ fn corridor_stone(c: &Course, r: &RuinsLayout, push: &mut dyn FnMut(V3, &mut dyn
         push(mid, &mut |b| {
             b.push(
                 Mesh::Cube,
-                &block(v3(mid.x, roof + int(1), mid.z), fwd, v3(sec.half_width * 2 + int(4), int(2), len + int(2))),
+                &block(
+                    v3(mid.x, roof + int(1), mid.z),
+                    fwd,
+                    v3(sec.half_width * 2 + int(4), int(2), len + int(2)),
+                ),
                 STONE_DARK,
                 0,
             );
@@ -691,7 +688,11 @@ fn corridor_stone(c: &Course, r: &RuinsLayout, push: &mut dyn FnMut(V3, &mut dyn
             }
             b.push(
                 Mesh::Cube,
-                &block(v3(ctr.x, floor - depth, ctr.z), dfwd, v3(t.door.half.x * 2, int(1), t.door.half.z * 2)),
+                &block(
+                    v3(ctr.x, floor - depth, ctr.z),
+                    dfwd,
+                    v3(t.door.half.x * 2, int(1), t.door.half.z * 2),
+                ),
                 rgb(60, 36, 20),
                 ONE / 3,
             );
@@ -712,7 +713,7 @@ const WALL_SEGMENTS: i32 = 60;
 /// corridor comes in), a carved panel band, the floor's rings, the low
 /// ring of glowing posts marking the invisible wall, the roof round the
 /// skylight.
-fn chamber_stone(r: &RuinsLayout, push: &mut dyn FnMut(V3, &mut dyn FnMut(&mut Batch))) {
+fn chamber_stone(r: &RuinsLayout, push: &mut Put) {
     let ch = &r.chamber;
     let centre = ch.centre;
     let rad = ch.radius;
@@ -732,8 +733,14 @@ fn chamber_stone(r: &RuinsLayout, push: &mut dyn FnMut(V3, &mut dyn FnMut(&mut B
                 b.push(
                     Mesh::Cube,
                     &block(
-                        v3(face.x, centre.y + crate::ruins::CORRIDOR_HEIGHT + (wall_h - crate::ruins::CORRIDOR_HEIGHT) / 2, face.z)
-                            .add(out.scale(int(1))),
+                        v3(
+                            face.x,
+                            centre.y
+                                + crate::ruins::CORRIDOR_HEIGHT
+                                + (wall_h - crate::ruins::CORRIDOR_HEIGHT) / 2,
+                            face.z,
+                        )
+                        .add(out.scale(int(1))),
                         tangent,
                         v3(int(3), wall_h - crate::ruins::CORRIDOR_HEIGHT, seg_w),
                     ),
@@ -811,7 +818,10 @@ fn chamber_stone(r: &RuinsLayout, push: &mut dyn FnMut(V3, &mut dyn FnMut(&mut B
     }
     // the roof: two rings of slabs round the skylight
     let roof = centre.y + ch.height;
-    for (r0, r1, n) in [(r.skylight.radius - int(1), int(52), 24), (int(50), rad + int(4), 60)] {
+    for (r0, r1, n) in [
+        (r.skylight.radius - int(1), int(52), 24),
+        (int(50), rad + int(4), 60),
+    ] {
         let w = mul(r1, (TURN / n) * 6283 / 1000) + int(2);
         for k in 0..n {
             let ang = k * TURN / n;
@@ -864,7 +874,11 @@ fn ground(c: &Course, r: &RuinsLayout, n: usize) -> (Vec<i32>, Vec<(usize, u32, 
         } else {
             0
         };
-        let rise = if s < lip_s || s >= mouth_s { hill(a) } else { 0 };
+        let rise = if s < lip_s || s >= mouth_s {
+            hill(a)
+        } else {
+            0
+        };
         base + bed + rise
     };
     let tint = |p: V3, a: i32, s: i32| -> Rgb {
@@ -986,7 +1000,8 @@ pub fn dynamic(b: &mut Batch, c: &Course, r: &RuinsLayout, eye: V3, t: u32, tick
         }
         let (w0, w1) = tr.wire;
         let d = w1.sub(w0).flat();
-        let f = Affine::translate(v3(w0.x, floor, w0.z)).then(&Affine::looking(d.cross(V3::UP), V3::UP));
+        let f = Affine::translate(v3(w0.x, floor, w0.z))
+            .then(&Affine::looking(d.cross(V3::UP), V3::UP));
         m::trip_wire(b, &f, d.len(), !tr.armed(tick));
         let open = door_open(tr, tick);
         let f = facing_frame(v3(ctr.x, floor, ctr.z), tr.door.fwd, ONE);
@@ -1042,8 +1057,14 @@ fn foam(b: &mut Batch, c: &Course, r: &RuinsLayout, eye: V3, eye_s: i32, t: u32)
             continue;
         };
         let dist = p0.flat().sub(eye.flat()).len();
-        let band = if dist < int(50) { ONE } else if dist < int(100) { ONE * 2 } else { ONE * 4 };
-        let many = 2 + (w.rough * 4 / ONE) as i32;
+        let band = if dist < int(50) {
+            ONE
+        } else if dist < int(100) {
+            ONE * 2
+        } else {
+            ONE * 4
+        };
+        let many = 2 + (w.rough * 4 / ONE);
         let many = if band > ONE { many / 2 + 1 } else { many };
         for j in 0..many {
             let id = (k as u32).wrapping_mul(31).wrapping_add(j as u32);
@@ -1095,7 +1116,11 @@ fn foam(b: &mut Batch, c: &Course, r: &RuinsLayout, eye: V3, eye_s: i32, t: u32)
             if flick > ONE / 2 {
                 b.push(
                     Mesh::Quad,
-                    &crate::render::placed(v3(p.x, w.surface + cm(16), p.z), deg(45), v3(cm(40), ONE, cm(40))),
+                    &crate::render::placed(
+                        v3(p.x, w.surface + cm(16), p.z),
+                        deg(45),
+                        v3(cm(40), ONE, cm(40)),
+                    ),
                     rgb(255, 230, 160),
                     ONE * 2,
                 );
@@ -1181,14 +1206,15 @@ fn glyphs(b: &mut Batch, r: &RuinsLayout, eye: V3, t: u32) {
 // ---------------------------------------------------------------------------
 // The lobby and the title's flyover.
 
-/// The lobby zone: a mossy stone ledge on the river's right bank, a
-/// hundred metres up from the falls, looking down the river at the temple's
-/// gaping mouth with the sunset over its left shoulder. The feet's place
-/// and the flat way the camera looks.
-pub fn lobby_spot(c: &Course, r: &RuinsLayout) -> (V3, V3) {
-    let s = r.marks.lip - int(92);
-    let p = at_s(c, s, RIVER_HALF + int(7));
-    let feet = v3(p.x, c.terrain(p.x, p.z) + int(1), p.z);
+/// The lobby zone: the mossy top of the rope bridge's tower on the
+/// river's right bank, 28 m over the water at the lip, looking across the
+/// ravine at the temple's gaping face and its waterfall, the sunset glow
+/// behind. The feet's place and the flat way the camera looks.
+pub fn lobby_spot(_c: &Course, r: &RuinsLayout) -> (V3, V3) {
+    let br = &r.bridge;
+    let out = br.to.sub(br.from).flat().norm();
+    let feet = br.to.add(out.scale(int(2)));
+    let feet = v3(feet.x, br.to.y, feet.z);
     let mouth = r.mouth.opening.centre;
     (feet, mouth.sub(feet).flat().norm())
 }

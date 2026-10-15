@@ -70,7 +70,8 @@ fn main() {
         let mut most = (0, 0);
         for k in 0..ruins.path.len() / 10 {
             let p = ruins.path[k * 10];
-            let eye = tool_core::geom::v3(p.x, ruins.terrain(p.x, p.z) + tool_core::fx::int(10), p.z);
+            let eye =
+                tool_core::geom::v3(p.x, ruins.terrain(p.x, p.z) + tool_core::fx::int(10), p.z);
             let mut b = tool_core::render::Batch::new();
             tool_core::ruinsscape::dynamic(&mut b, &ruins, rl, eye, 500, 500);
             let halos = b.take_halos().count();

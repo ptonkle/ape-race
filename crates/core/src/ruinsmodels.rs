@@ -2643,6 +2643,11 @@ pub fn sky(b: &mut Batch, eye: V3, sun_yaw: i32) {
         let el = deg(pick(i, 86, 4, 16));
         let at = eye.add(facing(a, el).scale(DOME - int(60)));
         let toward = (fx::cos(a - sun_yaw) + ONE) / 2;
+        // (the far side's clouds read as thin magenta streaks edge-on:
+        // only the sun's side has them, RS3)
+        if toward < ONE * 2 / 5 {
+            continue;
+        }
         let c = mix(rgb(150, 40, 70), rgb(255, 170, 70), mul(toward, toward));
         b.push(
             Mesh::Bevel,
