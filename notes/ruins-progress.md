@@ -23,3 +23,31 @@ The standard map-build steps (MAPS.md "Build steps"), one row each. Status is on
 | 17 | Docs | In progress | SECOND-ORDER rows written; README, MAPS.md, HANDOFF to do |
 | 18 | Full checks | Not started | `scripts/timed-checks.sh` |
 | 19 | Deploy | Waiting on you | Only on your go-ahead |
+
+## This map's features
+
+One row per concept from the brief, plus any added later (your feedback, a new idea, a new mechanic): add a row the moment it comes up. Each is tracked through the same stages: **Model** (drawn), **Rule** (physics or gameplay; "n/a" if only scenery), **On course** (placed in the real layout), **Checked** (seen in an in-game shot or test). Each cell is Done, In progress, Not started or n/a.
+
+| Feature | Source | Model | Rule | On course | Checked |
+| --- | --- | --- | --- | --- | --- |
+| Sunset sky (yellow → crimson) | Brief | Done | n/a | In progress | Not started |
+| Explorer outfit | Brief | Done | n/a | Done | Done |
+| Jaguar pith helmet | Your feedback | Done | n/a | Done | Done |
+| Dense jungle | Brief | Done | n/a | In progress | Not started |
+| Banana-bunch and moai ape ruins | Brief | Done | n/a | In progress | Not started |
+| River with rapids and current | Brief | In progress | Done | In progress | Not started |
+| Snapping turtles (bouncers) | Brief | Done | Done | In progress | Not started |
+| Waterfall and ravine reset | Brief | Done | Done | In progress | Not started |
+| Rope bridge, three gorillas wide | Brief | Done | n/a | In progress | Not started |
+| Boost vines launch into the mouth | Brief | In progress | Done | In progress | Not started |
+| Temple mouth in Aztec relief, with depth | Brief, your feedback | Done | Done | In progress | Not started |
+| Waterfall from the mouth | Brief | Done | n/a | In progress | Not started |
+| Banana-glyph stonework, pulsing glow | Brief | Done | n/a | In progress | Not started |
+| Darker temple lighting | Brief | Done | n/a | In progress | Not started |
+| Floor spike traps | Brief | Done | Done | In progress | Not started |
+| Trip wires → trapdoors after 0.75 s | Brief | Done | Done | In progress | Not started |
+| Glowing banana-spike pits | Brief | Done | Done | In progress | Not started |
+| Pit vines drop when doors open | Brief | In progress | Done | In progress | Not started |
+| Counter-clockwise round chamber, invisible inner wall | Brief | In progress | Done | In progress | Not started |
+| Banana pile finish, packed solid | Brief, your feedback | Done | Done | In progress | Not started |
+| Skylight with foliage and soft spotlight | Brief | Done | n/a | In progress | Not started |
