@@ -15,3 +15,4 @@ The person left the build running ("Run until the full build is done") and is aw
 - Models merged (279a9f2); shots on the design journal's new Banana Bay Battle page.
 - Course and rules merged (9d6d504): 30 ships, 1.46 km, the Monkey about 68.5 s.
 - Pirate outfits and the navy jaguar merged (35b0b42); shots on the journal.
+- Sky, sea and Squall merged (42be1ba); shots on the journal. Known small issue: the Settings panel's weather select shows the Ski Slope's list, so it reads Clear while the setting is Squall (SECOND-ORDER BS2); to fix before deploy.
