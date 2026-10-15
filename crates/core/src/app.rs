@@ -1563,6 +1563,13 @@ impl App {
             crate::snow::flakes(&mut batch, cam.eye, self.ticks, weather);
             batch.restyle(|c, g| crate::snow::in_storm(c, g, weather));
         }
+        // Sunset Ruins' haze, clouds and sun follow JOJO MODE and the
+        // colourblind mode's sky (RS9)
+        if self.shown_map() == Map::Ruins
+            && colours != (crate::ruinsmodels::SKY, crate::ruinsmodels::FOG)
+        {
+            crate::ruinsmodels::follow_sky(&mut batch, colours.0, colours.1);
+        }
         let halos = (vines.take_halos(), batch.take_halos());
         let mut draws = self.scenery().draws_in(cam.eye, look.fog_range.1);
         let mut values = Vec::new();

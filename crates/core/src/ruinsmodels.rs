@@ -126,7 +126,7 @@ const TEMPLE_BONE: Rgb = rgb(196, 186, 156);
 const TEMPLE_STAIN: Rgb = rgb(80, 86, 70);
 
 const GLYPH: Rgb = rgb(255, 206, 64);
-const GLYPH_DIM: Rgb = rgb(150, 104, 30);
+const GLYPH_WARM: Rgb = rgb(255, 172, 40);
 const BANANA_GOLD: Rgb = rgb(255, 196, 40);
 const BANANA_TIP: Rgb = rgb(96, 64, 26);
 
@@ -994,6 +994,12 @@ pub const MOUTH_H: i32 = int(14);
 /// ravine (moving with `tick`). About 64 m wide and 70 m high, from 30 m
 /// under the lip.
 pub fn temple_mouth(b: &mut Batch, f: &Affine, tick: u32) {
+    temple_face(b, f, tick);
+    mouth_falls(b, f, tick);
+}
+
+/// `temple_mouth` without its waterfall.
+pub fn temple_face(b: &mut Batch, f: &Affine, tick: u32) {
     let hw = MOUTH_W / 2;
     let top = int(42);
     let foot = -int(30);
@@ -1353,6 +1359,10 @@ pub fn temple_mouth(b: &mut Batch, f: &Affine, tick: u32) {
         TEMPLE_OCHRE,
     );
     weather_facade(b, f, hw, wide, top, foot);
+}
+
+/// The waterfall pouring out of `temple_face`'s mouth, moving with `tick`.
+pub fn mouth_falls(b: &mut Batch, f: &Affine, tick: u32) {
     waterfall(
         b,
         &f.then(&Affine::translate(v3(0, 0, int(2)))),
@@ -1861,10 +1871,11 @@ pub fn glyph_spots(w: i32, h: i32) -> Vec<V3> {
 /// a curved banana in three segments with its stalk and a stepped ring
 /// round it, glowing warm yellow and pulsing with `tick` (`glyph_pulse`),
 /// with a soft halo so it lights the stone round it.
-pub fn banana_glyph(b: &mut Batch, f: &Affine, tick: u32, k: u32) {
-    let p = glyph_pulse(tick, k);
-    let c = mix(GLYPH_DIM, GLYPH, p);
-    let glow = ONE / 3 + mul(p, ONE * 2 / 3);
+pub fn banana_glyph(b: &mut Batch, f: &Affine, tick: u32, _k: u32) {
+    // every glyph pulses together, warm yellow even at its dimmest
+    let p = glyph_pulse(tick, 0);
+    let c = mix(GLYPH_WARM, GLYPH, p);
+    let glow = ONE * 3 / 4 + mul(p, ONE / 4);
     // a crescent: three facets curving left to right, the ends up
     let pts = [d3(-6, 3, 0), d3(-3, -3, 0), d3(3, -3, 0), d3(6, 3, 0)];
     let widths = [cm(30), cm(36), cm(30)];
@@ -2186,31 +2197,64 @@ pub fn banana_pile(b: &mut Batch, f: &Affine, tick: u32) {
         core,
         ONE / 4 + mul(p, ONE / 6),
     );
-    // rings of giant bananas lying round the mound's surface, each ring
-    // turned half a banana from the one below, packed end to end
-    let len = int(5);
-    let w = cm(130);
-    let mut k = 0u32;
-    for ring in 0..9 {
-        let phi = deg(ring * 10);
-        let r = mul(rx, fx::cos(phi)) + w / 3;
-        let y = middle.y + mul(ry, sin(phi)) + w / 4;
-        // one every 3 m round the ring, so neighbours overlap
-        let n = (r / (ONE / 100) * 628 / 100 / 300 + 1).clamp(3, 24);
-        for i in 0..n {
-            let yaw = i * TURN / n + ring * TURN / (2 * n);
-            let out = facing(yaw, 0);
-            let along = facing(yaw + fx::QUARTER, 0);
-            let at = out.scale(r).add(v3(0, y, 0));
-            let pk = glyph_pulse(tick, k);
-            let c = mix(BANANA_GOLD, GLYPH, pk);
-            let base = at.sub(along.scale(mul(len, ONE * 39 / 100)));
-            banana(b, f, base, along, len, w, c, ONE / 3 + mul(pk, ONE / 3));
-            k += 1;
-        }
+    // lumps on the core, so the mound's outline is not an even dome
+    for i in 0..6u32 {
+        let yaw = (i as i32) * TURN / 6 + pick(i, 61, 0, 8000);
+        let phi = deg(pick(i, 62, 5, 45));
+        let at = facing(yaw, 0)
+            .scale(mul(rx, fx::cos(phi)) * 4 / 5)
+            .add(v3(0, middle.y + mul(ry, sin(phi)) * 4 / 5, 0));
+        let s = int(pick(i, 63, 5, 8));
+        put(b, f, Mesh::Geo, at, v3(s, s * 3 / 4, s), core, ONE / 4 + mul(p, ONE / 6));
     }
-    // a great bunch on top
-    let top = f.then(&Affine::translate(v3(0, int(14), 0)));
+    // a random heap of giant bananas over the mound's surface: each at
+    // its own place, yaw, tilt and size (a fixed seed, so the same every
+    // frame), some pushed out, a few standing out at odd angles, and now
+    // and then a whole bunch
+    let mut k = 0u32;
+    for i in 0..150u32 {
+        let yaw = pick(i, 64, 0, TURN);
+        // more low down, where the mound is widest
+        let u = pick(i, 65, 0, 1000);
+        let phi = deg(u * u / 12_000);
+        let out = facing(yaw, 0);
+        let lump = cm(pick(i, 66, -40, 90));
+        let r = mul(rx, fx::cos(phi)) + lump;
+        let y = middle.y + mul(ry, sin(phi)) + lump / 2 + cm(30);
+        let at = out.scale(r).add(v3(0, y, 0));
+        let pk = glyph_pulse(tick, k);
+        let c = mix(BANANA_GOLD, GLYPH, pk);
+        let glow = ONE / 3 + mul(pk, ONE / 3);
+        k += 1;
+        if i % 16 == 7 {
+            // a bunch lodged in the heap, leaning out
+            let g = f
+                .then(&Affine::translate(at))
+                .then(&Affine::rot_y(yaw))
+                .then(&Affine::rot_x(deg(pick(i, 67, 20, 60))));
+            bunch(b, &g, V3::ZERO, 4, int(pick(i, 68, 3, 4)), c, glow, i);
+            continue;
+        }
+        let len = cm(pick(i, 69, 380, 620));
+        let w = mul(len, ONE * 26 / 100);
+        // lying along the slope, at any heading; one in nine sticks out
+        let odd = i % 9 == 4;
+        let tilt = if odd {
+            -deg(pick(i, 70, 45, 75))
+        } else {
+            deg(pick(i, 70, -35, 35)) - phi / 2
+        };
+        let g = f
+            .then(&Affine::translate(at))
+            .then(&Affine::rot_y(pick(i, 71, 0, TURN)))
+            .then(&Affine::rot_x(tilt))
+            .then(&Affine::rot_z(deg(pick(i, 72, -40, 40))));
+        banana(b, &g, v3(0, 0, -mul(len, ONE * 39 / 100)), v3(0, 0, ONE), len, w, c, glow);
+    }
+    // a great bunch on top, a little off-centre and leaning
+    let top = f
+        .then(&Affine::translate(v3(cm(80), int(14), -cm(60))))
+        .then(&Affine::rot_z(deg(12)));
     let pk = glyph_pulse(tick, k);
     bunch(
         b,
@@ -2222,19 +2266,25 @@ pub fn banana_pile(b: &mut Batch, f: &Affine, tick: u32) {
         ONE / 3 + mul(pk, ONE / 3),
         k,
     );
-    // big loose bananas round the foot
+    // bananas tumbled down the sides and onto the dais, at odd angles
     for i in 0..12u32 {
-        let yaw = (i as i32) * TURN / 12 + 1500;
+        let yaw = pick(i, 73, 0, TURN);
         let at = facing(yaw, 0)
-            .scale(int(12) + cm(pick(i, 69, 0, 120)))
-            .add(v3(0, int(2) + cm(70), 0));
+            .scale(int(11) + cm(pick(i, 74, 0, 260)))
+            .add(v3(0, int(2) + cm(pick(i, 75, 30, 160)), 0));
+        let len = cm(pick(i, 76, 320, 500));
+        let g = f
+            .then(&Affine::translate(at))
+            .then(&Affine::rot_y(pick(i, 77, 0, TURN)))
+            .then(&Affine::rot_x(deg(pick(i, 78, -30, 30))))
+            .then(&Affine::rot_z(deg(pick(i, 79, -70, 70))));
         banana(
             b,
-            f,
-            at,
-            facing(yaw + deg(pick(i, 70, -60, 60)), 0),
-            int(4),
-            cm(110),
+            &g,
+            v3(0, 0, -mul(len, ONE * 39 / 100)),
+            v3(0, 0, ONE),
+            len,
+            mul(len, ONE * 27 / 100),
             BANANA_GOLD,
             ONE / 3,
         );
@@ -2292,7 +2342,7 @@ pub fn skylight(b: &mut Batch, f: &Affine, r: i32, hang: i32, shaft: i32, tick: 
             at.add(v3(0, cm(40), 0)),
             v3(s, s * 2 / 3, s),
             if i % 3 == 0 { LEAF_LIGHT } else { LEAF },
-            0,
+            ONE / 5,
         );
         for j in 0..3 {
             let lean = Affine::rot_y(a + fx::HALF + deg(j * 30 - 30)).then(&Affine::rot_x(deg(60)));
@@ -2304,7 +2354,7 @@ pub fn skylight(b: &mut Batch, f: &Affine, r: i32, hang: i32, shaft: i32, tick: 
                 &lean,
                 v3(cm(60), s, cm(10)),
                 PALM,
-                0,
+                ONE / 4,
             );
         }
     }
@@ -2322,7 +2372,7 @@ pub fn skylight(b: &mut Batch, f: &Affine, r: i32, hang: i32, shaft: i32, tick: 
                 mul(t, cm(80)),
             );
             let p = top.add(v3(sway, -mul(len, t), sway / 2));
-            bar(b, f, Mesh::Taper, prev, p, cm(14) - s * cm(1), VINE, 0);
+            bar(b, f, Mesh::Taper, prev, p, cm(16) - s * cm(1), VINE, ONE / 4);
             if s % 2 == 0 {
                 put_turned(
                     b,
@@ -2332,7 +2382,7 @@ pub fn skylight(b: &mut Batch, f: &Affine, r: i32, hang: i32, shaft: i32, tick: 
                     &Affine::rot_y(a + s * 9000),
                     v3(cm(40), cm(50), cm(8)),
                     LEAF_LIGHT,
-                    0,
+                    ONE / 3,
                 );
             }
             prev = p;
@@ -2408,14 +2458,15 @@ pub fn jungle_tree(b: &mut Batch, f: &Affine, t: Tree, k: u32) {
             for i in 0..5 {
                 let a = i * TURN / 5 + (k as i32) * 701;
                 let out = facing(a, 0);
-                put_turned(
+                // a root flaring from the trunk down into the ground
+                bar(
                     b,
                     f,
-                    Mesh::Wedge,
-                    out.scale(cm(110)).add(v3(0, cm(120), 0)),
-                    &Affine::rot_y(a + fx::HALF),
-                    v3(cm(30), cm(240), cm(180)),
-                    TRUNK,
+                    Mesh::Taper,
+                    out.scale(cm(40)).add(v3(0, cm(200), 0)),
+                    out.scale(cm(200)).sub(v3(0, cm(20), 0)),
+                    cm(70),
+                    TRUNK_LIGHT,
                     0,
                 );
             }
@@ -2678,6 +2729,34 @@ pub fn sky(b: &mut Batch, eye: V3, sun_yaw: i32) {
         rgb(255, 210, 90),
         ONE * 3 + ONE * 7 / 10,
     );
+}
+
+/// The sky's fixed colours (the haze ring, the clouds, the sun: every
+/// `SKY_GLOW` shape in `b`) turned to follow the sky and fog the frame is
+/// really drawn with, `sky` and `fog` (JOJO MODE's swing, the colourblind
+/// mode's grey; RS9): each channel mapped so the fog's colour goes to
+/// `fog` and the zenith's to the dome's overhead (`sky` × the dome's
+/// colour), so the haze still meets the dome without a line.
+pub fn follow_sky(b: &mut Batch, sky: Rgb, fog: Rgb) {
+    let deep = [0, 1, 2].map(|k| fx::div(ZENITH[k], SKY[k].max(1)).min(ONE));
+    let to_z = [0, 1, 2].map(|k| mul(sky[k], deep[k]));
+    b.restyle(|c, g| {
+        if g != SKY_GLOW {
+            return (c, g);
+        }
+        let out = [0, 1, 2].map(|k| {
+            // what the shader shows of an unlit sky glow, and back
+            let shown = mul(c[k], ONE * 108 / 100) + ONE * 4 / 100;
+            let span = ZENITH[k] - FOG[k];
+            let want = if span.abs() > ONE / 50 {
+                fog[k] + mul(fx::div(shown - FOG[k], span), to_z[k] - fog[k])
+            } else {
+                fog[k] + shown - FOG[k]
+            };
+            fx::div(want - ONE * 4 / 100, ONE * 108 / 100).clamp(0, ONE)
+        });
+        (out, g)
+    });
 }
 
 /// The haze ring's top: above it the dome's own mix shows.

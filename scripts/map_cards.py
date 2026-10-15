@@ -42,6 +42,9 @@ CARDS = {
     # the armada of mechs under the black hole's banana disc, its horizon
     # and the finish deck beyond
     "sector": "2100",
+    # down the river at the rope bridge, the temple's gaping mouth beyond
+    # and the sunset glowing on the right
+    "ruins": "460",
 }
 
 SCALE_TO_WEBP = """async ([w, h, q]) => {

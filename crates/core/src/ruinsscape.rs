@@ -260,49 +260,49 @@ pub fn scenery(c: &Course, r: &RuinsLayout) -> Scenery {
         s += int(pick(k, 4, 9, 17));
     }
 
-    // the cliffs: the lip's face down into the ravine, and the ravine's
-    // far wall under the temple
+    // the cliffs: the lip's face down into the ravine (either side of the
+    // river's falls), and the ravine's far wall under the temple: crags of
+    // faceted rock in tiers, ledges jutting, moss on them (RS13)
     let lh = c.heading_at(lip_s);
     let lp = c.point(lip_s);
     let depth = crate::ruins::RAVINE_DEPTH;
-    for side in [-1, 1] {
-        for k in 0..4 {
-            let a = side * int(24 + k * 28);
-            let p = lp.add(right_of(lh).scale(a)).add(lh.scale(-int(3)));
-            let mid = v3(p.x, lip_h - depth / 2, p.z);
-            push(p, &mut |b| {
-                b.push(
-                    Mesh::Cube,
-                    &block(mid, lh, v3(int(30), depth, int(8))),
-                    shade(CLIFF, 90 + k * 4),
-                    0,
-                );
-            });
-        }
-    }
     {
         // under the falls themselves, wet dark rock
-        let mid = v3(lp.x, lip_h - depth / 2, lp.z).add(lh.scale(-int(3)));
+        let face = v3(lp.x, lip_h, lp.z).sub(lh.scale(int(3)));
         push(lp, &mut |b| {
-            b.push(
-                Mesh::Cube,
-                &block(mid, lh, v3(RIVER_HALF * 2 + int(4), depth, int(8))),
-                shade(CLIFF, 60),
-                0,
-            );
+            crag(b, face, lh, -(RIVER_HALF + int(4)), RIVER_HALF + int(4), depth, 60, 1)
         });
+        for side in [-1, 1] {
+            let p = face.add(right_of(lh).scale(side * int(70)));
+            push(p, &mut |b| {
+                let (a0, a1) = if side < 0 {
+                    (-int(130), -(RIVER_HALF + int(4)))
+                } else {
+                    (RIVER_HALF + int(4), int(130))
+                };
+                crag(b, face, lh, a0, a1, depth, 92, if side < 0 { 10 } else { 12 })
+            });
+        }
         let mo = r.marks.mouth;
         let mp = c.point(mo);
         let mh = c.heading_at(mo);
-        let mid = v3(mp.x, floor - (depth - int(6)) / 2 - int(1), mp.z).add(mh.scale(int(4)));
+        let face = v3(mp.x, floor, mp.z).sub(mh.scale(int(1)));
         push(mp, &mut |b| {
-            b.push(
-                Mesh::Cube,
-                &block(mid, mh, v3(int(240), depth - int(4), int(10))),
-                shade(CLIFF, 80),
-                0,
-            );
+            crag(b, face, mh.neg(), -int(120), int(120), floor - (lip_h - depth), 84, 30)
         });
+    }
+    ravine_mist_rocks(&mut push, c, r);
+
+    // the temple's face: its stone is static (what glows and pulses, and
+    // its waterfall, are drawn each frame in `dynamic`)
+    {
+        let mo = r.mouth.opening;
+        let lip = v3(mo.centre.x, mo.centre.y - mo.half.y, mo.centre.z);
+        let f = facing_frame(lip, mo.fwd.neg(), ONE);
+        let mut face = Batch::new();
+        m::temple_face(&mut face, &f, 0);
+        drop(face.take_where(|g| g != 0));
+        push(lip, &mut |b| b.append(face.clone()));
     }
 
     // the rope bridge, at its real width, on stone towers
@@ -322,16 +322,31 @@ pub fn scenery(c: &Course, r: &RuinsLayout) -> Scenery {
         let land = c.terrain(foot.x, foot.z);
         let h = br.from.y - land;
         push(foot, &mut |b| {
-            b.push(
-                Mesh::Cube,
-                &block(
-                    v3(foot.x, land + h / 2 - cm(60), foot.z),
-                    out,
-                    v3(br.width + int(3), h, int(8)),
-                ),
-                STONE,
-                0,
-            );
+            // a pillar of crags, mossy on its ledges (RS13)
+            let tiers = (h / int(7)).max(1);
+            let th = h / tiers;
+            for t in 0..tiers {
+                let k = (t as u32) * 7 + if end == br.from { 0 } else { 500 };
+                let y = land + th * t + th / 2 - cm(60);
+                let w = br.width + int(pick(k, 141, 1, 5));
+                let at = v3(foot.x, y, foot.z).add(right_of(out).scale(cm(pick(k, 142, -80, 80))));
+                b.push(
+                    if t % 2 == 0 { Mesh::Geo } else { Mesh::Ico },
+                    &m::pose(at, yaw_of(out) + pick(k, 143, -deg(12), deg(12)), ONE)
+                        .then(&Affine::scale(v3(w, th + int(2), int(pick(k, 144, 9, 12))))),
+                    shade(CLIFF, 84 + pick(k, 145, -12, 14)),
+                    0,
+                );
+                if t > 0 && hash(k, 146) % 3 == 0 {
+                    b.push(
+                        Mesh::Blob,
+                        &m::pose(v3(at.x, y - th / 2 + int(1), at.z).add(out.scale(int(3))), yaw_of(out), ONE)
+                            .then(&Affine::scale(v3(w * 2 / 3, int(2), int(4)))),
+                        shade(MOSS, 80),
+                        0,
+                    );
+                }
+            }
             b.push(
                 Mesh::Blob,
                 &block(
@@ -360,15 +375,7 @@ pub fn scenery(c: &Course, r: &RuinsLayout) -> Scenery {
         });
     }
     // and a few more set back in the forest, for the skyline
-    for k in 0..10u32 {
-        let s = int(40 + k as i32 * 52);
-        if s > lip_s - int(20) {
-            break;
-        }
-        let side = if k % 2 == 0 { 1 } else { -1 };
-        let a = side * int(pick(k, 11, 48, 70));
-        let p = at_s(c, s, a);
-        let p = v3(p.x, c.terrain(p.x, p.z), p.z);
+    for (k, p) in skyline_ruins(c, r) {
         let yaw = yaw_of(c.point(s).sub(p).flat());
         let f = m::pose(p, yaw, int(pick(k, 12, 3, 4)));
         push(p, &mut |b| {
@@ -426,6 +433,22 @@ pub fn scenery(c: &Course, r: &RuinsLayout) -> Scenery {
     // the jungle: dense on both banks, cleared round the ruins, the
     // bridge's towers, the lobby and the start camera
     let lobby = lobby_spot(c, r).0;
+    let view_to = r.mouth.opening.centre;
+    // the lobby's ledge: a mossy ruin block the ape stands on
+    push(lobby, &mut |b| {
+        b.push(
+            Mesh::Bevel,
+            &block(lobby.sub(v3(0, int(2), 0)), lobby.sub(view_to), v3(int(5), int(4), int(4))),
+            STONE,
+            0,
+        );
+        b.push(
+            Mesh::Blob,
+            &block(lobby.sub(v3(0, cm(10), 0)), lobby.sub(view_to), v3(int(4), cm(40), int(3))),
+            MOSS,
+            0,
+        );
+    });
     let mut clear: Vec<(V3, i32)> = r.landmarks.iter().map(|l| (l.at, int(13))).collect();
     clear.push((br.from, int(12)));
     clear.push((br.to, int(12)));
@@ -449,6 +472,10 @@ pub fn scenery(c: &Course, r: &RuinsLayout) -> Scenery {
                     continue;
                 }
                 if clear.iter().any(|(q, d)| q.flat().sub(p.flat()).len() < *d) {
+                    continue;
+                }
+                // the lobby's view of the temple's mouth
+                if off_line(p, lobby, view_to) < int(20) {
                     continue;
                 }
                 let p = v3(p.x, c.terrain(p.x, p.z) + hill(a), p.z);
@@ -511,6 +538,114 @@ const LANDMARK_SCALE: i32 = ONE * 7 / 2;
 fn hill(a: i32) -> i32 {
     let out = (a.abs() - int(45)).max(0);
     mul(out, ONE / 4)
+}
+
+/// A cliff face of faceted rock: crags in tiers from `top_at`'s height
+/// down `drop` metres, across from `a0` to `a1` (right of `fwd`), their
+/// faces toward `fwd` (into the ravine); each crag its own size, turn and
+/// shade (`pct` of the cliff's colour, varied), lower tiers jutting
+/// further, moss on the ledges.
+#[allow(clippy::too_many_arguments)]
+fn crag(b: &mut Batch, top_at: V3, fwd: V3, a0: i32, a1: i32, drop: i32, pct: i32, seed: u32) {
+    let fwd = fwd.flat().norm();
+    let right = right_of(fwd);
+    let tiers = 4;
+    let tier_h = drop / tiers;
+    let mut k = seed * 1000;
+    for t in 0..tiers {
+        let mut a = a0;
+        while a < a1 {
+            k += 1;
+            let w = int(pick(k, 101, 12, 22));
+            let mid_a = (a + w / 2).min(a1 - int(3));
+            let h = tier_h + int(pick(k, 102, 2, 9));
+            let jut = int(t) * 2 + int(pick(k, 103, -1, 3));
+            let y = top_at.y - tier_h * t - tier_h / 2 - int(pick(k, 104, 0, 3));
+            let at = top_at
+                .add(right.scale(mid_a))
+                .add(fwd.scale(jut - int(5)));
+            let at = v3(at.x, y, at.z);
+            let tone = pct + pick(k, 105, -14, 12);
+            let col = if hash(k, 106).is_multiple_of(3) {
+                shade(STONE_DARK, tone + 10)
+            } else {
+                shade(CLIFF, tone)
+            };
+            let mesh = if hash(k, 107).is_multiple_of(2) {
+                Mesh::Ico
+            } else {
+                Mesh::Geo
+            };
+            b.push(
+                mesh,
+                &m::pose(at, yaw_of(fwd) + pick(k, 108, -deg(25), deg(25)), ONE)
+                    .then(&Affine::scale(v3(w + int(4), h, int(pick(k, 109, 14, 20))))),
+                col,
+                0,
+            );
+            // a ledge on top, mossy, every so often
+            if hash(k, 110) % 5 < 2 {
+                let ledge = at.add(fwd.scale(int(3))).add(v3(0, h / 2 - int(1), 0));
+                b.push(
+                    Mesh::Blob,
+                    &m::pose(ledge, yaw_of(fwd), ONE)
+                        .then(&Affine::scale(v3(w * 2 / 3, int(2), int(5)))),
+                    shade(MOSS, 70 + pick(k, 111, 0, 30)),
+                    0,
+                );
+            }
+            a += w - int(2);
+        }
+    }
+}
+
+/// Boulders tumbled on the ravine's floor, half in its mist.
+fn ravine_mist_rocks(push: &mut Put, c: &Course, r: &RuinsLayout) {
+    let (lip_h, _) = levels(r);
+    let bottom = lip_h - crate::ruins::RAVINE_DEPTH;
+    for k in 0..14u32 {
+        let s = r.marks.lip + int(pick(k, 121, 6, 34));
+        let a = int(pick(k, 122, -110, 110));
+        let p = at_s(c, s, a);
+        let size = int(pick(k, 123, 4, 10));
+        let p = v3(p.x, bottom + size / 3, p.z);
+        push(p, &mut |b| {
+            b.push(
+                Mesh::Ico,
+                &m::pose(p, pick(k, 124, 0, TURN), ONE)
+                    .then(&Affine::scale(v3(size, size * 2 / 3, size))),
+                shade(CLIFF, 70 + pick(k, 125, 0, 20)),
+                0,
+            );
+        });
+    }
+}
+
+/// The ruins set back in the forest for the skyline: their seeds and feet.
+fn skyline_ruins(c: &Course, r: &RuinsLayout) -> Vec<(u32, V3)> {
+    let mut out = Vec::new();
+    for k in 0..10u32 {
+        let s = int(40 + k as i32 * 52);
+        if s > r.marks.lip - int(20) {
+            break;
+        }
+        let side = if k % 2 == 0 { 1 } else { -1 };
+        let a = side * int(pick(k, 11, 48, 70));
+        let p = at_s(c, s, a);
+        out.push((k, v3(p.x, c.terrain(p.x, p.z), p.z)));
+    }
+    out
+}
+
+/// How far `p` is from the flat segment `a`–`b`.
+fn off_line(p: V3, a: V3, b: V3) -> i32 {
+    let d = b.sub(a).flat();
+    let len = d.len();
+    if len == 0 {
+        return p.flat().sub(a.flat()).len();
+    }
+    let along = (p.sub(a).flat().dot(d.norm())).clamp(0, len);
+    p.flat().sub(a.flat().add(d.norm().scale(along))).len()
 }
 
 /// Whether `p` is on a turtle's swim (rocks keep out of it).
@@ -979,13 +1114,37 @@ pub fn dynamic(b: &mut Batch, c: &Course, r: &RuinsLayout, eye: V3, t: u32, tick
             m::waterfall(b, &f, fl.from.dist(fl.to) + int(2), fl.drop, t);
         }
     }
+    // mist rising off the ravine's floor, drifting slowly
+    if eye_s < r.marks.mouth + int(80) && near(c.point(r.marks.lip), int(400)) {
+        let (lip_h, _) = levels(r);
+        let bottom = lip_h - crate::ruins::RAVINE_DEPTH;
+        for k in 0..10u32 {
+            let s = r.marks.lip + int(pick(k, 131, 4, 36));
+            let drift = mul(sin(t as i32 * 40 + k as i32 * 6_500), int(6));
+            let a = int(pick(k, 132, -100, 100)) + drift;
+            let p = at_s(c, s, a);
+            let rise = int(pick(k, 133, 10, 50));
+            let size = int(pick(k, 134, 30, 55));
+            b.push_halo(
+                Mesh::Sphere,
+                &crate::render::placed(v3(p.x, bottom + rise, p.z), 0, v3(size, size / 3, size)),
+                rgb(255, 226, 190),
+                ONE / 3,
+            );
+        }
+    }
     // the temple's face, its mouth over the opening (its own waterfall
     // pours out of it)
     let mo = r.mouth.opening;
     let lip = v3(mo.centre.x, mo.centre.y - mo.half.y, mo.centre.z);
     if near(lip, int(520)) && eye_s < r.marks.mouth + int(80) {
+        // its stone is static scenery (so JOJO MODE recolours it, RS9);
+        // here only what glows and pulses, and the falls
         let f = facing_frame(lip, mo.fwd.neg(), ONE);
-        m::temple_mouth(b, &f, t);
+        let mut face = Batch::new();
+        m::temple_face(&mut face, &f, t);
+        b.append(face.take_where(|g| g != 0));
+        m::mouth_falls(b, &f, t);
     }
     // the glyphs: in the corridor's panels and up its walls, round the
     // chamber; pulsing
@@ -1206,17 +1365,58 @@ fn glyphs(b: &mut Batch, r: &RuinsLayout, eye: V3, t: u32) {
 // ---------------------------------------------------------------------------
 // The lobby and the title's flyover.
 
-/// The lobby zone: the mossy top of the rope bridge's tower on the
-/// river's right bank, 28 m over the water at the lip, looking across the
-/// ravine at the temple's gaping face and its waterfall, the sunset glow
-/// behind. The feet's place and the flat way the camera looks.
-pub fn lobby_spot(_c: &Course, r: &RuinsLayout) -> (V3, V3) {
-    let br = &r.bridge;
-    let out = br.to.sub(br.from).flat().norm();
-    let feet = br.to.add(out.scale(int(2)));
-    let feet = v3(feet.x, br.to.y, feet.z);
+/// Where the lobby may stand, from the temple's mouth: metres back up the
+/// river and to its right, the first whose view of the mouth no ruin
+/// blocks (RS7, RS12).
+const LOBBY_TRIES: [(i32, i32); 8] = [
+    (125, 42),
+    (110, 40),
+    (140, 42),
+    (95, 38),
+    (155, 40),
+    (80, 34),
+    (70, 30),
+    (60, 26),
+];
+/// How far right of the mouth the camera turns, so the mouth sits between
+/// the menus and the ape, clear of both.
+const LOBBY_TURN: i32 = -deg(13);
+
+/// The lobby zone: a mossy ruin block on the river's right bank, back
+/// from the lip, the temple's gaping face across the ravine with its
+/// waterfall, the river pouring over the lip, the sunset sky round it.
+/// The feet's place and the flat way the camera looks.
+pub fn lobby_spot(c: &Course, r: &RuinsLayout) -> (V3, V3) {
+    let mo = r.marks.mouth;
+    let mh = c.heading_at(mo);
     let mouth = r.mouth.opening.centre;
-    (feet, mouth.sub(feet).flat().norm())
+    let at = |(back, right): (i32, i32)| {
+        let p = c
+            .point(mo)
+            .sub(mh.scale(int(back)))
+            .add(right_of(mh).scale(int(right)));
+        // on a ruin block a metre up (`scenery` draws it)
+        v3(p.x, c.terrain(p.x, p.z) + int(1), p.z)
+    };
+    let clear = |feet: V3| {
+        r.landmarks
+            .iter()
+            .all(|l| off_line(l.at, feet, mouth) > int(32))
+            && skyline_ruins(c, r)
+                .iter()
+                .all(|&(_, p)| off_line(p, feet, mouth) > int(24))
+            && r.hangers.iter().all(|h| match *h {
+                crate::ruins::Hanger::Tree { trunk } => off_line(trunk, feet, mouth) > int(9),
+                _ => true,
+            })
+    };
+    let feet = LOBBY_TRIES
+        .iter()
+        .map(|&t| at(t))
+        .find(|&f| clear(f))
+        .unwrap_or_else(|| at(LOBBY_TRIES[0]));
+    let look = yaw_of(mouth.sub(feet).flat()) + LOBBY_TURN;
+    (feet, crate::geom::facing(look, 0))
 }
 
 /// The menus' preview on Sunset Ruins: the ape on the lobby ledge, the

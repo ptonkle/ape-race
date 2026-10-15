@@ -120,6 +120,36 @@ impl Batch {
         }
     }
 
+    /// The shapes whose glow `keep` accepts, and every halo, moved out
+    /// into a new batch.
+    pub fn take_where(&mut self, keep: impl Fn(i32) -> bool) -> Batch {
+        let mut out = Batch::new();
+        out.halos = self.halos.take();
+        for (list, to) in self.lists.iter_mut().zip(out.lists.iter_mut()) {
+            let mut rest = Vec::with_capacity(list.len());
+            for s in list.chunks(INSTANCE_VALUES) {
+                if keep(s[15]) {
+                    to.extend_from_slice(s);
+                } else {
+                    rest.extend_from_slice(s);
+                }
+            }
+            *list = rest;
+        }
+        out
+    }
+
+    /// Every shape and halo of `other` added to this batch.
+    pub fn append(&mut self, mut other: Batch) {
+        let halos = other.take_halos();
+        for (list, from) in self.lists.iter_mut().zip(other.lists) {
+            list.extend(from);
+        }
+        if halos.count() > 0 {
+            self.halos.get_or_insert_with(|| Box::new(Batch::new())).append(halos);
+        }
+    }
+
     /// Gives every shape the colour and glow `f` makes of its colour and
     /// glow (a blizzard burying the far backdrop and whitening the sky's
     /// dome, `snow::in_storm`).
