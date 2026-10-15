@@ -10,8 +10,11 @@ request is aborted and counted as a failure. For each engine it:
   B's reply code;
 - B renames itself in the lobby and A sees it; neither lobby shows the
   screech button (hidden for now, TRIAGE T57);
-- B presses Ready Up; A's Start comes on; A picks the City, B's lobby
-  shows it, and B stays ready (TRIAGE T61);
+- B's lobby keeps its elements while the host changes a setting (TRIAGE
+  T65: a rebuilt element under the mouse loses the click);
+- B presses Ready Up; A's Start comes on; A picks Random and B's lobby
+  shows it (T64); A picks the City, B's lobby shows it, and B stays ready
+  (TRIAGE T61); A's Start and B's Ready are in view (T70);
   A presses Start;
 - both tabs reach the race screen;
 - with W held on both, each tab sees a remote ape leave its start
@@ -147,11 +150,39 @@ def run_engine(p, engine, origin):
     for t in tabs:
         n = t.page.locator(by_id("lobby.screech")).count()
         check(n == 0, f"{t.name}'s lobby shows no screech button ({n})")
+    # TRIAGE T65: the lobby changes under a player (the pings, a host's
+    # setting); every element still there stays the same element
+    marks = ["lobby.ready", "lobby.name", "lobby.ape.next", "lobby.palette"]
+    b.page.evaluate("ids => ids.forEach(id => { document.getElementById(id).__mark = id; })", marks)
+    before = b.page.inner_text("#menus")
+    a.click("lobby.equal")
+    b.page.wait_for_function("t => document.getElementById('menus').innerText !== t", arg=before, timeout=WAIT_MS)
+    a.click("lobby.equal")
+    b.page.wait_for_function("t => document.getElementById('menus').innerText === t", arg=before, timeout=WAIT_MS)
+    kept = b.page.evaluate("ids => ids.map(id => document.getElementById(id).__mark === id)", marks)
+    check(all(kept), f"B's lobby keeps its elements while the host changes a setting {kept}")
     b.click("lobby.ready")
     ok = a.enabled("lobby.start")
     check(ok, "A's Start comes on once B is Ready")
     if not ok:
         return finish()
+    # TRIAGE T70: Start and Ready are in view and take a click at 1280x720
+    for t, id_ in ((a, "lobby.start"), (b, "lobby.ready")):
+        seen_ = t.page.evaluate(
+            "id => { const e = document.getElementById(id); const r = e.getBoundingClientRect();"
+            " return r.top >= 0 && r.bottom <= innerHeight"
+            " && document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2) === e; }",
+            id_,
+        )
+        check(seen_, f"{t.name}'s {id_} is in view")
+    # TRIAGE T64: the host's Random shows in B's lobby
+    a.click("lobby.map.random")
+    try:
+        b.page.wait_for_selector(by_id("lobby.map") + ".read-only " + by_id("lobby.map.random") + ".chosen", timeout=WAIT_MS)
+        shown = True
+    except Exception:
+        shown = False
+    check(shown, "A's choice of Random shows in B's lobby")
     # The City (2026-10-12): the host picks the map on its grid of cards
     # (TRIAGE T54); B's lobby shows the pick live on a read-only grid.
     # TRIAGE T61: B stays ready

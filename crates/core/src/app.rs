@@ -562,8 +562,10 @@ impl App {
                   "chosen": !random && *m == chosen })
             })
             .collect();
-        options.push(json!({ "id": format!("{id}.{RANDOM_MAP}"), "value": RANDOM_MAP,
-          "text": self.t("map.random"), "picture": RANDOM_PICTURE, "chosen": random }));
+        options.push(
+            json!({ "id": format!("{id}.{RANDOM_MAP}"), "value": RANDOM_MAP,
+          "text": self.t("map.random"), "picture": RANDOM_PICTURE, "chosen": random }),
+        );
         let value = if random { RANDOM_MAP } else { chosen.key() };
         json!({ "type": "tiles", "id": id, "label": self.t("setup.map"),
                 "value": value, "read_only": read_only, "options": options })
@@ -1710,17 +1712,22 @@ impl App {
             .collect();
         let stats = self.settings.kind.race_stats(self.settings.equal_stats);
         let mut items = vec![
-            self.map_tiles("setup.map", self.settings.map, self.settings.random_map, false),
+            self.map_tiles(
+                "setup.map",
+                self.settings.map,
+                self.settings.random_map,
+                false,
+            ),
             json!({ "type": "picker", "id": "setup.ape", "label": self.t("setup.ape"),
               "value": self.settings.kind.key(), "options": kinds,
               "text": self.t(&format!("ape.{}", self.settings.kind.key())) }),
             self.palette_select("setup.palette"),
             json!({ "type": "stats", "label": self.t("setup.stats"), "rows": self.stats_rows(&stats) }),
         ];
-        // the Ski Slope's weather, under the map that has it (and Random,
-        // which may pick it)
+        // the Ski Slope's weather (and Random's, which may pick it), beside
+        // the colours so the two short selects share a row (TRIAGE T70)
         if self.settings.map == Map::Ski || self.settings.random_map {
-            items.insert(1, self.weather_select("setup.weather"));
+            items.insert(3, self.weather_select("setup.weather"));
         }
         if self.trial {
             items.push(self.medal_table(self.settings.map, None));

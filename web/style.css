@@ -593,3 +593,14 @@ body[data-dock="below"] .panel.setup > .actions {
 body[data-dock] .panel.setup > .actions .button { flex: 1 1 0; margin-top: 0; padding: 0.5rem 0.8rem; font-size: 1.05rem; white-space: nowrap; }
 body[data-dock] .panel.setup > .actions .button:first-child { flex-grow: 2; }
 body[data-dock] .panel.setup > .actions .button:not(:first-child) { background: transparent; color: var(--ink); border-color: var(--panel-line); }
+/* two short selects fit a row with their labels; the five map names (with
+   Random, TRIAGE T64) share the row under the picture */
+body[data-dock] .panel.setup .field { gap: 0.15rem 0.5rem; }
+body[data-dock] .panel.setup .field select { font-size: 0.95rem; padding: 0.15rem 0.3rem; }
+body[data-dock] .panel.setup .tile { flex: 1 1 auto; font-size: 0.76rem; padding: 0.25rem 0.3rem; }
+body[data-dock] .panel.setup .tile-row { flex-wrap: nowrap; gap: 0.25rem; }
+body[data-dock] .panel.setup .tiles { grid-template-columns: minmax(0, 1fr); }
+body[data-dock="side"] .menus .panel.setup,
+body[data-dock="below"] .menus .panel.setup { column-gap: 0.75rem; }
+body[data-dock] .panel.setup .field label,
+body[data-dock] .panel.setup .toggle span { font-size: 0.92rem; }

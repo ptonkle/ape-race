@@ -100,7 +100,11 @@ mod tests {
                 }
             }
             assert_eq!(seen.len(), Map::ALL.len() - 1, "after {last:?}: {seen:?}");
-            assert_eq!(Map::random(7, last), Map::random(7, last), "the same seed, the same map");
+            assert_eq!(
+                Map::random(7, last),
+                Map::random(7, last),
+                "the same seed, the same map"
+            );
         }
     }
 }

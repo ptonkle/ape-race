@@ -189,8 +189,8 @@ def run(page, check, engine):
     # ape preview moves onto the chosen map, and the race runs there
     page.click("[id='menu.race']")
     options = page.eval_on_selector_all("[id='setup.map'] .tile", "ts => ts.map(t => t.innerText.trim())")
-    maps = [STRINGS["map.jungle"], STRINGS["map.city"], STRINGS["map.ski"], STRINGS["map.sector"]]
-    check(options == maps, f"Race Setup offers the Jungle, the City, the Ski Slope and Sector Ape as cards {options}")
+    maps = [STRINGS["map.jungle"], STRINGS["map.city"], STRINGS["map.ski"], STRINGS["map.sector"], STRINGS["map.random"]]
+    check(options == maps, f"Race Setup offers the Jungle, the City, the Ski Slope, Sector Ape and Random as cards {options}")
     pictures = page.eval_on_selector_all(
         "[id='setup.map'] .tile-hero img", "is => is.map(i => i.complete && i.naturalWidth > 0)"
     )
@@ -249,3 +249,76 @@ def run(page, check, engine):
     check(page.input_value("[id='setup.weather']") == "snowing", "the weather is kept after a reload")
     check(canvas_drawn(page), "the Ski Slope is drawn in the snow behind the setup")
     page.click("[id='menu.back']")
+
+    # TRIAGE T70, T81: Race Setup fits common desktop windows (the default
+    # 1280x720, 1366x768, 1920x1080) with no scrollbar, and Start is in view
+    # and takes the click at its middle
+    page.click("[id='menu.race']")
+    for w, h in [(1280, 720), (1366, 768), (1920, 1080)]:
+        page.set_viewport_size({"width": w, "height": h})
+        page.wait_for_timeout(300)
+        fit = page.evaluate(FIT)
+        check(fit["column"] and fit["panels"], f"{w}x{h}: Race Setup fits without a scrollbar {fit}")
+        check(fit["start"], f"{w}x{h}: Start is in view and takes a click {fit}")
+    # a window too short for the panel: it scrolls inside, Start stays in view
+    page.set_viewport_size({"width": 1280, "height": 560})
+    page.wait_for_timeout(300)
+    fit = page.evaluate(FIT)
+    check(fit["start"], f"1280x560: Start stays in view while the panel scrolls {fit}")
+    page.set_viewport_size({"width": 1280, "height": 720})
+    page.wait_for_timeout(300)
+
+    # TRIAGE T65: a change to the menus keeps every element that is still
+    # there (a rebuilt element under the mouse loses the click, and a
+    # rebuilt select closes while open): mark some, change a setting, look
+    page.evaluate(MARK, ["setup.ai_level", "setup.item.banana", "setup.ape.next", "menu.start"])
+    page.click("[id='setup.item.banana']")
+    page.wait_for_timeout(200)
+    check(not page.is_checked("[id='setup.item.banana']"), "the Banana box unticks")
+    kept = page.evaluate(MARKED, ["setup.ai_level", "setup.item.banana", "setup.ape.next", "menu.start"])
+    check(all(kept), f"the menus' elements are kept, not rebuilt, when a setting changes {kept}")
+    page.click("[id='setup.item.banana']")
+    page.wait_for_timeout(200)
+    check(page.is_checked("[id='setup.item.banana']"), "and ticks again with one click")
+
+    # TRIAGE T64: Random, the last card; the race runs on a map it picks
+    # (never the last one, the Ski Slope) and names it at the start
+    page.click("[id='setup.map.random']")
+    page.wait_for_timeout(300)
+    check(chosen_map(page) == ["random"], "Random is chosen by its card")
+    hero = page.eval_on_selector(
+        "[id='setup.map'] .tile-hero", "f => [f.innerText.trim(), f.querySelector('img').complete && f.querySelector('img').naturalWidth > 0]"
+    )
+    check(hero == [STRINGS["map.random"], True], f"Random shows its own picture large {hero}")
+    page.click("[id='menu.start']")
+    page.wait_for_function("() => document.getElementById('hud-place').innerText.includes('/')", timeout=10000)
+    page.wait_for_function("() => document.getElementById('hud-reward').innerText.trim() !== ''", timeout=10000)
+    on = text(page, "#hud-map .v")
+    check(on in maps[:-1] and on != STRINGS["map.ski"], f"the race runs on a map Random picked, not the last ({on})")
+    told = text(page, "#hud-reward")
+    check(told == STRINGS["hud.random_map"] + ": " + on, f"the start names the picked map ({told})")
+    page.keyboard.press("Escape")
+    page.wait_for_selector("[id='menu.quit']", timeout=5000)
+    page.click("[id='menu.quit']")
+    page.click("[id='menu.race']")
+    check(chosen_map(page) == ["random"], "Random stays chosen after the race")
+    page.click("[id='menu.back']")
+
+
+# Whether the menus fit: the column has no scrollbar, no panel scrolls inside,
+# and Start is in view with nothing over its middle.
+FIT = """() => {
+  const m = document.getElementById('menus');
+  const panels = [...m.querySelectorAll('.panel')];
+  const s = document.querySelector("[id='menu.start']");
+  const r = s.getBoundingClientRect();
+  const hit = document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2);
+  return {
+    column: m.scrollHeight <= m.clientHeight && m.scrollWidth <= m.clientWidth,
+    panels: panels.every(p => p.scrollHeight <= p.clientHeight),
+    start: r.top >= 0 && r.bottom <= innerHeight && hit === s,
+    sizes: panels.map(p => [p.scrollHeight, p.clientHeight]),
+  };
+}"""
+MARK = "ids => ids.forEach(id => { document.getElementById(id).__mark = id; })"
+MARKED = "ids => ids.map(id => document.getElementById(id).__mark === id)"
