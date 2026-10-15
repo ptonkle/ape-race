@@ -19,12 +19,12 @@
 //! the trip wires and trapdoors (from the race's trap state), the pits,
 //! the pile and the skylight.
 
-use crate::camera::Camera;
+
 use crate::course::Course;
 use crate::fx::{self, cm, deg, int, mul, sin, ONE, TURN};
 use crate::geom::{right_of, v3, yaw_of, Affine, V3};
 use crate::mesh::Mesh;
-use crate::render::{mix, rgb, rod, shade, Batch, Rgb};
+use crate::render::{mix, rgb, rod, shade, Batch, Camera, Rgb};
 use crate::ruins::{RuinsLayout, CORRIDOR_HALF, RIVER_HALF};
 use crate::ruinsmodels as m;
 use crate::rules::TICKS_PER_SECOND;
@@ -418,7 +418,7 @@ pub fn scenery(c: &Course, r: &RuinsLayout) -> Scenery {
     clear.push((br.from, int(12)));
     clear.push((br.to, int(12)));
     clear.push((lobby, int(16)));
-    let rows: [(i32, i32); 6] = [(18, 23), (26, 34), (37, 48), (52, 66), (72, 92), (98, 125)];
+    let rows: [(i32, i32); 5] = [(18, 23), (26, 34), (37, 50), (55, 75), (82, 110)];
     let mut k = 0u32;
     let mut s = -int(50);
     while s < lip_s - int(6) {
@@ -426,7 +426,7 @@ pub fn scenery(c: &Course, r: &RuinsLayout) -> Scenery {
             for (ri, &(lo, hi)) in rows.iter().enumerate() {
                 k += 1;
                 // the outer rows thinner
-                if ri >= 4 && hash(k, 30) % 3 == 0 {
+                if ri >= 3 && hash(k, 30) % 2 == 0 {
                     continue;
                 }
                 let along = s + int(pick(k, 31, -3, 3));
@@ -453,7 +453,7 @@ pub fn scenery(c: &Course, r: &RuinsLayout) -> Scenery {
                 push(p, &mut |b| m::jungle_tree(b, &f, kind, k));
             }
         }
-        s += int(pick(k, 36, 8, 11));
+        s += int(pick(k, 36, 10, 13));
     }
     // the plateau round the temple: a fringe of trees either side of the
     // facade and along the corridor's outside
@@ -579,8 +579,8 @@ fn corridor_stone(c: &Course, r: &RuinsLayout, push: &mut dyn FnMut(V3, &mut dyn
                         0,
                     );
                 }
-                for p in 0..3 {
-                    let along = (p - 1) * int(10);
+                for p in [-1, 1] {
+                    let along = p * int(8);
                     let at = v3(face.x, floor + int(9), face.z)
                         .add(fwd.scale(along))
                         .add(inward.scale(cm(30)));
@@ -767,9 +767,11 @@ fn chamber_stone(r: &RuinsLayout, push: &mut dyn FnMut(V3, &mut dyn FnMut(&mut B
                     0,
                 );
             }
-            let at = v3(face.x, centre.y + int(9), face.z).sub(out.scale(cm(30)));
-            let f = Affine::translate(at).then(&Affine::looking(out.neg(), V3::UP));
-            m::stone_panel(b, &f, int(10), int(8));
+            if k % 2 == 0 {
+                let at = v3(face.x, centre.y + int(9), face.z).sub(out.scale(cm(30)));
+                let f = Affine::translate(at).then(&Affine::looking(out.neg(), V3::UP));
+                m::stone_panel(b, &f, int(10), int(8));
+            }
         });
     }
     // the floor: a great disc, rings of darker and lighter stone
@@ -1133,9 +1135,9 @@ fn glyphs(b: &mut Batch, r: &RuinsLayout, eye: V3, t: u32) {
             }
             let inward = right.scale(-side);
             let across = right_of(inward);
-            for p in 0..3 {
+            for p in [-1, 1] {
                 let centre = v3(face.x, floor + int(9), face.z)
-                    .add(fwd.scale((p - 1) * int(10)))
+                    .add(fwd.scale(p * int(8)))
                     .add(inward.scale(cm(70)));
                 for sp in &spots {
                     k += 1;
@@ -1163,7 +1165,7 @@ fn glyphs(b: &mut Batch, r: &RuinsLayout, eye: V3, t: u32) {
             continue;
         }
         let across = right_of(out.neg());
-        for sp in &spots {
+        for sp in spots.iter().filter(|_| s % 2 == 0) {
             let at = v3(face.x, floor + int(9) + sp.y, face.z).add(across.scale(sp.x));
             glyph(b, at, out.neg(), 400 + s as u32 * 7);
         }
@@ -1218,7 +1220,7 @@ pub fn preview(c: &Course) -> (V3, i32, Camera) {
 /// weaves gently across.
 pub fn flyover_camera(c: &Course, ticks: u32, from: i32) -> Camera {
     let lap = (c.length - int(100)).max(int(1)) as i64;
-    let s = ((ticks as i64 * int(7) as i64 / TICKS_PER_SECOND as i64 + from as i64) % lap) as i32
+    let s = ((ticks as i64 * int(6) as i64 / TICKS_PER_SECOND as i64 + from as i64) % lap) as i32
         + int(40);
     let eye = fly_line(c, s);
     let look = fly_line(c, s + int(30)).sub(v3(0, int(3), 0));
@@ -1231,7 +1233,13 @@ pub fn flyover_camera(c: &Course, ticks: u32, from: i32) -> Camera {
 
 /// The flyover's line at `s`.
 fn fly_line(c: &Course, s: i32) -> V3 {
-    let p = c.point(s);
+    // the centreline averaged over 32 m, so its tight bends (into the
+    // chamber, in to the pile) are eased
+    let mut sum = V3::ZERO;
+    for k in -8..=8 {
+        sum = sum.add(c.point(s + k * int(2)));
+    }
+    let p = sum.scale(ONE / 17);
     let Some(r) = c.ruins.as_deref() else {
         return v3(p.x, int(14), p.z);
     };
