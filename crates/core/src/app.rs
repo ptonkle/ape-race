@@ -1208,6 +1208,11 @@ impl App {
     pub fn begin(&mut self, race: Race, local: usize) {
         let at = race.racers[local].ape.pos;
         let mut chase = Chase::new(at, race.course.start_yaw, race.course.terrain);
+        // on the Ski Slope the eye keeps out of the conifers (SW9)
+        if let Some(ski) = &race.course.ski {
+            let crowns = crate::skiscape::crowns(&race.course, ski);
+            chase = chase.with_crowns(at, crowns.into());
+        }
         // Sector Ape runs about twice as fast: the view opens wider
         if race.course.sector.is_some() {
             chase.pace = crate::camera::SPACE_PACE;
@@ -2310,7 +2315,8 @@ fn restore(p: &mut Play, save: replay::SavePoint) {
     p.prev = p.race.racers.iter().map(|r| r.ape.pos).collect();
     p.since_out = None;
     let f = &p.race.racers[p.focus.racer];
-    p.chase = Chase::new(f.ape.pos, p.chase.yaw, p.race.course.terrain);
+    p.chase = Chase::new(f.ape.pos, p.chase.yaw, p.race.course.terrain)
+        .with_crowns(f.ape.pos, p.chase.crowns.clone());
 }
 
 /// The course's way forward a little ahead of centreline sample `hint`.
@@ -2329,7 +2335,8 @@ fn follow_speed(p: &mut Play) {
 /// The camera moves to the focused racer, gliding from `from`.
 fn refocus(p: &mut Play, from: Camera, ticks: u32) {
     let f = &p.race.racers[p.focus.racer];
-    p.chase = Chase::new(f.ape.pos, p.chase.yaw, p.race.course.terrain);
+    p.chase = Chase::new(f.ape.pos, p.chase.yaw, p.race.course.terrain)
+        .with_crowns(f.ape.pos, p.chase.crowns.clone());
     p.prev[p.focus.racer] = f.ape.pos;
     p.out_for = 0;
     p.danced = 0;
@@ -2648,6 +2655,8 @@ mod items_hype_tests;
 mod lava_tests;
 #[cfg(test)]
 mod look_tests;
+#[cfg(test)]
+mod ski_camera_tests;
 #[cfg(test)]
 mod spectate_tests;
 #[cfg(test)]
