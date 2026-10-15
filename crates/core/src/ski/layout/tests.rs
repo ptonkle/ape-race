@@ -249,8 +249,9 @@ fn every_lane_has_a_way_on_and_low_vines_to_climb_back_by() {
     for c in courses() {
         // walking down each lane (both branches at a fork), there is always
         // a vine ahead within 36 m over that lane (stations are 22–28 m
-        // apart, each vine up to 3 m off), and a low one within 36 m (one
-        // at every station, TRIAGE T74; it was 70 m, every other)
+        // apart, each vine up to 3 m off), and a low one within 60 m (one
+        // at every station, in each branch of a fork in turn: TRIAGE T84;
+        // T74 had it 36 m, before that it was 70 m)
         for k in 0..2 {
             let mut s = int(20);
             while s < c.length - int(60) {
@@ -275,7 +276,7 @@ fn every_lane_has_a_way_on_and_low_vines_to_climb_back_by() {
                 );
                 if s > int(60) && s < c.length - int(100) {
                     assert!(
-                        (0..n).any(|i| over(i, int(36), true)),
+                        (0..n).any(|i| over(i, int(60), true)),
                         "no low vine ahead at {} m in lane {k}",
                         s / ONE
                     );
@@ -417,10 +418,10 @@ fn the_jaguar_comes_in_from_the_edge_of_the_branch_an_ape_is_in() {
 }
 
 #[test]
-fn across_the_whole_run_low_vines_hang_by_both_fences_at_every_station() {
-    // TRIAGE T74: where the run is not forked, a skiing ape has a low vine
-    // (its end within 4 m of the snow) ahead within 30 m on its own half
-    // of the run, left or right
+fn across_the_whole_run_low_vines_hang_by_each_fence_in_turn() {
+    // TRIAGE T84 (thinning T74): where the run is not forked, a skiing ape
+    // has a low vine (its end within 4 m of the snow) ahead within 30 m,
+    // and one on its own half of the run, left or right, within 60 m
     for c in courses() {
         let low: Vec<(i32, i32)> = c
             .vines
@@ -435,10 +436,15 @@ fn across_the_whole_run_low_vines_hang_by_both_fences_at_every_station() {
                 x == y
             });
             if whole {
+                assert!(
+                    low.iter().any(|&(vs, _)| vs > s && vs <= s + int(30)),
+                    "no low vine ahead at {} m",
+                    s / ONE
+                );
                 for side in [-1, 1] {
                     assert!(
                         low.iter()
-                            .any(|&(vs, off)| vs > s && vs <= s + int(30) && off * side > 0),
+                            .any(|&(vs, off)| vs > s && vs <= s + int(60) && off * side > 0),
                         "no low vine ahead on the {} at {} m",
                         if side < 0 { "left" } else { "right" },
                         s / ONE
@@ -447,5 +453,23 @@ fn across_the_whole_run_low_vines_hang_by_both_fences_at_every_station() {
             }
             s += int(4);
         }
+    }
+}
+
+#[test]
+fn low_vines_hang_about_one_a_station() {
+    // TRIAGE T84: T74's two a station (about 160 on the run) were too many;
+    // one a station (stations 20–25 m apart) is at most one per 20 m
+    for c in courses() {
+        let n = c
+            .vines
+            .iter()
+            .filter(|v| v.anchor.y - v.length - c.terrain(v.anchor.x, v.anchor.z) <= int(5))
+            .count() as i32;
+        assert!(
+            n <= c.length / int(20),
+            "{n} low vines on {} m",
+            c.length / ONE
+        );
     }
 }
