@@ -37,11 +37,16 @@ const FOCUS_UP: i32 = cm(62);
 /// ape (`models::showcase_camera`: 1.25 m up, 2.9 m off).
 const EYE_UP: i32 = cm(125);
 const EYE_BACK: i32 = cm(290);
-/// Half the ape's width on screen in Sunset Ruins' lobby, as a share of
-/// the height (the lobby camera stands 3.6 m back).
+/// Half the ape's width on screen in Sunset Ruins' and Banana Bay
+/// Battle's lobbies, as a share of the height (their lobby cameras stand
+/// 3.6 m back).
 const APE_HALF_W: i32 = ratio(14, 100);
-/// The most Sunset Ruins' lobby camera turns from its own view.
+/// The most a map's own lobby camera turns from its own view.
 const MAX_TURN: i32 = deg(30);
+/// Banana Bay Battle's lobby camera stands at least this far back for
+/// each screen height the open part beside the menus is wide (so the ape,
+/// at its widest as it turns, fits the open part).
+const BAY_FIT: i32 = cm(410);
 
 /// Where the previewed ape stands on a map and the way the camera looks
 /// at it (flat, unit). The Jungle: its stage at the origin, seen from +z
@@ -141,36 +146,70 @@ impl App {
         let focus = feet.add(v3(0, FOCUS_UP, 0));
         match (map, self.course_of(map)) {
             (Map::Ruins, Some(c)) => self.ruins_camera(c, focus),
+            (Map::Bay, Some(c)) => self.bay_camera(c, focus),
             _ => self.framed(preview_view(feet, look), focus),
         }
     }
 
+    /// Banana Bay Battle's lobby camera (`bayscape::lobby`), framed beside
+    /// the menus and turned so the fleet's landmark ship sits between the
+    /// docked panels and the ape, as on Sunset Ruins.
+    fn bay_camera(&self, c: &Course, focus: V3) -> Camera {
+        let Some(bay) = c.bay.as_deref() else {
+            return self.framed(crate::scene::preview(c).camera, focus);
+        };
+        let (feet, look) = crate::bayscape::lobby::lobby_spot(bay);
+        let mark = crate::bayscape::lobby::landmark(bay);
+        // backed off where the open part is narrow (the lobby's two panels
+        // at 1366 or 1280 wide), so the ape fits it as it turns
+        let h = self.view_h.max(1);
+        let open = match self.dock() {
+            Dock::Side(dock) => self.view_w - dock,
+            _ => self.view_w,
+        }
+        .max(1);
+        let back = crate::bayscape::lobby::LOBBY_BACK.max(fx::mul(BAY_FIT, fx::div(h, open)));
+        let cam = move |feet, look| crate::bayscape::lobby::lobby_camera_at(feet, look, back);
+        self.turned(feet, look, mark, focus, &cam)
+    }
+
     /// Sunset Ruins' lobby camera, framed beside the menus and turned so
-    /// the temple's mouth sits in the open part between the docked panels
-    /// and the ape (RS23, RS28): its middle halfway between the dock's
-    /// edge and the ape's left side, whether one panel or two are docked.
-    /// The turn is found by a few secant steps on where the mouth lands.
+    /// the temple's mouth sits between the docked panels and the ape.
     fn ruins_camera(&self, c: &Course, focus: V3) -> Camera {
         let Some(r) = c.ruins.as_deref() else {
             return self.framed(crate::scene::preview(c).camera, focus);
         };
         let (feet, look) = crate::ruinsscape::lobby_spot(c, r);
+        let mouth = r.mouth.opening.centre;
+        self.turned(feet, look, mouth, focus, &crate::ruinsscape::lobby_camera)
+    }
+
+    /// A map's own lobby camera (`lobby`, for an ape at `feet` looking
+    /// `look`), framed beside the menus and turned so `mark` sits in the
+    /// open part between the docked panels and the ape (RS23, RS28): its
+    /// middle halfway between the dock's edge and the ape's left side,
+    /// whether one panel or two are docked. The turn is found by a few
+    /// secant steps on where the mark lands.
+    fn turned(
+        &self,
+        feet: V3,
+        look: V3,
+        mark: V3,
+        focus: V3,
+        lobby: &dyn Fn(V3, V3) -> Camera,
+    ) -> Camera {
         let base = yaw_of(look);
-        let cam_at = |turn: i32| {
-            let cam = crate::ruinsscape::lobby_camera(feet, facing(base + turn, 0));
-            self.framed(cam, focus)
-        };
+        let cam_at = |turn: i32| self.framed(lobby(feet, facing(base + turn, 0)), focus);
         let Dock::Side(dock) = self.dock() else {
             return cam_at(0);
         };
         let (w, h) = (self.view_w.max(1), self.view_h.max(1));
         let ape = dock + (w - dock) / 2;
         let target = fx::div(dock + ape - fx::mul(h, APE_HALF_W), 2 * w) * 100;
-        let mouth = r.mouth.opening.centre;
         let aspect = fx::div(w, h);
         let miss = |turn: i32| {
             cam_at(turn)
-                .screen(aspect, mouth)
+                .screen(aspect, mark)
                 .map_or(0, |(x, _)| x - target)
         };
         let (mut t0, mut t1) = (0, deg(3));
@@ -211,10 +250,16 @@ impl App {
         if let Some(c) = self.course_of(map) {
             crate::scene::backdrop(&mut b, c, self.preview_camera().eye, self.ticks);
         }
-        let vines = self
-            .course_of(map)
-            .map(|c| crate::scene::flyover_dynamic(c, self.ticks, vivid, feet).0)
-            .unwrap_or_default();
+        let mut vines = Batch::new();
+        if let Some(c) = self.course_of(map) {
+            // on Banana Bay Battle the start row is not yet rigged: its
+            // ropes would hang a few metres in front of the ape (BL2)
+            let keep = |i: usize| match c.bay.as_deref() {
+                Some(bay) => !crate::bayscape::lobby::start_row(c, bay, i),
+                None => true,
+            };
+            crate::scene::vines_where(&mut vines, c, self.ticks, vivid, &keep);
+        }
         (vines, b)
     }
 
@@ -365,18 +410,87 @@ mod tests {
         }
     }
 
+    #[test]
+    fn on_banana_bay_battle_the_fleet_shows_between_the_menus_and_the_ape_on_the_pier() {
+        for (w, h) in [(1920, 1080), (1366, 768), (1280, 720)] {
+            for (name, a) in screens_on("bay", w, h) {
+                assert_eq!(a.map(), Map::Bay, "{name}");
+                let c = a.course_of(Map::Bay).unwrap();
+                let bay = c.bay.as_deref().unwrap();
+                let cam = a.preview_camera();
+                let aspect = fx::div(w, h);
+                assert!(
+                    cam.fwd.y.abs() < fx::sin(deg(4)),
+                    "{name} {w}x{h}: pitch {}",
+                    cam.fwd.y
+                );
+                // the landmark ship between the menus' edge and the ape
+                let mark = crate::bayscape::lobby::landmark(bay);
+                let (mx, my) = cam.screen(aspect, mark).unwrap();
+                let (mx, my) = (mx / ONE, my / ONE);
+                let (x, y) = ape_on_screen(&a);
+                let Dock::Side(dock) = a.dock() else { panic!() };
+                let ape_left = x - fx::mul(h, APE_HALF_W) * 100 / w;
+                assert!(
+                    mx > dock * 100 / w + 2 && mx < ape_left - 2,
+                    "{name} {w}x{h}: fleet at {mx}%, menus to {}%, ape from {ape_left}%",
+                    dock * 100 / w
+                );
+                assert!((5..=70).contains(&my), "{name} {w}x{h}: fleet {my}% down");
+                let open_middle = (dock + (w - dock) / 2) * 100 / w;
+                assert!(
+                    (x - open_middle).abs() <= 2,
+                    "{name} {w}x{h}: ape at {x}%, open part's middle {open_middle}%"
+                );
+                assert!((40..=70).contains(&y), "{name} {w}x{h}: ape at {y}% down");
+                // every kind stands on the planks, wholly in the frame and
+                // clear of the menus, as it turns
+                let (feet, _) = a.preview_at();
+                assert_eq!(feet.y, bay.dock.from.y, "{name}: on the planks");
+                let turns = (0..8).map(|k| k * TURN / 8);
+                for (kind, yaw) in crate::rules::Kind::ALL
+                    .into_iter()
+                    .flat_map(|k| turns.clone().map(move |y| (k, y)))
+                {
+                    let mut b = Batch::new();
+                    let pose = models::Pose {
+                        gear: models::Gear::on(Map::Bay),
+                        ..models::Pose::standing(feet, yaw, 0)
+                    };
+                    models::draw_in(&mut b, kind, 0, &pose);
+                    let (v, _) = b.finish(crate::render::DYNAMIC_BUFFER);
+                    for i in v.chunks(crate::render::INSTANCE_VALUES) {
+                        let p = v3(i[3], i[7], i[11]);
+                        let (px, py) = cam.screen(aspect, p).unwrap();
+                        let (px, py) = (px / ONE, py / ONE);
+                        assert!(
+                            px > dock * 100 / w && px < 100 && (3..97).contains(&py),
+                            "{name} {w}x{h} {kind:?}: a part at {px}%, {py}%"
+                        );
+                    }
+                }
+            }
+        }
+    }
+
     /// Race Setup, Time Trial and the online lobby (two panels docked)
     /// on Sunset Ruins.
     fn ruins_screens(w: i32, h: i32) -> Vec<(&'static str, App)> {
+        screens_on("ruins", w, h)
+    }
+
+    /// Race Setup, Time Trial and the online lobby (two panels docked)
+    /// on the map `key`.
+    fn screens_on(key: &str, w: i32, h: i32) -> Vec<(&'static str, App)> {
         let mut setup = app_at(Screen::Setup, w, h);
-        setup.act("setup.map", "ruins");
+        setup.act("setup.map", key);
         let mut trial = app_at(Screen::Title, w, h);
         trial.act("menu.trial", "");
-        trial.act("setup.map", "ruins");
+        trial.act("setup.map", key);
         assert!(trial.trial && trial.screen == Screen::Setup);
         let mut lobby = app_at(Screen::Online, w, h);
         lobby.act("online.host", "");
-        lobby.act("lobby.map", "ruins");
+        lobby.act("lobby.map", key);
         assert_eq!(lobby.screen, Screen::Lobby);
         assert_eq!(lobby.dock(), Dock::Side(2 * PANEL_W + 3 * GAP));
         vec![("setup", setup), ("trial", trial), ("lobby", lobby)]

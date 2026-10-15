@@ -2183,8 +2183,9 @@ pub fn preview(c: &Course) -> Preview {
         // a stone ledge on the riverbank, the temple's mouth ahead and the
         // sunset over its shoulder
         Map::Ruins => crate::ruinsscape::preview(c),
-        // STAND-IN (Banana Bay Battle's skeleton): the Jungle's start tree
-        Map::Jungle | Map::Bay => {
+        // the pier's planks, the battle fleet out ahead
+        Map::Bay => crate::bayscape::lobby::preview(c),
+        Map::Jungle => {
             let pl = c.platforms.first();
             let feet = pl.map_or(c.point(int(4)), |p| {
                 v3(p.centre.x, p.top, p.centre.z).add(p.fwd.scale(p.half_len / 2))
@@ -2216,6 +2217,10 @@ pub fn flyover_camera(c: &Course, ticks: u32, from: i32) -> Camera {
     // down the river, over the falls, in through the mouth: a smooth line
     if c.ruins.is_some() {
         return crate::ruinsscape::flyover_camera(c, ticks, from);
+    }
+    // alongside the fleet, above the hulls, clear of the masts
+    if c.bay.is_some() {
+        return crate::bayscape::lobby::flyover_camera(c, ticks, from);
     }
     let lap = (c.length - int(100)).max(int(1)) as i64;
     let s = ((ticks as i64 * int(6) as i64 / crate::rules::TICKS_PER_SECOND as i64 + from as i64)
@@ -2279,32 +2284,7 @@ pub fn backdrop(b: &mut Batch, c: &Course, eye: V3, tick: u32) {
 pub fn flyover_dynamic(c: &Course, tick: u32, vivid: bool, eye: V3) -> (Batch, Batch) {
     let mut b = Batch::new();
     let mut rest = Batch::new();
-    let map = Map::of(c);
-    let look = vine_look_on(map, false, vivid, tick);
-    for i in 0..c.vines.len() {
-        if c.ruins.as_ref().is_some_and(|r| r.vine_up(i, tick)) {
-            continue;
-        }
-        let a = c.anchor(i, tick);
-        let t = tick + i as u32 * 37;
-        vine_along(
-            &mut b,
-            a,
-            c.hang(i),
-            c.vines[i].length,
-            None,
-            look,
-            t,
-            map == Map::Jungle,
-        );
-        if map == Map::Sector {
-            let end = a.add(c.hang(i).scale(c.vines[i].length));
-            crate::sectorscape::tether(&mut b, &[a, end], c.hang(i), look, t);
-            if c.sector.as_deref().is_some_and(|s| s.door.switch == i) {
-                crate::sectorscape::switch_marker(&mut b, &[a, end], c.hang(i), false, t);
-            }
-        }
-    }
+    vines_where(&mut b, c, tick, vivid, &|_| true);
     // the City's helicopters and crane hooks, near the flyover's eye
     if let Some(city) = &c.city {
         crate::cityscape::hangers_dynamic(&mut rest, c, city, eye, tick, tick);
@@ -2324,6 +2304,43 @@ pub fn flyover_dynamic(c: &Course, tick: u32, vivid: bool, eye: V3) -> (Batch, B
         crate::bayscape::fleet::dynamic(&mut rest, c, bay, eye, tick, tick);
     }
     (b, rest)
+}
+
+/// The vines `keep` keeps, swaying (into a `render::VINES` batch), as the
+/// title and the menus draw them.
+pub fn vines_where(
+    b: &mut Batch,
+    c: &Course,
+    tick: u32,
+    vivid: bool,
+    keep: &dyn Fn(usize) -> bool,
+) {
+    let map = Map::of(c);
+    let look = vine_look_on(map, false, vivid, tick);
+    for i in 0..c.vines.len() {
+        if c.ruins.as_ref().is_some_and(|r| r.vine_up(i, tick)) || !keep(i) {
+            continue;
+        }
+        let a = c.anchor(i, tick);
+        let t = tick + i as u32 * 37;
+        vine_along(
+            b,
+            a,
+            c.hang(i),
+            c.vines[i].length,
+            None,
+            look,
+            t,
+            map == Map::Jungle,
+        );
+        if map == Map::Sector {
+            let end = a.add(c.hang(i).scale(c.vines[i].length));
+            crate::sectorscape::tether(b, &[a, end], c.hang(i), look, t);
+            if c.sector.as_deref().is_some_and(|s| s.door.switch == i) {
+                crate::sectorscape::switch_marker(b, &[a, end], c.hang(i), false, t);
+            }
+        }
+    }
 }
 
 #[cfg(test)]
