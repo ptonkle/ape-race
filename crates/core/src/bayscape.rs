@@ -10,6 +10,8 @@ use crate::geom::v3;
 use crate::render::rgb;
 use crate::scene::{Look, Scenery};
 
+pub mod fleet;
+
 /// Banana Bay Battle's light: 3 pm in the Caribbean, a high warm sun.
 /// STAND-IN: a bright blue sky, a pale sea haze; the art agent tunes it.
 pub fn look() -> Look {
@@ -25,7 +27,8 @@ pub fn look() -> Look {
     }
 }
 
-/// Banana Bay Battle's scenery and ground, chunked. STAND-IN: the Jungle's.
-pub fn scenery(c: &Course, _b: &BayLayout) -> Scenery {
-    crate::scene::jungle_scenery(c)
+/// Banana Bay Battle's scenery and ground, chunked: the fleet, the pier
+/// and the island (`fleet`, the art placed on the course).
+pub fn scenery(c: &Course, b: &BayLayout) -> Scenery {
+    fleet::scenery(c, b)
 }

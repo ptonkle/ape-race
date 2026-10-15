@@ -1424,6 +1424,23 @@ pub fn vine_look_on(map: Map, in_reach: bool, vivid: bool, tick: u32) -> VineLoo
             halo: look.width * crate::ruinsscape::VINE_HALO,
             ..look
         },
+        // Banana Bay Battle's hemp ropes: tan against the turquoise sea, the
+        // blue sky and the dark hulls, with a faint glow
+        (Map::Bay, false, false) => VineLook {
+            colour: crate::bayscape::fleet::ROPE_HEMP,
+            glow: ONE / 6,
+            halo: look.width * crate::bayscape::fleet::ROPE_HALO,
+            ..look
+        },
+        (Map::Bay, false, true) => VineLook {
+            colour: crate::bayscape::fleet::ROPE_HEMP_VIVID,
+            halo: look.width * crate::bayscape::fleet::ROPE_HALO,
+            ..look
+        },
+        (Map::Bay, true, _) => VineLook {
+            halo: look.width * crate::bayscape::fleet::ROPE_HALO,
+            ..look
+        },
         _ => look,
     }
 }
@@ -1519,6 +1536,9 @@ pub fn dynamic(f: &Frame) -> (Batch, Batch) {
     }
     if let Some(r) = &c.ruins {
         crate::ruinsscape::dynamic(&mut b, c, r, eye, f.tick, tick);
+    }
+    if let Some(bay) = &c.bay {
+        crate::bayscape::fleet::dynamic(&mut b, c, bay, eye, f.tick, tick);
     }
     for (k, r) in race.racers.iter().enumerate() {
         // Floor is Lava (TRIAGE T37): the jaguar, and the ape until the bite
@@ -1668,6 +1688,17 @@ fn item_flowers(b: &mut Batch, f: &Frame, held: &[Option<V3>]) {
         }
         // on the Ski Slope, gold Christmas stars beside the rope, and dull
         // silver ones while its item is taken (TRIAGE T68)
+        // on Banana Bay Battle, gold doubloons turning beside the rope, and
+        // tarnished bronze ones while its item is taken
+        if Map::of(&race.course) == Map::Bay {
+            for (j, t) in FLOWER_AT.into_iter().enumerate() {
+                let side = if j % 2 == 0 { cm(60) } else { -cm(60) };
+                let at = along(&pts, t).add(right.scale(side));
+                let spin = f.tick as i32 * 260 + (k * 3 + j) as i32 * 9000;
+                crate::baymodels::doubloon(b, at, right, up, spin, open);
+            }
+            continue;
+        }
         if Map::of(&race.course) == Map::Ski {
             for (j, t) in FLOWER_AT.into_iter().enumerate() {
                 let side = if j % 2 == 0 { cm(55) } else { -cm(55) };
@@ -1811,9 +1842,9 @@ pub fn catch_up_colour(map: Map, vivid: bool) -> Rgb {
         // STAND-IN (Sunset Ruins' skeleton): a hot pink against its
         // Jungle-green vines; the art agent chooses against the sunset
         (Map::Ruins, false) => rgb(250, 70, 160),
-        // STAND-IN (Banana Bay Battle's skeleton): a hot orange against the
-        // turquoise water; the art agent chooses
-        (Map::Bay, false) => rgb(255, 120, 40),
+        // Banana Bay Battle: a hot scarlet against its tan hemp ropes and
+        // the turquoise sea
+        (Map::Bay, false) => crate::bayscape::fleet::CATCH_UP,
         // the colourblind mode (TRIAGE T33): told from the map's vivid
         // vine by brightness, not hue alone, and kept off the item flowers'
         // violet: a deep red-orange under the bright green vines, a dark
@@ -1825,7 +1856,7 @@ pub fn catch_up_colour(map: Map, vivid: bool) -> Rgb {
         (Map::Ski, true) => rgb(20, 40, 230),
         (Map::Sector, true) => rgb(255, 60, 70),
         (Map::Ruins, true) => rgb(200, 0, 120),
-        (Map::Bay, true) => rgb(230, 60, 0),
+        (Map::Bay, true) => crate::bayscape::fleet::CATCH_UP_VIVID,
     }
 }
 
@@ -2227,6 +2258,10 @@ pub fn backdrop(b: &mut Batch, c: &Course, eye: V3, tick: u32) {
     if let Some(r) = &c.ruins {
         crate::ruinsscape::dynamic(b, c, r, eye, tick, tick);
     }
+    // the fleet's flags, crews, fire and barrels round the dock
+    if let Some(bay) = &c.bay {
+        crate::bayscape::fleet::dynamic(b, c, bay, eye, tick, tick);
+    }
 }
 
 /// What moves behind the title: the vines, swaying (drawn as
@@ -2274,6 +2309,9 @@ pub fn flyover_dynamic(c: &Course, tick: u32, vivid: bool, eye: V3) -> (Batch, B
     }
     if let Some(r) = &c.ruins {
         crate::ruinsscape::dynamic(&mut rest, c, r, eye, tick, tick);
+    }
+    if let Some(bay) = &c.bay {
+        crate::bayscape::fleet::dynamic(&mut rest, c, bay, eye, tick, tick);
     }
     (b, rest)
 }

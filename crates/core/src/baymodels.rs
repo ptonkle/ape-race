@@ -410,14 +410,45 @@ fn paint(side: Side) -> Paint {
 /// the jib, shrouds and stays, and its flags streaming with `tick`. `k`
 /// varies the patches and the tatters.
 pub fn ship(b: &mut Batch, f: &Affine, s: &Ship, tick: u32, k: u32) {
+    ship_parts(b, f, s, tick, k, true, true);
+}
+
+/// Ship `s` without its flags (the art places it once, as still scenery):
+/// everything `ship` draws but the flags and pennants.
+pub fn ship_still(b: &mut Batch, f: &Affine, s: &Ship, k: u32) {
+    ship_parts(b, f, s, 0, k, true, false);
+}
+
+/// Only ship `s`'s flags and pennants, streaming with `tick` (the art
+/// draws them each frame near the eye, over `ship_still`).
+pub fn ship_flags(b: &mut Batch, f: &Affine, s: &Ship, tick: u32, k: u32) {
+    ship_parts(b, f, s, tick, k, false, true);
+}
+
+/// The parts of `ship`: the body (hull, rigging, sails) and the flags.
+fn ship_parts(b: &mut Batch, f: &Affine, s: &Ship, tick: u32, k: u32, body: bool, flags: bool) {
     let p = paint(s.side);
-    hull_body(b, f, s, &p);
-    castles(b, f, s, &p);
-    guns(b, f, s);
-    stern(b, f, s, &p, tick);
-    bow(b, f, s, &p);
+    if body {
+        hull_body(b, f, s, &p);
+        castles(b, f, s, &p);
+        guns(b, f, s);
+    }
+    stern(b, f, s, &p, tick, body, flags);
+    if body {
+        bow(b, f, s, &p);
+    }
     let tallest = s.masts.iter().map(|m| m.height).max().unwrap_or(0);
     for (m, mast) in s.masts.iter().enumerate() {
+        if !body {
+            if flags && mast.height == tallest {
+                let head = v3(0, s.deck + mast.height, mast.along);
+                match s.side {
+                    Side::Pirate => jolly_roger(b, f, head, s.beam * 45 / 100, tick, k),
+                    Side::Navy => pennant(b, f, head, s.beam * 80 / 100, tick),
+                }
+            }
+            continue;
+        }
         let foot = deck_at(s, mast.along) - dm(5);
         let top = s.deck + mast.height;
         let w = s.beam * 8 / 100;
@@ -473,7 +504,7 @@ pub fn ship(b: &mut Batch, f: &Affine, s: &Ship, tick: u32, k: u32) {
         if let Some(state) = mast.gaff {
             gaff_sail(b, f, s, m, state, &p, k.wrapping_add(m as u32 * 7));
         }
-        if mast.height == tallest {
+        if flags && mast.height == tallest {
             let head = v3(0, top, mast.along);
             match s.side {
                 Side::Pirate => jolly_roger(b, f, head, s.beam * 45 / 100, tick, k),
@@ -481,7 +512,9 @@ pub fn ship(b: &mut Batch, f: &Affine, s: &Ship, tick: u32, k: u32) {
             }
         }
     }
-    stays(b, f, s, &p, k);
+    if body {
+        stays(b, f, s, &p, k);
+    }
 }
 
 /// The hull: stations along the keel (about every 4 m), each a bevelled
@@ -751,7 +784,14 @@ fn guns(b: &mut Batch, f: &Affine, s: &Ship) {
 /// The stern: a transom with rows of lit windows and gilded bands,
 /// lanterns on the taffrail, and the ensign (navy) or a red flag (pirate)
 /// on a staff.
-fn stern(b: &mut Batch, f: &Affine, s: &Ship, p: &Paint, tick: u32) {
+#[allow(clippy::too_many_arguments)]
+fn stern(b: &mut Batch, f: &Affine, s: &Ship, p: &Paint, tick: u32, body: bool, flags: bool) {
+    if !body {
+        if flags {
+            stern_flag(b, f, s, tick);
+        }
+        return;
+    }
     let z = -s.length / 2 - dm(3);
     let top = deck_at(s, -s.length / 2 + dm(10));
     let hw = half_beam(s, -s.length / 2) * 90 / 100;
@@ -815,6 +855,16 @@ fn stern(b: &mut Batch, f: &Affine, s: &Ship, p: &Paint, tick: u32) {
     let foot = v3(0, top, z + dm(3));
     let head = foot.add(v3(0, dm(55), -dm(20)));
     bar(b, f, Mesh::Hex, foot, head, cm(12), MAST, 0);
+    if flags {
+        stern_flag(b, f, s, tick);
+    }
+}
+
+/// The ensign (navy) or red flag (pirate) on the stern's staff.
+fn stern_flag(b: &mut Batch, f: &Affine, s: &Ship, tick: u32) {
+    let z = -s.length / 2 - dm(3);
+    let top = deck_at(s, -s.length / 2 + dm(10));
+    let head = v3(0, top, z + dm(3)).add(v3(0, dm(55), -dm(20)));
     let size = s.beam * 35 / 100;
     match s.side {
         Side::Navy => ensign(b, f, head, size, tick),
@@ -1427,7 +1477,7 @@ fn pennant(b: &mut Batch, f: &Affine, head: V3, len: i32, tick: u32) {
 // Barrels.
 
 /// How a floating barrel bobs at `tick`: its rise (metres) and its tilt.
-fn bob(tick: u32, k: u32) -> (i32, i32) {
+pub(crate) fn bob(tick: u32, k: u32) -> (i32, i32) {
     let phase = pick(k, 1, 0, TURN);
     (
         mul(wave(tick, 3, phase), cm(14)),
