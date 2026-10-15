@@ -20,7 +20,7 @@ The standard map-build steps (MAPS.md "Build steps"), one row each. Status is on
 | 14 | Map card | In progress | |
 | 15 | Screenshots at 1920×1080 | In progress | Models, outfits, sky on the journal |
 | 16 | Other maps unchanged | Not started | |
-| 17 | Docs | In progress | |
+| 17 | Docs | Done | README, MAPS.md (what the bay taught), TRIAGE T87, HANDOFF; Settings weather select fixed (BW1) | |
 | 18 | Full checks | Not started | |
 | 19 | Deploy | Not started | |
 
