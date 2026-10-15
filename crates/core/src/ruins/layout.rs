@@ -333,6 +333,25 @@ pub fn ruins_seeded(seed: u64) -> Course {
     stations.push(boost.clone());
     let mp = c.point(int(MOUTH));
     let mh = c.heading_at(int(MOUTH));
+    // vines from the mouth's carved lip, just inside: where the boost
+    // carries an ape, so there is always something to catch on landing
+    // (and the AI sees a target across the ravine)
+    {
+        let at = MOUTH + 6;
+        let p = c.point(int(at));
+        let r = right_of(c.heading_at(int(at)));
+        let mut here = Vec::new();
+        for off in [-8, 0, 8] {
+            let a = p.add(r.scale(int(off)));
+            here.push(put.push(
+                v3(a.x, floor + int(14), a.z),
+                int(6),
+                int(at),
+                Hanger::Mouth,
+            ));
+        }
+        stations.push(here);
+    }
     let mouth = Mouth {
         opening: Slab {
             centre: v3(mp.x, floor + int(7), mp.z),
@@ -436,7 +455,7 @@ pub fn ruins_seeded(seed: u64) -> Course {
 
     // the corridor's and the chamber's stations: vines from the ceiling
     let end = c.length / ONE;
-    let mut s = MOUTH + 10;
+    let mut s = MOUTH + 30;
     let mut station = 0;
     while s < end - 6 {
         let h = c.heading_at(int(s));
