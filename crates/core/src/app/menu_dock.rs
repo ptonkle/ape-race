@@ -43,6 +43,11 @@ const EYE_BACK: i32 = cm(290);
 const APE_HALF_W: i32 = ratio(14, 100);
 /// The most a map's own lobby camera turns from its own view.
 const MAX_TURN: i32 = deg(30);
+/// The map cards' strip above the ape when the menus dock to the side
+/// (TRIAGE T82), its height in CSS pixels with the space round it
+/// (`.panel.strip` in `web/style.css`); the ape stands in the middle of
+/// the part below it.
+const STRIP_H: i32 = 190;
 /// Banana Bay Battle's lobby camera stands at least this far back for
 /// each screen height the open part beside the menus is wide (so the ape,
 /// at its widest as it turns, fits the open part).
@@ -69,6 +74,26 @@ pub(super) fn preview_spot(map: Map, course: Option<&Course>) -> (V3, V3) {
             };
             (spot.feet, look)
         }
+    }
+}
+
+/// Moves the map cards out of the docked panels into a strip of their own
+/// above the ape (TRIAGE T82): every map's picture and name in one row.
+fn strip_out(v: &mut Value) {
+    let Some(panels) = v["panels"].as_array_mut() else {
+        return;
+    };
+    let mut cards = None;
+    for p in panels.iter_mut() {
+        if let Some(items) = p["items"].as_array_mut() {
+            if let Some(i) = items.iter().position(|it| it["type"] == "tiles") {
+                cards = Some(items.remove(i));
+            }
+        }
+    }
+    if let Some(mut cards) = cards {
+        cards["strip"] = json!(true);
+        panels.push(json!({ "kind": "strip", "items": [cards] }));
     }
 }
 
@@ -127,6 +152,9 @@ impl App {
             Dock::Side(w) => ("side", w, 0),
             Dock::Below(top) => ("below", 0, top),
         };
+        if name == "side" {
+            strip_out(v);
+        }
         v["dock"] = json!(name);
         v["dock_w"] = json!(format!("{w}px"));
         v["dock_top"] = json!(format!("{top}px"));
@@ -280,8 +308,13 @@ impl App {
                 // the open part's middle is w / width right of the screen's
                 // middle in clip space, which is w / height of tan * d
                 let slide = fx::mul(fx::mul(fx::div(w, h), tan), d);
+                // and up, if the ape stands higher than the middle of the
+                // part below the map strip, so it stands there (TRIAGE T82;
+                // the Ruins' and the bay's level cameras already put it lower)
+                let below = -fx::mul(fx::mul(fx::div(STRIP_H, h), tan), d);
+                let lift = (focus.sub(cam.eye).dot(up) - below).max(0);
                 Camera {
-                    eye: cam.eye.sub(right.scale(slide)),
+                    eye: cam.eye.sub(right.scale(slide)).add(up.scale(lift)),
                     ..cam
                 }
             }
@@ -344,7 +377,8 @@ mod tests {
                 Dock::Side(dock) => {
                     let open_middle = (dock + (w - dock) / 2) * 100 / w;
                     assert!((x - open_middle).abs() <= 2, "{w}x{h}: ape at {x}%");
-                    assert!((40..=60).contains(&y), "{w}x{h}: ape at {y}% down");
+                    let below = (h + STRIP_H) * 50 / h;
+                    assert!((y - below).abs() <= 4, "{w}x{h}: ape at {y}% down");
                 }
                 Dock::Below(top) => {
                     assert!((x - 50).abs() <= 1, "{w}x{h}: ape at {x}% across");
@@ -368,7 +402,12 @@ mod tests {
                 (x - open_middle).abs() <= 2,
                 "{w}x{h}: ape at {x}%, open part's middle {open_middle}%"
             );
-            assert!((40..=60).contains(&y), "{w}x{h}: ape at {y}% down");
+            // in the middle of the part below the map cards (TRIAGE T82)
+            let below = (h + STRIP_H) * 50 / h;
+            assert!(
+                (y - below).abs() <= 4,
+                "{w}x{h}: ape at {y}% down, {below}% expected"
+            );
         }
     }
 

@@ -80,12 +80,16 @@ fn the_ski_slopes_setup_offers_the_weather_beside_the_colours_and_no_other_map_d
         a.act("setup.map", "ski");
         let ui = ui_of(&mut a);
         let all = items(&ui);
-        assert_eq!(all[0]["id"], "setup.map");
-        assert_eq!(all[2]["id"], "setup.palette");
-        // the costume (TRIAGE T89) pairs with the colours; the weather next
-        assert_eq!(all[3]["id"], "setup.costume", "{menu}");
-        assert_eq!(all[4]["id"], "setup.weather", "{menu}: after the colours");
-        assert_eq!(all[4]["label"], "Weather");
+        // the map cards may have moved to their strip above the ape (T82);
+        // the costume (TRIAGE T89) pairs with the colours, the weather next
+        let at = |id: &str| all.iter().position(|i| i["id"] == id).unwrap();
+        assert_eq!(at("setup.costume"), at("setup.palette") + 1, "{menu}");
+        assert_eq!(
+            at("setup.weather"),
+            at("setup.costume") + 1,
+            "{menu}: after the colours"
+        );
+        assert_eq!(all[at("setup.weather")]["label"], "Weather");
         a.act("setup.weather", "snowing");
         assert_eq!(a.settings.weather, Weather::Snowing);
         assert_eq!(

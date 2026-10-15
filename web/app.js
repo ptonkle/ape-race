@@ -200,6 +200,7 @@ function select(item) {
 // read-only grid (a joiner's lobby) shows the pick and presses nothing.
 // The arrow keys move between cards; Enter or Space presses one.
 function tiles(item) {
+  if (item.strip) return strip(item);
   // the chosen map large, the others as name buttons under it (the person,
   // 2026-10-13: the three small cards were too small to see)
   const wrap = make("div", "tiles-field");
@@ -239,6 +240,40 @@ function tiles(item) {
   grid.append(row);
   wrap.append(grid);
   return wrap;
+}
+
+// every map as a card, its picture and name, in one row above the ape
+// (TRIAGE T82); the chosen one ringed in banana yellow
+function strip(item) {
+  const row = make("div", item.read_only ? "tiles strip read-only" : "tiles strip");
+  row.id = item.id;
+  row.dataset.value = item.value;
+  row.setAttribute("role", "radiogroup");
+  row.setAttribute("aria-label", item.label);
+  item.options.forEach((o) => {
+    const b = make("button", o.chosen ? "card chosen" : "card");
+    b.type = "button";
+    b.id = o.id;
+    b.dataset.value = o.value;
+    b.disabled = item.read_only === true;
+    b.setAttribute("role", "radio");
+    b.setAttribute("aria-checked", o.chosen ? "true" : "false");
+    const img = make("img");
+    img.src = o.picture;
+    img.alt = "";
+    img.draggable = false;
+    b.append(img, make("span", "card-name", o.text));
+    on(o.id, "click", () => send(item.id, o.value));
+    on(o.id, "keydown", (t, e) => {
+      const to = { ArrowRight: t.nextElementSibling, ArrowLeft: t.previousElementSibling }[e.key];
+      if (to) {
+        e.preventDefault();
+        to.focus();
+      }
+    });
+    row.append(b);
+  });
+  return row;
 }
 
 function slider(item) {
