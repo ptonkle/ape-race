@@ -332,6 +332,7 @@ pub fn dynamic(b: &mut Batch, ships: &[Far], eye: V3, tick: u32, height: &dyn Fn
             &m::pose(s.at.with_level(y), s.yaw, ONE),
             s.beam * 13 / 10,
             s.length * 105 / 100,
+            k,
         );
         if f.burning {
             let deck = f

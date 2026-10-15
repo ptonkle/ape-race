@@ -2664,60 +2664,67 @@ pub fn smoke_puff(b: &mut Batch, f: &Affine, age: i32, k: u32) {
 }
 
 /// A splash where a ball hits the water (its foot at the origin) at `age`:
-/// a white column rising and falling, a crown of spray thrown out and a
-/// ring of foam spreading on the water.
+/// a short burst (BR2), not a standing column: a fan of spray thrown up
+/// and out that falls back and breaks apart, a puff of mist round it that
+/// fades, and a few broken flecks of foam spreading on the water.
 pub fn splash(b: &mut Batch, f: &Affine, age: i32, k: u32) {
     let age = age.clamp(0, ONE);
     if age >= ONE {
         return;
     }
-    let up = sin(mul(age, TURN / 2));
-    let tall = mul(up, int(7));
-    if tall > cm(10) {
-        put(
-            b,
-            f,
-            Mesh::Cone,
-            v3(0, tall / 2, 0),
-            v3(dm(28), tall, dm(28)),
-            FOAM,
-            ONE / 4,
-        );
-        put(
-            b,
-            f,
-            Mesh::Blob,
-            v3(0, tall * 8 / 10, 0),
-            v3(dm(18), tall / 3, dm(18)),
-            FOAM,
-            ONE / 4,
-        );
-    }
-    for i in 0..6u32 {
-        let yaw = (i as i32) * TURN / 6 + pick(k, 120, 0, 6000);
-        let out = facing(yaw, 0).scale(dm(5) + mul(age, int(3)));
-        let h = mul(up, int(pick(k + i, 121, 2, 4)));
+    // the spray: drops flung up and out, falling back by the end (each
+    // one up `h` and down again), smaller as they go
+    let fall = ONE - age;
+    for i in 0..7u32 {
+        let yaw = (i as i32) * TURN / 7 + pick(k + i, 120, -3000, 3000);
+        let speed = int(pick(k + i, 122, 2, 5));
+        let out = facing(yaw, 0).scale(dm(3) + mul(fx::sqrt(age), speed));
+        let h = int(pick(k + i, 121, 3, 7));
+        let y = mul(h, 4 * mul(age, fall));
+        let s = mul(dm(pick(k + i, 123, 4, 8)), fall);
+        if s <= cm(2) {
+            continue;
+        }
         put_turned(
             b,
             f,
             Mesh::Shard,
-            out.add(v3(0, h, 0)),
-            &Affine::rot_y(yaw).then(&Affine::rot_x(deg(30))),
-            v3(dm(4), dm(10), dm(2)),
+            out.add(v3(0, y, 0)),
+            &Affine::rot_y(yaw).then(&Affine::rot_x(deg(20) + mul(age, deg(60)))),
+            v3(s * 2 / 3, s * 2, s / 3),
             FOAM,
-            ONE / 8,
+            ONE / 3,
         );
     }
-    let r = dm(15) + mul(age, int(6));
-    put(
-        b,
-        f,
-        Mesh::Hex,
-        v3(0, cm(8), 0),
-        v3(r, cm(6), r),
-        mix(FOAM, SEA, age),
-        0,
+    // a narrow spout early on only, breaking up as it rises
+    if age < ONE * 2 / 5 {
+        let u = fx::div(age, ONE * 2 / 5);
+        let tall = mul(sin(mul(u, TURN / 2)), int(3));
+        let w = mul(dm(9), ONE - u / 2);
+        if tall > cm(20) {
+            put(
+                b,
+                f,
+                Mesh::Shard,
+                v3(0, tall / 2, 0),
+                v3(w, tall, w / 2),
+                FOAM,
+                ONE / 3,
+            );
+        }
+    }
+    // mist: a soft haze that swells and fades
+    let mist = dm(20) + mul(fx::sqrt(age), int(5));
+    b.push_halo(
+        Mesh::Sphere,
+        &f.then(&Affine::translate(v3(0, mist / 3, 0)))
+            .then(&Affine::scale(v3(mist, mist * 2 / 3, mist))),
+        FOAM,
+        mul(ONE / 3, fall),
     );
+    // the foam left on the water: broken flecks spreading and fading
+    let r = dm(10) + mul(fx::sqrt(age), int(3));
+    foam_ring(b, f, r, r, mul(ONE * 3 / 5, fall), k, 5);
 }
 
 /// A ball striking a hull at the origin (the hull's face toward -z) at
@@ -2827,17 +2834,40 @@ pub fn ship_far(b: &mut Batch, f: &Affine, s: &Ship, k: u32) {
         p.wale,
         0,
     );
-    // the bow: a ramp narrowing forward
-    put_turned(
-        b,
-        f,
-        Mesh::Wedge,
-        v3(0, deck / 2, len / 2 - len / 8),
-        &Affine::rot_y(0),
-        v3(beam * 8 / 10, deck + dm(10), len / 4),
+    // the bow: a box turned corner-on and drawn out, so the hull comes
+    // to a point at the stem with its rail level (a ramp read as a raft's
+    // at 60 m, BQ7.3)
+    let stem = len * 21 / 100;
+    b.push(
+        Mesh::Bevel,
+        &f.then(&Affine::translate(v3(
+            0,
+            deck / 2 - dm(10),
+            aft + len / 20 + body / 2,
+        )))
+        .then(&Affine::scale(v3(
+            beam * 707 / 1000,
+            deck + dm(20),
+            stem * 1414 / 1000,
+        )))
+        .then(&Affine::rot_y(deg(45))),
         p.hull,
         0,
     );
+    // a forestay from the foremast's head to the bow
+    let bow_tip = v3(0, deck + dm(10), aft + len / 20 + body / 2 + stem);
+    if let Some(fore) = s.masts.iter().max_by_key(|m| m.along) {
+        bar(
+            b,
+            f,
+            Mesh::Cyl,
+            v3(0, deck + fore.height * 9 / 10, fore.along),
+            bow_tip,
+            cm(9),
+            RIGGING,
+            0,
+        );
+    }
     put(
         b,
         f,
@@ -2873,6 +2903,19 @@ pub fn ship_far(b: &mut Batch, f: &Affine, s: &Ship, k: u32) {
             MAST,
             0,
         );
+        // a shroud each side, from the rail to near the masthead
+        for side in [-1, 1] {
+            bar(
+                b,
+                f,
+                Mesh::Cyl,
+                v3(side * beam / 2, deck + dm(8), mast.along - dm(15)),
+                v3(0, deck + mast.height * 8 / 10, mast.along),
+                cm(9),
+                RIGGING,
+                0,
+            );
+        }
         let ys = spars(s, mi);
         for (i, y) in ys.iter().enumerate() {
             put(
@@ -2992,21 +3035,40 @@ pub fn fire_far(b: &mut Batch, f: &Affine, tick: u32, k: u32) {
             ONE,
         );
     }
-    // the column: puffs that rise 30 m over 8 s and spread, then begin again
+    // the column (BR2): soft puffs that rise 30 m over 8 s, drifting off
+    // with the wind and swaying, a small dark core inside a wide haze
+    // that thins and pales as it climbs, then begin again
     let life = 960u32;
     for i in 0..6u32 {
         let age = ((tick + k * 97 + i * life / 6) % life) as i32 * ONE / life as i32;
         let rise = mul(age, int(30)) + dm(20);
-        let lean = mul(mul(age, age), int(14));
-        let s = dm(25) + mul(age, int(7));
-        put(
-            b,
-            f,
-            Mesh::Blob,
-            v3(cm(pick(k + i, 63, -100, 100)), rise, lean),
-            v3(s, s * 8 / 10, s),
-            mix(SMOKE_DARK, SMOKE, ONE / 3 + age / 2),
-            ONE * 2 / 5,
+        let lean = mul(mul(age, age), int(16));
+        let sway = mul(sin(mul(age, TURN) + pick(k + i, 65, 0, TURN)), int(2));
+        let at = v3(cm(pick(k + i, 63, -100, 100)) + sway, rise, lean);
+        let grow = dm(22) + mul(age, int(8));
+        // the core shrinks away as the haze takes over
+        let core = mul(grow, (ONE - age) * 7 / 10);
+        let fade = if age < ONE / 8 { age * 8 } else { ONE - age };
+        if core > cm(20) {
+            put(
+                b,
+                f,
+                Mesh::Blob,
+                at,
+                v3(core, core * 3 / 4, core),
+                mix(SMOKE_DARK, SMOKE, ONE / 4 + age * 3 / 4),
+                ONE / 2,
+            );
+        }
+        b.push_halo(
+            Mesh::Sphere,
+            &f.then(&Affine::translate(at)).then(&Affine::scale(v3(
+                grow * 2,
+                grow * 3 / 2,
+                grow * 2,
+            ))),
+            mix(SMOKE_DARK, SMOKE, ONE / 2 + age / 2),
+            mul(ONE / 2, fade),
         );
     }
 }
@@ -3052,18 +3114,36 @@ pub fn smoke_far(b: &mut Batch, f: &Affine, age: i32, k: u32) {
 }
 
 /// A light foam collar where something meets the sea (its frame's origin
-/// at the waterline): a flat pale hexagon `w` across and `l` along, under
-/// whatever floats in it.
-pub fn foam(b: &mut Batch, f: &Affine, w: i32, l: i32) {
-    put(
-        b,
-        f,
-        Mesh::Hex,
-        v3(0, cm(3), 0),
-        v3(w, cm(6), l),
-        WAKE,
-        ONE / 4,
-    );
+/// at the waterline), `w` across and `l` along: broken pale flecks round
+/// it, low and part sea-coloured so they read as foam, not a plate (BR2).
+pub fn foam(b: &mut Batch, f: &Affine, w: i32, l: i32, k: u32) {
+    foam_ring(b, f, w / 2, l / 2, ONE * 3 / 4, k, 6);
+}
+
+/// `n` flecks of foam round an ellipse `rx` by `rz` at the origin, `pale`
+/// (Q16) of the way from the sea's colour to white foam, each a flat
+/// irregular blob turned its own way, with gaps between.
+fn foam_ring(b: &mut Batch, f: &Affine, rx: i32, rz: i32, pale: i32, k: u32, n: u32) {
+    let c = mix(SEA_LIGHT, WAKE, pale);
+    for i in 0..n {
+        let a = (i as i32) * TURN / n as i32 + pick(k + i, 130, -2500, 2500);
+        let (sa, ca) = (sin(a), cos(a));
+        let at = v3(mul(rx, sa), cm(2), mul(rz, ca));
+        // along the ring about two thirds of the gap to the next, across
+        // a third of that; a hair thick
+        let span = rx.max(rz) / 1000 * 6283 / n as i32 * 2 / 3;
+        let len = span / 100 * pick(k + i, 131, 70, 110);
+        put_turned(
+            b,
+            f,
+            Mesh::Octa,
+            at,
+            &Affine::rot_y(a + TURN / 4 + pick(k + i, 132, -2000, 2000)),
+            v3(len.max(cm(30)), cm(4), (len / 3).max(cm(15))),
+            c,
+            ONE / 5,
+        );
+    }
 }
 
 /// Sets the sails of `s` as listed, mast by mast (fore first), each

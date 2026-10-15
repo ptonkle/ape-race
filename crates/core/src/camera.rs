@@ -67,7 +67,18 @@ pub struct Chase {
     /// the ships the eye keeps out of (Banana Bay Battle; none on the
     /// other maps), SECOND-ORDER BP1
     pub hulls: Option<Arc<Hulls>>,
+    /// on the bay, the eye before it is kept out of the ships, and how far
+    /// the ships move it (eased toward where `Hulls::kept_out` wants it,
+    /// so a lift or a slide out of a yard's band glides, BR1)
+    pub free: V3,
+    pub shift: V3,
 }
+
+/// How fast the ships' shift of the eye eases toward where they want it
+/// (Q16, a tick).
+/// (Q16, a tick): quickly as a spar or hull comes, slowly as it goes.
+const SHIFT_IN: i32 = ONE / 6;
+const SHIFT_OUT: i32 = ONE / 24;
 
 /// The reach while no tree is in the way.
 const FREE: i32 = i32::MAX;
@@ -114,6 +125,8 @@ impl Chase {
             reach_speed: 0,
             temple: None,
             hulls: None,
+            free: at,
+            shift: V3::ZERO,
         };
         c.place(at, V3::ZERO);
         c.prev_eye = c.eye;
@@ -206,18 +219,39 @@ impl Chase {
         let behind = look.scale(self.back).neg().add(V3::UP.scale(RISE));
         let eye = self.above_ground(target.add(behind));
         // the eye trails a little, so speed shows as the ape pulling away
-        let eye = if self.eye == self.target {
+        // (on the bay from where it was before the ships moved it)
+        let snap = self.eye == self.target;
+        let from = if self.hulls.is_some() {
+            self.free
+        } else {
+            self.eye
+        };
+        let eye = if snap {
             eye
         } else {
-            self.eye.lerp(eye, ONE * 2 / 5)
+            from.lerp(eye, ONE * 2 / 5)
         };
         let eye = if self.crowns.is_empty() {
             eye
         } else {
             self.clear_of_trees(target, eye, vel.scale(LOOK_AHEAD))
         };
-        let eye = match &self.hulls {
-            Some(h) => h.kept_out(target, eye),
+        let eye = match self.hulls.clone() {
+            Some(h) => {
+                self.free = eye;
+                let want = h.kept_out(target, eye).sub(eye);
+                self.shift = if snap {
+                    want
+                } else {
+                    let rate = if want.len() > self.shift.len() {
+                        SHIFT_IN
+                    } else {
+                        SHIFT_OUT
+                    };
+                    self.shift.add(want.sub(self.shift).scale(rate))
+                };
+                h.kept_hard(target, eye.add(self.shift))
+            }
             None => eye,
         };
         self.eye = match &self.temple {

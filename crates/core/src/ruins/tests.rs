@@ -636,6 +636,7 @@ fn vine_shapes(r: &Race, k: usize) -> usize {
         vivid: false,
         gear: None,
         flashes: &[],
+        storm: false,
     })
     .0;
     let (v, _) = b.finish(crate::render::DYNAMIC_BUFFER);

@@ -1318,6 +1318,8 @@ pub struct Frame<'a> {
     /// Sector Ape: flashes of light where something just happened (an ape
     /// put back on a deck, the door shutting), and the race tick of each
     pub flashes: &'a [crate::sectorscape::Flash],
+    /// a squall: what floats on Banana Bay Battle rides its rougher sea
+    pub storm: bool,
 }
 
 /// How a vine is drawn: its colour, glow and width.
@@ -1547,7 +1549,7 @@ pub fn dynamic(f: &Frame) -> (Batch, Batch) {
         // far as the still scenery (the shader mutes moving shapes less;
         // BP7.4, BQ4)
         let mut own = Batch::new();
-        crate::bayscape::fleet::dynamic(&mut own, c, bay, eye, f.tick, tick);
+        crate::bayscape::fleet::dynamic(&mut own, c, bay, eye, f.tick, tick, f.storm);
         if f.vivid {
             own.restyle(|c, g| (crate::sky::grey(c, ONE * 2 / 3), g));
         }
@@ -2278,7 +2280,7 @@ pub fn backdrop(b: &mut Batch, c: &Course, eye: V3, tick: u32) {
     }
     // the fleet's flags, crews, fire and barrels round the dock
     if let Some(bay) = &c.bay {
-        crate::bayscape::fleet::dynamic(b, c, bay, eye, tick, tick);
+        crate::bayscape::fleet::dynamic(b, c, bay, eye, tick, tick, false);
     }
 }
 
@@ -2304,7 +2306,7 @@ pub fn flyover_dynamic(c: &Course, tick: u32, vivid: bool, eye: V3) -> (Batch, B
         crate::ruinsscape::dynamic(&mut rest, c, r, eye, tick, tick);
     }
     if let Some(bay) = &c.bay {
-        crate::bayscape::fleet::dynamic(&mut rest, c, bay, eye, tick, tick);
+        crate::bayscape::fleet::dynamic(&mut rest, c, bay, eye, tick, tick, false);
     }
     (b, rest)
 }
@@ -2420,6 +2422,7 @@ mod tests {
             vivid: false,
             gear: None,
             flashes: &[],
+            storm: false,
         })
         .1;
         let (v, _) = b.finish(crate::render::DYNAMIC_BUFFER);
@@ -2470,6 +2473,7 @@ mod tests {
             vivid,
             gear: None,
             flashes: &[],
+            storm: false,
         })
         .0
     }
