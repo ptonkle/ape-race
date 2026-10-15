@@ -159,6 +159,13 @@ pub const BOOST_DECENT: i32 = int(6);
 /// A turtle's shell top above the water, and its radius as a bouncer.
 pub const TURTLE_TOP: i32 = cm(60);
 pub const TURTLE_RADIUS: i32 = cm(220);
+/// The landmarks are drawn this many times their `scale` (as
+/// `ruinsscape`'s `LANDMARK_SCALE`), and at scale one stand within this
+/// radius of `at` (the moai's muzzle, 2.7 m out, is the farthest).
+pub const LANDMARK_DRAWN: i32 = ONE * 7 / 2;
+pub const LANDMARK_FOOTPRINT: i32 = int(3);
+/// A turtle turns back this far short of the bank (its shell's edge).
+pub const TURTLE_SHORT: i32 = int(2);
 /// No bouncer on Sunset Ruins stands taller than this above the land.
 pub const BOUNCER_TALLEST: i32 = int(5);
 

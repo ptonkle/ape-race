@@ -405,3 +405,110 @@ fn clear_of_everything_means_nothing_holds_an_ape() {
         assert!(clear > 1000, "{clear}");
     }
 }
+
+/// How far across the course's centreline `p` is (right positive), and
+/// how far along it.
+fn across(c: &Course, p: V3) -> (i32, i32) {
+    let i = c.nearest_anywhere(p);
+    let s = i as i32 * crate::course::STEP;
+    let right = crate::geom::right_of(c.heading_at(s));
+    (p.flat().sub(c.point(s).flat()).dot(right), s)
+}
+
+#[test]
+fn a_swimmer_with_no_keys_drifts_only_downstream_even_at_the_bend() {
+    // (live feedback: "water pushes you to the side": a player's swimmer
+    // made for the nearer bank by itself)
+    let c = ruins();
+    let lip = c.ruins.as_ref().unwrap().marks.lip;
+    let step = crate::course::STEP;
+    // the sharpest turn along the river (the S-bend)
+    let bend = (1..(lip - int(40)) / step)
+        .map(|i| i * step)
+        .filter(|&s| s > int(40))
+        .max_by_key(|&s| {
+            let (a, b) = (c.heading_at(s - int(5)), c.heading_at(s + int(5)));
+            -(a.dot(b) as i64)
+        })
+        .unwrap();
+    let mut spots: Vec<i32> = (60..(lip / ONE - 40)).step_by(45).map(int).collect();
+    spots.push(bend);
+    for s in spots {
+        for off in [0, int(6), -int(6)] {
+            let mut r = running(false);
+            // (the turtles sunk out of the way: a bounce is not the current)
+            for t in &mut r.course.ruins.as_deref_mut().unwrap().turtles {
+                t.from.y -= int(100);
+                t.to.y -= int(100);
+            }
+            let right = crate::geom::right_of(r.course.heading_at(s));
+            let p = r.course.point(s).add(right.scale(off));
+            let Some(surface) = r.course.water(p) else {
+                panic!("no river at {} m", s / ONE)
+            };
+            let hands = surface - crate::rules::SWIM_SINK + crate::rules::BODY_DROP;
+            put(&mut r, v3(p.x, hands, p.z), V3::ZERO, Mode::Grounded);
+            let (side0, s0) = across(&r.course, p);
+            for _ in 0..3 * TICKS_PER_SECOND {
+                r.step(&[Controls::default()]);
+            }
+            let a = &r.racers[0].ape;
+            let (side1, s1) = across(&r.course, a.pos);
+            assert!(
+                (side1 - side0).abs() <= int(1),
+                "at {} m, {} m across: pushed {} cm to the side",
+                s / ONE,
+                off / ONE,
+                (side1 - side0) * 100 / ONE
+            );
+            assert!(
+                s1 - s0 > int(6),
+                "at {} m: carried {} cm downstream",
+                s / ONE,
+                (s1 - s0) * 100 / ONE
+            );
+        }
+    }
+}
+
+#[test]
+fn no_turtle_swims_into_a_ruin_and_no_ruin_stands_in_the_river() {
+    let c = ruins();
+    let r = c.ruins.as_ref().unwrap();
+    assert!(!r.landmarks.is_empty() && !r.turtles.is_empty());
+    for l in &r.landmarks {
+        let foot = fx::mul(fx::mul(LANDMARK_FOOTPRINT, LANDMARK_DRAWN), l.scale);
+        for t in &r.turtles {
+            // the closest the turtle's path comes to the ruin
+            let d = t.to.sub(t.from).flat();
+            let k = fx::div(l.at.sub(t.from).flat().dot(d), d.dot(d).max(1)).clamp(0, ONE);
+            let near = t.from.flat().add(d.scale(k));
+            let gap = near.dist(l.at.flat()) - foot - TURTLE_RADIUS;
+            assert!(
+                gap >= 2 * TURTLE_RADIUS,
+                "a turtle passes {} cm from a ruin's footprint",
+                gap * 100 / ONE
+            );
+        }
+        // no part of the footprint over the water
+        for k in 0..16 {
+            let o = crate::geom::facing(k * crate::fx::TURN / 16, 0).scale(foot);
+            let q = l.at.add(o);
+            assert!(
+                r.river.water_at(q.x, q.z).is_none(),
+                "a ruin stands in the river"
+            );
+        }
+    }
+    // each turtle stays in the water, short of the bank
+    for t in &r.turtles {
+        for end in [t.from, t.to] {
+            let (side, _) = across(&c, end);
+            assert!(
+                side.abs() + TURTLE_RADIUS <= RIVER_HALF - TURTLE_SHORT + cm(20),
+                "a turtle's shell reaches {} cm from the middle",
+                (side.abs() + TURTLE_RADIUS) * 100 / ONE
+            );
+        }
+    }
+}

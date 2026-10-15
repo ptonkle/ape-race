@@ -478,11 +478,14 @@ impl Ape {
 
     /// In the river: swim (the river's running) toward the nearest way out
     /// unless WASD say otherwise, and climb out on reaching a bank or a
-    /// ladder; a boat bounces the swimmer up (as a mushroom).
+    /// ladder; a boat bounces the swimmer up (as a mushroom). On Sunset
+    /// Ruins only WASD steer: with no keys the current alone carries the
+    /// swimmer, downstream (the AI swims for a bank with keys of its own).
     fn swim(&mut self, wish: V3, course: &Course) {
         let exit = course.water_exit(self.pos);
         let dir = match exit {
             _ if wish != V3::ZERO => wish,
+            _ if course.ruins.is_some() => V3::ZERO,
             Some((to, _)) if to.flat().dist(self.pos.flat()) > cm(20) => {
                 to.flat().sub(self.pos.flat()).norm()
             }
