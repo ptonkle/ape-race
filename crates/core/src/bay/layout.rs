@@ -99,9 +99,12 @@ struct MastSpec {
     ropes: bool,
 }
 
+/// A kind's hull, in metres.
+type Hull = (i32, i32, i32, &'static [(i32, i32, i32)], i32);
+
 /// Length, beam, deck height, raised decks (from, to, height over the
 /// deck) and bowsprit of each kind, in metres.
-fn hull(kind: ShipKind) -> (i32, i32, i32, &'static [(i32, i32, i32)], i32) {
+fn hull(kind: ShipKind) -> Hull {
     match kind {
         ShipKind::Galleon => (52, 14, 7, &[(-26, -12, 3), (16, 26, 2)], 14),
         ShipKind::Frigate => (44, 12, 6, &[(-22, -10, 2)], 12),

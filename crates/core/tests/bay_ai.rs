@@ -121,3 +121,61 @@ fn four_ai_apes_race_the_bay_and_none_passes_through_a_set_sail() {
     }
     println!("water resets: {resets}");
 }
+
+/// Put back on any ship's deck by the water, every level gets off it and
+/// past the next ship's stern within 12 s.
+#[test]
+fn every_level_gets_off_every_deck_back_onto_the_line() {
+    let runs: Vec<_> = [Difficulty::Sloth, Difficulty::KingKong]
+        .into_iter()
+        .map(|level| {
+            std::thread::spawn(move || {
+                let mut stuck = Vec::new();
+                let entries = [Entry {
+                    name: String::new(),
+                    kind: Kind::Chimpanzee,
+                    driver: Driver::Ai,
+                    palette: 0,
+                }];
+                let course = bay();
+                let b = course.bay.as_deref().unwrap().clone();
+                for k in 0..b.ships.len() - 1 {
+                    let mut race = Race::new(course.clone(), &entries, true, 3);
+                    while race.phase != Phase::Running {
+                        race.step(&[Default::default()]);
+                    }
+                    let s = &b.ships[k];
+                    let past = s.point(s.length / 2 + ONE * 2, 0, 0);
+                    let (at, yaw, _) = race.course.bay_reset(&b, past, 0);
+                    race.racers[0].ape.put_on(at, yaw, &race.course);
+                    let n = &b.ships[k + 1];
+                    let stern = n.point(-n.length / 2, 0, 0);
+                    let goal = race
+                        .course
+                        .progress(stern, race.course.nearest_anywhere(stern))
+                        .0;
+                    let mut brain = Brain::new(level, 0xA9E5);
+                    let end = race.tick + 12 * TICKS_PER_SECOND as u32;
+                    while race.tick < end && race.racers[0].progress < goal {
+                        let c = think(&race, 0, &mut brain);
+                        race.step(&[c]);
+                    }
+                    if race.racers[0].progress < goal {
+                        stuck.push(format!(
+                            "{} on ship {k}: at {} m, the next stern at {} m",
+                            level.key(),
+                            race.racers[0].progress / ONE,
+                            goal / ONE
+                        ));
+                    }
+                }
+                stuck
+            })
+        })
+        .collect();
+    let stuck: Vec<String> = runs
+        .into_iter()
+        .flat_map(|r| r.join().expect("the races run"))
+        .collect();
+    assert!(stuck.is_empty(), "stuck on a deck: {stuck:?}");
+}
