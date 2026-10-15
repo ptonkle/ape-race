@@ -3,25 +3,15 @@
 //! first sunset light; the art agent replaces both.
 
 use crate::course::Course;
-use crate::fx::{cm, int};
-use crate::geom::v3;
-use crate::render::rgb;
 use crate::ruins::RuinsLayout;
 use crate::scene::{Look, Scenery};
 
-/// Sunset Ruins' light: a low warm sun. STAND-IN: the sky orange, the fog
-/// a dusky rose; the art agent paints the yellow → crimson sky.
+/// Sunset Ruins' light: the sunset (`ruinsmodels::look`, art phase 1):
+/// a sun 7° up raking gold-orange, rose-violet shade, a golden haze. The
+/// sky's dome (`ruinsmodels::sky`) is drawn round the eye once the scenery
+/// is placed (a later phase).
 pub fn look() -> Look {
-    Look {
-        sky: rgb(250, 150, 70),
-        fog: rgb(200, 110, 90),
-        fog_range: (int(60), int(170)),
-        light_dir: v3(cm(70), cm(25), cm(30)).norm(),
-        light: rgb(255, 190, 120),
-        ground: rgb(80, 90, 45),
-        rim: [0; 3],
-        far: crate::render::FAR,
-    }
+    crate::ruinsmodels::look()
 }
 
 /// Sunset Ruins' scenery and ground, chunked. STAND-IN: the Jungle's.
