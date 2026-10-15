@@ -404,6 +404,10 @@ impl Race {
             if self.ravine(i) {
                 continue;
             }
+            // Banana Bay Battle: the water
+            if self.bay_water(i) {
+                continue;
+            }
             if self.floor_is_lava(i) {
                 self.eat(i);
                 continue;

@@ -63,9 +63,15 @@ use crate::fx::{self, cm, int, ONE, TURN};
 use crate::geom::{right_of, v3, V3};
 use crate::rules::TICKS_PER_SECOND;
 
-pub use layout::{bay, bay_seeded};
+pub use layout::{
+    bay, bay_seeded, BARREL_RADIUS, BARREL_TOP, DOCK_TOP, ISLAND_TOP, RESET_AFT, SHIPS,
+    SHIP_OFFSET, WATER_LEVEL,
+};
 
+#[cfg(test)]
+mod course_tests;
 mod layout;
+mod rules;
 #[cfg(test)]
 mod tests;
 
