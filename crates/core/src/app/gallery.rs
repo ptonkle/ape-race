@@ -7,7 +7,8 @@
 //! commas: `yaw` and `pitch` (the camera's, degrees from the model's front;
 //! a positive pitch looks up from below), `dist` (metres; else framed to the
 //! model), `at` (the tick to start at), `hold` (`on`: stay at `at`) and `x`, `y`,
-//! `z` (metres: the camera's target, off the model's middle).
+//! `z` (metres: the camera's target, off the model's middle) and, for
+//! `cat`, `map` (whose big cat: `map=ruins` is the pith-helmeted jaguar).
 //! E.g. `?gallery=wreck,yaw=40,pitch=12,at=300,hold=on`.
 
 use crate::fx::{self, deg, int, mul, ratio, ONE, TURN};
@@ -58,6 +59,8 @@ pub struct Gallery {
     /// a Sunset Ruins model instead (`ruinsmodels::GALLERY`), drawn under
     /// the sunset
     pub ruins: Option<usize>,
+    /// `cat`: the map whose big cat it is (`map=ruins`; else Sector Ape's)
+    pub map: crate::map::Map,
 }
 
 impl Gallery {
@@ -71,6 +74,7 @@ impl Gallery {
             hold: false,
             aim: V3::ZERO,
             ruins: None,
+            map: crate::map::Map::Sector,
         };
         for (i, pair) in spec.split(',').enumerate() {
             if i == 0 {
@@ -88,6 +92,7 @@ impl Gallery {
                 "dist" => g.dist = n.map(int).or(g.dist),
                 "at" => g.at = v.parse().unwrap_or(g.at),
                 "hold" => g.hold = v == "on",
+                "map" => g.map = crate::map::Map::from_key(v).unwrap_or(g.map),
                 "x" => g.aim.x = n.map(int).unwrap_or(g.aim.x),
                 "y" => g.aim.y = n.map(int).unwrap_or(g.aim.y),
                 "z" => g.aim.z = n.map(int).unwrap_or(g.aim.z),
@@ -209,7 +214,7 @@ impl Gallery {
                     head_down: 0,
                     jaw: ONE / 2,
                 };
-                models::jaguar(b, &j, 100, &models::SPACE_JAGUAR);
+                models::jaguar(b, &j, 100, &models::BigCat::on(self.map));
             }
             // a line of the armada: grunts marching, a brute drifting
             _ => {

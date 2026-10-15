@@ -1191,7 +1191,7 @@ pub fn draw_in(b: &mut Batch, kind: Kind, palette: u8, pose: &Pose) {
     }
     if explorer {
         safari_jacket(&mut rig, kind, &m, &skel);
-        pith_helmet(&mut rig, &l, &skel.head);
+        pith_helmet(&mut rig, cm(l.head), &skel.head);
         spectacles(&mut rig, kind, &l, &skel.head);
     }
     if pose.stunned {
@@ -2038,9 +2038,9 @@ fn safari_jacket(rig: &mut Rig, kind: Kind, m: &Dims, s: &Skel) {
 }
 
 /// The pith helmet: a pale domed shell, a wide flat brim all round, a
-/// brown band and a little vent button on top.
-fn pith_helmet(rig: &mut Rig, l: &Look, h: &Frame) {
-    let d = cm(l.head);
+/// brown band and a little vent button on top, sized for a head `d` across
+/// (an ape's `Look::head`, or the Sunset Ruins jaguar's).
+fn pith_helmet(rig: &mut Rig, d: i32, h: &Frame) {
     let p = |x: i32, y: i32, z: i32| v3(pct(d, x), pct(d, y), pct(d, z));
     rig.put(Mesh::Geo, h.shape(p(0, 40, -4), p(110, 84, 116)), PITH);
     let band = h.at(0, pct(d, 28), -pct(d, 4));
@@ -2460,6 +2460,8 @@ pub struct BigCat {
     pub tail: i32,
     /// a cartoon bubble space helmet (Sector Ape's jaguar, no spacesuit)
     pub helmet: bool,
+    /// the explorers' pith helmet (Sunset Ruins' jaguar)
+    pub pith: bool,
 }
 
 pub const JAGUAR: BigCat = BigCat {
@@ -2470,6 +2472,7 @@ pub const JAGUAR: BigCat = BigCat {
     eye: JAG_EYE,
     tail: 100,
     helmet: false,
+    pith: false,
 };
 
 /// The jaguar in a classic cartoon bubble space helmet and nothing else,
@@ -2477,6 +2480,13 @@ pub const JAGUAR: BigCat = BigCat {
 /// space map's session makes `BigCat::on` return it there.
 pub const SPACE_JAGUAR: BigCat = BigCat {
     helmet: true,
+    ..JAGUAR
+};
+
+/// The jaguar in the explorers' pith helmet, for Sunset Ruins (the person,
+/// 2026-10-14: "give the jaguar a pith helmet too").
+pub const RUINS_JAGUAR: BigCat = BigCat {
+    pith: true,
     ..JAGUAR
 };
 
@@ -2490,6 +2500,7 @@ pub const SNOW_LEOPARD: BigCat = BigCat {
     eye: rgb(176, 204, 178),
     tail: 150,
     helmet: false,
+    pith: false,
 };
 
 impl BigCat {
@@ -2498,6 +2509,7 @@ impl BigCat {
         match map {
             crate::map::Map::Ski => SNOW_LEOPARD,
             crate::map::Map::Sector => SPACE_JAGUAR,
+            crate::map::Map::Ruins => RUINS_JAGUAR,
             _ => JAGUAR,
         }
     }
@@ -2719,6 +2731,15 @@ fn jaguar_head(rig: &mut Rig, j: &crate::jaguar::Jaguar, body: &Frame, fwd: V3, 
     rig.ball(h.at(0, cm(13), cm(2)), cm(3), cat.spot);
     if cat.helmet {
         bubble_helmet(rig, &h, at.sub(neck).norm());
+    }
+    if cat.pith {
+        // the head is 30 cm across; the dome sits over the brow, between
+        // and over the ears, a little back from the eyes
+        let top = Frame {
+            o: h.at(0, cm(1), -cm(3)),
+            ..h
+        };
+        pith_helmet(rig, cm(28), &top);
     }
 }
 
@@ -3081,6 +3102,65 @@ mod tests {
         // no spacesuit: the same coat
         let coat = |s: &[Shape]| s.iter().filter(|x| x.colour == JAG_COAT).count();
         assert_eq!(coat(&space), coat(&plain));
+    }
+
+    #[test]
+    fn only_the_sunset_ruins_jaguar_wears_a_pith_helmet() {
+        // the person, 2026-10-14: "give the jaguar a pith helmet too"
+        use crate::map::Map;
+        for map in Map::ALL {
+            assert_eq!(BigCat::on(map).pith, map == Map::Ruins, "{map:?}");
+        }
+        for head_down in [0, ONE] {
+            let j = crate::jaguar::Jaguar {
+                feet: V3::ZERO,
+                yaw: 0,
+                gait: 0,
+                stride: ONE,
+                leap: 0,
+                head_down,
+                jaw: ONE / 2,
+            };
+            let draw = |cat: &BigCat| {
+                let mut b = Batch::new();
+                jaguar(&mut b, &j, 100, cat);
+                shapes(b)
+            };
+            let ruins = draw(&RUINS_JAGUAR);
+            let has = |s: &[Shape], c: Rgb| s.iter().any(|x| x.colour == c);
+            assert!(
+                has(&ruins, PITH) && has(&ruins, PITH_BAND),
+                "no pith helmet"
+            );
+            for other in [JAGUAR, SPACE_JAGUAR, SNOW_LEOPARD] {
+                let s = draw(&other);
+                assert!(!has(&s, PITH) && !has(&s, PITH_BAND), "{other:?}");
+            }
+            // dome, band, brim, button; the same cat underneath
+            let plain = draw(&JAGUAR);
+            assert_eq!(ruins.len(), plain.len() + 4);
+            let coat = |s: &[Shape]| s.iter().filter(|x| x.colour == JAG_COAT).count();
+            assert_eq!(coat(&ruins), coat(&plain));
+            // on the head: the dome sits over the eyes, not off in space
+            let eyes: Vec<V3> = plain
+                .iter()
+                .filter(|x| x.colour == JAG_EYE)
+                .map(|x| x.at)
+                .collect();
+            let brow = eyes[0].lerp(eyes[1], ONE / 2);
+            let dome = ruins
+                .iter()
+                .find(|x| x.colour == PITH && x.mesh == Mesh::Geo as u32)
+                .unwrap()
+                .at;
+            assert!(
+                dome.dist(brow) < cm(22),
+                "dome {} from the brow",
+                dome.dist(brow)
+            );
+            let up = dome.sub(brow).dot(V3::UP);
+            assert!(head_down > 0 || up > cm(4), "dome only {up} above the eyes");
+        }
     }
 
     #[test]
