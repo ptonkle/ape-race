@@ -13,16 +13,16 @@ The standard map-build steps (MAPS.md "Build steps"), one row each. Status is on
 | 7 | Map rules | Done | Current, ravine reset, bridge boost, spikes, trapdoors |
 | 8 | Art placed on the course | In progress | Merged: the whole map draws on its course. Polish pass running (cliffs, a ground fold, dim glyphs) |
 | 9 | Lobby spot and flyover | In progress | Flyover smooth (its test passes); lobby being reframed |
-| 10 | AI validation | In progress | Merged: ordered over 8 layouts (Sloth 86.9, Monkey 77.7, Ape 71.3, King Kong 64.3 s); thin on 16 (the Ape stalls on 3); an agent is fixing the bridge and mouth stalls |
-| 11 | Medal times | Done | Author 0:54, Gold 1:01, Silver 1:11, Bronze 1:26 |
-| 12 | Step and frame cost | In progress | Worst step 7.1 ms near the start (other maps 1.4–2.7 ms); an agent is fixing it |
+| 10 | AI validation | Done | Ordered over 32 layouts: Sloth 88.1, Monkey 78.2, Ape 71.9, King Kong 64.7 s; river, bridge and turn-in stalls fixed |
+| 11 | Medal times | Done | Author 0:56, Gold 1:03, Silver 1:13, Bronze 1:28 (re-measured) |
+| 12 | Step and frame cost | Done | Worst step 2.75 ms over 2,000 frames (was 7.1); race results unchanged by the speed-ups |
 | 13 | Colourblind and JOJO MODE | In progress | Colourblind fine; JOJO MODE misses the haze band and the temple face, being fixed |
 | 14 | Map card | In progress | Being made by the polish agent |
 | 15 | Screenshots at 1920×1080 | In progress | Apes, contrast and 14 in-game shots on the journal; finish shot and v2 coming |
 | 16 | Other maps unchanged | Done | All tests pass on main, release and debug (a debug-only overflow found and fixed) |
 | 17 | Docs | In progress | SECOND-ORDER rows written; README, MAPS.md, HANDOFF to do |
-| 18 | Full checks | In progress | Early run on main: fmt, clippy, debug tests, build, import audit pass; browser and online checks pass in Chromium (online race too). Full run in all three browsers after the agents land |
-| 19 | Deploy | Waiting on you | Only on your go-ahead |
+| 18 | Full checks | In progress | Early run on main passed in Chromium (browser and online); deployed without the full three-browser run, on your word |
+| 19 | Deploy | Done | 1.10.0 live at 23:20 (the polish pass follows as 1.10.1) |
 
 ## This map's features
 
@@ -41,7 +41,7 @@ One row per concept from the brief, plus any added later (your feedback, a new i
 | Waterfall and ravine reset | Brief | Done | Done | Done | Done |
 | Rope bridge, three gorillas wide | Brief | Done | n/a | Done | Done |
 | Boost vines launch into the mouth | Brief | Done | Done | Done | Done |
-| Weaker AIs cross the bridge and mouth without stalling | AI tuning | n/a | In progress | In progress | Not started |
+| Weaker AIs cross the bridge and mouth without stalling | AI tuning | n/a | Done | Done | Done |
 | Temple mouth in Aztec relief, with depth | Brief, your feedback | Done | Done | Done | Done |
 | Waterfall from the mouth | Brief | Done | n/a | Done | Done |
 | Banana-glyph stonework, pulsing glow | Brief | Done | n/a | Done | Done |
