@@ -4,7 +4,15 @@
 //! map's key).
 
 use crate::course::Course;
+use crate::fx::Dice;
 use serde::{Deserialize, Serialize};
+
+/// Random's key among the maps' on the map choice (TRIAGE T64), and
+/// `map.random` in data/strings.json.
+pub const RANDOM_MAP: &str = "random";
+/// Random's picture on the map choice: a question mark over the maps'
+/// colours.
+pub const RANDOM_PICTURE: &str = "data/maps/random.svg";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -38,6 +46,14 @@ impl Map {
         format!("data/maps/{}.webp", self.key())
     }
 
+    /// A map for a race on Random (TRIAGE T64), from a seed the caller
+    /// chose (the core has no dice of its own: BUILDER-SPEC D2): any map but
+    /// `last`, so Random never runs the same map twice in a row.
+    pub fn random(seed: u64, last: Map) -> Map {
+        let others: Vec<Map> = Map::ALL.into_iter().filter(|m| *m != last).collect();
+        others[Dice(seed).below(others.len() as u32) as usize]
+    }
+
     pub fn from_key(key: &str) -> Option<Map> {
         Map::ALL.into_iter().find(|m| m.key() == key)
     }
@@ -69,6 +85,26 @@ mod tests {
             assert_eq!(c.name, m.key());
             assert_eq!(Map::of(&c), m);
             assert_eq!(Map::from_key(m.key()), Some(m));
+        }
+    }
+
+    #[test]
+    fn random_picks_every_other_map_and_never_the_last() {
+        for last in Map::ALL {
+            let mut seen = Vec::new();
+            for seed in 0..200u64 {
+                let m = Map::random(seed, last);
+                assert_ne!(m, last, "seed {seed} repeated {last:?}");
+                if !seen.contains(&m) {
+                    seen.push(m);
+                }
+            }
+            assert_eq!(seen.len(), Map::ALL.len() - 1, "after {last:?}: {seen:?}");
+            assert_eq!(
+                Map::random(7, last),
+                Map::random(7, last),
+                "the same seed, the same map"
+            );
         }
     }
 }

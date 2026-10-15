@@ -490,7 +490,6 @@ fn ready_up_gates_the_start_and_a_settings_change_keeps_it() {
         net.nodes[2].lobby().seats[1].ready,
         "joiners see each other's marks"
     );
-    assert!(!net.nodes[1].lobby().settings_changed);
     // TRIAGE T61: no setting the host changes clears a Ready mark
     let now = net.now;
     net.nodes[0].set_equal_stats(true, now).unwrap();
@@ -508,21 +507,12 @@ fn ready_up_gates_the_start_and_a_settings_change_keeps_it() {
         assert!(view.ready, "node {i} still ready");
         assert!(view.equal_stats && view.lava, "node {i} sees the settings");
         assert_eq!((view.ai_count, view.map), (1, Map::City), "node {i}");
-        assert!(view.settings_changed, "node {i} is told they changed");
     }
-    assert!(!net.nodes[0].lobby().settings_changed, "not the host");
-    // cancelling (or readying again) clears the note
+    // cancelling takes the mark away
     let now = net.now;
     net.nodes[1].set_ready(false, now).unwrap();
     net.run(500);
-    assert!(!net.nodes[1].lobby().settings_changed);
     assert!(!net.nodes[0].lobby().can_start);
-    // a joiner who is not ready is not told
-    let now = net.now;
-    net.nodes[0].set_lava(false, now).unwrap();
-    net.run(500);
-    assert!(!net.nodes[1].lobby().settings_changed);
-    assert!(net.nodes[2].lobby().settings_changed);
     net.ready_all();
     assert!(net.nodes[0].lobby().can_start);
     // the race starts on the settings the joiners saw

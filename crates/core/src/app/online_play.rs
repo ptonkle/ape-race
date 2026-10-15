@@ -124,6 +124,7 @@ impl App {
         .with_palette(self.settings.palette());
         if host {
             let _ = o.set_map(self.settings.map, self.now_ms);
+            let _ = o.set_random_map(self.settings.random_map, self.now_ms);
             let _ = o.set_ai_count(self.settings.ai_count as usize, self.now_ms);
             let _ = o.set_equal_stats(self.settings.equal_stats, self.now_ms);
             let _ = o.set_lava(self.settings.lava, self.now_ms);
@@ -277,12 +278,18 @@ impl App {
                 }
             }
             "lobby.map" => {
-                if let (Some(m), Some(o)) =
-                    (crate::map::Map::from_key(value), &mut self.online.session)
-                {
-                    if o.set_map(m, now).is_ok() {
-                        self.settings.map = m;
-                        self.save = true;
+                if let Some(o) = &mut self.online.session {
+                    if value == crate::map::RANDOM_MAP {
+                        if o.set_random_map(true, now).is_ok() {
+                            self.settings.random_map = true;
+                            self.save = true;
+                        }
+                    } else if let Some(m) = crate::map::Map::from_key(value) {
+                        if o.set_map(m, now).is_ok() && o.set_random_map(false, now).is_ok() {
+                            self.settings.map = m;
+                            self.settings.random_map = false;
+                            self.save = true;
+                        }
                     }
                 }
             }
@@ -410,6 +417,7 @@ impl App {
             self.begin(race, start.local_index);
             if let Some(p) = &mut self.play {
                 p.online = true;
+                p.random_map = start.random_map;
             }
             return;
         }
@@ -662,7 +670,10 @@ impl App {
             mine.insert(0, weather);
         }
         if view.is_host {
-            mine.insert(0, self.map_tiles("lobby.map", view.map, false));
+            mine.insert(
+                0,
+                self.map_tiles("lobby.map", view.map, view.random_map, false),
+            );
             let options: Vec<Value> = (0..=view.max_ai)
                 .map(|n| json!({ "value": n.to_string(), "text": n.to_string() }))
                 .collect();
@@ -681,16 +692,14 @@ impl App {
             mine.push(start);
         } else {
             // the host's pick, read-only (TRIAGE T54)
-            mine.insert(0, self.map_tiles("lobby.map", view.map, true));
+            mine.insert(
+                0,
+                self.map_tiles("lobby.map", view.map, view.random_map, true),
+            );
             mine.push(json!({ "type": "list", "rows": [[self.t("setup.equal"),
                 self.t(if view.equal_stats { "on" } else { "off" })]] }));
             mine.push(json!({ "type": "list", "rows": [[self.t("setup.lava"),
                 self.t(if view.lava { "on" } else { "off" })]] }));
-            // setting changes keep Ready marks (TRIAGE T61), so say so
-            if view.settings_changed && view.ready {
-                mine.push(json!({ "type": "list", "id": "lobby.changed",
-                    "rows": [[self.t("online.status"), self.t("online.settings_changed")]] }));
-            }
             let mut ready = self.button("lobby.ready");
             ready["text"] = json!(self.t(if view.ready {
                 "online.cancel_ready"

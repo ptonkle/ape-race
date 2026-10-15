@@ -77,8 +77,9 @@ fn race_setup_and_time_trial_offer_every_map_as_a_grid_of_pictures() {
         assert_eq!(grid["read_only"], false);
         assert_eq!(grid["value"], "jungle");
         let (all, chosen) = cards(&grid);
-        let keys: Vec<&str> = Map::ALL.iter().map(|m| m.key()).collect();
-        assert_eq!(all, keys);
+        let mut keys: Vec<&str> = Map::ALL.iter().map(|m| m.key()).collect();
+        keys.push("random");
+        assert_eq!(all, keys, "every map, then Random (TRIAGE T64)");
         assert_eq!(chosen, ["jungle"]);
         for (o, m) in grid["options"].as_array().unwrap().iter().zip(Map::ALL) {
             assert_eq!(o["picture"], format!("data/maps/{}.webp", m.key()));
@@ -220,4 +221,64 @@ fn every_screen_names_the_version() {
     let mut a = app();
     let ui: serde_json::Value = serde_json::from_str(&a.ui()).unwrap();
     assert_eq!(ui["version"], format!("v{}", crate::app::VERSION));
+}
+
+#[test]
+fn random_picks_another_map_at_each_start_and_the_hud_names_it() {
+    // TRIAGE T64: Random is the last card; each race (and Time Trial) on
+    // it runs on a map other than the last, picked at the start, and the
+    // HUD names that map through the countdown
+    for menu in ["menu.race", "menu.trial"] {
+        let mut a = app();
+        a.act(menu, "");
+        a.act("setup.map", "city");
+        a.act("setup.map", "random");
+        assert!(a.settings.random_map);
+        let grid = item(&ui_of(&mut a), "setup.map").unwrap();
+        assert_eq!(grid["value"], "random");
+        assert_eq!(cards(&grid).1, ["random"], "only Random is marked");
+        let card = grid["options"].as_array().unwrap().last().unwrap().clone();
+        assert_eq!(card["id"], "setup.map.random");
+        assert_eq!(card["text"], "Random");
+        assert_eq!(card["picture"], "data/maps/random.svg");
+        // the preview stays on the last map until a race picks one
+        assert_eq!(a.map(), Map::City);
+        a.act("setup.map", "random");
+        let saved = ui_of(&mut a)["save"].as_str().unwrap().to_string();
+        let b = App::new(include_str!("../../../../data/strings.json"), &saved, 7).unwrap();
+        assert!(b.settings.random_map, "Random is kept with the settings");
+        let mut last = Map::City;
+        let mut seen = Vec::new();
+        for n in 0..12 {
+            for _ in 0..n {
+                a.tick();
+            }
+            a.act("menu.start", "");
+            let p = a.play.as_ref().unwrap();
+            let map = Map::of(&p.race.course);
+            assert_ne!(map, last, "{menu}: race {n} ran the last map again");
+            assert_eq!(a.settings.map, map, "it becomes the last map");
+            assert!(p.random_map);
+            let hud = &ui_of(&mut a)["hud"];
+            assert_eq!(
+                hud["reward"].as_str().unwrap(),
+                format!("Random map: {}", a.map_name(map)),
+                "{menu}: the start names the map"
+            );
+            if !seen.contains(&map) {
+                seen.push(map);
+            }
+            last = map;
+            a.act("menu.back", "");
+            a.act(menu, "");
+            assert!(a.settings.random_map, "Random stays chosen");
+        }
+        assert!(seen.len() >= 3, "{menu}: {seen:?}");
+        // a map's own card turns Random off: no name at the start
+        a.act("setup.map", "ski");
+        assert!(!a.settings.random_map);
+        a.act("menu.start", "");
+        assert_eq!(Map::of(&a.play.as_ref().unwrap().race.course), Map::Ski);
+        assert_eq!(ui_of(&mut a)["hud"]["reward"], "");
+    }
 }

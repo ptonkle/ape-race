@@ -62,7 +62,7 @@ fn the_weather_is_in_settings_clear_by_default_and_kept_after_a_reload() {
 }
 
 #[test]
-fn the_ski_slopes_setup_offers_the_weather_under_the_map_and_no_other_map_does() {
+fn the_ski_slopes_setup_offers_the_weather_beside_the_colours_and_no_other_map_does() {
     for menu in ["menu.race", "menu.trial"] {
         let mut a = app();
         a.act(menu, "");
@@ -73,8 +73,9 @@ fn the_ski_slopes_setup_offers_the_weather_under_the_map_and_no_other_map_does()
         let ui = ui_of(&mut a);
         let all = items(&ui);
         assert_eq!(all[0]["id"], "setup.map");
-        assert_eq!(all[1]["id"], "setup.weather", "{menu}: under the map");
-        assert_eq!(all[1]["label"], "Weather");
+        assert_eq!(all[2]["id"], "setup.palette");
+        assert_eq!(all[3]["id"], "setup.weather", "{menu}: beside the colours");
+        assert_eq!(all[3]["label"], "Weather");
         a.act("setup.weather", "snowing");
         assert_eq!(a.settings.weather, Weather::Snowing);
         assert_eq!(
