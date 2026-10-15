@@ -10,6 +10,7 @@ use serde_json::{json, Value};
 use crate::ai::Brain;
 use crate::ape::{Controls, Happening};
 use crate::camera::{self, Chase, Pan};
+use crate::costume::Costume;
 use crate::course::Course;
 use crate::focus::{self, Focus};
 use crate::fx::{self, deg, int, ONE};
@@ -123,6 +124,11 @@ pub struct Settings {
     pub notes_seen: String,
     /// the patch notes list minor versions (x.y.z, z not 0) too
     pub notes_minor: bool,
+    /// the costume this player's ape wears on every map (TRIAGE T89):
+    /// `Own` (each map's gear), `Bare`, or an unlocked one
+    pub costume: Costume,
+    /// the costumes unlocked by beating a map's Author time (T89), by key
+    pub costumes: BTreeSet<String>,
 }
 
 /// One map's personal bests, in race ticks.
@@ -160,6 +166,8 @@ impl Default for Settings {
             palettes: BTreeMap::new(),
             notes_seen: String::new(),
             notes_minor: false,
+            costume: Costume::Own,
+            costumes: BTreeSet::new(),
         }
     }
 }
@@ -178,7 +186,40 @@ impl Settings {
         s.speed_colours &= s.colours_unlocked;
         s.palettes
             .retain(|k, p| Kind::from_key(k).is_some() && *p > 0 && *p < models::PALETTES);
+        // costumes (TRIAGE T89): only real, unlockable ones; an Author time
+        // beaten before costumes existed unlocks its map's too
+        s.costumes
+            .retain(|k| Costume::from_key(k).is_some_and(|c| c.map().is_some()));
+        for map in Map::ALL {
+            for trial in [false, true] {
+                if let Some(c) = s.best(map, trial).and_then(|t| Costume::earned(map, t)) {
+                    s.costumes.insert(c.key().to_string());
+                }
+            }
+        }
+        if !s.wearable(s.costume) {
+            s.costume = Costume::Own;
+        }
         s
+    }
+
+    /// Whether this player may wear `c` (TRIAGE T89): the map's own and
+    /// none always, the others once unlocked.
+    pub fn wearable(&self, c: Costume) -> bool {
+        c.map().is_none() || self.costumes.contains(c.key())
+    }
+
+    /// Unlocks `c`; true when it was locked before.
+    pub fn unlock(&mut self, c: Costume) -> bool {
+        self.costumes.insert(c.key().to_string())
+    }
+
+    /// Chooses the costume to wear; a locked one is refused (false).
+    pub fn set_costume(&mut self, c: Costume) -> bool {
+        if self.wearable(c) {
+            self.costume = c;
+        }
+        self.costume == c
     }
 
     /// The colours `kind` wears (TRIAGE T49).
@@ -302,6 +343,8 @@ pub struct Play {
     pub hype: crate::hype::Hype,
     /// the local finish beat the saved best
     new_best: bool,
+    /// the local finish unlocked this costume (TRIAGE T89)
+    pub new_costume: Option<Costume>,
     /// each vine drawn as a bending chain (TRIAGE row 12)
     pub chains: Vec<crate::vinesim::Chain>,
     /// Sector Ape: where an ape was just put back on a deck or the door
@@ -1110,6 +1153,11 @@ impl App {
                     self.save = true;
                 }
             }
+            "setup.costume" => {
+                if let Some(c) = Costume::from_key(value) {
+                    self.save |= self.settings.set_costume(c);
+                }
+            }
             "setup.ai_level" => {
                 if let Some(d) = crate::ai::Difficulty::from_key(value) {
                     self.settings.ai_level = d;
@@ -1187,6 +1235,7 @@ impl App {
             kind: self.settings.kind,
             driver: Driver::Local,
             palette: self.settings.palette(),
+            costume: self.settings.costume,
         }];
         let mut d = fx::Dice(self.seed ^ self.ticks as u64);
         // the AI picks kinds other than the player's where it can
@@ -1207,6 +1256,7 @@ impl App {
                 kind: k,
                 driver: Driver::Ai,
                 palette: crate::race::palette_apart(crate::race::worn(&entries), k),
+                costume: crate::costume::Costume::Own,
             });
         }
         // Random (TRIAGE T64): a map other than the last, from the page's
@@ -1289,6 +1339,7 @@ impl App {
             colour_speed: 0,
             hype: crate::hype::Hype::default(),
             new_best: false,
+            new_costume: None,
             chains: Vec::new(),
             flashes: Vec::new(),
             trial: false,
@@ -1416,6 +1467,14 @@ impl App {
                 if p.new_best {
                     *best = Some(t);
                     self.save = true;
+                }
+                // under the map's Author time, in any mode: its costume
+                // (TRIAGE T89)
+                if let Some(c) = Costume::earned(Map::of(&p.race.course), t) {
+                    if self.settings.unlock(c) {
+                        p.new_costume = Some(c);
+                        self.save = true;
+                    }
                 }
             }
             let since = p.since_out.map(|t| t + 1).unwrap_or(0);
@@ -1789,6 +1848,30 @@ impl App {
           "value": self.settings.palette().to_string(), "options": options })
     }
 
+    /// The costume to wear (TRIAGE T89), as a select with id `id`: the
+    /// map's own, none, and each map's costume, a locked one shown greyed
+    /// with how to unlock it.
+    pub(crate) fn costume_select(&self, id: &str) -> Value {
+        let options: Vec<Value> = Costume::ALL
+            .into_iter()
+            .map(|c| {
+                let name = self.t(&format!("costume.{}", c.key()));
+                match c.map() {
+                    Some(map) if !self.settings.wearable(c) => {
+                        let hint = self
+                            .t("costume.locked")
+                            .replace("{map}", &self.map_name(map));
+                        json!({ "value": c.key(), "text": format!("{name} ({hint})"),
+                                "disabled": true })
+                    }
+                    _ => json!({ "value": c.key(), "text": name }),
+                }
+            })
+            .collect();
+        json!({ "type": "select", "id": id, "label": self.t("setup.costume"),
+          "value": self.settings.costume.key(), "options": options })
+    }
+
     /// The name of `kind`'s palette `p`.
     pub(crate) fn palette_name(&self, kind: Kind, p: u8) -> String {
         if p == 0 {
@@ -1819,16 +1902,17 @@ impl App {
               "value": self.settings.kind.key(), "options": kinds,
               "text": self.t(&format!("ape.{}", self.settings.kind.key())) }),
             self.palette_select("setup.palette"),
+            self.costume_select("setup.costume"),
             json!({ "type": "stats", "label": self.t("setup.stats"), "rows": self.stats_rows(&stats) }),
         ];
         // the Ski Slope's weather, Banana Bay Battle's (and Random's, which
-        // may pick either), beside the colours so the two short selects
-        // share a row (TRIAGE T70)
+        // may pick either), after the colours and the costume (TRIAGE T70,
+        // T89: those two short selects share a row)
         if self.settings.random_map {
-            items.insert(3, self.weather_select("setup.weather", None));
+            items.insert(4, self.weather_select("setup.weather", None));
         } else if crate::snow::Weather::offered(self.settings.map).len() > 1 {
             items.insert(
-                3,
+                4,
                 self.weather_select("setup.weather", Some(self.settings.map)),
             );
         }
@@ -2180,7 +2264,17 @@ impl App {
         } else {
             self.t("results.best")
         };
-        json!({ "type": "list", "rows": [[label, best], [self.t("setup.map"), self.map_name(map)]] })
+        let mut rows = vec![
+            json!([label, best]),
+            json!([self.t("setup.map"), self.map_name(map)]),
+        ];
+        if let Some(c) = p.new_costume {
+            rows.push(json!([
+                self.t("results.costume_unlocked"),
+                self.t(&format!("costume.{}", c.key()))
+            ]));
+        }
+        json!({ "type": "list", "rows": rows })
     }
 
     fn results_table(&self, p: &Play) -> Value {
@@ -2808,6 +2902,8 @@ fn cue_for(e: &Event, local: usize) -> Option<Cue> {
     }
 }
 
+#[cfg(test)]
+mod costume_tests;
 #[cfg(test)]
 #[path = "app/items_hype_tests.rs"]
 mod items_hype_tests;

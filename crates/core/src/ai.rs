@@ -1845,6 +1845,7 @@ fn trial_with(
             kind,
             driver: Driver::Ai,
             palette: 0,
+            costume: crate::costume::Costume::Own,
         })
         .collect();
     let mut race = Race::new(course, &entries, equal, 7);

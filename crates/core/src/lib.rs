@@ -24,6 +24,7 @@ pub mod bayscape;
 pub mod camera;
 pub mod city;
 pub mod cityscape;
+pub mod costume;
 pub mod course;
 pub mod dance;
 pub mod focus;

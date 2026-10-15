@@ -189,6 +189,7 @@ fn an_ai_ape_of_a_kind_already_racing_wears_other_colours() {
         kind,
         driver: Driver::Ai,
         palette,
+        costume: crate::costume::Costume::Own,
     };
     let taken = [e(Kind::Gorilla, 0), e(Kind::Gorilla, 2), e(Kind::Lemur, 1)];
     let apart = |kind| crate::race::palette_apart(crate::race::worn(&taken), kind);

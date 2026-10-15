@@ -146,6 +146,8 @@ pub struct Racer {
     pub eaten: Option<Eaten>,
     /// its colours (TRIAGE T49), from its entry
     pub palette: u8,
+    /// its costume (TRIAGE T89), from its entry
+    pub costume: crate::costume::Costume,
 }
 
 impl Racer {
@@ -262,6 +264,10 @@ pub struct Entry {
     /// before palettes read
     #[serde(default, skip_serializing_if = "is_classic")]
     pub palette: u8,
+    /// its costume (TRIAGE T89): `Own` (the map's gear) as recordings made
+    /// before costumes read
+    #[serde(default, skip_serializing_if = "crate::costume::Costume::is_own")]
+    pub costume: crate::costume::Costume,
 }
 
 fn is_classic(p: &u8) -> bool {
@@ -302,6 +308,7 @@ impl Race {
                     took: vec![false; course.bananas.len()],
                     eaten: None,
                     palette: e.palette,
+                    costume: e.costume,
                 }
             })
             .collect();
@@ -724,6 +731,7 @@ mod tests {
                 kind: Kind::ALL[i],
                 driver: Driver::Local,
                 palette: 0,
+                costume: crate::costume::Costume::Own,
             })
             .collect()
     }

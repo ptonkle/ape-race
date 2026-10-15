@@ -71,6 +71,7 @@ mod tests {
             kind: Kind::Gorilla,
             driver: Driver::Local,
             palette: 0,
+            costume: crate::costume::Costume::Own,
         };
         let mut r = Race::new(Course::jungle(), &[e], false, 1);
         for _ in 0..COUNTDOWN + 100 {

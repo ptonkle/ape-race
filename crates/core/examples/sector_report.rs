@@ -49,6 +49,7 @@ fn run(course: Course, kind: Kind, level: Difficulty, equal: bool) -> Run {
         kind,
         driver: Driver::Ai,
         palette: 0,
+        costume: tool_core::costume::Costume::Own,
     }];
     let mut race = Race::new(course, &entries, equal, 7);
     let mut brain = Brain::new(level, 0xA9E5);

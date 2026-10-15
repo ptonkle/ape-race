@@ -71,6 +71,7 @@ fn main() {
                     kind: Kind::Chimpanzee,
                     driver: Driver::Ai,
                     palette: 0,
+                    costume: tool_core::costume::Costume::Own,
                 }];
                 let mut race = Race::new(course, &entries, true, 7);
                 let mut brain = Brain::new(level, 0xA9E5);

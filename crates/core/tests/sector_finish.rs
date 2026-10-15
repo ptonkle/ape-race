@@ -22,6 +22,7 @@ fn finishers(seed: u64) -> Vec<(usize, Kind, i32, i32)> {
             kind,
             driver: Driver::Ai,
             palette: 0,
+            costume: tool_core::costume::Costume::Own,
         })
         .collect();
     let mut race = Race::new(Map::Sector.course(), &entries, seed.is_multiple_of(3), seed);

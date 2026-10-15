@@ -173,6 +173,7 @@ impl App {
                 kind: k,
                 driver: Driver::Ai,
                 palette: t.palettes.get(i).copied().unwrap_or(0),
+                costume: crate::costume::Costume::Own,
             })
             .collect();
         let focus = t.focus.min(entries.len() - 1);

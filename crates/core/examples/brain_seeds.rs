@@ -22,6 +22,7 @@ fn main() {
                 kind,
                 driver: Driver::Ai,
                 palette: 0,
+                costume: tool_core::costume::Costume::Own,
             }];
             let mut race = Race::new(map.course(), &entries, false, 7 + s);
             let mut brain = Brain::new(level, 0xA9E5 + s * 101);

@@ -90,6 +90,7 @@ use std::collections::{BTreeMap, BTreeSet, VecDeque};
 use serde::{Deserialize, Serialize};
 
 use crate::ape::{Ape, Mode};
+use crate::costume::Costume;
 use crate::fx::{self, Dice, ONE};
 use crate::geom::V3;
 use crate::items::ItemSet;
@@ -116,7 +117,9 @@ use crate::snow::Weather;
 /// could not read in a Roster or a Start.
 /// 11: Banana Bay Battle (2026-10-15): the map `bay`, which a client of 10
 /// could not read in a Roster or a Start.
-pub const PROTOCOL: u32 = 11;
+/// 12: costumes (TRIAGE T89): `costume` in `Hello`, `Pick` and each
+/// roster seat, so every browser draws each player's chosen costume.
+pub const PROTOCOL: u32 = 12;
 /// The most apes in a race, humans and AI together.
 pub const MAX_APES: usize = 4;
 /// The most AI apes the host may add.
@@ -209,6 +212,9 @@ pub struct Human {
     /// its ape's colours (TRIAGE T49, PROTOCOL 7)
     #[serde(default)]
     pub palette: u8,
+    /// its ape's costume (TRIAGE T89, PROTOCOL 12)
+    #[serde(default)]
+    pub costume: Costume,
 }
 
 /// The AI apes' kinds: the kinds no human chose first, in the usual order,
@@ -337,6 +343,8 @@ pub struct SeatView {
     pub kind: Kind,
     /// its ape's colours (TRIAGE T49)
     pub palette: u8,
+    /// its ape's costume (TRIAGE T89)
+    pub costume: Costume,
     pub ai: bool,
     pub host: bool,
     pub me: bool,
@@ -393,6 +401,9 @@ enum Msg {
         /// the ape's colours (TRIAGE T49, PROTOCOL 7)
         #[serde(default)]
         palette: u8,
+        /// the ape's costume (TRIAGE T89, PROTOCOL 12)
+        #[serde(default)]
+        costume: Costume,
     },
     Refuse {
         reason: Refusal,
@@ -420,6 +431,9 @@ enum Msg {
         /// the ape's colours (TRIAGE T49, PROTOCOL 7)
         #[serde(default)]
         palette: u8,
+        /// the ape's costume (TRIAGE T89, PROTOCOL 12)
+        #[serde(default)]
+        costume: Costume,
     },
     Ready {
         ready: bool,
@@ -615,6 +629,8 @@ pub struct Online {
     kind: Kind,
     /// this browser's ape's colours (TRIAGE T49)
     palette: u8,
+    /// this browser's ape's costume (TRIAGE T89)
+    costume: Costume,
     is_host: bool,
     host_peer: Option<PeerId>,
     status: Status,
@@ -645,6 +661,8 @@ pub struct Online {
     wanted_kind: Option<Kind>,
     /// colours chosen and not yet in the roster (TRIAGE T49)
     wanted_palette: Option<u8>,
+    /// a costume chosen and not yet in the roster (TRIAGE T89)
+    wanted_costume: Option<Costume>,
     last_pick_ms: i64,
     wanted_ready: Option<bool>,
     last_ready_ms: i64,
@@ -666,6 +684,7 @@ impl Online {
             name: clean_name(name),
             kind,
             palette: 0,
+            costume: Costume::Own,
             is_host: false,
             host_peer: None,
             status: Status::Joining,
@@ -686,6 +705,7 @@ impl Online {
             last_ping_ms: now_ms - PING_EVERY_MS,
             wanted_kind: None,
             wanted_palette: None,
+            wanted_costume: None,
             last_pick_ms: now_ms,
             wanted_ready: None,
             last_ready_ms: now_ms,
@@ -709,6 +729,7 @@ impl Online {
             kind,
             ready: false,
             palette: 0,
+            costume: Costume::Own,
         }];
         o
     }
@@ -722,6 +743,26 @@ impl Online {
             }
         }
         self
+    }
+
+    /// Starts with this browser's ape in costume `costume` (TRIAGE T89).
+    pub fn with_costume(mut self, costume: Costume) -> Online {
+        self.costume = costume;
+        if self.is_host {
+            if let Some(h) = self.humans.first_mut() {
+                h.costume = costume;
+            }
+        }
+        self
+    }
+
+    /// This browser's ape, colours and costume, for the host.
+    fn pick(&self) -> Msg {
+        Msg::Pick {
+            kind: self.kind,
+            palette: self.palette,
+            costume: self.costume,
+        }
     }
 
     /// Joins a lobby; the Hello goes when the transport connects the host.
@@ -783,6 +824,7 @@ impl Online {
             name: self.name.clone(),
             kind: self.kind,
             palette: self.palette,
+            costume: self.costume,
         }
     }
 
@@ -937,10 +979,15 @@ impl Online {
                 name,
                 kind,
                 palette,
-            } if self.is_host => self.on_hello(&peer, proto, id, &name, (kind, palette), now_ms),
-            Msg::Pick { kind, palette } if self.is_host => {
-                self.on_pick(&peer, (kind, palette), now_ms)
+                costume,
+            } if self.is_host => {
+                self.on_hello(&peer, proto, id, &name, (kind, palette, costume), now_ms)
             }
+            Msg::Pick {
+                kind,
+                palette,
+                costume,
+            } if self.is_host => self.on_pick(&peer, (kind, palette, costume), now_ms),
             Msg::Ready { ready } if self.is_host => self.on_ready(&peer, ready, now_ms),
             Msg::Name { name } if self.is_host => self.on_name(&peer, &name, now_ms),
             Msg::Screech => {
@@ -1141,7 +1188,7 @@ impl Online {
         proto: u32,
         id: String,
         name: &str,
-        (kind, palette): (Kind, u8),
+        (kind, palette, costume): (Kind, u8, Costume),
         now: i64,
     ) {
         if proto != PROTOCOL {
@@ -1206,6 +1253,7 @@ impl Online {
             kind,
             ready: false,
             palette,
+            costume,
         });
         self.roster_changed(now);
     }
@@ -1215,16 +1263,25 @@ impl Online {
         self.humans.iter().position(|h| h.id == id)
     }
 
-    fn on_pick(&mut self, peer: &PeerId, (kind, palette): (Kind, u8), now_ms: i64) {
+    fn on_pick(
+        &mut self,
+        peer: &PeerId,
+        (kind, palette, costume): (Kind, u8, Costume),
+        now_ms: i64,
+    ) {
         if !self.in_lobby() {
             return;
         }
         match self.seat_of_peer(peer) {
             Some(i)
-                if i != 0 && (self.humans[i].kind != kind || self.humans[i].palette != palette) =>
+                if i != 0
+                    && (self.humans[i].kind != kind
+                        || self.humans[i].palette != palette
+                        || self.humans[i].costume != costume) =>
             {
                 self.humans[i].kind = kind;
                 self.humans[i].palette = palette;
+                self.humans[i].costume = costume;
                 self.roster_changed(now_ms);
             }
             _ => {}
@@ -1388,8 +1445,8 @@ impl Online {
         self.last_pick_ms = now_ms;
         if let Some(host) = self.host_peer.clone() {
             if self.status == Status::Lobby {
-                let palette = self.palette;
-                self.send(&host, &Msg::Pick { kind, palette });
+                let pick = self.pick();
+                self.send(&host, &pick);
             }
         }
         Ok(())
@@ -1413,8 +1470,33 @@ impl Online {
         self.last_pick_ms = now_ms;
         if let Some(host) = self.host_peer.clone() {
             if self.status == Status::Lobby {
-                let kind = self.kind;
-                self.send(&host, &Msg::Pick { kind, palette });
+                let pick = self.pick();
+                self.send(&host, &pick);
+            }
+        }
+        Ok(())
+    }
+
+    /// Chooses this browser's ape's costume (TRIAGE T89). A joiner's
+    /// choice is repeated until the roster shows it.
+    pub fn set_costume(&mut self, costume: Costume, now_ms: i64) -> Result<(), OnlineError> {
+        if !matches!(self.status, Status::Lobby | Status::Joining) {
+            return Err(OnlineError::NotInLobby);
+        }
+        self.costume = costume;
+        if self.is_host {
+            if self.humans[0].costume != costume {
+                self.humans[0].costume = costume;
+                self.roster_changed(now_ms);
+            }
+            return Ok(());
+        }
+        self.wanted_costume = Some(costume);
+        self.last_pick_ms = now_ms;
+        if let Some(host) = self.host_peer.clone() {
+            if self.status == Status::Lobby {
+                let pick = self.pick();
+                self.send(&host, &pick);
             }
         }
         Ok(())
@@ -1627,6 +1709,7 @@ impl Online {
                     Driver::Remote
                 },
                 palette: h.palette,
+                costume: h.costume,
             })
             .collect();
         for (n, kind) in ai_kinds(&self.humans, self.ai_count)
@@ -1643,6 +1726,7 @@ impl Online {
                     Driver::Remote
                 },
                 palette: crate::race::palette_apart(crate::race::worn(&entries), kind),
+                costume: Costume::Own,
             });
         }
         let local_index = self
@@ -1833,8 +1917,12 @@ impl Online {
                     self.wanted_kind = None;
                 } else if now_ms - self.last_pick_ms >= RETRY_MS {
                     self.last_pick_ms = now_ms;
-                    let palette = self.palette;
-                    self.send(host, &Msg::Pick { kind, palette });
+                    let pick = Msg::Pick {
+                        kind,
+                        palette: self.palette,
+                        costume: self.costume,
+                    };
+                    self.send(host, &pick);
                 }
             }
             if let (Some(palette), Some(me)) = (self.wanted_palette, &mine) {
@@ -1842,8 +1930,17 @@ impl Online {
                     self.wanted_palette = None;
                 } else if now_ms - self.last_pick_ms >= RETRY_MS {
                     self.last_pick_ms = now_ms;
-                    let kind = self.kind;
-                    self.send(host, &Msg::Pick { kind, palette });
+                    let pick = self.pick();
+                    self.send(host, &pick);
+                }
+            }
+            if let (Some(costume), Some(me)) = (self.wanted_costume, &mine) {
+                if me.costume == costume {
+                    self.wanted_costume = None;
+                } else if now_ms - self.last_pick_ms >= RETRY_MS {
+                    self.last_pick_ms = now_ms;
+                    let pick = self.pick();
+                    self.send(host, &pick);
                 }
             }
             if let (Some(name), Some(me)) = (self.wanted_name.clone(), &mine) {
@@ -1910,6 +2007,7 @@ impl Online {
                 name: h.name.clone(),
                 kind: h.kind,
                 palette: h.palette,
+                costume: h.costume,
                 ai: false,
                 host: i == 0,
                 me: h.id == self.client_id,
@@ -1931,6 +2029,7 @@ impl Online {
                 name: format!("AI {}", n + 1),
                 kind,
                 palette,
+                costume: Costume::Own,
                 ai: true,
                 host: false,
                 me: false,
@@ -2394,6 +2493,7 @@ mod tests {
             kind,
             ready: false,
             palette: 0,
+            costume: Costume::Own,
         };
         let humans = [h(Kind::Orangutan), h(Kind::Gibbon)];
         assert_eq!(ai_kinds(&humans, 2), vec![Kind::Gorilla, Kind::Chimpanzee]);
