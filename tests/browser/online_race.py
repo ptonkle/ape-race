@@ -11,7 +11,7 @@ request is aborted and counted as a failure. For each engine it:
 - B renames itself in the lobby and A sees it; neither lobby shows the
   screech button (hidden for now, TRIAGE T57);
 - B presses Ready Up; A's Start comes on; A picks the City, B's lobby
-  shows it and says the settings changed, and B stays ready (TRIAGE T61);
+  shows it, and B stays ready (TRIAGE T61);
   A presses Start;
 - both tabs reach the race screen;
 - with W held on both, each tab sees a remote ape leave its start
@@ -41,7 +41,6 @@ import online as transport  # noqa: E402  (the helpers of the transport check)
 WAIT_MS = transport.WAIT_MS
 STRINGS = json.loads((pathlib.Path(__file__).resolve().parents[2] / "data" / "strings.json").read_text())
 CITY = STRINGS["map.city"]
-CHANGED = STRINGS["online.settings_changed"]
 check = transport.check
 
 
@@ -155,7 +154,7 @@ def run_engine(p, engine, origin):
         return finish()
     # The City (2026-10-12): the host picks the map on its grid of cards
     # (TRIAGE T54); B's lobby shows the pick live on a read-only grid.
-    # TRIAGE T61: B stays ready, and its lobby says the settings changed
+    # TRIAGE T61: B stays ready
     check(a.enabled("lobby.map.city"), "A's map cards can be pressed")
     a.click("lobby.map.city")
     try:
@@ -163,13 +162,13 @@ def run_engine(p, engine, origin):
         b.page.wait_for_function(
             "want => { const t = document.getElementById('menus').innerText;"
             " return want.every(w => t.includes(w)); }",
-            arg=[CITY, CHANGED],
+            arg=[CITY],
             timeout=WAIT_MS,
         )
         shown = True
     except Exception:
         shown = False
-    check(shown, "A's choice of the City shows in B's lobby, with a settings-changed note")
+    check(shown, "A's choice of the City shows in B's lobby")
     disabled = b.page.eval_on_selector_all(by_id("lobby.map") + " .tile", "ts => ts.map(t => t.disabled)")
     check(disabled and all(disabled), f"B cannot press a map card {disabled}")
     if os.environ.get("ONLINE_SHOTS"):

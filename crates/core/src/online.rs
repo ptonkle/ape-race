@@ -104,7 +104,8 @@ use crate::rules::{Kind, TICKS_PER_SECOND};
 /// 5: the map (the City, 2026-10-12) in `Roster` and `Start`.
 /// 6: the Ski Slope (2026-10-13): the map `ski`, which a client of 5
 /// could not read in a Roster or a Start.
-pub const PROTOCOL: u32 = 7;
+/// 8: Random (TRIAGE T64): `random` in the Roster and the Start.
+pub const PROTOCOL: u32 = 8;
 /// The most apes in a race, humans and AI together.
 pub const MAX_APES: usize = 4;
 /// The most AI apes the host may add.
@@ -286,6 +287,8 @@ pub struct RaceStart {
     pub items: ItemSet,
     /// the map the race runs on, the host's choice
     pub map: Map,
+    /// the host chose Random and `map` was picked at the start (TRIAGE T64)
+    pub random_map: bool,
     /// Floor is Lava (TRIAGE T37), the host's choice
     pub lava: bool,
 }
@@ -333,15 +336,14 @@ pub struct LobbyView {
     /// The most AI apes the host may set now.
     pub max_ai: usize,
     pub equal_stats: bool,
-    /// The map, the host's choice.
+    /// The map, the host's choice; on Random, the map last raced.
     pub map: Map,
+    /// The host chose Random (TRIAGE T64): the map is picked at the start.
+    pub random_map: bool,
     /// Floor is Lava (TRIAGE T37)
     pub lava: bool,
     /// This browser's Ready mark, as last asked for.
     pub ready: bool,
-    /// Joiner: the host changed a setting since this browser readied
-    /// (TRIAGE T61: setting changes keep Ready marks, so the lobby says so).
-    pub settings_changed: bool,
     /// The host may press Start.
     pub can_start: bool,
 }
@@ -382,6 +384,9 @@ enum Msg {
         /// the host's map (PROTOCOL 5)
         #[serde(default)]
         map: Map,
+        /// the host chose Random (TRIAGE T64, PROTOCOL 8)
+        #[serde(default)]
+        random: bool,
         /// Floor is Lava (TRIAGE T37, PROTOCOL 4)
         #[serde(default)]
         lava: bool,
@@ -419,9 +424,12 @@ enum Msg {
         /// the host's item set (TRIAGE T42); a host without it allows all
         #[serde(default)]
         items: ItemSet,
-        /// the host's map (PROTOCOL 5)
+        /// the host's map (PROTOCOL 5): on Random, the one picked
         #[serde(default)]
         map: Map,
+        /// the map was picked at random (TRIAGE T64, PROTOCOL 8)
+        #[serde(default)]
+        random: bool,
         /// Floor is Lava (TRIAGE T37, PROTOCOL 4)
         #[serde(default)]
         lava: bool,
@@ -579,6 +587,8 @@ pub struct Online {
     items: ItemSet,
     /// the map: set by the host, shown in every lobby, sent with the start
     map: Map,
+    /// Random (TRIAGE T64): the host picks `map` at the start
+    random_map: bool,
     peers: BTreeMap<PeerId, Peer>,
     outbox: Vec<Outgoing>,
     last_hello_ms: i64,
@@ -594,9 +604,6 @@ pub struct Online {
     last_name_ms: i64,
     /// Screeches heard (and made) in the lobby, still to play.
     screeches: u32,
-    /// Joiner: the host changed a lobby setting while this browser was
-    /// ready (TRIAGE T61). Cleared by Ready/Cancel and by the next race.
-    settings_changed: bool,
     race: Option<RaceState>,
     /// Host: its own start, held until the joiners have theirs.
     host_start_at: Option<i64>,
@@ -621,6 +628,7 @@ impl Online {
             lava: false,
             items: ItemSet::ALL,
             map: Map::default(),
+            random_map: false,
             peers: BTreeMap::new(),
             outbox: Vec::new(),
             last_hello_ms: now_ms,
@@ -634,7 +642,6 @@ impl Online {
             wanted_name: None,
             last_name_ms: now_ms,
             screeches: 0,
-            settings_changed: false,
             race: None,
             host_start_at: None,
             start: None,
@@ -736,6 +743,7 @@ impl Online {
             ai: self.ai_count,
             equal: self.equal_stats,
             map: self.map,
+            random: self.random_map,
             lava: self.lava,
         }
     }
@@ -904,8 +912,9 @@ impl Online {
                 ai,
                 equal,
                 map,
+                random,
                 lava,
-            } if from_host => self.on_roster(round, humans, ai, equal, map, lava),
+            } if from_host => self.on_roster(round, humans, ai, equal, (map, random), lava),
             Msg::Dissolve if from_host => {
                 if matches!(self.status, Status::Joining | Status::Lobby) {
                     self.status = Status::Dissolved;
@@ -919,6 +928,7 @@ impl Online {
                 equal,
                 items,
                 map,
+                random,
                 lava,
             } if from_host => {
                 let waiting = matches!(self.status, Status::Lobby | Status::Joining);
@@ -929,6 +939,7 @@ impl Online {
                     self.equal_stats = equal;
                     self.items = items.clean();
                     self.map = map;
+                    self.random_map = random;
                     self.lava = lava;
                     self.begin_race(seed, now_ms);
                 }
@@ -1113,7 +1124,7 @@ impl Online {
         humans: Vec<Human>,
         ai: usize,
         equal: bool,
-        map: Map,
+        (map, random): (Map, bool),
         lava: bool,
     ) {
         if round < self.round {
@@ -1130,27 +1141,12 @@ impl Online {
             }
             _ => return,
         }
-        // a setting changed under this joiner's Ready mark (TRIAGE T61)
-        let was_ready = self.status == Status::Lobby
-            && round == self.round
-            && self
-                .humans
-                .iter()
-                .any(|h| h.id == self.client_id && h.ready);
-        let changed = ai != self.ai_count
-            || equal != self.equal_stats
-            || map != self.map
-            || lava != self.lava;
-        if round > self.round {
-            self.settings_changed = false;
-        } else if was_ready && changed {
-            self.settings_changed = true;
-        }
         self.round = round;
         self.humans = humans;
         self.ai_count = ai;
         self.equal_stats = equal;
         self.map = map;
+        self.random_map = random;
         self.lava = lava;
         let seated = self.humans.iter().any(|h| h.id == self.client_id);
         self.status = if seated {
@@ -1334,7 +1330,6 @@ impl Online {
         }
         self.wanted_ready = Some(ready);
         self.last_ready_ms = now_ms;
-        self.settings_changed = false;
         if let Some(host) = self.host_peer.clone() {
             self.send(&host, &Msg::Ready { ready });
         }
@@ -1387,6 +1382,17 @@ impl Online {
         Ok(())
     }
 
+    /// Host: Random (TRIAGE T64) on or off. On, [`Online::start`] picks the
+    /// map from its seed, any map but the one now set. Ready marks stay.
+    pub fn set_random_map(&mut self, on: bool, now_ms: i64) -> Result<(), OnlineError> {
+        self.host_lobby()?;
+        if self.random_map != on {
+            self.random_map = on;
+            self.roster_changed(now_ms);
+        }
+        Ok(())
+    }
+
     /// The lobby's map, as the host set it.
     pub fn map(&self) -> Map {
         self.map
@@ -1419,6 +1425,9 @@ impl Online {
         }
         if self.apes() < 2 {
             return Err(OnlineError::TooFew);
+        }
+        if self.random_map {
+            self.map = Map::random(seed.rotate_left(17), self.map);
         }
         self.begin_race(seed, now_ms);
         let lead = self
@@ -1492,6 +1501,7 @@ impl Online {
             round: self.round,
             items: self.items,
             map: self.map,
+            random_map: self.random_map,
             lava: self.lava,
         };
         self.race = Some(RaceState {
@@ -1520,7 +1530,6 @@ impl Online {
         });
         self.start = Some(start);
         self.status = Status::Racing;
-        self.settings_changed = false;
         self.wanted_ready = None;
         self.wanted_kind = None;
     }
@@ -1536,6 +1545,7 @@ impl Online {
             equal: self.equal_stats,
             items: self.items,
             map: self.map,
+            random: self.random_map,
             lava: self.lava,
         };
         let to: Vec<PeerId> = race.unacked.iter().cloned().collect();
@@ -1770,9 +1780,9 @@ impl Online {
             max_ai: self.max_ai(),
             equal_stats: self.equal_stats,
             map: self.map,
+            random_map: self.random_map,
             lava: self.lava,
             ready,
-            settings_changed: self.settings_changed,
             can_start: self.is_host && self.in_lobby() && self.all_ready() && self.apes() >= 2,
         }
     }

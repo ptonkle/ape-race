@@ -14,7 +14,7 @@ use crate::course::Course;
 use crate::focus::{self, Focus};
 use crate::fx::{self, deg, int, ONE};
 use crate::geom::{v3, V3};
-use crate::map::Map;
+use crate::map::{Map, RANDOM_MAP, RANDOM_PICTURE};
 use crate::models;
 use crate::race::{Driver, Entry, Event, Phase, Race};
 use crate::render::{self, Batch, Camera};
@@ -99,8 +99,12 @@ pub struct Settings {
     /// the colourblind mode (TRIAGE T33): the world muted, the vines vivid
     pub colourblind: bool,
     /// the map last chosen for a race, a Time Trial or a hosted lobby (the
-    /// title flies over it); settings saved before the City read as Jungle
+    /// title flies over it); settings saved before the City read as Jungle.
+    /// On Random, the map last raced (the preview stands on it)
     pub map: Map,
+    /// Random is chosen (TRIAGE T64): each race picks a map other than the
+    /// last at its start
+    pub random_map: bool,
     /// the bests on every map but the Jungle, by the map's key (the
     /// Jungle's stay in `best` and `trial_best`, as saved before the City)
     pub bests: BTreeMap<String, Bests>,
@@ -145,6 +149,7 @@ impl Default for Settings {
             items: crate::items::ItemSet::ALL,
             colourblind: false,
             map: Map::default(),
+            random_map: false,
             bests: BTreeMap::new(),
             lava: false,
             weather: crate::snow::Weather::Clear,
@@ -313,6 +318,9 @@ pub struct Play {
     pub replay: Option<Playback>,
     /// the best Time Trial, raced again beside the player
     pub ghost: Option<Ghost>,
+    /// the map was picked at random (TRIAGE T64): the HUD names it at the
+    /// start
+    pub random_map: bool,
     /// a home-page tile (`tile.rs`): held still, no menus; `true` keeps
     /// the HUD
     pub still: Option<bool>,
@@ -541,21 +549,41 @@ impl App {
     }
 
     /// The map choice on Race Setup, Time Trial and the lobby (TRIAGE T54):
-    /// a grid of cards, one per map with its picture and name, `chosen`
-    /// marked. `read_only` (a joiner's lobby) shows the host's pick and
-    /// lets no card be pressed. A card sends the grid's id with its map's
-    /// key.
-    pub(crate) fn map_tiles(&self, id: &str, chosen: Map, read_only: bool) -> Value {
-        let options: Vec<Value> = Map::ALL
+    /// a grid of cards, one per map with its picture and name, and last
+    /// Random (T64, `random`: chosen instead of `chosen`). `read_only` (a
+    /// joiner's lobby) shows the host's pick and lets no card be pressed.
+    /// A card sends the grid's id with its map's key, or `random`.
+    pub(crate) fn map_tiles(&self, id: &str, chosen: Map, random: bool, read_only: bool) -> Value {
+        let mut options: Vec<Value> = Map::ALL
             .iter()
             .map(|m| {
                 json!({ "id": format!("{id}.{}", m.key()), "value": m.key(),
                   "text": self.map_name(*m), "picture": m.picture(),
-                  "chosen": *m == chosen })
+                  "chosen": !random && *m == chosen })
             })
             .collect();
+        options.push(json!({ "id": format!("{id}.{RANDOM_MAP}"), "value": RANDOM_MAP,
+          "text": self.t("map.random"), "picture": RANDOM_PICTURE, "chosen": random }));
+        let value = if random { RANDOM_MAP } else { chosen.key() };
         json!({ "type": "tiles", "id": id, "label": self.t("setup.map"),
-                "value": chosen.key(), "read_only": read_only, "options": options })
+                "value": value, "read_only": read_only, "options": options })
+    }
+
+    /// The map a race on Random runs on, its name shown at the start
+    /// (TRIAGE T64).
+    pub(crate) fn random_map_flash(&self, p: &Play) -> Option<String> {
+        let early = match p.race.phase {
+            Phase::Countdown(_) => true,
+            Phase::Running => p.race.clock < rules::TICKS_PER_SECOND as u32 * 2,
+            _ => false,
+        };
+        (p.random_map && early && p.replay.is_none()).then(|| {
+            format!(
+                "{}: {}",
+                self.t("hud.random_map"),
+                self.map_name(Map::of(&p.race.course))
+            )
+        })
     }
 
     /// The Ski Slope's Weather select (`settings.weather` in Settings,
@@ -983,8 +1011,12 @@ impl App {
                 self.save = true;
             }
             "setup.map" => {
-                if let Some(m) = Map::from_key(value) {
+                if value == RANDOM_MAP {
+                    self.settings.random_map = true;
+                    self.save = true;
+                } else if let Some(m) = Map::from_key(value) {
                     self.settings.map = m;
+                    self.settings.random_map = false;
                     self.save = true;
                 }
             }
@@ -1125,6 +1157,12 @@ impl App {
                 palette: crate::race::palette_apart(crate::race::worn(&entries), k),
             });
         }
+        // Random (TRIAGE T64): a map other than the last, from the page's
+        // seed and the clock; it becomes the last map (the preview's)
+        if self.settings.random_map {
+            self.settings.map = Map::random(d.next(), self.settings.map);
+            self.save = true;
+        }
         let map = self.settings.map;
         self.ensure_world(map);
         let course = self.course_of(map).cloned().unwrap_or_else(|| map.course());
@@ -1150,6 +1188,7 @@ impl App {
             p.trial = self.trial;
             p.record = Some(record);
             p.ghost = ghost;
+            p.random_map = self.settings.random_map;
         }
     }
 
@@ -1195,6 +1234,7 @@ impl App {
             pan: None,
             replay: None,
             ghost: None,
+            random_map: false,
             still: None,
         });
         self.settle_scene();
@@ -1670,15 +1710,16 @@ impl App {
             .collect();
         let stats = self.settings.kind.race_stats(self.settings.equal_stats);
         let mut items = vec![
-            self.map_tiles("setup.map", self.settings.map, false),
+            self.map_tiles("setup.map", self.settings.map, self.settings.random_map, false),
             json!({ "type": "picker", "id": "setup.ape", "label": self.t("setup.ape"),
               "value": self.settings.kind.key(), "options": kinds,
               "text": self.t(&format!("ape.{}", self.settings.kind.key())) }),
             self.palette_select("setup.palette"),
             json!({ "type": "stats", "label": self.t("setup.stats"), "rows": self.stats_rows(&stats) }),
         ];
-        // the Ski Slope's weather, under the map that has it
-        if self.settings.map == Map::Ski {
+        // the Ski Slope's weather, under the map that has it (and Random,
+        // which may pick it)
+        if self.settings.map == Map::Ski || self.settings.random_map {
             items.insert(1, self.weather_select("setup.weather"));
         }
         if self.trial {
@@ -2071,7 +2112,7 @@ impl App {
             "big": big,
             // a whole message (the jaguar, TRIAGE T37) is drawn smaller
             "big_class": if big.chars().count() > 10 { "big message" } else { "big" },
-            "reward": self.reward_flash(me, race.tick),
+            "reward": self.random_map_flash(p).unwrap_or_else(|| self.reward_flash(me, race.tick)),
             "hint": if p.replay.is_some() {
                 self.t("hud.replay")
             } else if p.focus.racer != p.local {

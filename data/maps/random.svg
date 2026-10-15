@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 360">
+  <!-- The Random map's card (TRIAGE T64): the four maps' colours behind a
+       big banana question mark. -->
+  <rect width="160" height="360" fill="#2f7a3a"/>
+  <rect x="160" width="160" height="360" fill="#6b4a8c"/>
+  <rect x="320" width="160" height="360" fill="#cfe3f2"/>
+  <rect x="480" width="160" height="360" fill="#141a3a"/>
+  <g fill="#ffffff" opacity="0.18">
+    <polygon points="0,360 80,140 160,360"/>
+    <rect x="190" y="150" width="40" height="210"/>
+    <rect x="250" y="100" width="45" height="260"/>
+    <polygon points="320,360 400,120 480,360"/>
+    <circle cx="520" cy="70" r="5"/>
+    <circle cx="600" cy="120" r="4"/>
+    <circle cx="560" cy="200" r="6"/>
+  </g>
+  <rect width="640" height="360" fill="#000000" opacity="0.25"/>
+  <circle cx="320" cy="170" r="118" fill="#2b2410" opacity="0.55"/>
+  <path d="M262 132 C 262 88, 296 66, 324 66 C 360 66, 384 90, 384 122 C 384 152, 362 166, 344 178 C 332 186, 330 194, 330 210 L 330 222 L 300 222 L 300 204 C 300 182, 308 170, 326 158 C 342 148, 352 140, 352 124 C 352 106, 340 96, 322 96 C 304 96, 294 108, 292 132 Z" fill="#ffd93b" stroke="#a8790a" stroke-width="5"/>
+  <circle cx="315" cy="262" r="21" fill="#ffd93b" stroke="#a8790a" stroke-width="5"/>
+</svg>

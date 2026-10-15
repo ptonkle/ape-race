@@ -387,22 +387,15 @@ fn the_hosts_map_shows_in_every_lobby_and_the_race_runs_on_it() {
     );
     assert_eq!(chosen(&hg), ["city"]);
     assert_eq!(chosen(&jg), ["city"], "the joiner sees the host's pick");
-    assert!(!shown.contains("lobby.changed"), "not ready: no note");
-    // TRIAGE T61: a ready joiner stays ready when the map changes, and
-    // its lobby says the settings changed
+    // TRIAGE T61: a ready joiner stays ready when the map changes (and,
+    // T69, its lobby says nothing about it)
     p.apps[1].act("lobby.ready", "");
     p.run(200);
     p.apps[0].act("lobby.map", "ski");
     p.run(200);
-    let ui = p.apps[1].ui();
-    assert!(ui.contains(&p.apps[1].t("online.settings_changed")), "{ui}");
     assert!(p.apps[0].online.session.as_ref().unwrap().lobby().can_start);
     p.apps[1].act("lobby.ready", "");
     p.run(200);
-    assert!(
-        !p.apps[1].ui().contains("lobby.changed"),
-        "cancel clears it"
-    );
     p.apps[0].act("lobby.map", "city");
     p.run(200);
     // a joiner cannot choose
@@ -457,4 +450,42 @@ fn floor_is_lava_online_the_jaguar_eats_on_every_browser() {
         matches!(host_row.fin, crate::online::Fin::Eaten(..)),
         "{rows:?}"
     );
+}
+
+#[test]
+fn random_online_the_host_picks_and_every_browser_races_that_map() {
+    // TRIAGE T64: the host's Random shows in the joiner's lobby; the start
+    // carries the map it picked, and both HUDs name it
+    use crate::map::Map;
+    let mut p = Pair::lobby();
+    p.apps[0].act("lobby.map", "city");
+    p.apps[0].act("lobby.map", "random");
+    p.run(1500);
+    assert!(p.apps[0].settings.random_map);
+    for a in &mut p.apps {
+        let v = a.online.session.as_ref().unwrap().lobby();
+        assert!(v.random_map);
+        let ui: Value = serde_json::from_str(&a.ui()).unwrap();
+        let grid = ui["panels"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .flat_map(|p| p["items"].as_array().unwrap().clone())
+            .find(|i| i["id"] == "lobby.map")
+            .unwrap();
+        assert_eq!(grid["value"], "random");
+    }
+    p.race();
+    let map = Map::of(&p.apps[0].play.as_ref().unwrap().race.course);
+    assert_ne!(map, Map::City, "not the last map");
+    for a in &mut p.apps {
+        let play = a.play.as_ref().unwrap();
+        assert_eq!(Map::of(&play.race.course), map, "the same map everywhere");
+        assert!(play.random_map);
+        let ui: Value = serde_json::from_str(&a.ui()).unwrap();
+        assert_eq!(
+            ui["hud"]["reward"].as_str().unwrap(),
+            format!("Random map: {}", a.map_name(map))
+        );
+    }
 }
