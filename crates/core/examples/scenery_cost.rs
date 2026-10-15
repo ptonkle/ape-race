@@ -62,4 +62,21 @@ fn main() {
         }
         println!("  per frame at most: {} shapes, {} glows", most.0, most.1);
     }
+    let ruins = tool_core::map::Map::Ruins.course();
+    report("ruins", &ruins);
+    // Sunset Ruins draws its moving parts each frame (sky, foam, turtles,
+    // falls, facade, glyphs, traps, pile, skylight): the most at once
+    if let Some(rl) = &ruins.ruins {
+        let mut most = (0, 0);
+        for k in 0..ruins.path.len() / 10 {
+            let p = ruins.path[k * 10];
+            let eye =
+                tool_core::geom::v3(p.x, ruins.terrain(p.x, p.z) + tool_core::fx::int(10), p.z);
+            let mut b = tool_core::render::Batch::new();
+            tool_core::ruinsscape::dynamic(&mut b, &ruins, rl, eye, 500, 500);
+            let halos = b.take_halos().count();
+            most = most.max((b.count(), halos));
+        }
+        println!("  per frame at most: {} shapes, {} glows", most.0, most.1);
+    }
 }

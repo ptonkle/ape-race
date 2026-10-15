@@ -18,7 +18,8 @@
 //! T49; classic for the rest) and `gear` (`none`, `ski`, `space` or `explorer`: what
 //! the racers wear instead of the map's own; `space` previews the Sector
 //! Ape costumes before their map exists), and for Sector Ape's pictures
-//! `door` (ticks since the switch door shut, held at `at`) and `eat`
+//! `door` (ticks since the switch door shut, held at `at`; on Sunset
+//! Ruins since every trip wire was tripped) and `eat`
 //! (the watched ape eaten by the jaguar this many ticks before `at`).
 
 use crate::ai::Difficulty;
@@ -203,6 +204,13 @@ impl App {
         let now = p.race.tick;
         if let (Some(ago), Some(s)) = (t.door, p.race.course.sector.as_deref_mut()) {
             s.door.shut_at = Some(now.saturating_sub(ago));
+        }
+        // Sunset Ruins: every trip wire tripped that long ago (`door=60`
+        // shows the trapdoors open, their pit vines down)
+        if let (Some(ago), Some(r)) = (t.door, p.race.course.ruins.as_deref_mut()) {
+            for tr in r.traps.iter_mut() {
+                tr.tripped_at = Some(now.saturating_sub(ago));
+            }
         }
         // held: nothing between ticks, the camera where it is
         p.prev = p.race.racers.iter().map(|r| r.ape.pos).collect();
