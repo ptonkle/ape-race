@@ -14,3 +14,4 @@ The person left the build running ("Run until the full build is done") and is aw
 - Skeleton merged (85d0e5a): Banana Bay Battle is in the map list with a stand-in course (the Jungle's layout); PROTOCOL 11. It is selectable in the picker on main, harmless while not deployed (SECOND-ORDER BB4).
 - Models merged (279a9f2); shots on the design journal's new Banana Bay Battle page.
 - Course and rules merged (9d6d504): 30 ships, 1.46 km, the Monkey about 68.5 s.
+- Pirate outfits and the navy jaguar merged (35b0b42); shots on the journal.

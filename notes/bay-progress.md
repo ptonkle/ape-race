@@ -6,7 +6,7 @@ The standard map-build steps (MAPS.md "Build steps"), one row each. Status is on
 | --- | --- | --- | --- |
 | 1 | Brief and answers | Done | `briefs/banana-bay-battle.md` |
 | 2 | Skeleton and contract | Done | `Map::Bay`, `bay.rs` BayLayout contract, stand-in course, PROTOCOL 11 (on main 85d0e5a) |
-| 3 | Ape costumes | In progress | Gear agent: pirate outfit |
+| 3 | Ape costumes | Done | Six pirate mixes (tricorn/bandana, eyepatch, cutlass, bandolier, peg leg, parrots, hook…), navy officer jaguar; on the journal |
 | 4 | Models | Done | `baymodels.rs` (models branch): 4 ship kinds × 2 sides from the contract's `Ship`, barrels, dock, island, chest, doubloons, crew, cannon fire; shots in `notes/bay-shots/models/` |
 | 5 | Sky and lighting | In progress | 3 pm Caribbean; Squall weather |
 | 6 | Course layout | Done | 1,458 m, 30 ships (8 galleons, 8 frigates, 8 brigs, 6 sloops), 158 vines, no set sails on the line |
@@ -14,8 +14,8 @@ The standard map-build steps (MAPS.md "Build steps"), one row each. Status is on
 | 8 | Art placed on the course | In progress | Art agent |
 | 9 | Lobby spot and flyover | Not started | |
 | 10 | AI validation | In progress | All levels finish; Sloth 69.0, Monkey 68.5, Ape 54.4, King Kong 48.9 s: Sloth and Monkey need spacing | |
-| 11 | Medal times | Not started | |
-| 12 | Step and frame cost | Not started | |
+| 11 | Medal times | In progress | |
+| 12 | Step and frame cost | In progress | |
 | 13 | Colourblind and JOJO MODE | Not started | |
 | 14 | Map card | Not started | |
 | 15 | Screenshots at 1920×1080 | In progress | Models on the journal | |
