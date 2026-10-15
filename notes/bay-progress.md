@@ -21,7 +21,7 @@ The standard map-build steps (MAPS.md "Build steps"), one row each. Status is on
 | 15 | Screenshots at 1920×1080 | In progress | Models, outfits, sky on the journal |
 | 16 | Other maps unchanged | In progress | All tests pass on main after each merge (jungle/maps/sector unchanged) |
 | 17 | Docs | Done | README, MAPS.md (what the bay taught), TRIAGE T87, HANDOFF; Settings weather select fixed (BW1) |
-| 18 | Full checks | Not started |  |
+| 18 | Full checks | In progress | check.sh passed in Chromium, Firefox, WebKit and check-online.sh passed (before polish round 2); rerun after it |
 | 19 | Deploy | Not started | Held: the person decides |
 
 ## This map's features
