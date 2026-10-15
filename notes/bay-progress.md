@@ -13,12 +13,12 @@ The standard map-build steps (MAPS.md "Build steps"), one row each. Status is on
 | 7 | Map rules | Done | Water puts you on the last ship passed (Floor is Lava: eaten); barrel soft wall; bouncy barrels |
 | 8 | Art placed on the course | In progress | Art agent |
 | 9 | Lobby spot and flyover | Not started | |
-| 10 | AI validation | In progress | All levels finish; Sloth 69.0, Monkey 68.5, Ape 54.4, King Kong 48.9 s: Sloth and Monkey need spacing | |
-| 11 | Medal times | In progress | |
-| 12 | Step and frame cost | In progress | |
+| 10 | AI validation | Done | Own Bay handicaps (BT1): 16 layouts Sloth 76.8, Monkey 67.1, Ape 59.7, King Kong 49.7 s; ordering test over 16 layouts |
+| 11 | Medal times | Done | Author 0:35, Gold 0:42, Silver 0:52, Bronze 1:07 (best kind 35.06 s, BT2) |
+| 12 | Step and frame cost | In progress | Worst step 1.9–3.3 ms over 2,000 frames, like the Ruins on the same runs (BT3); frame cost waits for the art |
 | 13 | Colourblind and JOJO MODE | Not started | |
 | 14 | Map card | Not started | |
-| 15 | Screenshots at 1920×1080 | In progress | Models on the journal | |
+| 15 | Screenshots at 1920×1080 | In progress | Models, outfits, sky on the journal |
 | 16 | Other maps unchanged | Not started | |
 | 17 | Docs | Not started | |
 | 18 | Full checks | Not started | |

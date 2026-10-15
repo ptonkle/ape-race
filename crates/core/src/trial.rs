@@ -129,6 +129,25 @@ pub const RUINS: [u32; 4] = [
     secs(RUINS_AUTHOR),
 ];
 
+/// Banana Bay Battle's target times in hundredths of a second (2026-10-15,
+/// set as the others' were: King Kong alone as a Time Trial runs finishes
+/// in 35.1–53.8 s by kind, the Proboscis best, the Gorilla slowest;
+/// `tests/bay_ai.rs` `bay_time_trial_report`, SECOND-ORDER BT2). Author
+/// just under the best kind, then the Jungle's steps of 7, 10 and 15 s.
+/// Re-measure if the course's length changes (BC2).
+pub const BAY_AUTHOR: u32 = 3_500;
+pub const BAY_GOLD: u32 = 4_200;
+pub const BAY_SILVER: u32 = 5_200;
+pub const BAY_BRONZE: u32 = 6_700;
+
+/// Banana Bay Battle's target times, in race ticks, slowest first.
+pub const BAY: [u32; 4] = [
+    secs(BAY_BRONZE),
+    secs(BAY_SILVER),
+    secs(BAY_GOLD),
+    secs(BAY_AUTHOR),
+];
+
 /// A map's target times, in race ticks, slowest first (Bronze, Silver,
 /// Gold, Author).
 pub fn medals(map: Map) -> [u32; 4] {
@@ -138,8 +157,7 @@ pub fn medals(map: Map) -> [u32; 4] {
         Map::Ski => SKI,
         Map::Sector => SECTOR,
         Map::Ruins => RUINS,
-        // STAND-IN (Banana Bay Battle's skeleton): the Jungle's until measured
-        Map::Bay => JUNGLE,
+        Map::Bay => BAY,
     }
 }
 
@@ -214,7 +232,9 @@ mod tests {
                 assert!(w[1] < w[0], "{map:?}");
             }
         }
-        assert_ne!(medals(Map::City), medals(Map::Jungle));
+        for map in Map::ALL.into_iter().filter(|&m| m != Map::Jungle) {
+            assert_ne!(medals(map), JUNGLE, "{map:?} races the Jungle's medals");
+        }
         let gold = target_on(Map::City, Medal::Gold);
         assert_eq!(earned_on(Map::City, gold), Some(Medal::Gold));
         assert_eq!(earned_on(Map::City, gold + 1), Some(Medal::Silver));
