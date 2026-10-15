@@ -12,7 +12,7 @@ The standard map-build steps (MAPS.md "Build steps"), one row each. Status is on
 | 6 | Course layout | Done | 1.75 km: river, bridge, corridor, 300° chamber |
 | 7 | Map rules | Done | Current, ravine reset, bridge boost, spikes, trapdoors |
 | 8 | Art placed on the course | Done | Placed and polished (1.10.1): lit entrance, cliffs, random pile, glyphs in step; panel glyph sockets and one jog panel still off |
-| 9 | Lobby spot and flyover | In progress | Lobby fixed in 1.11.2; the online lobby's framing still hides the mouth |
+| 9 | Lobby spot and flyover | Done | Lobby on a ruin in the river (1.11.2), framed for one and two panels (1.11.4); smooth flyover |
 | 10 | AI validation | Done | Ordered over 32 layouts: Sloth 88.1, Monkey 78.2, Ape 71.9, King Kong 64.7 s; river, bridge and turn-in stalls fixed |
 | 11 | Medal times | Done | Author 0:56, Gold 1:03, Silver 1:13, Bronze 1:28 (re-measured) |
 | 12 | Step and frame cost | Done | Worst step 2.75 ms over 2,000 frames (was 7.1); race results unchanged by the speed-ups |
@@ -22,7 +22,7 @@ The standard map-build steps (MAPS.md "Build steps"), one row each. Status is on
 | 16 | Other maps unchanged | Done | All tests pass on main, release and debug (a debug-only overflow found and fixed) |
 | 17 | Docs | In progress | SECOND-ORDER rows written; README, MAPS.md, HANDOFF to do |
 | 18 | Full checks | Done | 1.10.1 passed in Chromium, Firefox and WebKit: check 8.3 min, online 3.8 min; rerun before each deploy where time allows |
-| 19 | Deploy | Done | 1.10.0 23:20 … 1.10.4 00:50, 1.11.0 (patch notes), 1.11.1 (solid face); fixes follow |
+| 19 | Deploy | Done | 1.10.0 … 1.10.4, 1.11.0 (patch notes) … 1.11.4 (online lobby) |
 
 ## This map's features
 
