@@ -11,6 +11,9 @@ use crate::ski::Terrain;
 use crate::skiscape::Crown;
 use std::sync::Arc;
 
+pub mod hulls;
+pub use hulls::Hulls;
+
 /// The field of view at rest and at full speed.
 const FOV_REST: i32 = deg(68);
 const FOV_FAST: i32 = deg(92);
@@ -61,6 +64,9 @@ pub struct Chase {
     /// the temple the eye keeps inside of (Sunset Ruins; none on the
     /// other maps), SECOND-ORDER RS25
     pub temple: Option<Arc<Temple>>,
+    /// the ships the eye keeps out of (Banana Bay Battle; none on the
+    /// other maps), SECOND-ORDER BP1
+    pub hulls: Option<Arc<Hulls>>,
 }
 
 /// The reach while no tree is in the way.
@@ -107,6 +113,7 @@ impl Chase {
             reach: FREE,
             reach_speed: 0,
             temple: None,
+            hulls: None,
         };
         c.place(at, V3::ZERO);
         c.prev_eye = c.eye;
@@ -128,6 +135,16 @@ impl Chase {
     /// The same camera, keeping inside `temple` (placed again at `at`).
     pub fn with_temple(mut self, at: V3, temple: Option<Arc<Temple>>) -> Chase {
         self.temple = temple;
+        self.eye = self.target;
+        self.place(at, V3::ZERO);
+        self.prev_eye = self.eye;
+        self.prev_target = self.target;
+        self
+    }
+
+    /// The same camera, keeping out of `hulls` (placed again at `at`).
+    pub fn with_hulls(mut self, at: V3, hulls: Option<Arc<Hulls>>) -> Chase {
+        self.hulls = hulls;
         self.eye = self.target;
         self.place(at, V3::ZERO);
         self.prev_eye = self.eye;
@@ -198,6 +215,10 @@ impl Chase {
             eye
         } else {
             self.clear_of_trees(target, eye, vel.scale(LOOK_AHEAD))
+        };
+        let eye = match &self.hulls {
+            Some(h) => h.kept_out(target, eye),
+            None => eye,
         };
         self.eye = match &self.temple {
             Some(t) => t.kept_in(target, eye),

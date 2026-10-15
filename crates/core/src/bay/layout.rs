@@ -594,7 +594,7 @@ pub fn bay_seeded(seed: u64) -> Course {
         radius,
         chest: v3(chest.x, ISLAND_TOP, chest.z),
         chest_yaw: yaw_of(lh.neg()),
-        chest_size: v3(int(6), int(4), int(4)),
+        chest_size: v3(int(16), int(8), int(10)),
     };
 
     c.vines = put.vines;

@@ -635,5 +635,40 @@ fn sparkle(
     );
 }
 
+/// The bay's sky and sea in `b` (drawn by `dynamic` into a batch of their
+/// own) turned to follow JOJO MODE and the colourblind mode (BP5), as the
+/// shader turns the static scenery: the clouds, sun and glints (fixed
+/// `SKY_GLOW` colours) take the change the frame's sky took, `drawn` over
+/// the look's own `own`; the sea takes JOJO MODE's ground colour (`trip`
+/// of the way toward `wild`, keeping each tile's brightness), and in the
+/// colourblind mode (`vivid`) is muted as far as the scenery is (the
+/// shader mutes the moving shapes less). The dome already follows.
+pub fn follow(b: &mut Batch, drawn: Rgb, own: Rgb, trip: i32, wild: Rgb, vivid: bool) {
+    if drawn == own && trip == 0 && !vivid {
+        return;
+    }
+    let luma = |c: Rgb| (c[0] * 30 + c[1] * 59 + c[2] * 11) / 100;
+    b.restyle(|c, g| {
+        if g >= DOME_GLOW {
+            return (c, g);
+        }
+        if g == SKY_GLOW {
+            let out = [0, 1, 2].map(|k| fx::div(mul(c[k], drawn[k]), own[k].max(1)).clamp(0, ONE));
+            return (out, g);
+        }
+        let mut out = c;
+        if trip > 0 {
+            let k =
+                fx::div(luma(c), luma(wild).max(ONE / 20)).clamp(ONE * 35 / 100, ONE * 135 / 100);
+            let pal = [0, 1, 2].map(|i| mul(wild[i], k).min(ONE));
+            out = mix(out, pal, mul(trip, ONE * 85 / 100));
+        }
+        if vivid {
+            out = crate::sky::grey(out, ONE * 2 / 3);
+        }
+        (out, g)
+    });
+}
+
 #[cfg(test)]
 mod tests;

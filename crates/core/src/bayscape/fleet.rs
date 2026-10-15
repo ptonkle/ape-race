@@ -59,13 +59,17 @@ const HIT_TICKS: u32 = 130;
 const BOUNCE_BODY_R: i32 = cm(130);
 const BOUNCE_SKIN: i32 = cm(180);
 
-/// Banana Bay Battle's hemp ropes: a warm tan against the turquoise water,
-/// the blue sky and the dark hulls, with a faint glow.
-pub const ROPE_HEMP: Rgb = rgb(200, 156, 84);
-/// The colourblind mode's ropes: brighter and paler.
-pub const ROPE_HEMP_VIVID: Rgb = rgb(255, 232, 160);
-/// How wide the ropes' glow is, in rope widths.
-pub const ROPE_HALO: i32 = 2;
+/// Banana Bay Battle's hemp ropes: a mid brown, darker than the pale sky
+/// and the bright turquoise sea, so they read as rope, not as light (BP3:
+/// a pale tan with a glow read as light shafts).
+pub const ROPE_HEMP: Rgb = rgb(168, 112, 50);
+/// The colourblind mode's ropes: a light straw, far brighter than the
+/// strong blue catch-up rope.
+pub const ROPE_HEMP_VIVID: Rgb = rgb(232, 196, 120);
+/// How much the ropes glow (only enough to keep their shaded side from
+/// going black), in either mode.
+pub const ROPE_GLOW: i32 = ONE / 16;
+pub const ROPE_GLOW_VIVID: i32 = ONE / 6;
 /// The catch-up rope (TRIAGE T66): a hot scarlet against the tan hemp,
 /// the turquoise sea and the in-reach yellow; in the colourblind mode a
 /// strong blue, far darker than the pale ropes.
@@ -706,7 +710,8 @@ fn rope_palm(b: &mut Batch, foot: V3, anchor: V3, k: u32) {
         let q = foot
             .add(lean.scale(mul(t, t)))
             .with_y(foot.y + mul(top.y - foot.y, t));
-        let w = cm(130) - i * cm(10);
+        // thick enough for a 34 m palm (BP4)
+        let w = cm(240) - i * cm(16);
         b.push(
             Mesh::Taper,
             &rod(p, q, w),
@@ -715,15 +720,15 @@ fn rope_palm(b: &mut Batch, foot: V3, anchor: V3, k: u32) {
         );
         p = q;
     }
-    for i in 0..9 {
-        let yaw = i * TURN / 9 + pick(k, 30, 0, 3000);
+    for i in 0..11 {
+        let yaw = i * TURN / 11 + pick(k, 30, 0, 3000);
         let d = v3(fx::sin(yaw), 0, fx::cos(yaw));
-        let mid = top.add(d.scale(int(3))).add(v3(0, cm(80), 0));
-        let tip = top.add(d.scale(int(6))).sub(v3(0, int(2), 0));
+        let mid = top.add(d.scale(int(5))).add(v3(0, cm(120), 0));
+        let tip = top.add(d.scale(int(9))).sub(v3(0, int(3), 0));
         for (a, z) in [(top, mid), (mid, tip)] {
             b.push(
                 Mesh::Shard,
-                &rod(a, z, ONE).then(&Affine::scale(v3(int(2), ONE, cm(14)))),
+                &rod(a, z, ONE).then(&Affine::scale(v3(int(3), ONE, cm(18)))),
                 if i % 2 == 0 { FROND } else { FROND_DARK },
                 0,
             );

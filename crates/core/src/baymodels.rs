@@ -95,6 +95,7 @@ const WHITE: Rgb = rgb(244, 244, 238);
 
 const STAVE: Rgb = rgb(150, 104, 60);
 const STAVE_DARK: Rgb = rgb(110, 74, 42);
+const STAVE_LIGHT: Rgb = rgb(196, 140, 76);
 const MARKER: Rgb = rgb(255, 92, 30);
 const BOUNCE_RED: Rgb = rgb(222, 40, 46);
 const BOUNCE_BAND: Rgb = rgb(255, 214, 40);
@@ -1493,48 +1494,62 @@ pub fn boundary_barrel(b: &mut Batch, f: &Affine, tick: u32, k: u32) {
     let g = f
         .then(&Affine::translate(v3(0, rise, 0)))
         .then(&Affine::rot_z(tilt));
+    // the body: honey oak, bellied (BP4: dark and squat it read as a stone)
+    let (bot, mid, top) = (-dm(6), dm(4), dm(14));
+    let (r_end, r_mid) = (dm(7), dm(8) + cm(4));
     put(
         b,
         &g,
         Mesh::Barrel,
-        v3(0, dm(2), 0),
-        v3(dm(15), dm(20), dm(15)),
-        STAVE,
-        0,
+        v3(0, mid, 0),
+        v3(r_mid * 2, top - bot, r_mid * 2),
+        STAVE_LIGHT,
+        ONE / 12,
     );
-    for y in [-dm(3), dm(7)] {
+    // the staves' seams, dark lines up the belly (four, so two or three
+    // show from any side)
+    for i in 0..4 {
+        let d = facing(i * TURN / 4 + TURN / 8, 0);
+        let lo = d.scale(r_mid).add(v3(0, mid - dm(5), 0));
+        let hi = d.scale(r_mid).add(v3(0, mid + dm(5), 0));
+        bar(b, &g, Mesh::Cube, lo, hi, cm(5), STAVE_DARK, 0);
+    }
+    // two black iron hoops over the water, standing proud of the wood
+    for (y, r) in [(top - dm(2), r_end + cm(8)), (mid + dm(5), r_mid + cm(2))] {
         put(
             b,
             &g,
             Mesh::Hex,
             v3(0, y, 0),
-            v3(dm(15), cm(10), dm(15)),
+            v3(r * 2, cm(14), r * 2),
             IRON,
             0,
         );
     }
+    // the head: a paler lid
     put(
         b,
         &g,
         Mesh::Hex,
-        v3(0, dm(12), 0),
-        v3(dm(11), cm(4), dm(11)),
-        STAVE_DARK,
+        v3(0, top, 0),
+        v3(r_end * 2 - cm(10), cm(6), r_end * 2 - cm(10)),
+        shade(STAVE_LIGHT, 115),
         0,
     );
-    let top = v3(0, dm(45), 0);
-    bar(b, &g, Mesh::Hex, v3(0, dm(11), 0), top, cm(8), MAST, 0);
-    // the flag: a swallow-tailed pennant, orange with a white bar
+    let pole = v3(0, top + dm(50), 0);
+    bar(b, &g, Mesh::Hex, v3(0, top, 0), pole, cm(10), MAST, 0);
+    // the flag: a swallow-tailed pennant, orange with a white bar, big
+    // enough to read down the line
     let a = mul(wave(tick, 1, pick(k, 2, 0, TURN)), deg(25));
     let fl = g
-        .then(&Affine::translate(top.add(v3(0, -dm(3), 0))))
+        .then(&Affine::translate(pole.add(v3(0, -dm(4), 0))))
         .then(&Affine::rot_y(a));
     put(
         b,
         &fl,
         Mesh::Cube,
-        v3(0, 0, dm(4)),
-        v3(cm(4), dm(5), dm(8)),
+        v3(0, 0, dm(5)),
+        v3(cm(4), dm(7), dm(10)),
         MARKER,
         ONE / 5,
     );
@@ -1542,8 +1557,8 @@ pub fn boundary_barrel(b: &mut Batch, f: &Affine, tick: u32, k: u32) {
         b,
         &fl,
         Mesh::Cube,
-        v3(0, 0, dm(4)),
-        v3(cm(5), cm(12), dm(8)),
+        v3(0, 0, dm(5)),
+        v3(cm(5), cm(16), dm(10)),
         WHITE,
         0,
     );
@@ -1552,9 +1567,9 @@ pub fn boundary_barrel(b: &mut Batch, f: &Affine, tick: u32, k: u32) {
             b,
             &fl,
             Mesh::Wedge,
-            v3(0, t * dm(1), dm(9)),
+            v3(0, t * dm(2), dm(11)),
             &Affine::rot_z(TURN / 4),
-            v3(dm(2), cm(4), dm(3)),
+            v3(dm(3), cm(4), dm(4)),
             MARKER,
             ONE / 5,
         );
@@ -2138,13 +2153,32 @@ pub fn treasure_chest(b: &mut Batch, f: &Affine, tick: u32) {
         core,
         cglow,
     );
+    // heaped high: a mound well over the rim (BP2)
+    put(
+        b,
+        f,
+        Mesh::Geo,
+        v3(dm(3), h + int(2), -dm(2)),
+        v3(w * 7 / 10, int(5), d * 7 / 10),
+        core,
+        cglow,
+    );
+    put(
+        b,
+        f,
+        Mesh::Geo,
+        v3(-dm(4), h + int(4), dm(2)),
+        v3(w * 4 / 10, int(4), d * 45 / 100),
+        core,
+        cglow,
+    );
     // the heap: bananas jumbled every way over the core
-    for i in 0..56u32 {
-        let x = mul(w * 46 / 100, pick(i, 81, -ONE, ONE));
-        let z = mul(d * 44 / 100, pick(i, 82, -ONE, ONE));
+    for i in 0..96u32 {
+        let x = mul(w * 48 / 100, pick(i, 81, -ONE, ONE));
+        let z = mul(d * 46 / 100, pick(i, 82, -ONE, ONE));
         let mid =
             ONE - mul(fx::div(x.abs(), w / 2), ONE / 2) - mul(fx::div(z.abs(), d / 2), ONE / 2);
-        let y = h + mul(int(3), mid) + cm(pick(i, 83, -20, 40));
+        let y = h + mul(int(5), mul(mid, mid) + mid / 3) + cm(pick(i, 83, -20, 50));
         let at = v3(x, y, z);
         let pk = glyph_pulse(tick, i);
         let c = mix(BANANA, rgb(255, 236, 120), pk);
@@ -2157,7 +2191,7 @@ pub fn treasure_chest(b: &mut Batch, f: &Affine, tick: u32) {
             bunch(b, &g, V3::ZERO, 5, int(pick(i, 86, 2, 3)), c, glow, i);
             continue;
         }
-        let len = cm(pick(i, 87, 220, 380));
+        let len = cm(pick(i, 87, 240, 420));
         let g = f
             .then(&Affine::translate(at))
             .then(&Affine::rot_y(pick(i, 88, 0, TURN)))
@@ -2175,7 +2209,7 @@ pub fn treasure_chest(b: &mut Batch, f: &Affine, tick: u32) {
         );
     }
     // spilling over the front and sides onto the sand
-    for i in 0..14u32 {
+    for i in 0..30u32 {
         let side = pick(i, 91, 0, 2);
         let (x, z) = match side {
             0 => (cm(pick(i, 92, -350, 350)), d / 2 + cm(pick(i, 93, 40, 260))),
@@ -2186,17 +2220,20 @@ pub fn treasure_chest(b: &mut Batch, f: &Affine, tick: u32) {
             ),
         };
         // the first few hang over the rim, the rest lie on the sand
-        let y = if i < 5 { h - dm(2) } else { dm(4) };
-        let (x, z) = if i < 5 {
+        let over = i < 12;
+        let y = if over { h - dm(2) } else { dm(4) };
+        let (x, z) = if !over {
+            (x, z)
+        } else if side == 0 {
             (x.clamp(-w / 2, w / 2), d / 2 + dm(3))
         } else {
-            (x, z)
+            (x.signum() * (w / 2 + dm(3)), z)
         };
         let len = cm(pick(i, 94, 240, 360));
         let g = f
             .then(&Affine::translate(v3(x, y, z)))
             .then(&Affine::rot_y(pick(i, 95, 0, TURN)))
-            .then(&Affine::rot_x(deg(if i < 5 {
+            .then(&Affine::rot_x(deg(if over {
                 pick(i, 96, 50, 80)
             } else {
                 pick(i, 96, -10, 10)
@@ -2247,10 +2284,10 @@ pub fn treasure_chest(b: &mut Batch, f: &Affine, tick: u32) {
     // a warm glow round the heap
     b.push_halo(
         Mesh::Sphere,
-        &f.then(&Affine::translate(v3(0, h + int(2), 0)))
-            .then(&Affine::scale(v3(w * 2, int(10), d * 3))),
+        &f.then(&Affine::translate(v3(0, h + int(3), 0)))
+            .then(&Affine::scale(v3(w * 2, int(14), d * 3))),
         rgb(255, 210, 80),
-        ONE / 5 + mul(p, ONE / 8),
+        ONE / 4 + mul(p, ONE / 8),
     );
 }
 
@@ -2530,32 +2567,46 @@ pub fn smoke_puff(b: &mut Batch, f: &Affine, age: i32, k: u32) {
             ONE,
         );
     }
-    let fade = if age > ONE * 6 / 10 {
-        ONE - fx::div(age - ONE * 6 / 10, ONE * 4 / 10)
+    let fade = if age > ONE * 3 / 10 {
+        ONE - fx::div(age - ONE * 3 / 10, ONE * 7 / 10)
     } else {
         ONE
     };
-    for i in 0..5u32 {
+    // BP4: soft white puffs that billow out, rise and shrink away, each
+    // with a pale haze round it (solid and grey they read as rocks)
+    for i in 0..6u32 {
         let reach = mul(fx::sqrt(age), int(pick(k + i, 110, 3, 7)));
-        let side = cm(pick(k + i, 111, -120, 120));
-        let rise = mul(age, int(pick(k + i, 112, 1, 3)));
-        let s = mul(dm(15) + mul(age, int(4)), fade);
+        let side = cm(pick(k + i, 111, -150, 150));
+        let rise = mul(age, int(pick(k + i, 112, 3, 6)));
+        let grow = dm(10) + mul(fx::sqrt(age), int(3));
+        let s = mul(grow, fade);
         if s <= 0 {
             continue;
         }
         let c = if age < ONE / 6 {
             mix(FLASH, SMOKE, age * 6)
         } else {
-            shade(SMOKE, 100 - (age * 22 / ONE))
+            SMOKE
         };
+        let at = v3(side, rise, reach);
         put(
             b,
             f,
             Mesh::Blob,
-            v3(side, rise, reach),
-            v3(s, s * 85 / 100, s),
+            at,
+            v3(s * 7 / 10, s * 6 / 10, s * 7 / 10),
             c,
-            ONE / 3,
+            ONE / 2,
+        );
+        b.push_halo(
+            Mesh::Sphere,
+            &f.then(&Affine::translate(at)).then(&Affine::scale(v3(
+                grow * 3 / 2,
+                grow * 5 / 4,
+                grow * 3 / 2,
+            ))),
+            SMOKE,
+            mul(ONE / 3, fade),
         );
     }
 }
@@ -2641,15 +2692,28 @@ pub fn hull_hit(b: &mut Batch, f: &Affine, age: i32, k: u32) {
             0,
         );
     }
-    let s = mul(dm(10) + mul(age, int(3)), ONE - age);
+    // a pale puff rising and shrinking away in a haze (BP4)
+    let at = v3(0, mul(age, int(3)), -mul(age, int(2)));
+    let grow = dm(8) + mul(fx::sqrt(age), int(2));
+    let s = mul(grow, ONE - age);
     put(
         b,
         f,
         Mesh::Blob,
-        v3(0, mul(age, int(1)), -mul(age, int(2))),
-        v3(s, s, s),
-        shade(SMOKE, 60),
-        0,
+        at,
+        v3(s * 7 / 10, s * 6 / 10, s * 7 / 10),
+        shade(SMOKE, 88),
+        ONE / 3,
+    );
+    b.push_halo(
+        Mesh::Sphere,
+        &f.then(&Affine::translate(at)).then(&Affine::scale(v3(
+            grow * 3 / 2,
+            grow * 5 / 4,
+            grow * 3 / 2,
+        ))),
+        SMOKE,
+        mul(ONE / 3, ONE - age),
     );
 }
 
@@ -2981,8 +3045,9 @@ mod tests {
                 assert!(shapes < 520, "{kind:?} {shapes}");
             }
         }
+        // 13: staves and hoops so it reads as a barrel, not a stone (BP4)
         let (_, s, t) = cost("boundary barrel", &|b| boundary_barrel(b, &id, 0, 1));
-        assert!(s <= 12 && t < 400, "{s} {t}");
+        assert!(s <= 13 && t < 400, "{s} {t}");
         let (_, s, t) = cost("bounce barrel", &|b| bounce_barrel(b, &id, 0, 1, 0));
         assert!(s <= 12 && t < 500, "{s} {t}");
         for p in [Pose::Duel, Pose::Cheer, Pose::Aim, Pose::Haul, Pose::Down] {

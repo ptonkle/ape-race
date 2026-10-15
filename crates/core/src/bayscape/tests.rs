@@ -163,3 +163,74 @@ fn a_squall_darkens_roughens_and_flashes_from_the_tick() {
     }
     assert!(rough > calm * 3 / 2, "{rough} vs {calm}");
 }
+
+#[test]
+fn the_bays_sky_and_sea_follow_jojo_mode_and_the_colourblind_mode() {
+    // BS7/BP5: the clouds kept their fixed white and the sea its turquoise
+    // while JOJO MODE turned the ships and the colourblind mode muted them
+    let (c, b) = bay();
+    let cam = race_cam(&c, 200);
+    let shapes = |batch: Batch| -> Vec<(Rgb, i32)> {
+        let (values, _) = batch.finish(0);
+        values
+            .chunks(INSTANCE_VALUES)
+            .map(|s| ([s[12], s[13], s[14]], s[15]))
+            .collect()
+    };
+    let drawn = || {
+        let mut b0 = Batch::new();
+        dynamic(&mut b0, &c, &b, &cam, 0, 0, Weather::Clear);
+        b0.take_halos();
+        b0
+    };
+    let before = shapes(drawn());
+    let luma = |c: Rgb| (c[0] * 30 + c[1] * 59 + c[2] * 11) / 100;
+    // JOJO MODE: a magenta sky and ground
+    let wild = rgb(230, 40, 200);
+    let mut jojo = drawn();
+    follow(
+        &mut jojo,
+        mix(SKY, wild, ONE * 3 / 4),
+        SKY,
+        ONE,
+        wild,
+        false,
+    );
+    let (mut clouds, mut sea) = (0, 0);
+    for ((c0, g), (c1, _)) in before.iter().zip(shapes(jojo)) {
+        if *g >= DOME_GLOW {
+            assert_eq!(*c0, c1, "the dome follows in the shader");
+        } else if *g == SKY_GLOW {
+            // white clouds turn toward magenta: red over green
+            if c0[1] > ONE * 8 / 10 && c0[0] > ONE * 8 / 10 {
+                assert!(c1[0] - c1[1] > ONE / 4, "a cloud {c0:?} → {c1:?}");
+                clouds += 1;
+            }
+        } else {
+            // the sea's blue-green turns magenta: red over green
+            assert!(c1[0] > c1[1], "the sea {c0:?} → {c1:?}");
+            sea += 1;
+        }
+    }
+    assert!(clouds > 5 && sea > 50, "{clouds} clouds, {sea} sea shapes");
+    // the colourblind mode: the sea near grey, as bright as it was
+    let mut blind = drawn();
+    follow(
+        &mut blind,
+        crate::sky::grey(SKY, crate::sky::MUTE),
+        SKY,
+        0,
+        wild,
+        true,
+    );
+    let spread = |c: Rgb| c.iter().max().unwrap() - c.iter().min().unwrap();
+    for ((c0, g), (c1, _)) in before.iter().zip(shapes(blind)) {
+        if *g < SKY_GLOW {
+            assert!(
+                spread(c1) * 2 < spread(*c0) + ONE / 50,
+                "the sea {c0:?} → {c1:?}"
+            );
+            assert!((luma(c1) - luma(*c0)).abs() < ONE / 50);
+        }
+    }
+}
