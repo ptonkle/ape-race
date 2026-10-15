@@ -21,7 +21,7 @@ The standard map-build steps (MAPS.md "Build steps"), one row each. Status is on
 | 15 | Screenshots at 1920×1080 | In progress | Apes, contrast and 14 in-game shots on the journal; finish shot and v2 coming |
 | 16 | Other maps unchanged | Done | All tests pass on main, release and debug (a debug-only overflow found and fixed) |
 | 17 | Docs | In progress | SECOND-ORDER rows written; README, MAPS.md, HANDOFF to do |
-| 18 | Full checks | In progress | Early run on main: fmt, clippy, debug tests, build, import audit pass; Chromium browser check running. Full run after the agents land |
+| 18 | Full checks | In progress | Early run on main: fmt, clippy, debug tests, build, import audit pass; browser and online checks pass in Chromium (online race too). Full run in all three browsers after the agents land |
 | 19 | Deploy | Waiting on you | Only on your go-ahead |
 
 ## This map's features
