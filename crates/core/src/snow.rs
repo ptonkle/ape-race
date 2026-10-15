@@ -75,6 +75,9 @@ struct Fall {
     wind: (i32, i32),
     size: (i32, i32),
     streak: i32,
+    /// no flake nearer the eye than this (centimetres), so none fills the
+    /// screen
+    clear: i32,
 }
 
 /// Snowing: about 3 flakes a 3 m column within 27 m, falling steadily on
@@ -88,6 +91,7 @@ const SNOWING: Fall = Fall {
     wind: (45, 25),
     size: (11, 18),
     streak: 0,
+    clear: 150,
 };
 /// A blizzard: well over twice as thick (4 a 2 m column), a little nearer
 /// in (the fog hides the rest), falling faster and driven along x by a gale (the course
@@ -99,11 +103,10 @@ const BLIZZARD: Fall = Fall {
     span: 24,
     fall: (220, 340),
     wind: (1150, 280),
-    size: (6, 10),
+    size: (4, 7),
     streak: 70,
+    clear: 250,
 };
-/// No flake nearer the eye than this, so none fills the screen.
-const CLEAR_OF_EYE: i32 = cm(150);
 const FLAKE: Rgb = rgb(246, 248, 252);
 /// Ticks a second (the app's frame tick).
 const TICKS: i64 = crate::rules::TICKS_PER_SECOND as i64;
@@ -203,7 +206,7 @@ fn flakes_of(f: Fall, eye: V3, tick: u32) -> Vec<(V3, i32, i32)> {
                     y as i32,
                     (eye.z as i64 + z) as i32,
                 );
-                if p.dist(eye) < CLEAR_OF_EYE {
+                if p.dist(eye) < cm(f.clear) {
                     continue;
                 }
                 let size = cm(pick(h2, 48, size_range.0, size_range.1));
@@ -301,6 +304,19 @@ pub fn bury_backdrop(glow: i32, w: Weather) -> i32 {
     }
 }
 
+/// A shape's colour and glow in weather `w`: in a blizzard the far
+/// backdrop is buried in the fog (`bury_backdrop`) and the sky's dome (a
+/// glow of 3.5 or more, its colour a multiple of the sky's) is the sky's
+/// own near-white overhead instead of a deep blue, so the buried mountains
+/// do not show against it.
+pub fn in_storm(colour: Rgb, glow: i32, w: Weather) -> (Rgb, i32) {
+    if w == Weather::Blizzard && glow >= ONE * 7 / 2 {
+        ([ONE; 3], glow)
+    } else {
+        (colour, bury_backdrop(glow, w))
+    }
+}
+
 /// Whether a point is inside the snow's reach of `eye` (for tests).
 #[cfg(test)]
 fn within(eye: V3, p: V3) -> bool {
@@ -324,7 +340,7 @@ mod tests {
         assert!((450..=900).contains(&n), "{n} flakes");
         for (p, size, _) in &a {
             assert!(within(eye, *p), "{p:?} outside the snow round the eye");
-            assert!(p.dist(eye) >= CLEAR_OF_EYE);
+            assert!(p.dist(eye) >= cm(SNOWING.clear));
             assert!((cm(SNOWING.size.0)..=cm(SNOWING.size.1)).contains(size));
         }
         // a second later most flakes are lower than they were, by about a
@@ -431,6 +447,14 @@ mod tests {
         assert!(bury_backdrop(ONE * 3, Weather::Blizzard) > ONE * 7 / 2 - ONE / 50);
         assert_eq!(bury_backdrop(ONE / 4, Weather::Blizzard), ONE / 4);
         assert_eq!(bury_backdrop(ONE * 4, Weather::Blizzard), ONE * 4);
+        // and the dome is the sky's own near-white overhead
+        let deep = rgb(60, 140, 250);
+        assert_eq!(
+            in_storm(deep, ONE * 4, Weather::Blizzard),
+            ([ONE; 3], ONE * 4)
+        );
+        assert_eq!(in_storm(deep, ONE * 4, Weather::Snowing), (deep, ONE * 4));
+        assert_eq!(in_storm(deep, ONE / 2, Weather::Blizzard), (deep, ONE / 2));
         assert_eq!(Weather::from_key("blizzard"), Some(Weather::Blizzard));
         assert!(Weather::Blizzard.falls() && !Weather::Clear.falls());
     }

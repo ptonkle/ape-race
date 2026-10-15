@@ -12,7 +12,8 @@
 //! `yaw` and `pitch` (the orbit's, in degrees; the yaw from straight
 //! behind, along the course), `dist` (the orbit's distance, in decimetres)
 //! `hud` (`on` shows the HUD), and `blind`, `jojo` and `snow` (`on`: the
-//! colourblind mode, JOJO MODE, the Ski Slope's snow), `aura` (`off`
+//! colourblind mode, JOJO MODE, the Ski Slope's snow; `snow=blizzard` a
+//! blizzard), `aura` (`off`
 //! hides the racers' auras, TRIAGE T59) and `pal` (each racer's palette,
 //! joined by `+` (a space, as a URL may decode it, works too), TRIAGE
 //! T49; classic for the rest) and `gear` (`none`, `ski` or `space`: what
@@ -53,7 +54,7 @@ pub struct Tile {
     pub hud: bool,
     pub blind: bool,
     pub jojo: bool,
-    pub snow: bool,
+    pub snow: crate::snow::Weather,
     pub aura: bool,
     pub palettes: Vec<u8>,
     /// what the racers wear instead of the map's gear (`gear=space`: the
@@ -84,7 +85,7 @@ impl Tile {
             hud: false,
             blind: false,
             jojo: false,
-            snow: false,
+            snow: crate::snow::Weather::Clear,
             aura: true,
             palettes: Vec::new(),
             gear: None,
@@ -116,7 +117,12 @@ impl Tile {
                 "hud" => t.hud = v == "on",
                 "blind" => t.blind = v == "on",
                 "jojo" => t.jojo = v == "on",
-                "snow" => t.snow = v == "on",
+                "snow" => {
+                    t.snow = match v {
+                        "on" => crate::snow::Weather::Snowing,
+                        w => crate::snow::Weather::from_key(w).unwrap_or_default(),
+                    }
+                }
                 "aura" => t.aura = v != "off",
                 "gear" => t.gear = crate::models::Gear::from_key(v).or(t.gear),
                 "door" => t.door = v.parse().ok(),
@@ -157,11 +163,7 @@ impl App {
         self.settings.speed_colours = t.jojo;
         self.settings.aura = t.aura;
         self.dress = t.gear;
-        self.settings.weather = if t.snow {
-            crate::snow::Weather::Snowing
-        } else {
-            crate::snow::Weather::Clear
-        };
+        self.settings.weather = t.snow;
         self.ensure_course(t.map);
         let Some(course) = self.course_of(t.map).cloned() else {
             return;

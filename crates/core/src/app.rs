@@ -1513,7 +1513,7 @@ impl App {
         let (mut vines, mut batch) = (vines, batch);
         if self.snowing() {
             crate::snow::flakes(&mut batch, cam.eye, self.ticks, weather);
-            batch.reglow(|g| crate::snow::bury_backdrop(g, weather));
+            batch.restyle(|c, g| crate::snow::in_storm(c, g, weather));
         }
         let halos = (vines.take_halos(), batch.take_halos());
         let mut draws = self.scenery().draws_in(cam.eye, look.fog_range.1);
