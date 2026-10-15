@@ -8,6 +8,8 @@ use crate::fx::{self, cm, deg, int, mul, ONE};
 use crate::geom::{facing, yaw_of, V3};
 use crate::render::Camera;
 use crate::ski::Terrain;
+use crate::skiscape::Crown;
+use std::sync::Arc;
 
 /// The field of view at rest and at full speed.
 const FOV_REST: i32 = deg(68);
@@ -28,7 +30,7 @@ const PITCH_REST: i32 = -deg(12);
 /// After this many ticks without the mouse, the camera eases behind.
 const IDLE_TICKS: u32 = 90;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Chase {
     pub yaw: i32,
     pub pitch: i32,
@@ -48,7 +50,34 @@ pub struct Chase {
     /// twice as fast: `SPACE_PACE`): the view widens up to `FAST` times
     /// this, and further than elsewhere
     pub pace: i32,
+    /// the trees the eye keeps out of (the Ski Slope's conifers; none on
+    /// the other maps), SECOND-ORDER SW9
+    pub crowns: Arc<[Crown]>,
+    /// how far from the ape the trees let the eye be: eased in as a tree
+    /// comes between them and out again after (`FREE` while none does)
+    pub reach: i32,
+    /// how fast the reach is changing (a tick)
+    pub reach_speed: i32,
 }
+
+/// The reach while no tree is in the way.
+const FREE: i32 = i32::MAX;
+/// How near a tree the eye may come: a little, so the view's near plane
+/// does not cut into the needles; and the berth it eases in to keep.
+const TREE_GAP: i32 = cm(60);
+const TREE_BERTH: i32 = cm(300);
+/// A tree this near the ape is not kept out of.
+pub const NEAR_APE: i32 = cm(200);
+/// How far ahead (s) the eye looks for trees coming.
+const LOOK_AHEAD: i32 = ONE * 3 / 10;
+/// How the reach glides in ahead of a tree and out after it: the most its
+/// speed changes a tick, and its top speed (a tick).
+const PULL_IN: (i32, i32) = (cm(6), cm(40));
+const LET_OUT: (i32, i32) = (cm(1), cm(8));
+/// The nearest the eye eases in to the ape for a tree.
+const NEAREST: i32 = cm(300);
+/// The step along the line from the ape to the eye when looking for trees.
+const TREE_STEP: i32 = cm(20);
 
 /// Sector Ape's pace (the person: about double the other maps), and how
 /// much wider its view opens at full speed.
@@ -71,11 +100,25 @@ impl Chase {
             prev_fov: FOV_REST,
             terrain,
             pace: ONE,
+            crowns: Arc::from(Vec::new()),
+            reach: FREE,
+            reach_speed: 0,
         };
-        c.place(at);
+        c.place(at, V3::ZERO);
         c.prev_eye = c.eye;
         c.prev_target = c.target;
         c
+    }
+
+    /// The same camera, keeping out of `crowns` (placed again at `at`, so
+    /// it starts clear of them).
+    pub fn with_crowns(mut self, at: V3, crowns: Arc<[Crown]>) -> Chase {
+        self.crowns = crowns;
+        self.eye = self.target;
+        self.place(at, V3::ZERO);
+        self.prev_eye = self.eye;
+        self.prev_target = self.target;
+        self
     }
 
     /// Mouse movement, already scaled to angle units.
@@ -123,24 +166,125 @@ impl Chase {
         self.fov += (fov - self.fov) / 20;
         let back = fx::lerp(BACK_REST, back_fast, k);
         self.back += (back - self.back) / 20;
-        self.place(at);
+        self.place(at, vel);
     }
 
-    fn place(&mut self, at: V3) {
+    fn place(&mut self, at: V3, vel: V3) {
         let look = facing(self.yaw, self.pitch);
         let target = at.sub(V3::UP.scale(cm(40)));
-        let mut eye = target.sub(look.scale(self.back)).add(V3::UP.scale(RISE));
-        let floor = self.terrain.height(eye.x, eye.z) + cm(80);
-        if eye.y < floor {
-            eye.y = floor;
-        }
+        let behind = look.scale(self.back).neg().add(V3::UP.scale(RISE));
+        let eye = self.above_ground(target.add(behind));
         // the eye trails a little, so speed shows as the ape pulling away
-        self.eye = if self.eye == self.target {
+        let eye = if self.eye == self.target {
             eye
         } else {
             self.eye.lerp(eye, ONE * 2 / 5)
         };
+        self.eye = if self.crowns.is_empty() {
+            eye
+        } else {
+            self.clear_of_trees(target, eye, vel.scale(LOOK_AHEAD))
+        };
         self.target = target;
+    }
+
+    fn above_ground(&self, mut eye: V3) -> V3 {
+        let floor = self.terrain.height(eye.x, eye.z) + cm(80);
+        if eye.y < floor {
+            eye.y = floor;
+        }
+        eye
+    }
+
+    /// The eye `eye` brought in toward the ape's `target` so it stays out
+    /// of the trees (SECOND-ORDER SW9): to the furthest point of the line
+    /// between them outside every tree. A tree between the eye and the ape
+    /// is left be. The eye glides in ahead of a tree, keeping a berth from
+    /// it where it is and where it will be a moment from now (moved on by
+    /// `lead`, as the ape goes), and after it glides back out; only a tree
+    /// that comes faster than that brings the eye straight in.
+    fn clear_of_trees(&mut self, target: V3, eye: V3, lead: V3) -> V3 {
+        let line = eye.sub(target);
+        let len = line.len();
+        if len < TREE_STEP {
+            return eye;
+        }
+        let dir = line.norm();
+        let xs = [target.x, eye.x, target.x + lead.x, eye.x + lead.x];
+        let zs = [target.z, eye.z, target.z + lead.z, eye.z + lead.z];
+        let (x0, x1) = (*xs.iter().min().unwrap(), *xs.iter().max().unwrap());
+        let (z0, z1) = (*zs.iter().min().unwrap(), *zs.iter().max().unwrap());
+        // the trees near the lines, but not one the ape is inside
+        let crowns = Arc::clone(&self.crowns);
+        let near: Vec<&Crown> = crowns
+            .iter()
+            .filter(|c| {
+                let r = c.radius * 108 / 100 + TREE_BERTH;
+                c.foot.x > x0 - r
+                    && c.foot.x < x1 + r
+                    && c.foot.z > z0 - r
+                    && c.foot.z < z1 + r
+                    && !c.holds(target, 0)
+            })
+            .collect();
+        // the gliding reach keeps a berth from them all, now and a moment
+        // ahead, though never nearer the ape than `NEAREST`
+        let at = len.min(self.reach);
+        let later = clear_reach(target.add(lead), dir, at, &near, TREE_BERTH);
+        let soft = clear_reach(target, dir, at, &near, TREE_BERTH)
+            .min(later)
+            .max(NEAREST.min(len));
+        if soft < at {
+            self.glide(at, soft, PULL_IN);
+        } else {
+            // clear where the eye is: back out as far as the berth allows
+            let room = open_reach(target, dir, at, len, &near, TREE_BERTH);
+            if room >= len && self.reach >= len - cm(5) {
+                self.reach = FREE;
+                self.reach_speed = 0;
+            } else {
+                self.glide(at, room, LET_OUT);
+            }
+        }
+        // and the eye never goes into one, unless the ape is brushing past
+        // it (the eye could only keep out of it by coming right up to the
+        // ape); one the ape drew it into, it eases out of
+        let was = self.eye;
+        let solid: Vec<&Crown> = near
+            .into_iter()
+            .filter(|c| !c.holds(target, NEAR_APE) && !c.holds(was, 0))
+            .collect();
+        let d = clear_reach(target, dir, len.min(self.reach), &solid, TREE_GAP);
+        if d < len.min(self.reach) {
+            self.reach = d;
+            self.reach_speed = 0;
+        }
+        if d >= len {
+            return eye;
+        }
+        self.above_ground(target.add(dir.scale(d)))
+    }
+
+    /// Moves the reach from `at` toward `goal`, speeding up and slowing
+    /// down within `pace` (the most it speeds up a tick, the fastest it
+    /// goes), so it glides there and stops.
+    fn glide(&mut self, at: i32, goal: i32, pace: (i32, i32)) {
+        let (accel, top) = pace;
+        let gap = goal - at;
+        // the speed from which it can still stop at the goal
+        let stop = fx::sqrt(mul(2 * accel, gap.abs())).min(top);
+        let want = if gap < 0 { -stop } else { stop };
+        // heading the other way it brakes as hard as it ever pulls in
+        let grip = if (gap < 0) == (self.reach_speed < 0) { accel } else { accel.max(PULL_IN.0) };
+        let v = self.reach_speed + (want - self.reach_speed).clamp(-grip, grip);
+        let next = (at + v).max(0);
+        if (gap < 0 && next <= goal) || (gap >= 0 && next >= goal) {
+            self.reach = goal;
+            self.reach_speed = 0;
+        } else {
+            self.reach = next;
+            self.reach_speed = v;
+        }
     }
 
     /// The camera to draw with, `alpha` (Q16) of the way from the last tick
@@ -158,6 +302,30 @@ impl Chase {
             fov: fx::lerp(self.prev_fov, self.fov, alpha),
         }
     }
+}
+
+/// The furthest point from `from` along `dir` (a unit vector), up to
+/// `len`, that is `gap` clear of every tree in `near`: its distance.
+fn clear_reach(from: V3, dir: V3, len: i32, near: &[&Crown], gap: i32) -> i32 {
+    let mut d = len;
+    while d > 0 && near.iter().any(|c| c.holds(from.add(dir.scale(d)), gap)) {
+        d = (d - TREE_STEP).max(0);
+    }
+    d
+}
+
+/// How far from `from` along `dir` (a unit vector) the line stays `gap`
+/// clear of every tree in `near` going on out from `at`, up to `len`.
+fn open_reach(from: V3, dir: V3, at: i32, len: i32, near: &[&Crown], gap: i32) -> i32 {
+    let mut d = at;
+    while d < len {
+        let next = (d + TREE_STEP).min(len);
+        if near.iter().any(|c| c.holds(from.add(dir.scale(next)), gap)) {
+            return d;
+        }
+        d = next;
+    }
+    len
 }
 
 /// The replay's orbit camera (TRIAGE T23): it circles the followed ape on

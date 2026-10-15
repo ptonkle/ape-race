@@ -639,6 +639,87 @@ fn fence_span(s: &mut Sink, from: Option<V3>, p: V3) {
 
 // ---- the conifers ----
 
+/// How far a conifer's trunk reaches down into the snow.
+const TRUNK_SINK: i32 = cm(30);
+
+/// A conifer's solid shape, as `conifer` draws it: a trunk (on trees of 3
+/// tiers or more) a quarter of its height, then `tiers` cones each
+/// overlapping the next by nearly half, narrowing upward. The chase camera
+/// keeps out of it (SECOND-ORDER SW9).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Crown {
+    /// the foot of its trunk
+    pub foot: V3,
+    pub height: i32,
+    /// the lowest tier's radius
+    pub radius: i32,
+    pub tiers: i32,
+}
+
+impl Crown {
+    /// Tier `k` (0 the lowest): its bottom over the foot, its height and
+    /// its base's radius.
+    pub fn tier(&self, k: i32) -> (i32, i32, i32) {
+        let (height, tiers) = (self.height, self.tiers);
+        // each tier overlaps the next by nearly half
+        let th = mul(
+            height * 17 / 20,
+            fx::div(ONE, ONE + (tiers - 1) * ONE * 11 / 20),
+        );
+        let bottom = height * 3 / 20 + k * mul(th, ONE * 11 / 20);
+        let r = self.radius * (100 - k * 60 / tiers) / 100;
+        (bottom, th, r)
+    }
+
+    /// Whether `p` lies inside the tree, or within about `gap` of it (each
+    /// tier as a round cone, a little wider for the snow on it, so the
+    /// facets are inside).
+    pub fn holds(&self, p: V3, gap: i32) -> bool {
+        let reach = self.radius * 108 / 100 + gap;
+        let (dx, dz) = (p.x - self.foot.x, p.z - self.foot.z);
+        if dx.abs() > reach || dz.abs() > reach {
+            return false;
+        }
+        let dy = p.y - self.foot.y;
+        if dy < -TRUNK_SINK - gap || dy > self.height + gap {
+            return false;
+        }
+        let d = v3(dx, 0, dz).len();
+        if d > reach {
+            return false;
+        }
+        if self.tiers >= 3 && dy <= self.height / 4 + gap && d < self.radius / 5 + gap {
+            return true;
+        }
+        (0..self.tiers).any(|k| {
+            let (bottom, th, r) = self.tier(k);
+            if dy < bottom - gap || dy > bottom + th + gap {
+                return false;
+            }
+            let rise = fx::div((dy - bottom).clamp(0, th), th.max(1));
+            d < mul(r * 108 / 100, ONE - rise) + gap
+        })
+    }
+}
+
+/// Every conifer of the Ski Slope's scenery as a solid shape: those inside
+/// the fences and on the islands (`SkiLayout::trees`, drawn with four
+/// tiers) and the forest beyond the fences.
+pub fn crowns(c: &Course, ski: &SkiLayout) -> Vec<Crown> {
+    let mut out: Vec<Crown> = ski
+        .trees
+        .iter()
+        .map(|t| Crown {
+            foot: t.at,
+            height: t.height,
+            radius: t.radius,
+            tiers: 4,
+        })
+        .collect();
+    out.extend(forest_trees(c, ski).into_iter().map(|t| t.0));
+    out
+}
+
 /// A snowy conifer standing at `foot`: a short trunk and `tiers` skirts
 /// of near-black-green needles, each with snow lying on its upper part.
 pub fn conifer(
@@ -650,24 +731,24 @@ pub fn conifer(
     shade_of: u8,
     spin: i32,
 ) {
-    let tiers = tiers.max(1);
+    let shape = Crown {
+        foot,
+        height,
+        radius,
+        tiers: tiers.max(1),
+    };
+    let tiers = shape.tiers;
     let colour = NEEDLES[shade_of as usize % NEEDLES.len()];
     if tiers >= 3 {
         b.push(
             Mesh::Cyl,
-            &rod(foot.sub(up(cm(30))), foot.add(up(height / 4)), radius / 5),
+            &rod(foot.sub(up(TRUNK_SINK)), foot.add(up(height / 4)), radius / 5),
             BARK,
             0,
         );
     }
-    // each tier overlaps the next by nearly half
-    let th = mul(
-        height * 17 / 20,
-        fx::div(ONE, ONE + (tiers - 1) * ONE * 11 / 20),
-    );
     for k in 0..tiers {
-        let bottom = height * 3 / 20 + k * mul(th, ONE * 11 / 20);
-        let r = radius * (100 - k * 60 / tiers) / 100;
+        let (bottom, th, r) = shape.tier(k);
         let mid = foot.add(up(bottom + th / 2));
         let yaw = spin + k * deg(23);
         b.push(
@@ -696,6 +777,15 @@ pub fn conifer(
 /// thinning to simpler ones on the banks, and none on the lifts' lines
 /// or round the landmarks.
 fn forest(s: &mut Sink, c: &Course, ski: &SkiLayout) {
+    for (t, shade_of, spin) in forest_trees(c, ski) {
+        conifer(s.at(t.foot), t.foot, t.height, t.radius, t.tiers, shade_of, spin);
+    }
+}
+
+/// The forest's trees, in the order they are drawn: each one's shape, its
+/// needles' shade and its turn.
+fn forest_trees(c: &Course, ski: &SkiLayout) -> Vec<(Crown, u8, i32)> {
+    let mut trees = Vec::new();
     let mut dice = Dice(0x0005_C1F0_2E57);
     let clear = |p: V3| -> bool {
         for l in &ski.lifts {
@@ -765,11 +855,18 @@ fn forest(s: &mut Sink, c: &Course, ski: &SkiLayout) {
                 let r = int(h) * (26 + dice.range(0, 8)) / 100;
                 let shade_of = dice.below(4) as u8;
                 let spin = dice.range(0, fx::TURN);
-                conifer(s.at(foot), foot, int(h), r, tiers, shade_of, spin);
+                let shape = Crown {
+                    foot,
+                    height: int(h),
+                    radius: r,
+                    tiers,
+                };
+                trees.push((shape, shade_of, spin));
             }
         }
         at += int(7);
     }
+    trees
 }
 
 /// The flat distance from `p` to the segment from `a` to `b`.
