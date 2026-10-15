@@ -19,9 +19,9 @@ The standard map-build steps (MAPS.md "Build steps"), one row each. Status is on
 | 13 | Colourblind and JOJO MODE | In progress | Colourblind fine; JOJO MODE misses the haze band and the temple face, being fixed |
 | 14 | Map card | In progress | Being made by the polish agent |
 | 15 | Screenshots at 1920×1080 | In progress | Apes, contrast and 14 in-game shots on the journal; finish shot and v2 coming |
-| 16 | Other maps unchanged | Done | All tests pass on main, the flyover too |
+| 16 | Other maps unchanged | Done | All tests pass on main, release and debug (a debug-only overflow found and fixed) |
 | 17 | Docs | In progress | SECOND-ORDER rows written; README, MAPS.md, HANDOFF to do |
-| 18 | Full checks | Not started | `scripts/timed-checks.sh` |
+| 18 | Full checks | In progress | Early run on main: fmt, clippy, debug tests, build, import audit pass; Chromium browser check running. Full run after the agents land |
 | 19 | Deploy | Waiting on you | Only on your go-ahead |
 
 ## This map's features
