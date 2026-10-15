@@ -112,7 +112,8 @@ fn only_the_chosen_map_is_built_at_start_and_the_city_when_first_chosen() {
 fn choosing_the_city_moves_the_preview_onto_it_and_races_there() {
     let mut a = app();
     a.act("menu.race", "");
-    assert_eq!(a.shown, Shown::StageSet);
+    // the Jungle's preview stands on its own map (TRIAGE T77)
+    assert_eq!(a.shown, Shown::World(Map::Jungle));
     let v = a.scene_version();
     a.act("setup.map", "city");
     // the background changes at once: the City's scenery behind the ape
@@ -127,10 +128,10 @@ fn choosing_the_city_moves_the_preview_onto_it_and_races_there() {
     // the title flies over the last chosen map
     a.act("menu.main", "");
     assert_eq!(a.shown, Shown::World(Map::City));
-    // and back on the Jungle the ape stands in its stage again
+    // and back on the Jungle the ape stands on the Jungle again
     a.act("menu.race", "");
     a.act("setup.map", "jungle");
-    assert_eq!(a.shown, Shown::StageSet);
+    assert_eq!(a.shown, Shown::World(Map::Jungle));
     a.act("menu.start", "");
     assert_eq!(a.play.as_ref().unwrap().race.course.name, "jungle");
 }

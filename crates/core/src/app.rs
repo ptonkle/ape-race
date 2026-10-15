@@ -27,6 +27,7 @@ use crate::trial;
 mod online_play;
 pub use online_play::OnlinePlay;
 mod gallery;
+mod lineup;
 #[cfg(test)]
 mod map_tests;
 mod medals;
@@ -234,9 +235,9 @@ pub enum Screen {
 /// The static scenery the page holds: `scene_version` changes with it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Shown {
-    /// the small jungle stage (the Jungle's ape preview, the lineup)
+    /// the small jungle stage (the lineup of all six)
     StageSet,
-    /// a map's whole scenery (the flyover, a race, the City's ape preview)
+    /// a map's whole scenery (the flyover, a race, the ape preview)
     World(Map),
 }
 
@@ -384,6 +385,9 @@ pub struct App {
     replay_exit: Screen,
     /// Sector Ape's model gallery (`gallery.rs`), shown instead of all else
     gallery: Option<gallery::Gallery>,
+    /// the last race's winner, dancing in the lineup behind the setup
+    /// or the lobby until it changes ape or the next race starts (T76)
+    winner: Option<lineup::Winner>,
 }
 
 fn s(map: &BTreeMap<String, String>, key: &str) -> String {
@@ -434,6 +438,7 @@ impl App {
             stash: None,
             replay_exit: Screen::Title,
             gallery: None,
+            winner: None,
         };
         // only the map the title flies over is built now; the others when
         // first chosen
@@ -522,7 +527,6 @@ impl App {
         let map = self.shown_map();
         match self.stage {
             Stage::Lineup => Shown::StageSet,
-            Stage::Showcase if map == Map::Jungle => Shown::StageSet,
             _ => Shown::World(map),
         }
     }
@@ -731,6 +735,11 @@ impl App {
         if screen != Screen::Race {
             if let Some(mut p) = self.play.take() {
                 self.keep_recording(&mut p);
+                // the race just left: its winner dances behind the setup
+                // or the lobby (TRIAGE T76); not a replay's or a tile's
+                if p.replay.is_none() && p.still.is_none() {
+                    self.winner = lineup::winner_of(&p.race, p.local, p.online);
+                }
             }
             self.stash = None;
         }
@@ -1108,6 +1117,7 @@ impl App {
     }
 
     fn start_race(&mut self) {
+        self.winner = None;
         let mut entries = vec![Entry {
             name: self.t("player.you"),
             kind: self.settings.kind,
