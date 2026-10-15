@@ -15,3 +15,5 @@ One row per run of `scripts/timed-checks.sh`, newest last. Seconds per step; `lo
 | 2026-10-15 10:06 | 1.11.4 | c73ac85+ | 10.86 | check | format=0.5 lint=0.1 core=58.6 release=0.2 WebAssembly=0.1 browser=219.9 | 279.4 | pass |
 | 2026-10-15 10:11 | 1.11.4 | 7bb3409 | 4.82 | check | format=0.5 lint=2.2 core=73.2 release=5.3 WebAssembly=0.1 browser=226.4 | 307.6 | pass |
 | 2026-10-15 10:17 | 1.11.4 | 7bb3409 | 11.96 | online | release=0.3 transport=16.8 a=76.9 | 94.0 | pass |
+| 2026-10-15 17:38 | 1.12.0 | 8fe929e+ | 0.13 | check | format=0.8 lint=1.9 core=65.7 release=5.4 WebAssembly=0.1 browser=252.3 | 326.2 | pass |
+| 2026-10-15 17:44 | 1.12.0 | 8fe929e+ | 25.08 | online | release=0.2 transport=18.8 a=118.1 | 137.1 | pass |
