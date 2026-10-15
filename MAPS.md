@@ -4,7 +4,7 @@ Notes for building the next map, from the Jungle (the first course) and the City
 
 ## Build steps (track these for every map)
 
-Keep `notes/<key>-progress.md` with one row per step and a status of **Done**, **In progress**, **Not started**, **Waiting on you** or **Blocked**, and show that table in every progress report (the person, 2026-10-14). The steps:
+Keep `notes/<key>-progress.md` with one row per step and a status of **Done**, **In progress**, **Not started**, **Waiting on you** or **Blocked**, and show that table in every progress report (the person, 2026-10-14; the `/progress-report` skill in ~/.claude/skills does this). The steps:
 
 1. Brief and answers
 2. Skeleton and contract
