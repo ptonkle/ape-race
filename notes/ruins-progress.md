@@ -39,6 +39,7 @@ One row per concept from the brief, plus any added later (your feedback, a new i
 | River with rapids and current | Brief | Done | Done | Done | Done |
 | The current carries you downstream only, never sideways | Your feedback (1.10.0) | n/a | In progress | In progress | Not started |
 | Snapping turtles (bouncers) | Brief | Done | Done | Done | In progress |
+| Turtles stay in the water, clear of the statues | Your feedback (1.10.0) | n/a | In progress | In progress | Not started |
 | Waterfall and ravine reset | Brief | Done | Done | Done | Done |
 | Rope bridge, three gorillas wide | Brief | Done | n/a | Done | Done |
 | Boost vines launch into the mouth | Brief | Done | Done | Done | Done |
