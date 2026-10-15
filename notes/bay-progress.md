@@ -11,12 +11,12 @@ The standard map-build steps (MAPS.md "Build steps"), one row each. Status is on
 | 5 | Sky and lighting | Done | 3 pm sun 40° up, cumulus, moving tiled sea from the physics swell; Squall (rain, slate sky, whitecaps, lightning) offered on the bay only |
 | 6 | Course layout | Done | 1,458 m, 30 ships (8 galleons, 8 frigates, 8 brigs, 6 sloops), 158 vines, no set sails on the line |
 | 7 | Map rules | Done | Water puts you on the last ship passed (Floor is Lava: eaten); barrel soft wall; bouncy barrels |
-| 8 | Art placed on the course | In progress | Placed (30 ships, pier, gantry, island, chest, barrels, fights, cannon fire, doubloons); polish agent on camera clipping, chest size, ropes, barrels |
+| 8 | Art placed on the course | In progress | Placed and polished once (camera out of hulls, big chest, rope colour, barrels, smoke, palms); round 2: sails, background battle, waterlines |
 | 9 | Lobby spot and flyover | In progress | Lobby agent |
 | 10 | AI validation | Done | Own Bay handicaps (BT1): 16 layouts Sloth 76.8, Monkey 67.1, Ape 59.7, King Kong 49.7 s; ordering test over 16 layouts |
 | 11 | Medal times | Done | Author 0:35, Gold 0:42, Silver 0:52, Bronze 1:07 (best kind 35.06 s, BT2) |
 | 12 | Step and frame cost | In progress | Worst step 1.9–3.3 ms over 2,000 frames, like the Ruins on the same runs (BT3); frame cost waits for the art |
-| 13 | Colourblind and JOJO MODE | In progress | Polish agent |
+| 13 | Colourblind and JOJO MODE | Done | Sea, sky, clouds follow both modes (BP5); barrels and flags to mute in colourblind (round 2) |
 | 14 | Map card | In progress | Lobby agent |
 | 15 | Screenshots at 1920×1080 | In progress | Models, outfits, sky on the journal |
 | 16 | Other maps unchanged | In progress | All tests pass on main after each merge (jungle/maps/sector unchanged) |
