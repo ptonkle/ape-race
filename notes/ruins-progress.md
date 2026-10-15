@@ -21,7 +21,7 @@ The standard map-build steps (MAPS.md "Build steps"), one row each. Status is on
 | 15 | Screenshots at 1920×1080 | In progress | Apes, contrast and 14 in-game shots on the journal; finish shot and v2 coming |
 | 16 | Other maps unchanged | Done | All tests pass on main, release and debug (a debug-only overflow found and fixed) |
 | 17 | Docs | In progress | SECOND-ORDER rows written; README, MAPS.md, HANDOFF to do |
-| 18 | Full checks | In progress | Early run on main passed in Chromium (browser and online); deployed without the full three-browser run, on your word |
+| 18 | Full checks | Done | 1.10.1 passed in Chromium, Firefox and WebKit: check 8.3 min, online 3.8 min; rerun before each deploy where time allows |
 | 19 | Deploy | Done | 1.10.0 at 23:20, 1.10.1 at 23:45, 1.10.2 (river) at 23:58; fixes follow as 1.10.x |
 
 ## This map's features
@@ -45,6 +45,8 @@ One row per concept from the brief, plus any added later (your feedback, a new i
 | Boost vines launch into the mouth | Brief | Done | Done | Done | Done |
 | Weaker AIs cross the bridge and mouth without stalling | AI tuning | n/a | Done | Done | Done |
 | Temple mouth in Aztec relief, with depth | Brief, your feedback | Done | Done | Done | Done |
+| Temple face is solid; only the mouth lets you in | Your feedback (1.10.2) | n/a | In progress | In progress | Not started |
+| No black box in the mouth | Your feedback (1.10.2) | In progress | n/a | In progress | Not started |
 | Waterfall from the mouth | Brief | Done | n/a | Done | Done |
 | Banana-glyph stonework, pulsing glow | Brief | Done | n/a | Done | Done |
 | Darker temple lighting | Brief | Done | n/a | Done | Done |

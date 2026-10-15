@@ -400,6 +400,7 @@ impl Race {
             }
             // Sunset Ruins: the trip wires and the ravine
             self.trip_wires(i);
+            self.hold_doors(i);
             if self.ravine(i) {
                 continue;
             }
@@ -493,6 +494,7 @@ impl Race {
             self.switch(i);
             // Sunset Ruins: and trip a wire
             self.trip_wires(i);
+            self.hold_doors(i);
         }
     }
 

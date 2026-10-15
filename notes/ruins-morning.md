@@ -8,6 +8,10 @@ The person went to bed at about 00:10 after playing 1.10.0–1.10.2. Each fix be
 - 1.10.1 (23:45): lit temple entrance attempt, random banana pile, cliffs, JOJO MODE, its own map card.
 - 1.10.2 (23:58): the river current only carries you downstream; turtles and statues apart.
 
+## Checks
+
+- Full checks on 1.10.1 passed in all three browsers (check.sh 8.3 min, check-online.sh 3.8 min; `notes/check-times.md`).
+
 ## Being fixed overnight (their feedback)
 
 | Item | Status | Version |
@@ -16,6 +20,13 @@ The person went to bed at about 00:10 after playing 1.10.0–1.10.2. Each fix be
 | Lobby camera looks at the ground; the ape sunk into the ground | In progress | |
 | Wall panels not flush in some sections; their banana glyphs can't be seen | In progress | |
 | Stuck in spike pits; pit vines disappear | In progress | |
+| You can fly straight through the temple face (no collision outside the mouth) | In progress | |
+
+## Also overnight
+
+| Item | Status | Version |
+| --- | --- | --- |
+| Patch notes: a "What's new" panel in the game (the version label opens it too, a "New" marker after an update) and a patch-notes page on the site, from one file | In progress | |
 
 ## Questions for the morning
 
