@@ -4,7 +4,12 @@ Stage 9, written by the agent. `C5 Consolidate in your own words`.
 
 A fresh session starts from this file, not from memory.
 
-## Start here (the night of 2026-10-13/14: Sector Ape built while the person slept)
+## Start here (2026-10-14 night): Sunset Ruins
+
+- **Live: v1.10.0** (deployed 23:20 on the person's word, without the full three-browser check; the early run on main passed fmt, clippy, debug and release tests, build, import audit, and the browser and online checks in Chromium). Sunset Ruins (key `ruins`, brief `briefs/sunset-ruins.md`, progress `notes/ruins-progress.md`, SECOND-ORDER RU, RG, RA, RC, RS, RT rows) and the first three maps renamed (T86: Canopy Run, Concrete Jungle, Yeti Peak; keys unchanged). PROTOCOL 10.
+- The art polish pass (random banana pile, finish shot, lobby reframe, cliffs, ground fold, dim glyphs, JOJO MODE, the map card; the card on 1.10.0 is still a copy of the Jungle's) is an agent branch, to ship as 1.10.1.
+
+## Earlier: start here (the night of 2026-10-13/14: Sector Ape built while the person slept)
 
 - **Read `notes/sector-morning.md` first:** the state, and the questions for the person.
 - **Live:** https://ptonkle.github.io/ape-race/ is **v1.9.2** (2026-10-14: 1.9.2 the Ski Slope camera keeps out of the fence conifers, SW9/SW10, check.sh passed in three engines; 1.9.1 dropdowns stay open in the lobby, T65 again, MF11; 1.9.0 the menus T64 Random map, T65, T69, T70, T81, PROTOCOL 9, check.sh and check-online.sh passed in all three engines on main; 1.8.3, the lobby lineup T76 and spots T77, went live and was reverted at the person's request, site commit c417768; 1.8.2 Ski Slope T62, T63, T68, T74; 1.8.1 T60, T66, T73; 1.8.0 the online fixes T67, T71, T72 with PROTOCOL 8; 1.7.0 brought Sector Ape, the redone map picker, the snow leopard; 1.7.1 the Sector reset behind you, T80, and the smooth Sector title flyover, T83). 1.7.0 passed `check.sh` and `check-online.sh` in all three engines. 1.7.1 passed them in the Sector agent's worktree, but on main the browser check timed out twice in Chromium in the replay viewer while five agents had the machine at load 65; rerun it once they finish.
