@@ -509,11 +509,12 @@ impl App {
         self.weather_shown().falls()
     }
 
-    /// The weather the 3D view shows: `weather()` (the host's online) on
-    /// the Ski Slope (not on the lineup), else clear.
+    /// The weather the 3D view shows: `weather()` (the host's online) where
+    /// the shown map offers it (the Ski Slope's snow, Banana Bay Battle's
+    /// squall; not on the lineup), else clear.
     pub(crate) fn weather_shown(&self) -> crate::snow::Weather {
-        if self.stage != Stage::Lineup && self.shown_map() == Map::Ski {
-            self.weather()
+        if self.stage != Stage::Lineup {
+            self.weather().on(self.shown_map())
         } else {
             crate::snow::Weather::Clear
         }
@@ -613,15 +614,24 @@ impl App {
         })
     }
 
-    /// The Ski Slope's Weather select (`settings.weather` in Settings,
-    /// `setup.weather` on the Ski Slope's setup), labelled by its id.
-    pub(crate) fn weather_select(&self, id: &str) -> Value {
-        let options: Vec<Value> = crate::snow::Weather::ALL
+    /// A Weather select (`settings.weather` in Settings, `setup.weather`
+    /// on a setup, `lobby.weather`), labelled by its id, offering `map`'s
+    /// weathers (`None`, Random: every one, each shown only on its map).
+    pub(crate) fn weather_select(&self, id: &str, map: Option<Map>) -> Value {
+        let list: &[crate::snow::Weather] = match map {
+            Some(m) => crate::snow::Weather::offered(m),
+            None => &crate::snow::Weather::ALL,
+        };
+        let options: Vec<Value> = list
             .iter()
             .map(|w| json!({ "value": w.key(), "text": self.t(&format!("weather.{}", w.key())) }))
             .collect();
+        let value = match map {
+            Some(m) => self.weather().on(m),
+            None => self.weather(),
+        };
         json!({ "type": "select", "id": id, "label": self.t(id),
-                "value": self.weather().key(), "options": options })
+                "value": value.key(), "options": options })
     }
 
     /// A map's name, as shown.
@@ -1525,6 +1535,12 @@ impl App {
         // blizzard whitens it and closes it right in)
         let weather = self.weather_shown();
         let look = crate::snow::sky_in(weather, look);
+        // a squall's lightning lights the whole sky
+        let look = if weather == crate::snow::Weather::Squall {
+            crate::bayscape::flashed(look, self.ticks)
+        } else {
+            look
+        };
         // the colourblind mode mutes the sky and the fog as well (TRIAGE T33)
         let (sky, fog) = if vivid {
             (
@@ -1585,6 +1601,19 @@ impl App {
             }
         };
         let (mut vines, mut batch) = (vines, batch);
+        // Banana Bay Battle's sky and sea round the eye, in its weather (in
+        // a race the swell at the race's tick, where the physics has it)
+        if self.stage != Stage::Lineup {
+            let shown = match (&self.play, self.stage) {
+                (Some(p), Stage::Race) => Some((&p.race.course, p.race.tick)),
+                _ => self.course_of(self.shown_map()).map(|c| (c, self.ticks)),
+            };
+            if let Some((c, tick)) = shown {
+                if let Some(bay) = &c.bay {
+                    crate::bayscape::dynamic(&mut batch, c, bay, &cam, tick, self.ticks, weather);
+                }
+            }
+        }
         if self.snowing() {
             crate::snow::flakes(&mut batch, cam.eye, self.ticks, weather);
             batch.restyle(|c, g| crate::snow::in_storm(c, g, weather));
@@ -1772,10 +1801,16 @@ impl App {
             self.palette_select("setup.palette"),
             json!({ "type": "stats", "label": self.t("setup.stats"), "rows": self.stats_rows(&stats) }),
         ];
-        // the Ski Slope's weather (and Random's, which may pick it), beside
-        // the colours so the two short selects share a row (TRIAGE T70)
-        if self.settings.map == Map::Ski || self.settings.random_map {
-            items.insert(3, self.weather_select("setup.weather"));
+        // the Ski Slope's weather, Banana Bay Battle's (and Random's, which
+        // may pick either), beside the colours so the two short selects
+        // share a row (TRIAGE T70)
+        if self.settings.random_map {
+            items.insert(3, self.weather_select("setup.weather", None));
+        } else if crate::snow::Weather::offered(self.settings.map).len() > 1 {
+            items.insert(
+                3,
+                self.weather_select("setup.weather", Some(self.settings.map)),
+            );
         }
         if self.trial {
             items.push(self.medal_table(self.settings.map, None));
@@ -1998,7 +2033,9 @@ impl App {
         ];
         // Speed Colours shows once unlocked (TRIAGE row 26)
         if let Some(items) = panels[0]["items"].as_array_mut() {
-            items.push(self.weather_select("settings.weather"));
+            // the Ski Slope's (Banana Bay Battle's squall is chosen on its
+            // own setup and lobby: SECOND-ORDER BS2)
+            items.push(self.weather_select("settings.weather", Some(Map::Ski)));
             if self.settings.colours_unlocked {
                 items.push(json!({ "type": "toggle", "id": "settings.speed_colours",
                   "label": self.t("settings.speed_colours"), "value": self.settings.speed_colours }));
