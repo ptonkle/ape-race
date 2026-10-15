@@ -49,7 +49,7 @@ One row per concept from the brief, plus any added later (your feedback, a new i
 | Banana-glyph stonework, pulsing glow | Brief | Done | n/a | Done | Done |
 | Darker temple lighting | Brief | Done | n/a | Done | Done |
 | You can see into the temple from the bridge and through the mouth | Your feedback (1.10.0, again on 1.10.1) | In progress | n/a | In progress | Not started |
-| Wall panels sit flush along every wall, past the bends | Your feedback (1.10.0) | In progress | n/a | In progress | In progress |
+| Wall panels sit flush along every wall, past the bends | Your feedback (1.10.0, again on 1.10.2) | In progress | n/a | In progress | Not started |
 | Floor spike traps | Brief | Done | Done | Done | Done |
 | Trip wires → trapdoors after 0.75 s | Brief | Done | Done | Done | Done |
 | Glowing banana-spike pits | Brief | Done | Done | Done | In progress |
