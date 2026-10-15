@@ -5,7 +5,8 @@
 //! did before it, up to each ape's finish. A deliberate change to Sector Ape's physics or AI takes
 //! new hashes (say so in SECOND-ORDER); a speed-up never does. Taken again
 //! for T80 (a reset only onto a deck behind, and the Sloth's and Monkey's
-//! Sector tuning after it).
+//! Sector tuning after it), and for T88 (the wreck passage's launch and
+//! wider gap, and the Sloth's and Monkey's tuning after it).
 
 use tool_core::ai::{think, Brain, Difficulty};
 use tool_core::map::Map;
@@ -82,11 +83,11 @@ fn sector_ape_plays_out_exactly_as_before_the_speed_ups() {
 
 const LAYOUT: u32 = 2_063_114_272;
 const SEEDS: [u64; 6] = [
-    9_749_239_232_439_204_287,
-    3_604_457_657_148_528_351,
-    11_299_388_982_505_847_099,
-    14_310_608_530_030_099_725,
-    4_405_341_000_277_605_177,
-    17_483_481_483_703_630_033,
+    17_811_016_668_059_297_489,
+    6_897_013_252_622_197_542,
+    12_932_424_484_739_607_544,
+    5_943_055_988_806_801_884,
+    12_567_516_417_570_027_149,
+    3_304_483_771_416_469_769,
 ];
-const LAVA: [u64; 2] = [12_173_875_390_533_199_151, 604_119_066_146_022_402];
+const LAVA: [u64; 2] = [8_983_391_733_978_846_429, 3_757_321_401_680_909_238];

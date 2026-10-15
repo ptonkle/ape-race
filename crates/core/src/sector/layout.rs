@@ -32,10 +32,12 @@
 //! - **The wreck** (`WRECK_AT`): the destroyed mothership lying across the
 //!   course, rolled so the passage through its bow runs level on the spine.
 //!   The hidden route: the snipe vine 39 m short of the mouth on its line,
-//!   then the 10 × 7 m gap, 34 m deep; miss and the hull (not bouncy) stops
-//!   you dead. The visible ways: out left between its torn halves (a level
-//!   vine off the bow's torn face across the gap) and over the bow (vines
-//!   from debris high over it). A deck before it all.
+//!   then the 14 × 10 m gap, 34 m deep, lined with launch rings: flying in
+//!   launches you straight through it, faster (`PASSAGE_LAUNCH`, T88); miss
+//!   and the hull (not bouncy) stops you dead. The visible ways: out left
+//!   between its torn halves (a level vine off the bow's torn face across
+//!   the gap) and over the bow (vines from debris high over it). A deck
+//!   before it all.
 //! - **The armada** (`ARMADA`): ten grunts and two brutes at twice life
 //!   size, in five ranks, drifting or marching 7 m side to side; vines hang
 //!   from their fists (one straight down, one slanted out) and an elbow
@@ -600,10 +602,7 @@ pub fn sector_seeded(seed: u64) -> Course {
             shut_at: None,
         },
         mechs: Vec::new(),
-        wreck: Wreck {
-            frame: Affine::IDENTITY,
-            gap: WRECK_GAP,
-        },
+        wreck: Wreck::new(Affine::IDENTITY, WRECK_GAP),
         black_hole: (V3::ZERO, BLACK_HOLE_R),
         set_pieces: Vec::new(),
         lobby: (V3::ZERO, 0),
@@ -896,8 +895,8 @@ fn wreck(b: &mut B) {
         t: want.sub(p0.middle),
         ..f0
     };
-    b.lay.wreck = Wreck { frame: f, gap };
-    let pass = wreck_passage(&f, gap);
+    b.lay.wreck = Wreck::new(f, gap);
+    let pass = b.lay.wreck.passage;
     let (stern, bow) = wreck_halves(&f);
     // the bow's hull round the passage (ship metres: x across the hull, the
     // passage's way; y up; z along the ship), and the stern's

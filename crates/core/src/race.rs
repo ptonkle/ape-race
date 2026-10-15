@@ -166,6 +166,8 @@ pub enum Reward {
     Catchup,
     /// a banana on the course (TRIAGE T43); no flash, the count shows it
     Banana,
+    /// Sector Ape: the launch down the wreck's hidden passage (T88)
+    Shortcut,
 }
 
 impl Reward {
@@ -174,6 +176,7 @@ impl Reward {
             Reward::Mushroom => "mushroom",
             Reward::Catchup => "catchup",
             Reward::Banana => "banana",
+            Reward::Shortcut => "shortcut",
         }
     }
 }
@@ -390,6 +393,7 @@ impl Race {
                 self.events.push(Event::Body { who: i, what });
                 match what {
                     Happening::Bounce => self.reward(i, Reward::Mushroom),
+                    Happening::Launched => self.reward(i, Reward::Shortcut),
                     Happening::Grab => self.catch_up(i),
                     _ => {}
                 }

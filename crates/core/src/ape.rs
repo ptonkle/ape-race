@@ -57,6 +57,8 @@ pub enum Happening {
     Rebound,
     /// Sunset Ruins: flung up by a spike trap or the spikes in a pit
     Spiked,
+    /// Sector Ape: launched down the wreck's hidden passage (T88)
+    Launched,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -654,6 +656,7 @@ impl Ape {
         // Sector Ape: the ships, the debris and the door
         if course.sector.is_some() {
             self.hit_bodies(course, tick, before);
+            self.passage_launch(course, before);
         }
         // a bounce mushroom throws a falling or running ape back up
         // toward the vines (TRIAGE T5)

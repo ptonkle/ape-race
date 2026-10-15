@@ -383,7 +383,7 @@ const SECTOR_CANDS: usize = 16;
 const SECTOR_FLIGHT: u32 = 4 * TICKS_PER_SECOND as u32;
 const SECTOR_HESITATE: [u32; 4] = [4, 2, 0, 0];
 const SECTOR_DRIVE: [u32; 4] = [3, 3, 6, DUTY];
-const SECTOR_NOISE: [i32; 4] = [cm(1750), cm(620), int(3), 0];
+const SECTOR_NOISE: [i32; 4] = [cm(1700), cm(600), int(3), 0];
 const SECTOR_HOP: [i32; 4] = [int(22), int(28), int(28), int(28)];
 const SECTOR_AIM: i32 = int(30);
 /// Each reset onto a deck makes it misjudge up to this much more (four at
