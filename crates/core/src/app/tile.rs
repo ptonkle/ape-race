@@ -188,6 +188,17 @@ impl App {
             }
             self.step_race(&mut p);
         }
+        // during the countdown a fifth and sixth ape share the first two
+        // starts (`Race::new`): for a picture, stand them a row ahead,
+        // between the others, so all six show (a held tile only)
+        if t.at < 360 {
+            let ahead = crate::geom::facing(p.race.course.start_yaw, 0).scale(fx::int(2));
+            let s = p.race.course.starts;
+            for (i, r) in p.race.racers.iter_mut().enumerate().skip(4) {
+                let (a, b) = if i == 4 { (s[0], s[1]) } else { (s[2], s[3]) };
+                r.ape.pos = a.lerp(b, fx::ONE / 2).add(ahead);
+            }
+        }
         // Sector Ape's door, shut a moment ago (for its picture)
         let now = p.race.tick;
         if let (Some(ago), Some(s)) = (t.door, p.race.course.sector.as_deref_mut()) {
