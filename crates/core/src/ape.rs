@@ -74,7 +74,7 @@ pub struct Ape {
     /// bounce): its landing does not roll on (TRIAGE row 25)
     hopped: bool,
     /// the vine let go of last, and how many ticks ago
-    last_vine: Option<(usize, i32)>,
+    pub(crate) last_vine: Option<(usize, i32)>,
     /// the nearest centreline sample, kept as a search hint
     pub hint: usize,
     /// where the ape faces, for drawing
@@ -646,6 +646,10 @@ impl Ape {
         self.vel = v;
         if wall {
             self.happened.push(Happening::Wall);
+        }
+        // Sunset Ruins: the temple's face, solid but for its mouth
+        if course.ruins.is_some() {
+            self.hit_facade(course, before);
         }
         // Sector Ape: the ships, the debris and the door
         if course.sector.is_some() {

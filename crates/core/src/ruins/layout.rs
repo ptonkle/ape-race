@@ -392,7 +392,7 @@ pub fn ruins_seeded(seed: u64) -> Course {
         to: v3(bp.x, deck, bp.z).add(br.scale(c.half_width)),
         width: BRIDGE_WIDTH,
         boost,
-        aim: v3(mp.x, floor + int(6), mp.z).add(mh.scale(int(6))),
+        aim: v3(mp.x, floor + int(6), mp.z).add(mh.scale(int(2))),
     };
     let lp = c.point(int(LIP));
     let lr = right_of(c.heading_at(int(LIP)));
