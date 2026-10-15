@@ -203,15 +203,19 @@ pub fn ruins_seeded(seed: u64) -> Course {
                 .point(int(along))
                 .add(r.scale(side * (RIVER_HALF + int(3))));
             let bank = v3(bank.x, land(&c, bank), bank.z);
-            // every third station one vine hangs from a ruin on the bank
+            // every third station one vine hangs from a ruin on the bank,
+            // set back so its drawn footprint stands clear of the water
             let hanger = if station % 3 == 2 && here.is_empty() {
+                let back = RIVER_HALF + fx::mul(LANDMARK_FOOTPRINT, LANDMARK_DRAWN) + int(3);
+                let ruin = c.point(int(along)).add(r.scale(side * back));
+                let ruin = v3(ruin.x, land(&c, ruin), ruin.z);
                 landmarks.push(Landmark {
                     kind: if landmarks.len() % 2 == 0 {
                         LandmarkKind::Moai
                     } else {
                         LandmarkKind::BananaBunch
                     },
-                    at: bank,
+                    at: ruin,
                     yaw: crate::geom::yaw_of(r.scale(-side)),
                     scale: ONE,
                 });
@@ -298,8 +302,11 @@ pub fn ruins_seeded(seed: u64) -> Course {
         let p = c.point(int(at));
         let r = right_of(c.heading_at(int(at)));
         let y = land(&c, p) - cm(50);
-        let from = p.add(r.scale(-(RIVER_HALF - int(2))));
-        let to = p.add(r.scale(RIVER_HALF - int(2)));
+        // (its shell turns back short of each bank: in the water, clear
+        // of the ruins on the banks)
+        let reach = RIVER_HALF - TURTLE_RADIUS - TURTLE_SHORT;
+        let from = p.add(r.scale(-reach));
+        let to = p.add(r.scale(reach));
         let (from, to) = (v3(from.x, y, from.z), v3(to.x, y, to.z));
         let (from, to) = if dice.below(2) == 0 {
             (from, to)

@@ -683,12 +683,28 @@ pub fn think(race: &Race, who: usize, brain: &mut Brain) -> Controls {
             }
             Mode::Grounded if ape.swimming(course) || ape.climb.is_some() => {
                 // in the City's river: no keys, so it swims for the nearest
-                // way out (a bank, a ladder, a boat) and climbs out
+                // way out (a bank, a ladder, a boat) and climbs out; on
+                // Sunset Ruins a swimmer goes only where its keys say, so
+                // it holds W toward the nearer bank
                 brain.plan = None;
                 brain.cands.clear();
-                Controls {
-                    yaw: ape.yaw,
-                    ..Controls::default()
+                let bank = course
+                    .ruins
+                    .is_some()
+                    .then(|| course.water_exit(ape.pos))
+                    .flatten()
+                    .map(|(to, _)| to.flat().sub(ape.pos.flat()))
+                    .filter(|d| d.len() > cm(20));
+                match bank {
+                    Some(d) => Controls {
+                        fwd: 1,
+                        yaw: yaw_of(d),
+                        ..Controls::default()
+                    },
+                    None => Controls {
+                        yaw: ape.yaw,
+                        ..Controls::default()
+                    },
                 }
             }
             Mode::Grounded => {
