@@ -8,7 +8,7 @@ The standard map-build steps (MAPS.md "Build steps"), one row each. Status is on
 | 2 | Skeleton and contract | In progress | Skeleton agent |
 | 3 | Ape costumes | In progress | Gear agent: pirate outfit |
 | 4 | Models | In progress | Models agent: ships, barrels, chest |
-| 5 | Sky and lighting | Not started | 3 pm Caribbean |
+| 5 | Sky and lighting | Not started | 3 pm Caribbean; Squall weather |
 | 6 | Course layout | Not started | Starts when the contract is on main |
 | 7 | Map rules | Not started | Water reset, barrel wall, bouncy barrels |
 | 8 | Art placed on the course | Not started | |
@@ -44,3 +44,4 @@ One row per concept from the brief, plus any added later. Stages: **Model**, **G
 | Low-detail monkey pirates fighting on decks | Brief | In progress | n/a | Not started | Not started |
 | Doubloons on item vines | Brief | In progress | n/a | Not started | Not started |
 | Finish island with a chest of golden bananas | Brief | In progress | n/a | Not started | Not started |
+| Squall weather (rain, dark sky, rough swell, lightning) | Your answer | Not started | n/a | Not started | Not started |
