@@ -761,7 +761,7 @@ impl WallPanel {
 }
 
 /// The panels on the corridor's and the chamber's walls, each flat on its
-/// own wall (RS20, RS23): along each corridor section's walls at
+/// own wall (RS20, RS24): along each corridor section's walls at
 /// `panel_offsets`, and on every other chamber wall segment, no wider than
 /// the segment.
 pub fn wall_panels(r: &RuinsLayout) -> Vec<WallPanel> {
@@ -786,7 +786,7 @@ pub fn wall_panels(r: &RuinsLayout) -> Vec<WallPanel> {
                 out.push(WallPanel {
                     back: v3(face.x, floor + int(9), face.z).add(fwd.scale(along)),
                     // (a whole unit: `right.scale(-side)` was a
-                    // near-zero vector, RS23)
+                    // near-zero vector, RS24)
                     out: right.scale(-side * ONE),
                     w: int(10),
                     h: int(8),
@@ -1555,7 +1555,7 @@ fn glyphs(b: &mut Batch, r: &RuinsLayout, eye: V3, t: u32) {
 
 /// Where the lobby may stand, from the temple's mouth: metres back up the
 /// river and to its right, the first whose view of the mouth no ruin or
-/// vine tree blocks (RS7, RS12, RS21). First midstream, on a ruin block in
+/// vine tree blocks (RS7, RS12, RS22). First midstream, on a ruin block in
 /// the river (the vine trees line both banks, so no bank spot sees the
 /// mouth past them), the river running ahead over the lip.
 const LOBBY_TRIES: [(i32, i32); 8] = [
