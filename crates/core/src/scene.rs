@@ -34,7 +34,6 @@ const LEAF: [Rgb; 4] = [
 ];
 const VINE: Rgb = rgb(150, 210, 70);
 const VINE_REACH: Rgb = rgb(255, 236, 90);
-const VINE_USED: Rgb = rgb(240, 84, 72);
 const BANANA_YELLOW: Rgb = rgb(255, 216, 40);
 const BANANA_STALK: Rgb = rgb(92, 62, 30);
 const VINE_LEAF: Rgb = rgb(90, 170, 60);
@@ -1329,7 +1328,7 @@ pub fn dynamic(f: &Frame) -> (Batch, Batch) {
             continue;
         }
         let look = vine_look_on(map, Some(i) == reach, f.vivid, f.tick);
-        let look = catch_up_look(race, f.local, i, Some(i) == reach, look);
+        let look = catch_up_look(race, f.local, i, Some(i) == reach, look, map, f.vivid);
         let t = f.tick + i as u32 * 37;
         match f.chains.get(i) {
             Some(chain) => chain_vine(&mut vines, chain, held[i], look, t, leafy),
@@ -1639,19 +1638,48 @@ fn pickup_banana(b: &mut Batch, at: V3, spin: i32) {
     b.push(Mesh::Cyl, &rod(points[4], tip, cm(8)), BANANA_STALK, 0);
 }
 
+/// Each map's catch-up vine colour (TRIAGE T66), chosen against that map's
+/// own vines, the shared in-reach yellow and the item markers' violet:
+/// the Jungle's coral red against its green vines (T45's), the City's hot
+/// magenta against its cyan wires and orange dusk, the Ski Slope's emerald
+/// against its pink ropes, orange fences and white snow, Sector Ape's hot
+/// rose against its mint tethers and black space. On the maps whose vines
+/// glow it glows too (the map's halo is kept).
+pub fn catch_up_colour(map: Map, vivid: bool) -> Rgb {
+    match (map, vivid) {
+        (Map::Jungle, false) => rgb(240, 84, 72),
+        (Map::City, false) => rgb(255, 60, 190),
+        (Map::Ski, false) => rgb(30, 220, 90),
+        (Map::Sector, false) => rgb(255, 80, 110),
+        // the colourblind mode (TRIAGE T33): told from the map's vivid
+        // vine by brightness, not hue alone, and kept off the item flowers'
+        // violet: a deep red-orange under the bright green vines, a dark
+        // magenta under the bright cyan wires, a strong blue (on the blue
+        // and yellow axis most colourblind eyes keep) under the bright pink
+        // ropes, a deep red under the pale mint tethers
+        (Map::Jungle, true) => rgb(255, 70, 0),
+        (Map::City, true) => rgb(255, 40, 200),
+        (Map::Ski, true) => rgb(20, 40, 230),
+        (Map::Sector, true) => rgb(255, 60, 70),
+    }
+}
+
 /// A catch-up vine (TRIAGE T45: an opponent swung on it, the viewer has
-/// not) glows coral red, apart from the in-reach yellow (which wins) and
-/// the item vines' flowers; any other vine keeps its look.
+/// not) glows in its map's catch-up colour (T66), apart from the in-reach
+/// look (which wins) and the item vines' markers; any other vine keeps its
+/// look.
 fn catch_up_look(
     race: &Race,
     viewer: Option<usize>,
     i: usize,
     in_reach: bool,
     look: VineLook,
+    map: Map,
+    vivid: bool,
 ) -> VineLook {
     if !in_reach && viewer.is_some_and(|v| race.catch_up_vine(v, i)) {
         VineLook {
-            colour: VINE_USED,
+            colour: catch_up_colour(map, vivid),
             glow: look.glow.max(ONE * 9 / 20),
             ..look
         }
@@ -2394,6 +2422,73 @@ mod tests {
         let u = uniforms();
         assert_eq!(&u[0..3], &[j.light_dir.x, j.light_dir.y, j.light_dir.z]);
         assert_eq!(fog_range(), j.fog_range);
+    }
+
+    #[test]
+    fn each_maps_catch_up_vines_stand_apart_from_its_own_vines() {
+        // TRIAGE T66: far in colour from the map's vine, the in-reach look
+        // and the item markers; in the colourblind mode by brightness too
+        let luma = |c: Rgb| (c[0] * 30 + c[1] * 59 + c[2] * 11) / 100;
+        let far = |a: Rgb, b: Rgb| (0..3).map(|k| (a[k] - b[k]).abs()).sum::<i32>();
+        let markers = [PETAL, crate::cityscape::SPARK];
+        for map in Map::ALL {
+            for vivid in [false, true] {
+                let c = catch_up_colour(map, vivid);
+                let vine = vine_look_on(map, false, vivid, 0).colour;
+                let reach = vine_look_on(map, true, vivid, 0).colour;
+                for (what, other) in [("vine", vine), ("reach", reach)]
+                    .into_iter()
+                    .chain(markers.map(|m| ("marker", m)))
+                {
+                    assert!(
+                        far(c, other) > ONE / 2,
+                        "{map:?} {vivid}: {c:?} too near the {what} {other:?}"
+                    );
+                }
+                if vivid {
+                    for other in [vine, reach] {
+                        assert!(
+                            (luma(c) - luma(other)).abs() > ONE / 4,
+                            "{map:?}: {c:?} as bright as {other:?}"
+                        );
+                    }
+                }
+            }
+        }
+        // each map its own
+        let mut all: Vec<Rgb> = Map::ALL.map(|m| catch_up_colour(m, false)).to_vec();
+        all.dedup();
+        assert_eq!(all.len(), Map::ALL.len());
+    }
+
+    #[test]
+    fn a_catch_up_vine_is_drawn_in_its_maps_colour_and_keeps_its_glow() {
+        // TRIAGE T66 (T45): an opponent has swung on vine `v`, the viewer
+        // not; the in-reach look still wins
+        for map in Map::ALL {
+            let e = |k| crate::race::Entry {
+                name: format!("P{k}"),
+                kind: crate::rules::Kind::Chimpanzee,
+                driver: crate::race::Driver::Local,
+                palette: 0,
+            };
+            let mut race = Race::new(map.course(), &[e(0), e(1)], false, 1);
+            let v = race.course.vines.len() / 3;
+            race.used = vec![0; race.course.vines.len()];
+            race.used[v] = 0b10;
+            assert!(race.catch_up_vine(0, v));
+            let a = race.course.anchor(v, race.tick);
+            let mid = a.add(race.course.hang(v).scale(race.course.vines[v].length / 2));
+            for vivid in [false, true] {
+                let want = catch_up_colour(map, vivid);
+                let look = vine_look_on(map, false, vivid, 0);
+                let mut b = vines_seen(&race, mid, vivid);
+                let halos = coloured(b.take_halos(), Mesh::Cyl, want);
+                let rods = coloured(b, Mesh::Cyl, want);
+                assert!(!rods.is_empty(), "{map:?} {vivid}: no catch-up vine");
+                assert_eq!(!halos.is_empty(), look.halo > 0, "{map:?} {vivid}: its glow");
+            }
+        }
     }
 
     #[test]
