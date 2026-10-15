@@ -113,7 +113,7 @@ pub fn bay_cost() {
     };
     let moving = |eye: tool_core::geom::V3, t: u32| -> (usize, usize) {
         let mut b = Batch::new();
-        tool_core::bayscape::fleet::dynamic(&mut b, &bay, bl, eye, t, t);
+        tool_core::bayscape::fleet::dynamic(&mut b, &bay, bl, eye, t, t, false);
         let tris = Mesh::ALL
             .iter()
             .map(|&m| b.count_of(m) * vertices(m).len() / VERTEX_VALUES / 3)

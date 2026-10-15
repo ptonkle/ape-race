@@ -85,7 +85,7 @@ const PULLS: [i32; 4] = [ONE, ONE * 4 / 5, ONE * 13 / 20, ONE / 2];
 /// up (BP7.1): the eye slides up or down out of the band.
 pub const YARD_ALONG: i32 = cm(400);
 pub const YARD_ACROSS: i32 = cm(300);
-pub const YARD_BAND: i32 = cm(150);
+pub const YARD_BAND: i32 = cm(300);
 /// The most the eye slides up or down out of a yard's band.
 const MOST_SLIDE: i32 = cm(1000);
 /// The line is not checked this near the ape (its own deck under it).
@@ -189,22 +189,28 @@ impl Hulls {
             };
         }
         let mut eye = self.out_of_spars(target, eye, SPAR_GAP);
-        // out of a yard's band where one would cross the view close up
-        // (BR1): slid down or up, the nearer first, down first
-        if self.in_yard_band(target, eye) {
-            let mut dy = RISE_STEP;
-            while dy <= MOST_SLIDE {
-                let down = self.over_floors(eye.add(V3::UP.scale(-dy)));
-                let up = self.over_floors(eye.add(V3::UP.scale(dy)));
-                if down.y < eye.y && self.open(target, down, &blocking) {
-                    eye = down;
-                    break;
+        // out of a yard's band where one would cross the view close up,
+        // and from behind a yard that hides the ape (BR1): slid down or
+        // up, the nearer first, down first; where no height clears both,
+        // out of the band at least
+        let banded = self.in_yard_band(target, eye);
+        if banded || self.yard_between(target, eye) {
+            let passes: &[bool] = if banded { &[true, false] } else { &[true] };
+            'passes: for &line in passes {
+                let mut dy = RISE_STEP;
+                while dy <= MOST_SLIDE {
+                    let down = self.over_floors(eye.add(V3::UP.scale(-dy)));
+                    let up = self.over_floors(eye.add(V3::UP.scale(dy)));
+                    if down.y < eye.y && self.open(target, down, &blocking, line) {
+                        eye = down;
+                        break 'passes;
+                    }
+                    if self.open(target, up, &blocking, line) {
+                        eye = up;
+                        break 'passes;
+                    }
+                    dy += RISE_STEP;
                 }
-                if self.open(target, up, &blocking) {
-                    eye = up;
-                    break;
-                }
-                dy += RISE_STEP;
             }
         }
         eye
@@ -223,14 +229,37 @@ impl Hulls {
     }
 
     /// Whether `eye` is out of every yard's band, out of the spars' gap and
-    /// sees the ape past `floors`.
-    fn open(&self, target: V3, eye: V3, floors: &[&Block]) -> bool {
+    /// sees the ape past `floors` (and, with `line`, past every yard).
+    fn open(&self, target: V3, eye: V3, floors: &[&Block], line: bool) -> bool {
         !self.in_yard_band(target, eye)
+            && !(line && self.yard_between(target, eye))
             && !self
                 .spars
                 .iter()
                 .any(|s| !s.holds(target, SPAR_GAP / 2) && s.holds(eye, SPAR_GAP))
             && !self.hidden(target, eye, floors)
+    }
+
+    /// Whether a yard (one the ape is not at) stands between the ape's
+    /// `target` and `eye`, hiding the ape behind it.
+    pub fn yard_between(&self, target: V3, eye: V3) -> bool {
+        let line = eye.sub(target);
+        let len = line.len();
+        if len <= NEAR {
+            return false;
+        }
+        let dir = line.norm();
+        // the yard the ape hangs from too: from the eye above it, it
+        // crossed the view right in front of the ape (`swing-720`)
+        let mut d = NEAR;
+        while d <= len {
+            let p = target.add(dir.scale(d));
+            if self.yards.iter().any(|y| y.holds(p, LINE_GAP)) {
+                return true;
+            }
+            d += STEP;
+        }
+        false
     }
 
     /// Whether a yard near `eye` crosses the view close up: within

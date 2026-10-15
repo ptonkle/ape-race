@@ -394,6 +394,12 @@ pub fn surface(w: &Water, x: i32, z: i32, tick: u32, storm: bool, min_len: i32) 
     )
 }
 
+/// The drawn sea's height at (x, z) with every swell (and a squall's
+/// chop): where what floats on it is drawn (BR4).
+pub fn sea_at(w: &Water, x: i32, z: i32, tick: u32, storm: bool) -> i32 {
+    surface_of(w, x, z, tick, storm, true)
+}
+
 /// The swells of `w` at least `min_len` long (all of them for 0).
 fn longer_than(w: &Water, min_len: i32) -> Water {
     Water {

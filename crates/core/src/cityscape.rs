@@ -3313,6 +3313,7 @@ mod tests {
                 vivid: false,
                 gear: None,
                 flashes: &[],
+                storm: false,
             });
             let (v, _) = vines.finish(DYNAMIC_BUFFER);
             let near = |colour: Rgb| {

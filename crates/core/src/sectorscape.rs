@@ -2313,6 +2313,7 @@ mod tests {
             vivid: false,
             gear: None,
             flashes: &[],
+            storm: false,
         });
         let (vals, _) = vines.finish(crate::render::DYNAMIC_BUFFER);
         let colours: Vec<Rgb> = vals

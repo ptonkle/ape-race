@@ -1597,6 +1597,7 @@ impl App {
                         vivid,
                         gear: self.dress,
                         flashes: &p.flashes,
+                        storm: weather == crate::snow::Weather::Squall,
                     })
                 }
                 None => (Batch::new(), Batch::new()),

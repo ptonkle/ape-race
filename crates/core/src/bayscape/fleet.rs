@@ -760,7 +760,15 @@ fn rope_palm(b: &mut Batch, foot: V3, anchor: V3, k: u32) {
 /// the deck fights, the cannon fire, the barrels and the chest. `t` is the
 /// frame's clock (animation), `tick` the race's (the volleys and the
 /// swell, which the contract ties to it).
-pub fn dynamic(b: &mut Batch, c: &Course, bay: &BayLayout, eye: V3, t: u32, tick: u32) {
+pub fn dynamic(
+    b: &mut Batch,
+    c: &Course,
+    bay: &BayLayout,
+    eye: V3,
+    t: u32,
+    tick: u32,
+    storm: bool,
+) {
     let near = |p: V3, d: i32| p.flat().sub(eye.flat()).len() < d;
     for (k, s) in bay.ships.iter().enumerate() {
         if near(s.at, FLAGS_NEAR) {
@@ -768,10 +776,12 @@ pub fn dynamic(b: &mut Batch, c: &Course, bay: &BayLayout, eye: V3, t: u32, tick
         }
     }
     fighters(b, bay, &near, t);
-    fire(b, bay, &near, tick);
-    barrels(b, c, bay, &near, t, tick);
-    foam(b, bay, &near, tick);
-    let height = |x: i32, z: i32| bay.water.height(x, z, tick);
+    // what floats rides the sea as drawn, a squall's rougher swell and
+    // chop included (BR4)
+    let height = |x: i32, z: i32| super::sea_at(&bay.water, x, z, tick, storm);
+    fire(b, bay, &near, tick, &height);
+    barrels(b, c, bay, &near, t, tick, &height);
+    foam(b, bay, &near, &height);
     super::battle::dynamic(b, &super::battle::cached(c, bay), eye, tick, &height);
     let isl = &bay.island;
     if near(isl.chest, CHEST_NEAR) {
@@ -835,7 +845,13 @@ fn fighters(b: &mut Batch, bay: &BayLayout, near: &dyn Fn(V3, i32) -> bool, t: u
 /// The cannon fire: each volley's ball in flight (`BayLayout::ball_at`),
 /// the smoke at its muzzle as it fires, and where it lands a splash or a
 /// hit on the hull.
-fn fire(b: &mut Batch, bay: &BayLayout, near: &dyn Fn(V3, i32) -> bool, tick: u32) {
+fn fire(
+    b: &mut Batch,
+    bay: &BayLayout,
+    near: &dyn Fn(V3, i32) -> bool,
+    tick: u32,
+    height: &dyn Fn(i32, i32) -> i32,
+) {
     for (i, v) in bay.volleys.iter().enumerate() {
         let Some(s) = bay.ships.get(v.from) else {
             continue;
@@ -877,7 +893,7 @@ fn fire(b: &mut Batch, bay: &BayLayout, near: &dyn Fn(V3, i32) -> bool, tick: u3
                     i as u32,
                 );
             } else if !v.hit && after < SPLASH_TICKS {
-                let y = bay.water.height(v.target.x, v.target.z, tick);
+                let y = height(v.target.x, v.target.z);
                 let age = (after * ONE as u32 / SPLASH_TICKS) as i32;
                 m::splash(b, &m::pose(v.target.with_y(y), 0, FX_SCALE), age, i as u32);
             }
@@ -888,21 +904,27 @@ fn fire(b: &mut Batch, bay: &BayLayout, near: &dyn Fn(V3, i32) -> bool, tick: u3
 /// Foam collars where the course's hulls meet the sea (BQ3): three along
 /// each hull, each at the swell's height there, so the line moves with
 /// the sea.
-fn foam(b: &mut Batch, bay: &BayLayout, near: &dyn Fn(V3, i32) -> bool, tick: u32) {
-    for s in &bay.ships {
+fn foam(
+    b: &mut Batch,
+    bay: &BayLayout,
+    near: &dyn Fn(V3, i32) -> bool,
+    height: &dyn Fn(i32, i32) -> i32,
+) {
+    for (k, s) in bay.ships.iter().enumerate() {
         if !near(s.at, FOAM_NEAR) {
             continue;
         }
         let third = s.length / 3;
         for i in -1..=1 {
             let p = s.point(i * third * 9 / 10, 0, 0);
-            let y = bay.water.height(p.x, p.z, tick);
+            let y = height(p.x, p.z);
             let beam = if i == 0 { s.beam } else { s.beam * 4 / 5 };
             m::foam(
                 b,
                 &m::pose(p.with_y(y), s.yaw, ONE),
                 beam * 6 / 5,
                 third * 5 / 4,
+                (k * 3) as u32 + (i + 1) as u32,
             );
         }
     }
@@ -918,16 +940,17 @@ fn barrels(
     near: &dyn Fn(V3, i32) -> bool,
     t: u32,
     tick: u32,
+    height: &dyn Fn(i32, i32) -> i32,
 ) {
     for (k, bb) in bay.boundary.iter().enumerate() {
         if !near(bb.at, BARREL_NEAR) {
             continue;
         }
-        let y = bay.water.height(bb.at.x, bb.at.z, tick);
+        let y = height(bb.at.x, bb.at.z);
         let on = m::pose(bb.at.with_y(y), 0, BOUNDARY_SCALE);
         m::boundary_barrel(b, &on, t, k as u32);
         // a small foam ring where it sits in the sea (BQ3)
-        m::foam(b, &on, cm(230), cm(230));
+        m::foam(b, &on, cm(230), cm(230), k as u32);
     }
     for (k, bb) in bay.bouncy.iter().enumerate() {
         let Some(mu) = c.mushrooms.get(bb.bouncer) else {
@@ -938,9 +961,15 @@ fn barrels(
         }
         let (foot, scale) = bouncy_frame(bay, mu.top, mu.radius, t, tick, k as u32);
         m::bounce_barrel(b, &m::pose(foot, bb.yaw, scale), t, k as u32, 0);
-        let y = bay.water.height(mu.top.x, mu.top.z, tick);
+        let y = height(mu.top.x, mu.top.z);
         let r = mul(BOUNCE_BODY_R, scale) * 2 + cm(80);
-        m::foam(b, &m::pose(mu.top.with_y(y), bb.yaw, ONE), r, r);
+        m::foam(
+            b,
+            &m::pose(mu.top.with_y(y), bb.yaw, ONE),
+            r,
+            r,
+            k as u32 + 500,
+        );
     }
 }
 

@@ -4,6 +4,24 @@ use super::*;
 use crate::map::Map;
 use crate::render::INSTANCE_VALUES;
 
+/// BR4 (BQ7.5): in a squall what floats (barrels, foam, splashes, the
+/// background ships' foam) rides the sea as drawn, rougher than the calm
+/// swell, so the same moment draws them elsewhere than in clear weather.
+#[test]
+fn in_a_squall_what_floats_rides_the_drawn_sea() {
+    let (c, b) = bay();
+    let at = b.boundary[4].at;
+    let tick = 700;
+    let draw = |storm: bool| {
+        let mut out = Batch::new();
+        fleet::dynamic(&mut out, &c, &b, at, tick, tick, storm);
+        out.finish(0).0
+    };
+    let (calm, squall) = (draw(false), draw(true));
+    assert_eq!(calm.len(), squall.len(), "the same shapes either way");
+    assert_ne!(calm, squall, "a squall's barrels ride the calm swell");
+}
+
 /// A camera at race height over the course `s` metres in, looking along it.
 fn race_cam(c: &Course, s: i32) -> Camera {
     let p = c.point(int(s));
