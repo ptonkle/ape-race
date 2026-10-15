@@ -40,6 +40,8 @@ const CREW_NEAR: i32 = int(140);
 pub const CREW_SCALE: i32 = ONE * 2;
 /// Cannon fire is drawn when its muzzle or its target is nearer than this.
 const FIRE_NEAR: i32 = int(260);
+/// The foam round the course's hulls is drawn nearer than this.
+const FOAM_NEAR: i32 = int(260);
 /// The barrels are drawn nearer than this.
 const BARREL_NEAR: i32 = int(180);
 /// The chest is drawn nearer than this.
@@ -168,6 +170,8 @@ pub fn scenery(c: &Course, bay: &BayLayout) -> Scenery {
     pier(&mut batches[chunk(dock_at)], bay);
     gantry(&mut batches[chunk(bay.dock.to)], c, bay);
     island(&mut batches, c, bay, &chunk);
+    // the battle round the course, outside the barrels (BQ2)
+    super::battle::still(&mut batches, &super::battle::cached(c, bay), &chunk);
     scene::assemble(c, batches, Vec::new(), Vec::new())
 }
 
@@ -766,6 +770,9 @@ pub fn dynamic(b: &mut Batch, c: &Course, bay: &BayLayout, eye: V3, t: u32, tick
     fighters(b, bay, &near, t);
     fire(b, bay, &near, tick);
     barrels(b, c, bay, &near, t, tick);
+    foam(b, bay, &near, tick);
+    let height = |x: i32, z: i32| bay.water.height(x, z, tick);
+    super::battle::dynamic(b, &super::battle::cached(c, bay), eye, tick, &height);
     let isl = &bay.island;
     if near(isl.chest, CHEST_NEAR) {
         let scale = fx::div(isl.chest_size.x, m::CHEST_W).max(ONE / 2);
@@ -878,6 +885,29 @@ fn fire(b: &mut Batch, bay: &BayLayout, near: &dyn Fn(V3, i32) -> bool, tick: u3
     }
 }
 
+/// Foam collars where the course's hulls meet the sea (BQ3): three along
+/// each hull, each at the swell's height there, so the line moves with
+/// the sea.
+fn foam(b: &mut Batch, bay: &BayLayout, near: &dyn Fn(V3, i32) -> bool, tick: u32) {
+    for s in &bay.ships {
+        if !near(s.at, FOAM_NEAR) {
+            continue;
+        }
+        let third = s.length / 3;
+        for i in -1..=1 {
+            let p = s.point(i * third * 9 / 10, 0, 0);
+            let y = bay.water.height(p.x, p.z, tick);
+            let beam = if i == 0 { s.beam } else { s.beam * 4 / 5 };
+            m::foam(
+                b,
+                &m::pose(p.with_y(y), s.yaw, ONE),
+                beam * 6 / 5,
+                third * 5 / 4,
+            );
+        }
+    }
+}
+
 /// The barrels on the swell: the flagged boundary barrels ride
 /// `Water::height`; a bouncy barrel's drum skin stays within `BOB_MAX` of
 /// its bouncer's fixed top (the physics never bobs it).
@@ -894,7 +924,10 @@ fn barrels(
             continue;
         }
         let y = bay.water.height(bb.at.x, bb.at.z, tick);
-        m::boundary_barrel(b, &m::pose(bb.at.with_y(y), 0, BOUNDARY_SCALE), t, k as u32);
+        let on = m::pose(bb.at.with_y(y), 0, BOUNDARY_SCALE);
+        m::boundary_barrel(b, &on, t, k as u32);
+        // a small foam ring where it sits in the sea (BQ3)
+        m::foam(b, &on, cm(230), cm(230));
     }
     for (k, bb) in bay.bouncy.iter().enumerate() {
         let Some(mu) = c.mushrooms.get(bb.bouncer) else {
@@ -905,6 +938,9 @@ fn barrels(
         }
         let (foot, scale) = bouncy_frame(bay, mu.top, mu.radius, t, tick, k as u32);
         m::bounce_barrel(b, &m::pose(foot, bb.yaw, scale), t, k as u32, 0);
+        let y = bay.water.height(mu.top.x, mu.top.z, tick);
+        let r = mul(BOUNCE_BODY_R, scale) * 2 + cm(80);
+        m::foam(b, &m::pose(mu.top.with_y(y), bb.yaw, ONE), r, r);
     }
 }
 

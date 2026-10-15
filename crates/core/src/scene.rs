@@ -1543,7 +1543,15 @@ pub fn dynamic(f: &Frame) -> (Batch, Batch) {
         crate::ruinsscape::dynamic(&mut b, c, r, eye, f.tick, tick);
     }
     if let Some(bay) = &c.bay {
-        crate::bayscape::fleet::dynamic(&mut b, c, bay, eye, f.tick, tick);
+        // in the colourblind mode the flags, barrels and fire are muted as
+        // far as the still scenery (the shader mutes moving shapes less;
+        // BP7.4, BQ4)
+        let mut own = Batch::new();
+        crate::bayscape::fleet::dynamic(&mut own, c, bay, eye, f.tick, tick);
+        if f.vivid {
+            own.restyle(|c, g| (crate::sky::grey(c, ONE * 2 / 3), g));
+        }
+        b.append(own);
     }
     for (k, r) in race.racers.iter().enumerate() {
         // Floor is Lava (TRIAGE T37): the jaguar, and the ape until the bite
