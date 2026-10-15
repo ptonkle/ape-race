@@ -6,9 +6,11 @@ A fresh session starts from this file, not from memory.
 
 ## Start here (2026-10-15): Banana Bay Battle
 
-- **Built on main, not deployed** (the person holds the deploy): Banana Bay Battle (TRIAGE T87, key `bay`, brief `briefs/banana-bay-battle.md`, progress `notes/bay-progress.md`, morning notes `notes/bay-morning.md`, SECOND-ORDER BB, BM, BG, BC, BS, BT, BW rows). A pirate battle at 3 pm: 30 ships at anchor, ropes from masts and yards, the sea puts you on the last ship passed, a finish island with a chest of golden bananas, Squall weather. PROTOCOL 11 (a 1.10 client is refused). Six maps now.
-- Code: `bay.rs` (contract), `bay/layout.rs`, `bay/rules.rs`, `bayscape.rs` (sky, sea, squall), `baymodels.rs`; tests `tests/bay_ai.rs`, `app/weather_tests.rs`.
+- **Read `notes/bay-morning.md` first**: the state, the questions for the person, and the drafted v1.12.0 patch notes.
+- **Built on main, not deployed** (the person holds the deploy; live is still v1.11.4): Banana Bay Battle (TRIAGE T87, key `bay`, brief `briefs/banana-bay-battle.md`, progress `notes/bay-progress.md`, SECOND-ORDER BB, BM, BG, BC, BS, BT, BW, BA, BP, BL, BQ, BR rows). A pirate battle at 3 pm: 30 ships at anchor, ropes from masts and yards, the sea puts you on the last ship passed, a finish island with a chest of golden bananas, Squall weather, a background battle either side. PROTOCOL 11 (a 1.11 client is refused). Six maps now.
+- Code: `bay.rs` (contract), `bay/layout.rs`, `bay/rules.rs`, `bayscape.rs` (sky, sea, squall), `bayscape/fleet.rs` (art on the course), `bayscape/battle.rs` (background battle), `bayscape/lobby.rs`, `camera/hulls.rs`, `baymodels.rs`; tests `tests/bay_ai.rs`, `app/weather_tests.rs`, `bayscape/tests.rs`.
 - The Weather setting is shared by Yeti Peak and the bay; Settings lists every weather with its map (BW1).
+- Final check on main (`scripts/timed-checks.sh`): check.sh 307.6 s and check-online.sh 94.0 s, passed in Chromium, Firefox and WebKit (`notes/check-times.md`).
 
 ## Earlier: Sunset Ruins (2026-10-14 night)
 
