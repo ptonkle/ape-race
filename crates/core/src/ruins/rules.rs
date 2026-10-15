@@ -25,6 +25,14 @@ impl RuinsLayout {
     }
 }
 
+/// No floor on Sunset Ruins is more than this over the land under it (the
+/// river's surface, from points 40 m apart on a 6% fall, is under 3 m
+/// over the bank beside it at most; `tests.rs` checks it).
+pub(crate) const FLOOR_OVER_LAND: i32 = int(8);
+
+/// The chamber's invisible inner wall ends this far short of the turn in.
+const INNER_OPEN: i32 = int(24);
+
 impl Course {
     /// Sunset Ruins' floor at (`x`, `z`): in the river where a swimmer's
     /// feet hang (water counts as the floor), else the land.
@@ -34,6 +42,23 @@ impl Course {
             Some(w) => w.surface - SWIM_SINK,
             None => land,
         }
+    }
+
+    /// Whether nothing can hold up a body at `p` on Sunset Ruins: its feet
+    /// are over every floor (the land, the river, a pit's floor; none is
+    /// more than `FLOOR_OVER_LAND` over the land) and over every platform
+    /// near. Then `support_at` need not be worked out (its river search is
+    /// the most of a step's cost, and the AI's copies take thousands of
+    /// steps a tick, RT7).
+    pub(crate) fn ruins_clear(&self, p: V3) -> bool {
+        let feet = p.y - BODY_DROP;
+        feet > self.terrain(p.x, p.z) + FLOOR_OVER_LAND
+            && self.platforms.iter().all(|pl| {
+                let reach = pl.half_len + pl.half_width;
+                feet > pl.top
+                    || (p.x - pl.centre.x).abs() > reach
+                    || (p.z - pl.centre.z).abs() > reach
+            })
     }
 
     /// The river's surface under `p`, if `p` is over it.
@@ -145,7 +170,10 @@ impl Course {
             let d = pos.flat().sub(c);
             let dist = d.len();
             let hi = r.chamber.radius - BODY_RADIUS;
-            let lo = if s < r.marks.turn_in {
+            // (the invisible inner wall opens 24 m short of the turn in:
+            // the bend is tight, and an ape swinging in on the turn's
+            // first vines slammed into it for seconds, RT6)
+            let lo = if s < r.marks.turn_in - INNER_OPEN {
                 r.chamber.inner + BODY_RADIUS
             } else {
                 0

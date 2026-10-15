@@ -286,10 +286,13 @@ const SKI_HOP: [i32; 4] = [int(22), int(24), int(26), int(28)];
 /// their time in the same few places (the rope bridge, the mouth, the
 /// turn in), where a long reaction time lets the good release go by. Here
 /// the Monkey and the Ape react sooner and misjudge less, and the spacing
-/// comes mostly from the arms (RT2).
-const RUINS_HESITATE: [u32; 4] = [12, 14, 5, 0];
+/// comes mostly from the arms (RT2). Once the layout's stalls were fixed
+/// (RT6) the Monkey and the Ape bunched up again: the Ape got stronger
+/// arms (5 of 8) and the Monkey a slower reaction (16 ticks, not 14). The
+/// Monkey's misjudging is touchy: 6 m instead of 4 cost it 9 s.
+const RUINS_HESITATE: [u32; 4] = [12, 16, 5, 0];
 const RUINS_JITTER: [u32; 4] = [6, 5, 5, 0];
-const RUINS_DRIVE: [u32; 4] = [2, 3, 4, DUTY];
+const RUINS_DRIVE: [u32; 4] = [2, 3, 5, DUTY];
 const RUINS_NOISE: [i32; 4] = [int(8), int(4), int(3), 0];
 
 /// Which map's tuning a brain uses (at most one is set; none is the Jungle).
