@@ -13,7 +13,7 @@
 //! behind, along the course), `dist` (the orbit's distance, in decimetres)
 //! `hud` (`on` shows the HUD), and `blind`, `jojo` and `snow` (`on`: the
 //! colourblind mode, JOJO MODE, the Ski Slope's snow; `snow=blizzard` a
-//! blizzard) and `pal` (each racer's palette,
+//! blizzard, `snow=squall` Banana Bay Battle's squall) and `pal` (each racer's palette,
 //! joined by `+` (a space, as a URL may decode it, works too), TRIAGE
 //! T49; classic for the rest) and `gear` (`none`, `ski`, `space`, `explorer` or `pirate`: what
 //! the racers wear instead of the map's own; `space` previews the Sector

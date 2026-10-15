@@ -660,12 +660,12 @@ impl App {
         ];
         // the host's weather for everyone, next to the map that has it
         // (TRIAGE T67)
-        if view.map == crate::map::Map::Ski {
+        if crate::snow::Weather::offered(view.map).len() > 1 {
             let weather = if view.is_host {
-                self.weather_select("lobby.weather")
+                self.weather_select("lobby.weather", Some(view.map))
             } else {
                 json!({ "type": "list", "id": "lobby.weather", "rows": [[self.t("lobby.weather"),
-                    self.t(&format!("weather.{}", view.weather.key()))]] })
+                    self.t(&format!("weather.{}", view.weather.on(view.map).key()))]] })
             };
             mine.insert(0, weather);
         }

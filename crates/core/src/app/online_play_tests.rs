@@ -490,8 +490,11 @@ fn the_hosts_weather_is_everyones_online() {
         .iter()
         .map(|o| o["value"].as_str().unwrap())
         .collect();
-    let all: Vec<&str> = Weather::ALL.iter().map(|w| w.key()).collect();
-    assert_eq!(options, all, "every weather there is");
+    let all: Vec<&str> = Weather::offered(crate::map::Map::Ski)
+        .iter()
+        .map(|w| w.key())
+        .collect();
+    assert_eq!(options, all, "every weather the Ski Slope has");
     p.apps[0].act("lobby.weather", "snowing");
     p.run(200);
     assert_eq!(p.apps[0].settings.weather, Weather::Snowing);

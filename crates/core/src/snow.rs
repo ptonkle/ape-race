@@ -16,16 +16,24 @@
 //! flakes, driven hard sideways by a gale so each shows as a short streak
 //! along its flight, a near-white sky, the fog close in (the far mountains
 //! gone in it) and the sun dim. It is still only the drawing.
+//!
+//! Banana Bay Battle has its own weather beside Clear (2026-10-15): a
+//! Squall, rain streaking down on a gale under a dark grey sky, a rougher
+//! swell and lightning (`bayscape` draws the sea, the sky and the flashes;
+//! the rain is a `Fall` here like the snow). One setting holds the
+//! weather; each map shows only the weathers it offers (`Weather::offered`)
+//! and is clear in any other.
 
 use serde::{Deserialize, Serialize};
 
 use crate::fx::{self, cm, mul, ONE, TURN};
 use crate::geom::{v3, Affine, V3};
+use crate::map::Map;
 use crate::mesh::Mesh;
 use crate::render::{mix, rgb, shade, Batch, Rgb};
 use crate::scene::Look;
 
-/// The weather on the Ski Slope.
+/// The weather: the Ski Slope's snow, Banana Bay Battle's squall.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Weather {
@@ -33,11 +41,18 @@ pub enum Weather {
     Clear,
     Snowing,
     Blizzard,
+    /// Banana Bay Battle's storm: rain, a dark sky, a rough sea, lightning
+    Squall,
 }
 
 impl Weather {
     /// Every weather, in the order the Weather selects offer them.
-    pub const ALL: [Weather; 3] = [Weather::Clear, Weather::Snowing, Weather::Blizzard];
+    pub const ALL: [Weather; 4] = [
+        Weather::Clear,
+        Weather::Snowing,
+        Weather::Blizzard,
+        Weather::Squall,
+    ];
 
     /// The setting's word, and `weather.<key>` in data/strings.json.
     pub fn key(self) -> &'static str {
@@ -45,12 +60,34 @@ impl Weather {
             Weather::Clear => "clear",
             Weather::Snowing => "snowing",
             Weather::Blizzard => "blizzard",
+            Weather::Squall => "squall",
         }
     }
 
-    /// Whether snow falls in it.
+    /// Whether snow or rain falls in it.
     pub fn falls(self) -> bool {
         self != Weather::Clear
+    }
+
+    /// The weathers a map offers, in the order its select lists them:
+    /// the Ski Slope's snow, Banana Bay Battle's squall; Clear alone on the
+    /// other maps.
+    pub fn offered(map: Map) -> &'static [Weather] {
+        match map {
+            Map::Ski => &[Weather::Clear, Weather::Snowing, Weather::Blizzard],
+            Map::Bay => &[Weather::Clear, Weather::Squall],
+            _ => &[Weather::Clear],
+        }
+    }
+
+    /// This weather as `map` shows it: itself where the map offers it,
+    /// else clear (a squall chosen on the bay leaves the Ski Slope clear).
+    pub fn on(self, map: Map) -> Weather {
+        if Weather::offered(map).contains(&self) {
+            self
+        } else {
+            Weather::Clear
+        }
     }
 
     pub fn from_key(key: &str) -> Option<Weather> {
@@ -107,7 +144,22 @@ const BLIZZARD: Fall = Fall {
     streak: 70,
     clear: 250,
 };
+/// A squall's rain: thin, fast streaks (3 a 2 m column within 22 m),
+/// slanting on a gale across the course.
+const RAIN: Fall = Fall {
+    cell: 2,
+    per_cell: 3,
+    reach: 22,
+    span: 22,
+    fall: (950, 1250),
+    wind: (380, 90),
+    size: (1, 3),
+    streak: 90,
+    clear: 320,
+};
 const FLAKE: Rgb = rgb(246, 248, 252);
+/// The rain's grey: pale, faint, so the vines show through it.
+const DROP: Rgb = rgb(196, 206, 220);
 /// Ticks a second (the app's frame tick).
 const TICKS: i64 = crate::rules::TICKS_PER_SECOND as i64;
 
@@ -139,6 +191,7 @@ fn fall_of(w: Weather) -> Option<Fall> {
         Weather::Clear => None,
         Weather::Snowing => Some(SNOWING),
         Weather::Blizzard => Some(BLIZZARD),
+        Weather::Squall => Some(RAIN),
     }
 }
 
@@ -235,11 +288,15 @@ pub fn flakes(b: &mut Batch, eye: V3, tick: u32, w: Weather) {
     for (p, size, spin) in flakes_of(f, eye, tick) {
         let a = if f.streak > 0 {
             // a thin streak, each a little longer or shorter
-            Affine::translate(p).then(&along).then(&Affine::scale(v3(
-                size,
-                length * size / cm(8),
-                size,
-            )))
+            // (rain: hair-thin, each as long as its flight)
+            let long = if w == Weather::Squall {
+                length + size * 6
+            } else {
+                length * size / cm(8)
+            };
+            Affine::translate(p)
+                .then(&along)
+                .then(&Affine::scale(v3(size, long, size)))
         } else {
             // a chunky square, tumbling slowly
             Affine::translate(p)
@@ -247,7 +304,11 @@ pub fn flakes(b: &mut Batch, eye: V3, tick: u32, w: Weather) {
                 .then(&Affine::rot_x(spin / 2))
                 .then(&Affine::scale(v3(size, size, size)))
         };
-        b.push(Mesh::Cube, &a, FLAKE, ONE * 7 / 10);
+        if w == Weather::Squall {
+            b.push(Mesh::Cube, &a, DROP, ONE / 4);
+        } else {
+            b.push(Mesh::Cube, &a, FLAKE, ONE * 7 / 10);
+        }
     }
 }
 
@@ -289,6 +350,7 @@ pub fn sky_in(w: Weather, look: Look) -> Look {
         Weather::Clear => look,
         Weather::Snowing => overcast(look),
         Weather::Blizzard => whiteout(look),
+        Weather::Squall => crate::bayscape::squall(look),
     }
 }
 

@@ -141,8 +141,8 @@ pub fn look_of(c: &Course) -> Look {
         Map::Sector => crate::sectorscape::look_for(c),
         // the sunset down the river, its sun 30° off the fall
         Map::Ruins => crate::ruinsscape::look_for(c),
-        // STAND-IN (Banana Bay Battle's skeleton): a plain 3 pm light
-        Map::Bay => crate::bayscape::look(),
+        // 3 pm, the sun high and to the left of the course
+        Map::Bay => crate::bayscape::look_for(c),
     }
 }
 
@@ -474,6 +474,12 @@ pub fn scenery(c: &Course) -> Scenery {
 /// The Jungle's scenery and ground, chunked (Sunset Ruins' stand-in draws
 /// it too, until `ruinsscape` has its own).
 pub(crate) fn jungle_scenery(c: &Course) -> Scenery {
+    jungle_scenery_on(c, true)
+}
+
+/// The Jungle's scenery, with its ground or without (Banana Bay Battle's
+/// stand-in: the sea is drawn round the eye instead).
+pub(crate) fn jungle_scenery_on(c: &Course, ground: bool) -> Scenery {
     let n = chunk_count(c);
     let mut batches: Vec<Batch> = (0..n).map(|_| Batch::new()).collect();
     let chunk_of = |p: V3| chunk_of(c, p, n);
@@ -500,7 +506,11 @@ pub(crate) fn jungle_scenery(c: &Course) -> Scenery {
     }
     finish_arch(&mut batches[n - 2], c);
     outro(&mut batches[n - 1], c);
-    let (terrain, ranges) = terrain_chunked(c, n);
+    let (terrain, ranges) = if ground {
+        terrain_chunked(c, n)
+    } else {
+        (Vec::new(), Vec::new())
+    };
     assemble(c, batches, terrain, ranges)
 }
 

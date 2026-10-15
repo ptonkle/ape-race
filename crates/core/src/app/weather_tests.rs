@@ -212,3 +212,92 @@ fn on_the_ski_slope_the_racers_wear_their_gear_and_elsewhere_none() {
         assert_eq!(pose.gear, want, "{map:?}");
     }
 }
+
+#[test]
+fn a_squall_is_offered_on_banana_bay_battle_only() {
+    // the setups: the bay offers Clear and Squall, the Ski Slope its snow
+    // without a squall, the other maps no weather
+    for map in Map::ALL {
+        let mut a = app();
+        a.act("menu.race", "");
+        a.act("setup.map", map.key());
+        let select = item(&ui_of(&mut a), "setup.weather");
+        let values: Vec<String> = select
+            .map(|s| {
+                s["options"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .map(|o| o["value"].as_str().unwrap().to_string())
+                    .collect()
+            })
+            .unwrap_or_default();
+        match map {
+            Map::Bay => assert_eq!(values, ["clear", "squall"]),
+            Map::Ski => assert_eq!(values, ["clear", "snowing", "blizzard"]),
+            _ => assert!(values.is_empty(), "{map:?} offers {values:?}"),
+        }
+    }
+    let mut a = app();
+    a.act("menu.race", "");
+    a.act("setup.map", "bay");
+    a.act("setup.weather", "squall");
+    assert_eq!(a.settings.weather, Weather::Squall);
+    let select = item(&ui_of(&mut a), "setup.weather").unwrap();
+    assert_eq!(select["value"], "squall");
+    assert_eq!(select["options"][1]["text"], "Squall");
+    // Settings keeps the Ski Slope's select: the squall shows there as
+    // the Ski Slope sees it (clear)
+    a.act("menu.back", "");
+    a.act("menu.settings", "");
+    let s = item(&ui_of(&mut a), "settings.weather").unwrap();
+    assert_eq!(s["value"], "clear");
+    // a squall is drawn on the bay only; snow never on the bay
+    assert_eq!(Weather::Squall.on(Map::Ski), Weather::Clear);
+    assert_eq!(Weather::Squall.on(Map::Jungle), Weather::Clear);
+    assert_eq!(Weather::Blizzard.on(Map::Bay), Weather::Clear);
+    assert_eq!(Weather::Squall.on(Map::Bay), Weather::Squall);
+    for map in [Map::Jungle, Map::City, Map::Ski] {
+        let clear = title_on(map, Weather::Clear).frame();
+        let storm = title_on(map, Weather::Squall).frame();
+        assert!(clear == storm, "{map:?} changed by a squall");
+    }
+    let clear = title_on(Map::Bay, Weather::Clear);
+    let storm = title_on(Map::Bay, Weather::Squall);
+    assert!(storm.snowing(), "rain falls");
+    assert!(title_on(Map::Bay, Weather::Snowing).frame() == clear.frame());
+    let (cv, ci, _) = clear.frame();
+    let (sv, si, _) = storm.frame();
+    assert_ne!(cv, sv, "the squall's sky and fog");
+    assert_ne!(ci, si, "the rain, the rough sea, the storm cloud");
+}
+
+#[test]
+fn a_squall_changes_nothing_in_a_race_but_the_drawing() {
+    let run = |weather: Weather| {
+        let mut a = app();
+        a.act("menu.race", "");
+        a.act("setup.map", "bay");
+        a.act("setup.weather", weather.key());
+        a.act("setup.opponents", "3");
+        a.act("menu.start", "");
+        for _ in 0..crate::race::COUNTDOWN as u32 + 900 {
+            a.tick();
+        }
+        a
+    };
+    let clear = run(Weather::Clear);
+    let storm = run(Weather::Squall);
+    let at = |a: &App| -> Vec<(V3, V3)> {
+        let p = a.play.as_ref().unwrap();
+        assert_eq!(p.race.course.name, "bay");
+        p.race
+            .racers
+            .iter()
+            .map(|r| (r.ape.pos, r.ape.vel))
+            .collect()
+    };
+    assert_eq!(at(&clear), at(&storm), "the same race in a squall");
+    assert_eq!(storm.weather_shown(), Weather::Squall);
+    assert_ne!(clear.frame().1, storm.frame().1);
+}
