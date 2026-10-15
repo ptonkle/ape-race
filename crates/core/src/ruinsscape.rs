@@ -684,6 +684,31 @@ fn skyline_ruins(c: &Course, r: &RuinsLayout) -> Vec<(u32, V3)> {
     out
 }
 
+/// Where corridor section `k`'s walls (`len` long) carry their 10 m
+/// panels, along from its middle: as many as fit whole on the wall,
+/// evenly spaced, kept 8 m clear of an end where the corridor bends (the
+/// next section's wall cuts across there), so every panel sits flush on
+/// its own wall (the person, 1.10.0: flush only up to a point).
+fn panel_offsets(r: &RuinsLayout, k: usize, len: i32) -> Vec<i32> {
+    let dir = |i: usize| r.corridor.get(i).map(|s| s.to.sub(s.from).flat().norm());
+    let here = dir(k);
+    let bends = |other: Option<V3>| match (here, other) {
+        (Some(a), Some(b)) => a.dot(b) < ONE * 996 / 1000,
+        _ => false,
+    };
+    let m0 = if k > 0 && bends(dir(k - 1)) {
+        int(8)
+    } else {
+        0
+    };
+    let m1 = if bends(dir(k + 1)) { int(8) } else { 0 };
+    let room = len - m0 - m1;
+    let n = room / int(13);
+    (0..n)
+        .map(|i| -len / 2 + m0 + (2 * i + 1) * (room / (2 * n)))
+        .collect()
+}
+
 /// How far `p` is from the flat segment `a`–`b`.
 fn off_line(p: V3, a: V3, b: V3) -> i32 {
     let d = b.sub(a).flat();
@@ -754,8 +779,7 @@ fn corridor_stone(c: &Course, r: &RuinsLayout, push: &mut Put) {
                         0,
                     );
                 }
-                for p in [-1, 1] {
-                    let along = p * int(8);
+                for along in panel_offsets(r, k, len) {
                     let at = v3(face.x, floor + int(9), face.z)
                         .add(fwd.scale(along))
                         .add(inward.scale(cm(30)));
@@ -1193,6 +1217,33 @@ pub fn dynamic(b: &mut Batch, c: &Course, r: &RuinsLayout, eye: V3, t: u32, tick
         b.append(face.take_where(|g| g != 0));
         m::mouth_falls(b, &f, t);
     }
+    // braziers lining the way in, both sides, over the corridor's first
+    // 70 m (the person, 1.10.0: the way in was just black)
+    if eye_s > r.marks.lip - int(160) && eye_s < r.marks.mouth + int(160) {
+        let mut k = 0u32;
+        let mut s = r.marks.mouth + int(4);
+        while s < r.marks.mouth + int(74) {
+            for side in [-1, 1] {
+                k += 1;
+                let p = at_s(c, s, side * (CORRIDOR_HALF - int(2)));
+                let f = m::pose(v3(p.x, floor, p.z), 0, ONE);
+                m::brazier(b, &f, t, k);
+            }
+            s += int(10);
+        }
+        // a glow in the throat, so the way in reads from the bridge
+        let mo = r.mouth.opening;
+        b.push_halo(
+            Mesh::Sphere,
+            &crate::render::placed(
+                v3(mo.centre.x, floor + int(4), mo.centre.z).add(mo.fwd.scale(int(10))),
+                0,
+                v3(int(26), int(12), int(26)),
+            ),
+            rgb(255, 160, 60),
+            ONE / 3,
+        );
+    }
     // the glyphs: in the corridor's panels and up its walls, round the
     // chamber; pulsing
     if eye_s > r.marks.mouth - int(40) {
@@ -1347,7 +1398,7 @@ fn glyphs(b: &mut Batch, r: &RuinsLayout, eye: V3, t: u32) {
         m::banana_glyph(b, &f, t, k);
     };
     let spots = m::glyph_spots(int(10), int(8));
-    for sec in &r.corridor {
+    for (si, sec) in r.corridor.iter().enumerate() {
         let d = sec.to.sub(sec.from).flat();
         if d.len() == 0 {
             continue;
@@ -1366,9 +1417,9 @@ fn glyphs(b: &mut Batch, r: &RuinsLayout, eye: V3, t: u32) {
             }
             let inward = right.scale(-side);
             let across = right_of(inward);
-            for p in [-1, 1] {
+            for along in panel_offsets(r, si, d.len()) {
                 let centre = v3(face.x, floor + int(9), face.z)
-                    .add(fwd.scale(p * int(8)))
+                    .add(fwd.scale(along))
                     .add(inward.scale(cm(70)));
                 for sp in &spots {
                     k += 1;

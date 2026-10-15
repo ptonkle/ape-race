@@ -56,10 +56,10 @@ pub const SUN: Rgb = rgb(255, 238, 170);
 
 /// Inside the temple: a dark umber ambient, a dim warm light (the glyphs
 /// and the openings), a near-black brown fog that closes in sooner.
-pub const INSIDE_SKY: Rgb = rgb(58, 42, 46);
-pub const INSIDE_LIGHT: Rgb = rgb(120, 84, 52);
-pub const INSIDE_BOUNCE: Rgb = rgb(86, 62, 30);
-pub const INSIDE_FOG: Rgb = rgb(30, 20, 16);
+pub const INSIDE_SKY: Rgb = rgb(112, 82, 70);
+pub const INSIDE_LIGHT: Rgb = rgb(196, 138, 80);
+pub const INSIDE_BOUNCE: Rgb = rgb(132, 92, 48);
+pub const INSIDE_FOG: Rgb = rgb(96, 60, 30);
 
 /// Sunset Ruins outside: ready for `scene::look(Map::Ruins)`.
 pub fn look() -> Look {
@@ -90,7 +90,9 @@ pub fn look_inside() -> Look {
     Look {
         sky: INSIDE_SKY,
         fog: INSIDE_FOG,
-        fog_range: (int(30), int(130)),
+        // a warm dim amber haze, far enough out that what is coming shows
+        // (the person, 1.10.0: the way in was just black)
+        fog_range: (int(60), int(220)),
         light_dir: v3(cm(20), cm(90), cm(40)).norm(),
         light: INSIDE_LIGHT,
         ground: INSIDE_BOUNCE,
@@ -1910,6 +1912,59 @@ pub fn banana_glyph(b: &mut Batch, f: &Affine, tick: u32, _k: u32) {
     );
 }
 
+/// A brazier about 1.6 m tall at the origin: a stone bowl on a stepped
+/// foot, a fire in it flickering with `tick` (`k` varies it), and a warm
+/// glow round it that lights the way.
+pub fn brazier(b: &mut Batch, f: &Affine, tick: u32, k: u32) {
+    put(
+        b,
+        f,
+        Mesh::Hex,
+        v3(0, cm(30), 0),
+        v3(cm(70), cm(60), cm(70)),
+        STONE_DARK,
+        0,
+    );
+    put(
+        b,
+        f,
+        Mesh::Cyl,
+        v3(0, cm(110), 0),
+        v3(cm(130), cm(40), cm(130)),
+        SANDSTONE,
+        0,
+    );
+    let flick = (wave(tick, 9, (k as i32).wrapping_mul(7_919)) + ONE) / 2;
+    let h = cm(80) + mul(flick, cm(40));
+    put(
+        b,
+        f,
+        Mesh::Cone,
+        v3(0, cm(130) + h / 2, 0),
+        v3(cm(90), h, cm(90)),
+        rgb(255, 150, 40),
+        ONE,
+    );
+    put(
+        b,
+        f,
+        Mesh::Cone,
+        v3(0, cm(125) + h / 3, 0),
+        v3(cm(50), h * 2 / 3, cm(50)),
+        rgb(255, 236, 140),
+        ONE,
+    );
+    halo(
+        b,
+        f,
+        Mesh::Sphere,
+        v3(0, cm(180), 0),
+        v3(int(7), int(6), int(7)),
+        rgb(255, 170, 70),
+        ONE / 2 + mul(flick, ONE / 5),
+    );
+}
+
 /// A floor spike trap 2.4 m square at the origin, on the floor: a stone
 /// plate with a grid of iron-rimmed holes, the spikes out by `up` (0 in,
 /// ONE fully out, about 1.1 m).
@@ -3162,9 +3217,10 @@ mod tests {
         for k in 0..3 {
             assert!(ZENITH[k] <= SKY[k]);
         }
-        // inside is darker than outside
+        // inside is darker than outside, by at least a quarter (it was
+        // half, but the way in read as black: the person, 1.10.0, RS19)
         let i = look_inside();
         let sum = |c: Rgb| c[0] + c[1] + c[2];
-        assert!(sum(i.sky) * 2 < sum(l.sky) && sum(i.light) * 2 < sum(l.light));
+        assert!(sum(i.sky) * 4 < sum(l.sky) * 3 && sum(i.light) * 4 < sum(l.light) * 3);
     }
 }
