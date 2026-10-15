@@ -14,17 +14,19 @@ fn secs(ticks: u32) -> f64 {
 
 const LIMIT: u32 = 150 * TICKS_PER_SECOND as u32;
 
+/// Layout `k` of Sunset Ruins (0 is the course everyone races; the seeds
+/// are `examples/ruins_report.rs`'s).
+fn layout(k: u64) -> Course {
+    if k == 0 {
+        ruins()
+    } else {
+        ruins_seeded(0x2B1_5E75_0001 + k * 7919)
+    }
+}
+
 /// Sunset Ruins and seven more layouts of it.
 fn layouts() -> Vec<Course> {
-    (0..8u64)
-        .map(|k| {
-            if k == 0 {
-                ruins()
-            } else {
-                ruins_seeded(0x2B1_5E75_0001 + k * 7919)
-            }
-        })
-        .collect()
+    (0..8u64).map(layout).collect()
 }
 
 /// As `difficulties_are_ordered_and_spaced` on the Jungle: over eight
@@ -73,6 +75,48 @@ fn ruins_difficulties_are_ordered_and_spaced() {
             w[1]
         );
     }
+}
+
+/// Every level finishes every one of sixteen layouts of Sunset Ruins inside
+/// the limit (150 s), as the Chimpanzee (Equal Stats) and as the Gorilla and
+/// the Gibbon (their own stats): the difficulty report's three kinds. The
+/// Sloth Gorilla once never left the river on layout 1 (RT10).
+#[test]
+fn every_level_finishes_sixteen_ruins_layouts() {
+    let runs: Vec<_> = Difficulty::ALL
+        .into_iter()
+        .flat_map(|level| {
+            [Kind::Chimpanzee, Kind::Gorilla, Kind::Gibbon]
+                .into_iter()
+                .map(move |kind| {
+                    std::thread::spawn(move || {
+                        let mut stuck = Vec::new();
+                        for k in 0..16u64 {
+                            let t = trial_at(
+                                layout(k),
+                                &[kind],
+                                &[level],
+                                kind == Kind::Chimpanzee,
+                                LIMIT,
+                            );
+                            if t[0].finish.is_none() {
+                                stuck.push(format!(
+                                    "{} {kind:?} layout {k} stopped at {} m",
+                                    level.key(),
+                                    t[0].progress / ONE
+                                ));
+                            }
+                        }
+                        stuck
+                    })
+                })
+        })
+        .collect();
+    let stuck: Vec<String> = runs
+        .into_iter()
+        .flat_map(|r| r.join().expect("the races run"))
+        .collect();
+    assert!(stuck.is_empty(), "not finished in 150 s: {stuck:?}");
 }
 
 /// Every kind of ape, at the easiest and the best level, finishes Sunset Ruins
