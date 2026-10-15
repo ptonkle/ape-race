@@ -17,6 +17,9 @@ Added after the questions: "Also have bouncable barrels in the water besides the
 - **Boundary barrels are a soft wall.** The flagged barrels mark the course's edges and push a drifting ape back in, like the side limits on other maps; you can't land on them.
 - **Bouncy barrels in the water** as well: floating barrels inside the course that you bounce off (bouncers, like the Ruins turtles), a way to save yourself before the water.
 - **Length: about 20 ships, about 75 s** for a Monkey AI, like the other maps. Smaller ships fill the gaps between big ones.
+- **Start on a dock**: a wooden pier at the edge of the bay, with the battle out ahead.
+- **Floor is Lava: a Royal Navy-style jaguar** (the person: "Every map it's a jaguar, no exceptions"): the jaguar in a navy officer's kit (bicorne, blue coat, gold epaulettes), with no real nation's insignia.
+- **Deploy: hold until the person says so.** Build on main, show shots on the design journal.
 - **"pirate on the shoulder"** is read as a parrot on the shoulder (integrator's reading; SECOND-ORDER).
 
 ## Requirements, as a checklist
