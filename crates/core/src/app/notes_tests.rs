@@ -39,7 +39,10 @@ fn new_marker_until_this_version_is_opened() {
     assert_eq!(a.screen, Screen::Notes);
     let ui = ui_of(&mut a);
     let saved: Value = serde_json::from_str(ui["save"].as_str().unwrap()).unwrap();
-    assert_eq!(saved["notes_seen"], VERSION, "opening the notes is remembered");
+    assert_eq!(
+        saved["notes_seen"], VERSION,
+        "opening the notes is remembered"
+    );
     a.act("menu.back", "");
     let b = item(&ui_of(&mut a), "menu.notes").unwrap();
     assert!(b.get("badge").is_none(), "seen: no marker");
@@ -52,7 +55,10 @@ fn a_minor_update_lights_new_too() {
     let b = item(&ui_of(&mut a), "menu.notes").unwrap();
     assert_eq!(b["badge"], "New");
     let mut a = app_with(&format!(r#"{{"notes_seen":"{VERSION}"}}"#));
-    assert!(item(&ui_of(&mut a), "menu.notes").unwrap().get("badge").is_none());
+    assert!(item(&ui_of(&mut a), "menu.notes")
+        .unwrap()
+        .get("badge")
+        .is_none());
 }
 
 #[test]

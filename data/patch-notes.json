@@ -1,5 +1,13 @@
 [
   {
+    "version": "1.10.3",
+    "date": "2026-10-14",
+    "notes": [
+      "Sunset Ruins: fall into a spike pit and you're thrown back out within a second or two.",
+      "Sunset Ruins: a trapdoor never shuts while an ape is in its pit, so the pit's vines stay down where you can see them."
+    ]
+  },
+  {
     "version": "1.10.2",
     "date": "2026-10-14",
     "notes": [

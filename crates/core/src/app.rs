@@ -749,11 +749,9 @@ impl App {
                     p.paused = !p.paused;
                 }
             }
-            Screen::Setup
-            | Screen::Settings
-            | Screen::Online
-            | Screen::Replays
-            | Screen::Notes => self.go(Screen::Title),
+            Screen::Setup | Screen::Settings | Screen::Online | Screen::Replays | Screen::Notes => {
+                self.go(Screen::Title)
+            }
             _ => {}
         }
     }
@@ -765,11 +763,9 @@ impl App {
         self.celebrate = false;
         self.title_clicks = 0;
         let stage = match screen {
-            Screen::Title
-            | Screen::Settings
-            | Screen::Online
-            | Screen::Replays
-            | Screen::Notes => Stage::Flyover,
+            Screen::Title | Screen::Settings | Screen::Online | Screen::Replays | Screen::Notes => {
+                Stage::Flyover
+            }
             Screen::Setup | Screen::Lobby => Stage::Showcase,
             Screen::Lineup => Stage::Lineup,
             Screen::Race => Stage::Race,
@@ -1968,12 +1964,14 @@ impl App {
                         "minor": e.minor(), "lines": e.notes })
             })
             .collect();
-        vec![json!({ "kind": "notes", "heading": self.t("notes.heading"), "items": [
-            { "type": "toggle", "id": "notes.minor", "label": self.t("notes.minor"),
-              "value": self.settings.notes_minor },
-            { "type": "notes", "id": "notes.list", "entries": entries },
-            self.button("menu.back"),
-        ]})]
+        vec![
+            json!({ "kind": "notes", "heading": self.t("notes.heading"), "items": [
+                { "type": "toggle", "id": "notes.minor", "label": self.t("notes.minor"),
+                  "value": self.settings.notes_minor },
+                { "type": "notes", "id": "notes.list", "entries": entries },
+                self.button("menu.back"),
+            ]}),
+        ]
     }
 
     fn settings_panels(&self) -> Vec<Value> {

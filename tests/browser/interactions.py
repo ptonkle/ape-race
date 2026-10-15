@@ -185,6 +185,29 @@ def run(page, check, engine):
     check(STRINGS["replays.none"] in text(page, "#menus"), "the Replays list is empty before a finish")
     page.click("[id='menu.back']")
 
+    # What's New: marked New until opened; major versions only until the
+    # minor-patches tick; the version in the corner opens it too
+    notes = json.loads((pathlib.Path(__file__).resolve().parents[2] / "data" / "patch-notes.json").read_text())
+    check(page.locator("[id='menu.notes'] .badge").count() == 1, "What's New is marked New before it is opened")
+    page.click("[id='menu.notes']")
+    page.wait_for_selector("[id='notes.list'] .note", timeout=5000)
+    shown = page.eval_on_selector_all("[id='notes.list'] .note-version", "vs => vs.map(v => v.innerText.trim())")
+    majors = ["v" + e["version"] for e in notes if e["version"].endswith(".0")]
+    check(shown == majors, f"What's New lists the major versions, newest first {shown}")
+    page.click("[id='notes.minor']")
+    page.wait_for_timeout(200)
+    shown = page.eval_on_selector_all("[id='notes.list'] .note-version", "vs => vs.map(v => v.innerText.trim())")
+    check(shown == ["v" + e["version"] for e in notes], "the minor-patches tick lists every version")
+    check(page.locator("[id='notes.list'] .note.minor").count() > 0, "minor versions are drawn as minor")
+    page.click("[id='menu.back']")
+    check(page.locator("[id='menu.notes'] .badge").count() == 0, "What's New is no longer New once opened")
+    page.click("#version")
+    page.wait_for_timeout(200)
+    check(page.evaluate("document.body.dataset.screen") == "notes", "the version in the corner opens What's New")
+    check(page.is_checked("[id='notes.minor']"), "the minor-patches tick is remembered")
+    page.click("[id='notes.minor']")
+    page.click("[id='menu.back']")
+
     # The City (2026-10-12): the map grid on Race Setup (TRIAGE T54), the
     # ape preview moves onto the chosen map, and the race runs there
     page.click("[id='menu.race']")
