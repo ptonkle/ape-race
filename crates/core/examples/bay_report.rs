@@ -3,8 +3,8 @@
 //!
 //! `cargo run --release -p tool_core --example bay_report [-- SEEDS [KIND]]`
 use tool_core::ai::{trial_at, Difficulty};
-use tool_core::fx::ONE;
 use tool_core::bay::{bay, bay_seeded};
+use tool_core::fx::ONE;
 use tool_core::rules::{Kind, TICKS_PER_SECOND};
 
 fn main() {

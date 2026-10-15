@@ -1,13 +1,13 @@
 //! Banana Bay Battle's course (2026-10-15): the first real layout.
 //!
-//! - **The dock** (0 m): a wooden pier 54 m out from the shore, 5 m over
-//!   the water; the start row's seven ropes hang from a gantry across its
+//! - **The dock** (0 m): a tall wooden pier 54 m out from the shore, 12 m
+//!   over the water; the start row's seven ropes hang from a gantry across its
 //!   end (`Hanger::Shore`, the gantry's two posts).
 //! - **The fleet** (from about 25 m): `SHIPS` still ships in one line
 //!   through the bay, bow to stern along the course, pirates a little left
 //!   of the line and the navy a little right, alternating, so each pair
-//!   duels broadside to broadside. Big ships (galleons, frigates) alternate
-//!   with small ones (brigs, sloops) that fill the gaps. The swing stations
+//!   duels broadside to broadside. Two big ships (galleons, frigates), then
+//!   two small ones (brigs, sloops) that fill the gap, and so on. The swing stations
 //!   are the masts: every mast that carries ropes hangs two or three from
 //!   its swing yard across the course (lanes 9 m apart, never on the mast
 //!   itself), every 12–28 m along; one low rope per ship over its deck, 3 m
@@ -30,16 +30,22 @@ use crate::ski::Terrain;
 const SEED: u64 = 0xBA7_BA77_0001;
 
 /// How many ships the line has.
-pub const SHIPS: usize = 28;
+pub const SHIPS: usize = 30;
 
 /// The still water's level (the floor).
 pub const WATER_LEVEL: i32 = 0;
 
 /// The dock's deck over the water, and how far it runs back from the
 /// course's start toward the shore, and on past it.
-pub const DOCK_TOP: i32 = int(5);
+pub const DOCK_TOP: i32 = int(12);
 const DOCK_BACK: i32 = int(40);
 const DOCK_END: i32 = int(14);
+
+/// The start row's ropes, as the Jungle's: from a gantry 30 m over the
+/// dock, to a metre over it. (The dock stands 12 m up so that their bottoms
+/// are level with the first ship's: from a 5 m dock the weaker AI levels
+/// swung to and fro on the start row for seconds.)
+const START_ROPE: i32 = int(29);
 
 /// The island's beach top over the water.
 pub const ISLAND_TOP: i32 = int(2);
@@ -175,11 +181,12 @@ impl Placing {
     }
 }
 
-/// The kinds of the line, big and small alternating, start first.
+/// The kinds of the line, start first: two big ships (a pirate and a
+/// navy ship dueling), then two small ones filling the gap, and so on.
 fn kinds(dice: &mut Dice) -> Vec<ShipKind> {
     (0..SHIPS)
         .map(|k| {
-            let big = k % 2 == 0;
+            let big = k % 4 < 2;
             match (big, dice.below(5)) {
                 (true, 0..=1) => ShipKind::Galleon,
                 (true, _) => ShipKind::Frigate,
@@ -207,7 +214,7 @@ pub fn bay_seeded(seed: u64) -> Course {
         let hop = if k == 0 {
             int(25)
         } else {
-            int(dice.range(22, 27))
+            int(dice.range(23, 28))
         };
         let first = (last_station + hop).max(last_bow + int(3) + int(len) / 2 + lo);
         let mid = first - lo;
@@ -265,8 +272,8 @@ pub fn bay_seeded(seed: u64) -> Course {
         let side = if k < 0 { -1 } else { 1 };
         let post = c.point(row_at).add(right.scale(int(12) * side));
         put.push(
-            v3(base.x, DOCK_TOP + int(30), base.z),
-            int(29),
+            v3(base.x, DOCK_TOP + START_ROPE + int(1), base.z),
+            START_ROPE,
             row_at,
             Hanger::Shore {
                 foot: v3(post.x, WATER_LEVEL, post.z),
@@ -286,7 +293,9 @@ pub fn bay_seeded(seed: u64) -> Course {
             Side::Pirate => -1,
             Side::Navy => 1,
         };
-        let mid = c.point(p.mid).add(right_of(h).scale(side_sign * SHIP_OFFSET));
+        let mid = c
+            .point(p.mid)
+            .add(right_of(h).scale(side_sign * SHIP_OFFSET));
         let specs = masts(p.kind);
         let mut ship_masts = Vec::new();
         for spec in &specs {
@@ -452,7 +461,9 @@ pub fn bay_seeded(seed: u64) -> Course {
         let edge = -side_sign * (beam / 2 - SHIP_OFFSET);
         let lateral = edge - side_sign * (BARREL_RADIUS + int(2));
         let along = p.mid + int(dice.range(-8, 8));
-        let bp = c.point(along).add(right_of(c.heading_at(along)).scale(lateral));
+        let bp = c
+            .point(along)
+            .add(right_of(c.heading_at(along)).scale(lateral));
         c.mushrooms.push(Mushroom {
             top: v3(bp.x, WATER_LEVEL + BARREL_TOP, bp.z),
             radius: BARREL_RADIUS,
@@ -563,7 +574,9 @@ pub fn bay_seeded(seed: u64) -> Course {
     {
         let r = right_of(c.heading_at(palms_at));
         for lane in -1..=1 {
-            let base = c.point(palms_at).add(r.scale(int(lane * 9 + dice.range(-1, 1))));
+            let base = c
+                .point(palms_at)
+                .add(r.scale(int(lane * 9 + dice.range(-1, 1))));
             let lean = if lane < 0 { -1 } else { 1 };
             let foot = base.add(r.scale(int(4) * lean));
             here.push(put.push(

@@ -6,9 +6,9 @@
 //! target and candidates too)
 use tool_core::ai::{think, Brain, Difficulty};
 use tool_core::ape::{Happening, Mode};
+use tool_core::bay::{bay, bay_seeded};
 use tool_core::fx::ONE;
 use tool_core::race::{Driver, Entry, Phase, Race};
-use tool_core::bay::{bay, bay_seeded};
 use tool_core::rules::{Kind, TICKS_PER_SECOND};
 
 fn main() {
