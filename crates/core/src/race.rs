@@ -398,8 +398,11 @@ impl Race {
             if self.space_rules(i) {
                 continue;
             }
-            // Sunset Ruins: the trip wires
+            // Sunset Ruins: the trip wires and the ravine
             self.trip_wires(i);
+            if self.ravine(i) {
+                continue;
+            }
             if self.floor_is_lava(i) {
                 self.eat(i);
                 continue;

@@ -2624,6 +2624,8 @@ fn cue_for(e: &Event, local: usize) -> Option<Cue> {
             Happening::Bounce => return None,
             // (Sector Ape; the art may give it its own sound)
             Happening::Rebound => Cue::Bounce,
+            // (Sunset Ruins; the art may give it its own sound)
+            Happening::Spiked => Cue::Hit,
             Happening::Wall => return None,
         }),
         Event::Countdown { .. } => Some(Cue::Beep),

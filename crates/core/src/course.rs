@@ -484,6 +484,9 @@ impl Course {
     /// the City, over the river it is where a swimmer's feet hang (water
     /// counts as the floor), else the street.
     pub fn floor(&self, x: i32, z: i32) -> i32 {
+        if let Some(r) = self.ruins.as_deref() {
+            return self.ruins_floor(r, x, z);
+        }
         match self.city {
             None => self.terrain(x, z),
             Some(_) => self.city_floor(v3(x, 0, z)),
@@ -627,7 +630,9 @@ impl Course {
         let mut pos = pos;
         let mut vel = vel;
         let mut hit = false;
-        if !self.streets.is_empty() {
+        if let Some(r) = self.ruins.as_deref() {
+            (pos, vel, hit) = self.ruins_walls(r, pos, vel, i, s, side);
+        } else if !self.streets.is_empty() {
             (pos, vel, hit) = self.contain_streets(pos, vel);
         } else if self.ski.is_some() {
             (pos, vel, hit) = self.contain_lanes(pos, vel, i, s, side);
@@ -662,7 +667,10 @@ impl Course {
                 vel = vel.sub(fwd.scale(into));
             }
         }
-        let top = self.terrain(pos.x, pos.z) + CEILING;
+        let top = match self.ruins.as_deref() {
+            Some(r) => self.ruins_ceiling(r, s, pos),
+            None => self.terrain(pos.x, pos.z) + CEILING,
+        };
         if pos.y > top {
             pos.y = top;
             vel.y = vel.y.min(0);

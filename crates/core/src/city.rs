@@ -169,6 +169,9 @@ impl Course {
     /// Bouncer `m` (`Course.mushrooms[m]`) at `tick`: a moving car's moves
     /// with it; every other one stands still.
     pub fn bouncer(&self, m: usize, tick: u32) -> Mushroom {
+        if let Some(r) = self.ruins.as_deref() {
+            return self.ruins_bouncer(r, m, tick);
+        }
         let b = self.mushrooms[m];
         let Some(city) = self.city.as_ref() else {
             return b;
@@ -202,6 +205,9 @@ impl Course {
     /// The river's surface under `p`, if `p` is over the City's river (in
     /// the corridor; the Jungle has none).
     pub fn water(&self, p: V3) -> Option<i32> {
+        if let Some(r) = self.ruins.as_deref() {
+            return self.ruins_water(r, p);
+        }
         let r = self.city.as_ref()?.river?;
         let o = self.point(r.from);
         let h = self.heading_at(r.from);
@@ -241,6 +247,9 @@ impl Course {
     /// no higher than its top, and no lower than the floor under it. On the
     /// Jungle exactly `mushroom_under`.
     pub fn bouncer_under(&self, p: V3, tick: u32) -> Option<usize> {
+        if let Some(r) = self.ruins.as_deref() {
+            return self.ruins_bouncer_under(r, p, tick);
+        }
         let Some(city) = self.city.as_ref() else {
             return self.mushroom_under(p);
         };
@@ -277,6 +286,9 @@ impl Course {
     /// point to swim to, and where the hands end a climb out from it (a
     /// boat: none, it bounces).
     pub fn water_exit(&self, p: V3) -> Option<(V3, Option<V3>)> {
+        if let Some(r) = self.ruins.as_deref() {
+            return self.ruins_exit(r, p);
+        }
         let city = self.city.as_ref()?;
         let r = city.river?;
         let o = self.point(r.from);

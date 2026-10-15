@@ -63,6 +63,15 @@ pub enum Terrain {
     /// Sector Ape: no floor, only a level "ground" this far down (far
     /// below the boundary, so nothing ever stands on it)
     Flat(i32),
+    /// Sunset Ruins: the river falls along `fall` from `top` (height 0)
+    /// to the lip `lip` metres along the fall, the ravine to `mouth`, then
+    /// the temple's level floor (`ruins::height_at`)
+    Ruins {
+        top: V3,
+        fall: V3,
+        lip: i32,
+        mouth: i32,
+    },
 }
 
 impl Terrain {
@@ -75,6 +84,12 @@ impl Terrain {
                 drop_at(u)
             }
             Terrain::Flat(h) => h,
+            Terrain::Ruins {
+                top,
+                fall,
+                lip,
+                mouth,
+            } => crate::ruins::height_at(v3(x, 0, z).sub(top.flat()).dot(fall), lip, mouth),
         }
     }
 
@@ -83,7 +98,7 @@ impl Terrain {
     /// zero on the Hills (they are gentle: no ape slides on them).
     pub fn downhill(self, x: i32, z: i32) -> V3 {
         match self {
-            Terrain::Hills | Terrain::Flat(_) => V3::ZERO,
+            Terrain::Hills | Terrain::Flat(_) | Terrain::Ruins { .. } => V3::ZERO,
             Terrain::Slope { top, fall } => {
                 let u = v3(x, 0, z).sub(top.flat()).dot(fall);
                 fall.scale(grade_at(u))
