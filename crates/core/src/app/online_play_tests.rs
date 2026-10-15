@@ -669,7 +669,7 @@ fn random_online_the_host_picks_and_every_browser_races_that_map() {
     }
 }
 
-/// RS25: the joiner's lobby docks the same two panels as the host's, so
+/// RS28: the joiner's lobby docks the same two panels as the host's, so
 /// on Sunset Ruins it sees the same camera, the temple's mouth between
 /// the panels and the ape (`menu_dock`'s Ruins test checks where).
 #[test]

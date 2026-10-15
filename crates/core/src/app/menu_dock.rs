@@ -147,7 +147,7 @@ impl App {
 
     /// Sunset Ruins' lobby camera, framed beside the menus and turned so
     /// the temple's mouth sits in the open part between the docked panels
-    /// and the ape (RS23, RS25): its middle halfway between the dock's
+    /// and the ape (RS23, RS28): its middle halfway between the dock's
     /// edge and the ape's left side, whether one panel or two are docked.
     /// The turn is found by a few secant steps on where the mouth lands.
     fn ruins_camera(&self, c: &Course, focus: V3) -> Camera {

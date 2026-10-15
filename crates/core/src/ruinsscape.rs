@@ -1639,7 +1639,7 @@ pub fn preview(c: &Course) -> (V3, i32, Camera) {
 /// looking `look` (flat): low and nearly level, a little further back
 /// than the other maps' lobbies: the ape in front, the mouth and the sky
 /// behind (not the ground at its feet, the person 1.10.1). The menus turn
-/// it further to fit their dock (`app::menu_dock`, RS25).
+/// it further to fit their dock (`app::menu_dock`, RS28).
 pub fn lobby_camera(feet: V3, look: V3) -> Camera {
     let eye = feet.sub(look.scale(LOBBY_BACK)).add(v3(0, LOBBY_EYE_UP, 0));
     let target = feet.add(v3(0, LOBBY_AIM_UP, 0));
