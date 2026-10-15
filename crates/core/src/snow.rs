@@ -80,6 +80,18 @@ impl Weather {
         }
     }
 
+    /// The map this weather falls on: the one map offering it (the Ski
+    /// Slope's snow, Banana Bay Battle's squall); `None` for Clear, which
+    /// every map offers.
+    pub fn home(self) -> Option<Map> {
+        if self == Weather::Clear {
+            return None;
+        }
+        Map::ALL
+            .into_iter()
+            .find(|&m| Weather::offered(m).contains(&self))
+    }
+
     /// This weather as `map` shows it: itself where the map offers it,
     /// else clear (a squall chosen on the bay leaves the Ski Slope clear).
     pub fn on(self, map: Map) -> Weather {

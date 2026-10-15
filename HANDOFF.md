@@ -4,7 +4,13 @@ Stage 9, written by the agent. `C5 Consolidate in your own words`.
 
 A fresh session starts from this file, not from memory.
 
-## Start here (2026-10-14 night): Sunset Ruins
+## Start here (2026-10-15): Banana Bay Battle
+
+- **Built on main, not deployed** (the person holds the deploy): Banana Bay Battle (TRIAGE T87, key `bay`, brief `briefs/banana-bay-battle.md`, progress `notes/bay-progress.md`, morning notes `notes/bay-morning.md`, SECOND-ORDER BB, BM, BG, BC, BS, BT, BW rows). A pirate battle at 3 pm: 30 ships at anchor, ropes from masts and yards, the sea puts you on the last ship passed, a finish island with a chest of golden bananas, Squall weather. PROTOCOL 11 (a 1.10 client is refused). Six maps now.
+- Code: `bay.rs` (contract), `bay/layout.rs`, `bay/rules.rs`, `bayscape.rs` (sky, sea, squall), `baymodels.rs`; tests `tests/bay_ai.rs`, `app/weather_tests.rs`.
+- The Weather setting is shared by Yeti Peak and the bay; Settings lists every weather with its map (BW1).
+
+## Earlier: Sunset Ruins (2026-10-14 night)
 
 - **Live: v1.10.0** (deployed 23:20 on the person's word, without the full three-browser check; the early run on main passed fmt, clippy, debug and release tests, build, import audit, and the browser and online checks in Chromium). Sunset Ruins (key `ruins`, brief `briefs/sunset-ruins.md`, progress `notes/ruins-progress.md`, SECOND-ORDER RU, RG, RA, RC, RS, RT rows) and the first three maps renamed (T86: Canopy Run, Concrete Jungle, Yeti Peak; keys unchanged). PROTOCOL 10.
 - The art polish pass (random banana pile, finish shot, lobby reframe, cliffs, ground fold, dim glyphs, JOJO MODE, the map card; the card on 1.10.0 is still a copy of the Jungle's) is an agent branch, to ship as 1.10.1.

@@ -1,6 +1,6 @@
 # Making a map
 
-Notes for building the next map, from the Jungle (the first course) and the City (New York at dusk, 2026-10-12). Read this before adding a map. Update it when a map teaches something new. SECOND-ORDER rows C4–C8 and on (City course), Y1–Y14 (City art), U1–U10 (map selector), I3 and I6 (integration), and V1–V12 (the jaguar mode, which runs on every map) have the details.
+Notes for building the next map, from the Jungle (the first course) and the City (New York at dusk, 2026-10-12), then the Ski Slope (Yeti Peak), Sector Ape, Sunset Ruins and Banana Bay Battle (the pirate map, 2026-10-15; brief `briefs/banana-bay-battle.md`, SECOND-ORDER BB, BM, BG, BC, BS, BT, BW rows). Read this before adding a map. Update it when a map teaches something new. SECOND-ORDER rows C4–C8 and on (City course), Y1–Y14 (City art), U1–U10 (map selector), I3 and I6 (integration), and V1–V12 (the jaguar mode, which runs on every map) have the details.
 
 ## Build steps (track these for every map)
 
@@ -111,6 +111,17 @@ New concepts get tracked too. Under the steps, the progress file has a **feature
 - **A faster map:** give it its own speedometer scale (`speedo::Dial`), widen the chase camera with its pace (`Chase.pace`), stretch the speed lines, and read the hype call-outs and JOJO MODE's sky at the same share of the dial (`Dial::standard`), so they still mean the same.
 - **States worth a picture** (the door shut, the jaguar popping in) get tile keys (`door=`, `eat=`), since an AI race rarely shows them at a chosen tick.
 - **A yaw grows to the left** (`geom::facing`: 90° is +x, and `right_of(+z)` is −x). The first notes put the sun on the wrong side.
+
+### What Banana Bay Battle taught (the pirate map, 2026-10-15)
+
+- **Hangers you cannot place freely set the course's length.** Ropes hang only from masts and yards, so a station every ~25 m (the Jungle's spacing) means a ship every 45–50 m: the person's "about 20 ships" made a ~950 m course and a 40 s race; 30 ships make 1,458 m and a Monkey about 67 s (BC2). Work out stations-per-hanger before promising the person a count and a race time.
+- **The start must be level with the first hangers.** From a 5 m dock the start ropes' bottoms were 7–14 m under the first ship's and the Monkey swung to and fro for 8 s; a 12 m pier (the start row's bottoms level with the first ship's ropes, as on the Jungle) fixed it (BC3).
+- **Keep anything an ape could fly through off the line.** An AI ape touched a royal 44 m up, so no sail is set on the course; full canvas is for scenery off it (BC4). A test checks no rope swings through a set sail.
+- **Work state out from the place, not memory.** "Back on the last ship you were over" is the last ship whose stern is behind the ape along the course: no new race state, nothing for save points, replays or online (BC6).
+- **Water as a reset, not a swim.** Falling in puts you on that ship's main deck 8 m aft of the foremast with a low rope ahead (`Course::bay_reset`), an `Event::Reset` so the AI's `shaken` handling applies; with Floor is Lava it is the kill (BC5). Decks then need the AI's "skip ropes out of a jump's reach" rule, or it runs off the bow and is put back forever (BC8).
+- **Fast, long ropes bunch the weak levels.** With the Jungle's handicaps the Sloth matched the Monkey (the Monkey's longer reaction let the good release go by); the map's own handicaps (`ai::BAY_*`) fixed it, measured one knob at a time over 16 layouts (BT1).
+- **A moving sea drawn from the physics.** The swell is one function of the race tick, used by the water rule and the drawing alike; the drawn sea is square bands of thin slabs round the eye, fixed to the world grid (BS4).
+- **A weather a map offers is per map; the setting is shared.** `snow::Weather::offered(map)` lists each map's weathers (Ski: snow; Bay: squall), `Weather::on(map)` draws Clear where a map does not offer the setting. A map's setup and the lobby offer that map's list; Settings lists every weather, each naming its map ("Squall (Banana Bay Battle)"), so it never misreports the setting (BS2, BW1). A new map's weather adds itself to `offered` and gets this for free.
 
 ## Checklist for a new map
 
