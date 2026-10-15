@@ -18,7 +18,10 @@ Added after the questions: "Also have bouncable barrels in the water besides the
 - **Bouncy barrels in the water** as well: floating barrels inside the course that you bounce off (bouncers, like the Ruins turtles), a way to save yourself before the water.
 - **Length: about 20 ships, about 75 s** for a Monkey AI, like the other maps. Smaller ships fill the gaps between big ones.
 - **Start on a dock**: a wooden pier at the edge of the bay, with the battle out ahead.
-- **Floor is Lava: a Royal Navy-style jaguar** (the person: "Every map it's a jaguar, no exceptions"): the jaguar in a navy officer's kit (bicorne, blue coat, gold epaulettes), with no real nation's insignia.
+- **Floor is Lava: a Royal Navy-style jaguar** (the person: "Every map it's a jaguar, no exceptions", then "I mean big cat on every map": every map has a big cat, so the Ski Slope keeps its snow leopard): the jaguar in a navy officer's kit (bicorne, blue coat, gold epaulettes), with no real nation's insignia.
+- **Weather: a Squall** as this map's weather option (beside Clear): rain, a darker sky, a rougher swell and lightning. Each player's own view, like the Ski Slope's Snowing and Blizzard (`snow.rs`).
+- **No shortcut**: one clear line through the fleet.
+- **Overnight (2026-10-15):** the person is away about 8 hours: "Run until the full build is done". Make every call, record it in SECOND-ORDER, questions go in `notes/bay-morning.md`.
 - **Deploy: hold until the person says so.** Build on main, show shots on the design journal.
 - **"pirate on the shoulder"** is read as a parrot on the shoulder (integrator's reading; SECOND-ORDER).
 

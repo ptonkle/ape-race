@@ -114,7 +114,9 @@ use crate::snow::Weather;
 /// 9: Random (TRIAGE T64): `random` in the Roster and the Start.
 /// 10: Sunset Ruins (2026-10-14): the map `ruins`, which a client of 9
 /// could not read in a Roster or a Start.
-pub const PROTOCOL: u32 = 10;
+/// 11: Banana Bay Battle (2026-10-15): the map `bay`, which a client of 10
+/// could not read in a Roster or a Start.
+pub const PROTOCOL: u32 = 11;
 /// The most apes in a race, humans and AI together.
 pub const MAX_APES: usize = 4;
 /// The most AI apes the host may add.
