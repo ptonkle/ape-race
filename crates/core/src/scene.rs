@@ -2486,7 +2486,11 @@ mod tests {
                 let halos = coloured(b.take_halos(), Mesh::Cyl, want);
                 let rods = coloured(b, Mesh::Cyl, want);
                 assert!(!rods.is_empty(), "{map:?} {vivid}: no catch-up vine");
-                assert_eq!(!halos.is_empty(), look.halo > 0, "{map:?} {vivid}: its glow");
+                assert_eq!(
+                    !halos.is_empty(),
+                    look.halo > 0,
+                    "{map:?} {vivid}: its glow"
+                );
             }
         }
     }

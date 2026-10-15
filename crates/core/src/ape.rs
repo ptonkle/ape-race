@@ -686,9 +686,7 @@ impl Ape {
         }
         self.release_bonus = 0;
         // and drops some bananas (TRIAGE T43)
-        self.bananas = self
-            .bananas
-            .saturating_sub(BANANAS_DROPPED * BANANA_PIECES);
+        self.bananas = self.bananas.saturating_sub(BANANAS_DROPPED * BANANA_PIECES);
         self.happened.push(Happening::Knocked);
     }
 }

@@ -29,7 +29,15 @@ fn item(ui: &Value, id: &str) -> Option<Value> {
 /// hole has one too, far off.)
 fn auras(a: &App) -> Vec<(Rgb, i32)> {
     let (_, values, draws) = a.frame();
-    let racers: Vec<V3> = a.play.as_ref().unwrap().race.racers.iter().map(|r| r.ape.pos).collect();
+    let racers: Vec<V3> = a
+        .play
+        .as_ref()
+        .unwrap()
+        .race
+        .racers
+        .iter()
+        .map(|r| r.ape.pos)
+        .collect();
     let mut out = Vec::new();
     for d in draws.chunks(render::DRAW_VALUES) {
         if d[6] != render::HALO {

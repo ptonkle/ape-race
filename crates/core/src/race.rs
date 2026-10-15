@@ -545,8 +545,7 @@ impl Race {
             }
         }
         if got > 0 {
-            r.ape.bananas =
-                (r.ape.bananas + got).min(rules::BANANAS_FULL * rules::BANANA_PIECES);
+            r.ape.bananas = (r.ape.bananas + got).min(rules::BANANAS_FULL * rules::BANANA_PIECES);
             self.events.push(Event::Reward {
                 who,
                 what: Reward::Banana,
