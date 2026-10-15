@@ -2585,6 +2585,61 @@ fn peak(b: &mut Batch, eye: V3, yaw: i32) {
     }
 }
 
+// ---- the item vines' stars ----
+
+/// An item vine's Christmas star (TRIAGE T68): a deep gold, warmer and
+/// more orange than the in-reach yellow, round a warm white heart, with a
+/// soft gold glow; told apart from a rope in reach by its shape (five
+/// points) and count (three up the rope). While the item is taken: dull
+/// silver, no glow.
+pub(crate) const STAR_GOLD: Rgb = rgb(255, 178, 24);
+const STAR_HEART: Rgb = rgb(255, 246, 214);
+pub(crate) const STAR_DULL: Rgb = rgb(150, 156, 170);
+const STAR_HALO: Rgb = rgb(255, 170, 40);
+
+/// A five-pointed star facing the camera (`right` and `up` its screen
+/// axes) at `at`, one point up when `spin` is 0: faceted points round a
+/// faceted heart; `lit` gold and glowing, else dull silver and smaller.
+pub fn star(b: &mut Batch, at: V3, right: V3, up: V3, spin: i32, lit: bool) {
+    let face = up.cross(right).norm();
+    let (colour, glow, size) = if lit {
+        (STAR_GOLD, ONE / 2, ONE)
+    } else {
+        (STAR_DULL, 0, ONE * 3 / 4)
+    };
+    let sz = |v: i32| mul(v, size);
+    for p in 0..5 {
+        let a = spin + fx::QUARTER + p * fx::TURN / 5;
+        let out = right.scale(fx::cos(a)).add(up.scale(sin(a)));
+        let across = face.cross(out).norm();
+        // a point: a five-sided spike lying in the star's face, its tip out
+        let point = Affine {
+            c0: across.scale(sz(cm(36))),
+            c1: out.scale(sz(cm(64))),
+            c2: face.scale(sz(cm(18))),
+            t: at.add(out.scale(sz(cm(46)))),
+        };
+        b.push(Mesh::Spike, &point, colour, glow);
+    }
+    let heart = Affine {
+        c0: right.scale(sz(cm(46))),
+        c1: up.scale(sz(cm(46))),
+        c2: face.scale(sz(cm(26))),
+        t: at,
+    };
+    if lit {
+        b.push(Mesh::Octa, &heart, STAR_HEART, ONE * 3 / 4);
+        b.push_halo(
+            Mesh::Sphere,
+            &placed(at, 0, v3(cm(190), cm(190), cm(190))),
+            STAR_HALO,
+            ONE * 2 / 5,
+        );
+    } else {
+        b.push(Mesh::Octa, &heart, STAR_DULL, 0);
+    }
+}
+
 // ---- the preview spot and the flyover ----
 
 /// A place on the Ski Slope to show an ape on the selection screen: on
