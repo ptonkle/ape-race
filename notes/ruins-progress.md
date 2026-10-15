@@ -13,9 +13,9 @@ The standard map-build steps (MAPS.md "Build steps"), one row each. Status is on
 | 7 | Map rules | Done | Current, ravine reset, bridge boost, spikes, trapdoors |
 | 8 | Art placed on the course | In progress | First pass committed; shots being taken |
 | 9 | Lobby spot and flyover | In progress | Lobby ledge, smooth flyover (fixes the failing test) |
-| 10 | AI validation | In progress | Merged: ordered over 8 layouts (Sloth 86.9, Monkey 77.7, Ape 71.3, King Kong 64.3 s); thin on 16 (the Ape stalls on 3) |
+| 10 | AI validation | In progress | Merged: ordered over 8 layouts (Sloth 86.9, Monkey 77.7, Ape 71.3, King Kong 64.3 s); thin on 16 (the Ape stalls on 3); an agent is fixing the bridge and mouth stalls |
 | 11 | Medal times | Done | Author 0:54, Gold 1:01, Silver 1:11, Bronze 1:26 |
-| 12 | Step and frame cost | In progress | Worst step 7.1 ms near the start (other maps 1.4–2.7 ms): needs a fix |
+| 12 | Step and frame cost | In progress | Worst step 7.1 ms near the start (other maps 1.4–2.7 ms); an agent is fixing it |
 | 13 | Colourblind and JOJO MODE | In progress | |
 | 14 | Map card | Not started | Copy of the Jungle's today |
 | 15 | Screenshots at 1920×1080 | In progress | Ape photos done (19, on the journal); in-game shots coming |
@@ -41,6 +41,7 @@ One row per concept from the brief, plus any added later (your feedback, a new i
 | Waterfall and ravine reset | Brief | Done | Done | In progress | Not started |
 | Rope bridge, three gorillas wide | Brief | Done | n/a | In progress | Not started |
 | Boost vines launch into the mouth | Brief | In progress | Done | In progress | Not started |
+| Weaker AIs cross the bridge and mouth without stalling | AI tuning | n/a | In progress | In progress | Not started |
 | Temple mouth in Aztec relief, with depth | Brief, your feedback | Done | Done | In progress | Not started |
 | Waterfall from the mouth | Brief | Done | n/a | In progress | Not started |
 | Banana-glyph stonework, pulsing glow | Brief | Done | n/a | In progress | Not started |
