@@ -51,22 +51,28 @@ pub struct Pose {
 /// What an ape wears (2026-10-13): nothing, as on the Jungle and the City,
 /// or on the Ski Slope a pair of skis, a ski helmet and goggles, or for
 /// Sector Ape (the space map, TRIAGE T75, not built yet) a Star Fox flight
-/// jacket, one metal arm and aviator sunglasses. Only the drawing changes.
+/// jacket, one metal arm and aviator sunglasses, or on Sunset Ruins
+/// (`Explorer`, 2026-10-14) a pith helmet, a khaki explorer jacket with a
+/// compass on the chest, a canteen at the hip and tiny round spectacles.
+/// Only the drawing changes.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub enum Gear {
     #[default]
     None,
     Ski,
     Space,
+    Explorer,
 }
 
 impl Gear {
-    /// The gear named `key` (`none`, `ski`, `space`; a tile's `gear=`).
+    /// The gear named `key` (`none`, `ski`, `space`, `explorer`; a tile's
+    /// `gear=`).
     pub fn from_key(key: &str) -> Option<Gear> {
         match key {
             "none" => Some(Gear::None),
             "ski" => Some(Gear::Ski),
             "space" => Some(Gear::Space),
+            "explorer" => Some(Gear::Explorer),
             _ => None,
         }
     }
@@ -76,6 +82,8 @@ impl Gear {
         match map {
             crate::map::Map::Ski => Gear::Ski,
             crate::map::Map::Sector => Gear::Space,
+            // Sunset Ruins (briefs/sunset-ruins.md): add, once `Map::Ruins` exists,
+            // crate::map::Map::Ruins => Gear::Explorer,
             _ => Gear::None,
         }
     }
@@ -1169,8 +1177,9 @@ pub fn draw_in(b: &mut Batch, kind: Kind, palette: u8, pose: &Pose) {
     }
     let mut rig = Rig { b, base };
     let space = pose.gear == Gear::Space;
+    let explorer = pose.gear == Gear::Explorer;
     torso(&mut rig, kind, &l, &m, &skel);
-    limbs(&mut rig, kind, &l, &m, &skel, space);
+    limbs(&mut rig, kind, &l, &m, &skel, pose.gear);
     head(&mut rig, kind, &l, &skel.head, pose);
     tail(&mut rig, kind, &m, &skel, pose.tick);
     if pose.gear == Gear::Ski {
@@ -1180,6 +1189,11 @@ pub fn draw_in(b: &mut Batch, kind: Kind, palette: u8, pose: &Pose) {
     if space {
         jacket(&mut rig, kind, &m, &skel, pose);
         shades(&mut rig, kind, &l, &skel.head);
+    }
+    if explorer {
+        safari_jacket(&mut rig, kind, &m, &skel);
+        pith_helmet(&mut rig, &l, &skel.head);
+        spectacles(&mut rig, kind, &l, &skel.head);
     }
     if pose.stunned {
         stars(&mut rig, &skel.head, m.head, pose.tick);
@@ -1357,10 +1371,13 @@ fn foot(rig: &mut Rig, f: &Frame, ankle: V3, w: i32, side: i32, c: Rgb) {
     rig.put(Mesh::Taper, rod(root, toe, pct(w, 44)), shade(c, 90));
 }
 
-/// `space`: in the Sector Ape costume, one arm (`metal_side`) is metal from
+/// `gear`: in the Sector Ape costume, one arm (`metal_side`) is metal from
 /// the elbow down, and the jacket's sleeves cover the upper arms.
-fn limbs(rig: &mut Rig, kind: Kind, l: &Look, m: &Dims, s: &Skel, space: bool) {
+fn limbs(rig: &mut Rig, kind: Kind, l: &Look, m: &Dims, s: &Skel, gear: Gear) {
     let ff = &s.feet_frame;
+    let space = gear == Gear::Space;
+    // in a jacket the upper arms are in sleeves
+    let sleeved = space || gear == Gear::Explorer;
     for (i, side) in SIDES.into_iter().enumerate() {
         // arm: a round shoulder, a tapering upper arm and forearm
         let sh = shoulder_of(&s.body, m, side);
@@ -1376,7 +1393,7 @@ fn limbs(rig: &mut Rig, kind: Kind, l: &Look, m: &Dims, s: &Skel, space: bool) {
         }
         if kind == Kind::Orangutan {
             // long hair hanging from the arms (not from a sleeve or metal)
-            let bare: &[(V3, V3)] = match (space, metal) {
+            let bare: &[(V3, V3)] = match (sleeved, metal) {
                 (false, _) => &[(sh, elbow), (elbow, wrist)],
                 (true, false) => &[(elbow, wrist)],
                 (true, true) => &[],
@@ -1831,6 +1848,260 @@ fn shades(rig: &mut Rig, kind: Kind, l: &Look, h: &Frame) {
     rig.ball(mouth, pct(d, 10), shade(GUNMETAL, 70));
 }
 
+// ---------------------------------------------------------------------------
+// Sunset Ruins' explorer outfit (2026-10-14, the person's brief): a pith
+// helmet, a khaki explorer jacket with a brass compass on the chest, a
+// canteen on a strap hanging at the hip, and tiny round spectacles.
+
+/// The jacket's khaki, its darker trim (collar, pockets, belt), the pith
+/// helmet's pale cork and its brown band.
+const KHAKI: Rgb = rgb(214, 186, 124);
+const KHAKI_DARK: Rgb = rgb(156, 126, 76);
+const PITH: Rgb = rgb(234, 222, 184);
+const PITH_BAND: Rgb = rgb(112, 84, 52);
+/// The compass: a brass case, a cream face and a red needle.
+const BRASS: Rgb = rgb(206, 162, 64);
+const DIAL: Rgb = rgb(248, 242, 222);
+const NEEDLE: Rgb = rgb(212, 40, 36);
+/// The canteen: an olive tin body, a steel cap, a leather strap.
+const CANTEEN: Rgb = rgb(98, 110, 70);
+const STEEL: Rgb = rgb(184, 188, 194);
+const LEATHER: Rgb = rgb(102, 66, 38);
+/// The spectacles: thin dark-gold wire round pale glass.
+const WIRE: Rgb = rgb(150, 116, 48);
+const SPECS_GLASS: Rgb = rgb(214, 236, 246);
+
+/// How low each kind's explorer jacket comes (percent of the torso up from
+/// the hips): the gorilla's is cropped higher so its silver saddle shows.
+fn safari_hem(kind: Kind) -> i32 {
+    match kind {
+        Kind::Gorilla => 56,
+        _ => 30,
+    }
+}
+
+/// The khaki jacket over the chest and upper arms: a belt at the hem, a
+/// turned-down collar, two flapped pockets, the compass on the chest, and
+/// a canteen on a strap across the body, hanging at the hip.
+fn safari_jacket(rig: &mut Rig, kind: Kind, m: &Dims, s: &Skel) {
+    let body = &s.body;
+    let (w, t, d) = (m.w, m.t, m.d);
+    let at = |x: i32, y: i32, z: i32| v3(pct(w, x), pct(t, y), pct(d, z));
+    let hem = safari_hem(kind);
+    let tall = 104 - hem;
+    let mid = hem + tall / 2;
+    rig.put(
+        Mesh::Barrel,
+        body.shape(at(0, mid, 0), at(112, tall, 114)),
+        KHAKI,
+    );
+    // the belt, with a brass buckle
+    rig.put(
+        Mesh::Barrel,
+        body.shape(at(0, hem + 4, 0), at(106, 9, 108)),
+        KHAKI_DARK,
+    );
+    rig.put(
+        Mesh::Bevel,
+        body.shape(at(0, hem + 4, 54), at(14, 8, 4)),
+        BRASS,
+    );
+    rig.put(
+        Mesh::Bevel,
+        body.shape(
+            at(0, 88, -4),
+            v3(2 * m.shoulder + pct(m.arm_w, 90), pct(t, 28), pct(d, 86)),
+        ),
+        KHAKI,
+    );
+    // the buttoned front
+    rig.put(
+        Mesh::Cube,
+        body.shape(at(0, mid, 56), v3(pct(w, 5), pct(t, tall - 8), pct(d, 4))),
+        KHAKI_DARK,
+    );
+    // a turned-down collar: two flaps meeting at the throat
+    for side in SIDES {
+        rig.blade(
+            body.at(side * pct(w, 18), pct(t, 102), pct(d, 40)),
+            body.at(side * pct(w, 6), pct(t, 90), pct(d, 56)),
+            body.x,
+            pct(w, 16),
+            pct(d, 4),
+            KHAKI_DARK,
+        );
+    }
+    // the flapped pockets low on the front
+    if tall > 40 {
+        for side in SIDES {
+            rig.put(
+                Mesh::Bevel,
+                body.shape(at(side * 28, hem + 18, 54), at(26, 18, 6)),
+                shade(KHAKI, 94),
+            );
+            rig.put(
+                Mesh::Bevel,
+                body.shape(at(side * 28, hem + 27, 57), at(28, 5, 5)),
+                KHAKI_DARK,
+            );
+        }
+    }
+    // the compass on the chest: a brass case with a ring on top, a cream
+    // face and a red needle pointing up
+    let c = body.at(-pct(w, 24), pct(t, 76), pct(d, 56));
+    let out = body.z;
+    let r = pct(w, 19);
+    rig.glow(Mesh::Hex, rod(c, c.add(out.scale(pct(d, 6))), r), BRASS, ONE / 5);
+    let face = c.add(out.scale(pct(d, 6)));
+    rig.glow(
+        Mesh::Hex,
+        rod(face, face.add(out.scale(pct(d, 2))), pct(r, 78)),
+        DIAL,
+        ONE / 6,
+    );
+    let front = face.add(out.scale(pct(d, 2)));
+    rig.put(
+        Mesh::Octa,
+        body.shape(V3::ZERO, v3(pct(r, 16), pct(r, 64), pct(d, 3)))
+            .at(front.add(body.y.scale(pct(r, 14)))),
+        NEEDLE,
+    );
+    rig.put(
+        Mesh::Octa,
+        body.shape(V3::ZERO, v3(pct(r, 14), pct(r, 40), pct(d, 3)))
+            .at(front.sub(body.y.scale(pct(r, 18)))),
+        BLACK,
+    );
+    rig.put(
+        Mesh::Hex,
+        rod(
+            c.add(body.y.scale(pct(r, 50))),
+            c.add(body.y.scale(pct(r, 72))),
+            pct(r, 26),
+        ),
+        BRASS,
+    );
+    // the canteen's strap from one shoulder across the chest to the other
+    // hip, and the canteen hanging outside that hip with a steel cap
+    let strap_top = body.at(pct(w, 34), pct(t, 100), pct(d, 40));
+    let strap_low = body.at(-pct(w, 52), pct(t, 22), pct(d, 50));
+    rig.put(Mesh::Hex, rod(strap_top, strap_low, pct(w, 9)), LEATHER);
+    let back_top = body.at(pct(w, 34), pct(t, 100), -pct(d, 40));
+    let back_low = body.at(-pct(w, 52), pct(t, 22), -pct(d, 50));
+    rig.put(Mesh::Hex, rod(back_top, back_low, pct(w, 9)), LEATHER);
+    let can = body.at(-pct(w, 62), pct(t, 10), 0);
+    let side_out = body.x.neg();
+    let across = pct(w, 44);
+    rig.put(
+        Mesh::Hex,
+        rod(can, can.add(side_out.scale(pct(w, 16))), across),
+        CANTEEN,
+    );
+    rig.put(
+        Mesh::Hex,
+        rod(
+            can.add(side_out.scale(pct(w, 2))),
+            can.add(side_out.scale(pct(w, 14))),
+            pct(across, 110),
+        ),
+        shade(CANTEEN, 80),
+    );
+    let neck = can.add(side_out.scale(pct(w, 8)));
+    let up = body.y;
+    rig.put(
+        Mesh::Hex,
+        rod(
+            neck.add(up.scale(pct(across, 48))),
+            neck.add(up.scale(pct(across, 64))),
+            pct(across, 26),
+        ),
+        STEEL,
+    );
+    // the sleeves to the elbows, with turned-back cuffs
+    for (i, side) in SIDES.into_iter().enumerate() {
+        let sh = shoulder_of(body, m, side);
+        let (elbow, _) = bend(sh, s.hands[i], m.arm, s.arm_hint[i]);
+        let aw = m.arm_w;
+        rig.ball(sh, pct(aw, 178), KHAKI);
+        rig.put(Mesh::Taper, rod(sh, elbow, pct(aw, 154)), KHAKI);
+        let along = |p: i32| sh.lerp(elbow, ONE * p / 100);
+        rig.put(Mesh::Hex, rod(along(80), along(98), pct(aw, 136)), KHAKI_DARK);
+    }
+}
+
+/// The pith helmet: a pale domed shell, a wide flat brim all round, a
+/// brown band and a little vent button on top.
+fn pith_helmet(rig: &mut Rig, l: &Look, h: &Frame) {
+    let d = cm(l.head);
+    let p = |x: i32, y: i32, z: i32| v3(pct(d, x), pct(d, y), pct(d, z));
+    rig.put(Mesh::Geo, h.shape(p(0, 40, -4), p(110, 84, 116)), PITH);
+    let band = h.at(0, pct(d, 28), -pct(d, 4));
+    rig.put(
+        Mesh::Hex,
+        rod(band, band.add(h.y.scale(pct(d, 12))), pct(d, 116)),
+        PITH_BAND,
+    );
+    // the brim: a wide hexagonal disc, a little longer front to back
+    let brim = h.at(0, pct(d, 26), -pct(d, 2));
+    rig.put(
+        Mesh::Hex,
+        Affine {
+            c0: h.x.scale(pct(d, 168)),
+            c1: h.y.scale(pct(d, 5)),
+            c2: h.z.scale(pct(d, 184)),
+            t: brim,
+        },
+        shade(PITH, 94),
+    );
+    rig.put(Mesh::Ico, h.shape(p(0, 82, -4), p(14, 10, 14)), PITH_BAND);
+}
+
+/// Tiny round spectacles: two small glass discs in thin wire rims, a bridge
+/// between them and arms back to the ears.
+fn spectacles(rig: &mut Rig, kind: Kind, l: &Look, h: &Frame) {
+    let d = cm(l.head);
+    let (ey, ex) = eye_spot(kind);
+    let lw = l.eye + 1;
+    let z = (42 + l.eye / 2 + 4).max(38 + (l.brow + 14) / 2 + 3);
+    for side in SIDES {
+        let c = h.at(side * pct(d, ex), pct(d, ey), pct(d, z));
+        rig.put(
+            Mesh::Hex,
+            rod(c, c.add(h.z.scale(pct(d, 2))), pct(d, lw + 4)),
+            WIRE,
+        );
+        let g = c.add(h.z.scale(pct(d, 2)));
+        rig.glow(
+            Mesh::Hex,
+            rod(g, g.add(h.z.scale(pct(d, 2))), pct(d, lw)),
+            SPECS_GLASS,
+            ONE / 3,
+        );
+        // a glint on each lens
+        rig.glow(
+            Mesh::Cube,
+            h.shape(
+                v3(
+                    side * pct(d, ex) - pct(d, lw / 5),
+                    pct(d, ey + lw / 5),
+                    pct(d, z + 5),
+                ),
+                v3(pct(d, (lw / 3).max(3)), pct(d, 2), pct(d, 2)),
+            ),
+            rgb(255, 255, 255),
+            ONE / 2,
+        );
+        // the arm back to the ear
+        let a = h.at(side * pct(d, ex + lw / 2 + 1), pct(d, ey), pct(d, z));
+        let b = h.at(side * pct(d, 50), pct(d, ey + 2), 0);
+        rig.put(Mesh::Hex, rod(a, b, pct(d, 3)), WIRE);
+    }
+    // the bridge over the nose
+    let a = h.at(-pct(d, ex - lw / 2), pct(d, ey + 1), pct(d, z + 1));
+    let b = h.at(pct(d, ex - lw / 2), pct(d, ey + 1), pct(d, z + 1));
+    rig.put(Mesh::Hex, rod(a, b, pct(d, 3)), WIRE);
+}
+
 /// The proboscis monkey's nose: four points from its root on the face to its
 /// tip. It droops over the mouth; falling blows it up, running forward
 /// presses it back, sideways speed swings it the other way, and it wobbles
@@ -1897,7 +2168,7 @@ fn disc(rig: &mut Rig, h: &Frame, at: V3, across: i32, thick: i32, c: Rgb) {
 fn head(rig: &mut Rig, kind: Kind, l: &Look, h: &Frame, pose: &Pose) {
     let d = cm(l.head);
     let p = |x: i32, y: i32, z: i32| v3(pct(d, x), pct(d, y), pct(d, z));
-    let helmeted = pose.gear == Gear::Ski;
+    let helmeted = matches!(pose.gear, Gear::Ski | Gear::Explorer);
     // the skull, and the bare face on its front
     rig.put(Mesh::Geo, h.shape(V3::ZERO, p(100, 94, 96)), l.fur);
     let face_size = match kind {
@@ -1927,7 +2198,7 @@ fn head(rig: &mut Rig, kind: Kind, l: &Look, h: &Frame, pose: &Pose) {
                 shade(l.fur, 90),
             );
             rig.put(Mesh::Geo, h.shape(p(0, -58, 16), p(74, 54, 64)), l.skin);
-            // (under a ski helmet the hair stays flat)
+            // (under a ski helmet or a pith helmet the hair stays flat)
             let tufts: &[(i32, i32)] = if helmeted {
                 &[]
             } else {
@@ -3184,6 +3455,76 @@ mod tests {
                 map == crate::map::Map::Sector,
                 "{map:?}"
             );
+        }
+    }
+
+    #[test]
+    fn on_sunset_ruins_every_kind_wears_the_explorer_outfit_in_every_pose() {
+        // a pith helmet, a khaki jacket with a compass, a canteen at the
+        // hip and tiny round spectacles (briefs/sunset-ruins.md)
+        assert_eq!(Gear::from_key("explorer"), Some(Gear::Explorer));
+        for kind in Kind::ALL {
+            for p in poses() {
+                let pose = Pose {
+                    gear: Gear::Explorer,
+                    ..p
+                };
+                let s = drawn(kind, &pose);
+                let bare = drawn(kind, &p);
+                assert!(
+                    s.len() > bare.len() + 25,
+                    "{kind:?} {} vs {}",
+                    s.len(),
+                    bare.len()
+                );
+                assert!((50..=300).contains(&s.len()), "{kind:?} {} shapes", s.len());
+                let has = |c: Rgb| s.iter().any(|x| x.colour == c);
+                assert!(has(PITH) && has(PITH_BAND), "{kind:?}: no pith helmet");
+                assert!(has(KHAKI) && has(KHAKI_DARK), "{kind:?}: no jacket");
+                assert!(has(BRASS) && has(DIAL) && has(NEEDLE), "{kind:?}: no compass");
+                assert!(has(CANTEEN) && has(LEATHER), "{kind:?}: no canteen");
+                assert!(has(WIRE) && has(SPECS_GLASS), "{kind:?}: no spectacles");
+                // none of the other maps' gear
+                assert!(!has(JACKET) && !has(LENS) && !has(GUNMETAL), "{kind:?}");
+                // two round lenses, each just ahead of an eye
+                let face = facing(dance_turn(kind, &pose).yaw, 0);
+                let mut whites: Vec<V3> = s
+                    .iter()
+                    .filter(|x| {
+                        x.mesh == Mesh::Ico as u32
+                            && (x.colour == EYE_WHITE || x.colour == LEMUR_EYE)
+                    })
+                    .map(|x| x.at)
+                    .collect();
+                whites.dedup();
+                let lenses: Vec<V3> = s
+                    .iter()
+                    .filter(|x| x.colour == SPECS_GLASS)
+                    .map(|x| x.at)
+                    .collect();
+                assert_eq!((whites.len(), lenses.len()), (2, 2), "{kind:?}");
+                for e in &whites {
+                    let ahead = lenses
+                        .iter()
+                        .filter(|l| l.dist(*e) < cm(12))
+                        .map(|l| l.sub(*e).dot(face))
+                        .max()
+                        .unwrap_or(i32::MIN);
+                    assert!(ahead > cm(1), "{kind:?} {pose:?}: lens {ahead} ahead");
+                }
+                for x in &s {
+                    for a in x.axes {
+                        assert!(
+                            a.len() >= ONE / 500 && a.len() <= int(2),
+                            "{kind:?} mesh {} colour {:?} axis {}",
+                            x.mesh,
+                            x.colour,
+                            a.len()
+                        );
+                    }
+                    assert!(x.at.dist(pose.hands) <= int(3));
+                }
+            }
         }
     }
 
