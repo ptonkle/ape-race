@@ -56,7 +56,7 @@ pub fn look() -> Look {
         // the clear mountain air: the haze starts late and ends far (it
         // was 110-440 m; brought in to 360 m, TRIAGE T62, so the chunks the
         // fog hides are fewer: every chunk any of which is nearer than its
-        // far end is drawn, about 7,700 shapes on average, and none pops in)
+        // far end is drawn, about 8,500 shapes on average, and none pops in)
         fog_range: (int(100), int(360)),
         light_dir: facing(SUN_BEARING, SUN_HIGH),
         light: LIGHT,
