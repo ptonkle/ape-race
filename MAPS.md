@@ -2,6 +2,30 @@
 
 Notes for building the next map, from the Jungle (the first course) and the City (New York at dusk, 2026-10-12). Read this before adding a map. Update it when a map teaches something new. SECOND-ORDER rows C4–C8 and on (City course), Y1–Y14 (City art), U1–U10 (map selector), I3 and I6 (integration), and V1–V12 (the jaguar mode, which runs on every map) have the details.
 
+## Build steps (track these for every map)
+
+Keep `notes/<key>-progress.md` with one row per step and a status of **Done**, **In progress**, **Not started**, **Waiting on you** or **Blocked**, and show that table in every progress report (the person, 2026-10-14). The steps:
+
+1. Brief and answers
+2. Skeleton and contract
+3. Ape costumes
+4. Models
+5. Sky and lighting
+6. Course layout
+7. Map rules
+8. Art placed on the course
+9. Lobby spot and flyover
+10. AI validation
+11. Medal times
+12. Step and frame cost
+13. Colourblind and JOJO MODE
+14. Map card
+15. Screenshots at 1920×1080
+16. Other maps unchanged
+17. Docs
+18. Full checks
+19. Deploy
+
 ## What a map is
 
 - **One entry in `map.rs`:** `Map` (`Jungle`, `City`, …), with `key()` (the course's `name`, the settings' and replay library's word for it, and `map.<key>` in `data/strings.json`), `course()` (built from a fixed seed) and `Map::of(course)`.
