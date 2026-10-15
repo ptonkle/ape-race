@@ -615,12 +615,14 @@ body[data-dock] .panel.setup .toggle span { font-size: 0.92rem; }
 
 /* The map cards' strip above the ape (TRIAGE T82): every map in one row
    across the open part beside the docked menus. Its height with the space
-   round it is the core's STRIP_H (menu_dock.rs), which frames the ape below. */
+   round stays above the ape, which stands lower (menu_dock.rs). */
 body[data-dock="side"] .menus .panel.strip {
   position: fixed;
   top: 1.5rem;
   left: var(--dock-w);
   right: 1.5rem;
+  width: auto;
+  max-width: none;
   max-height: calc(190px - 1.5rem);
   padding: 0;
   background: none;
