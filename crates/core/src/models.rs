@@ -82,8 +82,7 @@ impl Gear {
         match map {
             crate::map::Map::Ski => Gear::Ski,
             crate::map::Map::Sector => Gear::Space,
-            // Sunset Ruins (briefs/sunset-ruins.md): add, once `Map::Ruins` exists,
-            // crate::map::Map::Ruins => Gear::Explorer,
+            crate::map::Map::Ruins => Gear::Explorer,
             _ => Gear::None,
         }
     }
@@ -1951,7 +1950,12 @@ fn safari_jacket(rig: &mut Rig, kind: Kind, m: &Dims, s: &Skel) {
     let c = body.at(-pct(w, 24), pct(t, 76), pct(d, 56));
     let out = body.z;
     let r = pct(w, 19);
-    rig.glow(Mesh::Hex, rod(c, c.add(out.scale(pct(d, 6))), r), BRASS, ONE / 5);
+    rig.glow(
+        Mesh::Hex,
+        rod(c, c.add(out.scale(pct(d, 6))), r),
+        BRASS,
+        ONE / 5,
+    );
     let face = c.add(out.scale(pct(d, 6)));
     rig.glow(
         Mesh::Hex,
@@ -2025,7 +2029,11 @@ fn safari_jacket(rig: &mut Rig, kind: Kind, m: &Dims, s: &Skel) {
         rig.ball(sh, pct(aw, 178), KHAKI);
         rig.put(Mesh::Taper, rod(sh, elbow, pct(aw, 154)), KHAKI);
         let along = |p: i32| sh.lerp(elbow, ONE * p / 100);
-        rig.put(Mesh::Hex, rod(along(80), along(98), pct(aw, 136)), KHAKI_DARK);
+        rig.put(
+            Mesh::Hex,
+            rod(along(80), along(98), pct(aw, 136)),
+            KHAKI_DARK,
+        );
     }
 }
 
@@ -3463,6 +3471,13 @@ mod tests {
         // a pith helmet, a khaki jacket with a compass, a canteen at the
         // hip and tiny round spectacles (briefs/sunset-ruins.md)
         assert_eq!(Gear::from_key("explorer"), Some(Gear::Explorer));
+        for map in crate::map::Map::ALL {
+            assert_eq!(
+                Gear::on(map) == Gear::Explorer,
+                map == crate::map::Map::Ruins,
+                "{map:?}"
+            );
+        }
         for kind in Kind::ALL {
             for p in poses() {
                 let pose = Pose {
@@ -3481,7 +3496,10 @@ mod tests {
                 let has = |c: Rgb| s.iter().any(|x| x.colour == c);
                 assert!(has(PITH) && has(PITH_BAND), "{kind:?}: no pith helmet");
                 assert!(has(KHAKI) && has(KHAKI_DARK), "{kind:?}: no jacket");
-                assert!(has(BRASS) && has(DIAL) && has(NEEDLE), "{kind:?}: no compass");
+                assert!(
+                    has(BRASS) && has(DIAL) && has(NEEDLE),
+                    "{kind:?}: no compass"
+                );
                 assert!(has(CANTEEN) && has(LEATHER), "{kind:?}: no canteen");
                 assert!(has(WIRE) && has(SPECS_GLASS), "{kind:?}: no spectacles");
                 // none of the other maps' gear

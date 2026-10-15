@@ -205,6 +205,7 @@ fn on_the_ski_slope_the_racers_wear_their_gear_and_elsewhere_none() {
         let want = match map {
             Map::Ski => models::Gear::Ski,
             Map::Sector => models::Gear::Space,
+            Map::Ruins => models::Gear::Explorer,
             _ => models::Gear::None,
         };
         assert_eq!(pose.gear, want, "{map:?}");
