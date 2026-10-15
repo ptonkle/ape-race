@@ -15,15 +15,20 @@ fn ski_race(seed: u64, focus: usize, trees: bool) -> (Vec<(V3, V3)>, std::sync::
     let mut a = app();
     a.ensure_course(Map::Ski);
     let course = a.course_of(Map::Ski).cloned().unwrap();
-    let entries: Vec<Entry> = [Kind::Gorilla, Kind::Chimpanzee, Kind::Orangutan, Kind::Lemur]
-        .into_iter()
-        .map(|k| Entry {
-            name: k.key().into(),
-            kind: k,
-            driver: Driver::Ai,
-            palette: 0,
-        })
-        .collect();
+    let entries: Vec<Entry> = [
+        Kind::Gorilla,
+        Kind::Chimpanzee,
+        Kind::Orangutan,
+        Kind::Lemur,
+    ]
+    .into_iter()
+    .map(|k| Entry {
+        name: k.key().into(),
+        kind: k,
+        driver: Driver::Ai,
+        palette: 0,
+    })
+    .collect();
     let race = Race::new(course, &entries, false, seed);
     a.begin(race, focus);
     let mut p = a.play.take().unwrap();
@@ -34,23 +39,10 @@ fn ski_race(seed: u64, focus: usize, trees: bool) -> (Vec<(V3, V3)>, std::sync::
     let mut out = Vec::new();
     let limit = 140 * rules::TICKS_PER_SECOND as u32;
     while p.race.racers[focus].finish.is_none() && p.race.tick < limit {
-        let dbg = (p.race.tick > 5300 && p.race.tick < 5542) && std::env::var("TRACE").is_ok();
-        if dbg { std::env::set_var("CAMDBG", "1"); eprintln!("tick {}", p.race.tick); }
         a.step_race(&mut p);
-        std::env::remove_var("CAMDBG");
         out.push((p.chase.target, p.chase.eye));
     }
     (out, crowns)
-}
-
-/// The largest change in the eye's step from one tick to the next (cm).
-fn worst_jolt(run: &[(V3, V3)]) -> i32 {
-    run.windows(3)
-        .map(|w| w[2].1.sub(w[1].1).sub(w[1].1.sub(w[0].1)).len())
-        .max()
-        .unwrap_or(0)
-        * 100
-        / ONE
 }
 
 /// Ticks at which the eye went into a conifer by itself: not one the ape
@@ -76,7 +68,10 @@ fn on_the_ski_slope_the_chase_camera_keeps_out_of_the_conifers_smoothly() {
     for (seed, focus) in [(1, 0), (2, 3)] {
         let (run, crowns) = ski_race(seed, focus, true);
         let bad = eye_went_into_a_tree(&run, &crowns);
-        assert!(bad.is_empty(), "seed {seed}: the eye went into a tree at ticks {bad:?}");
+        assert!(
+            bad.is_empty(),
+            "seed {seed}: the eye went into a tree at ticks {bad:?}"
+        );
         // smooth: as the camera was (its worst change in step a tick is
         // 14 cm) but for a few quick moves in front of a tree that came
         // too fast to glide ahead of
@@ -91,6 +86,5 @@ fn on_the_ski_slope_the_chase_camera_keeps_out_of_the_conifers_smoothly() {
         assert!(n <= 20, "seed {seed}: {n} jolts over 30 cm");
         // and before, it did go in
         assert!(!eye_went_into_a_tree(&old, &crowns).is_empty());
-        println!("seed {seed}: worst {} cm, {n} jolts", worst_jolt(&run));
     }
 }

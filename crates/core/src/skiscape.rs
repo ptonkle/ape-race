@@ -742,7 +742,11 @@ pub fn conifer(
     if tiers >= 3 {
         b.push(
             Mesh::Cyl,
-            &rod(foot.sub(up(TRUNK_SINK)), foot.add(up(height / 4)), radius / 5),
+            &rod(
+                foot.sub(up(TRUNK_SINK)),
+                foot.add(up(height / 4)),
+                radius / 5,
+            ),
             BARK,
             0,
         );
@@ -778,7 +782,15 @@ pub fn conifer(
 /// or round the landmarks.
 fn forest(s: &mut Sink, c: &Course, ski: &SkiLayout) {
     for (t, shade_of, spin) in forest_trees(c, ski) {
-        conifer(s.at(t.foot), t.foot, t.height, t.radius, t.tiers, shade_of, spin);
+        conifer(
+            s.at(t.foot),
+            t.foot,
+            t.height,
+            t.radius,
+            t.tiers,
+            shade_of,
+            spin,
+        );
     }
 }
 

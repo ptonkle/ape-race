@@ -275,7 +275,11 @@ impl Chase {
         let stop = fx::sqrt(mul(2 * accel, gap.abs())).min(top);
         let want = if gap < 0 { -stop } else { stop };
         // heading the other way it brakes as hard as it ever pulls in
-        let grip = if (gap < 0) == (self.reach_speed < 0) { accel } else { accel.max(PULL_IN.0) };
+        let grip = if (gap < 0) == (self.reach_speed < 0) {
+            accel
+        } else {
+            accel.max(PULL_IN.0)
+        };
         let v = self.reach_speed + (want - self.reach_speed).clamp(-grip, grip);
         let next = (at + v).max(0);
         if (gap < 0 && next <= goal) || (gap >= 0 && next >= goal) {
