@@ -21,6 +21,7 @@
 //! The navy is nobody's: its ensign is a made-up purple field with a gold
 //! chevron and a white ring, its pennant purple and gold.
 
+use crate::bay::{self, Mast, Port, Sail, Ship, ShipKind, Side};
 use crate::fx::{self, cm, cos, deg, int, mul, sin, ONE, TURN};
 use crate::geom::{facing, v3, Affine, V3};
 use crate::mesh::Mesh;
@@ -172,330 +173,209 @@ const fn dm(x: i32) -> i32 {
 
 // ---------------------------------------------------------------------------
 // Ships.
+//
+// A ship is drawn from the contract's `bay::Ship` (its kind, side, size,
+// raised decks, masts with their yards and sails, jib, gaff sails and gun
+// ports), so the course chooses every gap; `typical` gives a ship of each
+// kind to start from. The drawing is in the ship's own frame (`ship`), +z
+// the bow, +x larboard (the contract's starboard, `right_of(+z)`, is -x),
+// the waterline at y 0; `ship_at` places it at `Ship.at`, `Ship.yaw`.
 
-/// The three kinds of ship, by size.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ShipKind {
-    /// about 50 m from bowsprit to stern, three masts, a high stern castle
-    /// and two gun decks
-    Galleon,
-    /// about 40 m, three masts, one gun deck, a low quarterdeck
-    Frigate,
-    /// a brig-rigged sloop of about 25 m: two masts, a few small guns
-    Sloop,
-}
-
-/// Whose ship.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Side {
-    /// tarred black hull, oxblood wale, patched canvas, the black flag
-    Pirate,
-    /// deep blue hull, ochre gun stripes, white sails, a made-up ensign
-    Navy,
-}
-
-/// The state of the sail on one yard. Only `Set` fills the space under
-/// its yard; the course swings through the others.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Sail {
-    /// full canvas from the yard down to the next yard (or the deck's
-    /// rail): a wall
-    Set,
-    /// rolled up on its yard: the space under it is open
-    Furled,
-    /// shot through: ragged strips at each end and along the yard, the
-    /// middle half of the span open from just under the yard down
-    Torn,
-    /// shot away: a bare yard, a scrap at one end
-    Gone,
-}
-
-/// A ship's hull, life size, in its own frame (+z the bow, the waterline
-/// at y 0, the keel's middle at x 0).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct Hull {
-    /// stem to sternpost along the waterline (the bow's beak and the
-    /// bowsprit reach further)
-    pub length: i32,
-    /// widest, at the middle
-    pub beam: i32,
-    /// the main deck's (the waist's) height over the water
-    pub deck: i32,
-    /// how far the keel goes under the water
-    pub keel: i32,
-    /// the forecastle: from `z0` to `z1`, its deck at height `y`
-    pub fore: Raised,
-    /// the quarterdeck
-    pub quarter: Raised,
-    /// the poop deck over the quarterdeck's after part (a galleon's high
-    /// stern castle)
-    pub poop: Option<Raised>,
-    /// rows of gun ports per side
-    pub gun_rows: i32,
-    /// how far the bowsprit reaches past the stem
-    pub bowsprit: i32,
-}
-
-/// A raised deck from `z0` (aft) to `z1` (forward), its top at `y`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct Raised {
-    pub z0: i32,
-    pub z1: i32,
-    pub y: i32,
-}
-
-/// One mast: where it stands along the keel, how tall it is over the
-/// water, and its yards from the lowest up (height over the water, half
-/// span).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct Mast {
-    pub z: i32,
-    pub top: i32,
-    pub yards: &'static [(i32, i32)],
-}
-
-/// One yard, in the ship's frame: the yard's middle (`at`, just forward
-/// of its mast), its half span along x, and how far its sail hangs when
-/// set (down to the next yard, or to the rail for a course).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct Yard {
-    pub mast: usize,
-    pub at: V3,
-    pub half: i32,
-    pub drop: i32,
-}
-
-/// A deck you can land and run on, in the ship's frame: an axis-aligned
-/// rectangle from `z0` to `z1`, `half` either side of x 0, its top at `y`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct DeckTop {
-    pub z0: i32,
-    pub z1: i32,
-    pub half: i32,
-    pub y: i32,
-}
-
-const GALLEON_MASTS: [Mast; 3] = [
-    Mast {
-        z: dm(-130),
-        top: dm(280),
-        yards: &[(dm(165), dm(65)), (dm(230), dm(48))],
-    },
-    Mast {
-        z: dm(0),
-        top: dm(380),
-        yards: &[(dm(145), dm(105)), (dm(245), dm(82)), (dm(325), dm(55))],
-    },
-    Mast {
-        z: dm(125),
-        top: dm(335),
-        yards: &[(dm(140), dm(90)), (dm(225), dm(70)), (dm(295), dm(48))],
-    },
-];
-
-const FRIGATE_MASTS: [Mast; 3] = [
-    Mast {
-        z: dm(-110),
-        top: dm(245),
-        yards: &[(dm(135), dm(60)), (dm(200), dm(45))],
-    },
-    Mast {
-        z: dm(-5),
-        top: dm(320),
-        yards: &[(dm(125), dm(90)), (dm(210), dm(70)), (dm(280), dm(48))],
-    },
-    Mast {
-        z: dm(100),
-        top: dm(295),
-        yards: &[(dm(120), dm(80)), (dm(195), dm(62)), (dm(260), dm(44))],
-    },
-];
-
-const SLOOP_MASTS: [Mast; 2] = [
-    Mast {
-        z: dm(-30),
-        top: dm(215),
-        yards: &[(dm(90), dm(65)), (dm(155), dm(50))],
-    },
-    Mast {
-        z: dm(45),
-        top: dm(195),
-        yards: &[(dm(85), dm(58)), (dm(145), dm(44))],
-    },
-];
-
-/// The hull of `kind`.
-pub fn hull(kind: ShipKind) -> Hull {
-    match kind {
-        ShipKind::Galleon => Hull {
-            length: int(44),
-            beam: int(12),
-            deck: int(5),
-            keel: int(3),
-            fore: Raised {
-                z0: dm(140),
-                z1: dm(215),
-                y: dm(75),
-            },
-            quarter: Raised {
-                z0: dm(-220),
-                z1: dm(-60),
-                y: int(8),
-            },
-            poop: Some(Raised {
-                z0: dm(-220),
-                z1: dm(-150),
-                y: dm(105),
-            }),
-            gun_rows: 2,
-            bowsprit: int(11),
-        },
-        ShipKind::Frigate => Hull {
-            length: int(36),
-            beam: int(10),
-            deck: int(4),
-            keel: dm(25),
-            fore: Raised {
-                z0: dm(115),
-                z1: dm(175),
-                y: dm(58),
-            },
-            quarter: Raised {
-                z0: dm(-180),
-                z1: dm(-70),
-                y: dm(62),
-            },
-            poop: None,
-            gun_rows: 1,
-            bowsprit: int(9),
-        },
-        ShipKind::Sloop => Hull {
-            length: int(22),
-            beam: int(7),
-            deck: dm(26),
-            keel: dm(18),
-            fore: Raised {
-                z0: dm(55),
-                z1: dm(90),
-                y: dm(36),
-            },
-            quarter: Raised {
-                z0: dm(-110),
-                z1: dm(-55),
-                y: dm(38),
-            },
-            poop: None,
-            gun_rows: 1,
-            bowsprit: int(6),
-        },
+/// A ship of `kind` for `side` as the models are built at their typical
+/// size, at `at` (the waterline's middle) facing `yaw`, every sail set and
+/// no decks indexed yet (the course fills `decks` with its platforms).
+/// Sizes: a galleon 44 m stern to stem (55 m with its bowsprit), a
+/// frigate 36 m, a brig 26 m, a sloop 20 m.
+pub fn typical(kind: ShipKind, side: Side, at: V3, yaw: i32) -> Ship {
+    let mast = |along: i32, height: i32, yards: &[(i32, i32)], gaff: bool| Mast {
+        along,
+        height,
+        yards: yards
+            .iter()
+            .map(|&(height, half_span)| bay::Yard {
+                height,
+                half_span,
+                sail: Sail::Set,
+            })
+            .collect(),
+        gaff: gaff.then_some(Sail::Set),
+    };
+    let (length, beam, deck, raised, bowsprit, masts, rows, per_row) = match kind {
+        ShipKind::Galleon => (
+            int(44),
+            int(12),
+            int(5),
+            vec![
+                (dm(140), dm(215), dm(75)),
+                (-dm(220), -dm(60), int(8)),
+                (-dm(220), -dm(150), dm(105)),
+            ],
+            int(11),
+            vec![
+                mast(
+                    dm(125),
+                    dm(285),
+                    &[(dm(90), dm(90)), (dm(175), dm(70)), (dm(245), dm(48))],
+                    false,
+                ),
+                mast(
+                    0,
+                    dm(330),
+                    &[(dm(95), dm(105)), (dm(195), dm(82)), (dm(275), dm(55))],
+                    false,
+                ),
+                mast(
+                    -dm(130),
+                    dm(230),
+                    &[(dm(115), dm(65)), (dm(180), dm(48))],
+                    true,
+                ),
+            ],
+            2,
+            10,
+        ),
+        ShipKind::Frigate => (
+            int(36),
+            int(10),
+            int(4),
+            vec![(dm(115), dm(175), dm(58)), (-dm(180), -dm(70), dm(62))],
+            int(9),
+            vec![
+                mast(
+                    dm(100),
+                    dm(255),
+                    &[(dm(80), dm(80)), (dm(155), dm(62)), (dm(220), dm(44))],
+                    false,
+                ),
+                mast(
+                    -dm(5),
+                    dm(280),
+                    &[(dm(85), dm(90)), (dm(170), dm(70)), (dm(240), dm(48))],
+                    false,
+                ),
+                mast(
+                    -dm(110),
+                    dm(205),
+                    &[(dm(95), dm(60)), (dm(160), dm(45))],
+                    true,
+                ),
+            ],
+            1,
+            9,
+        ),
+        ShipKind::Brig => (
+            int(26),
+            int(8),
+            int(3),
+            vec![(dm(80), dm(115), dm(42)), (-dm(130), -dm(65), dm(44))],
+            int(7),
+            vec![
+                mast(
+                    dm(50),
+                    dm(180),
+                    &[(dm(65), dm(66)), (dm(130), dm(50))],
+                    false,
+                ),
+                mast(
+                    -dm(35),
+                    dm(200),
+                    &[(dm(70), dm(72)), (dm(140), dm(55))],
+                    true,
+                ),
+            ],
+            1,
+            6,
+        ),
+        ShipKind::Sloop => (
+            int(20),
+            dm(65),
+            dm(24),
+            vec![(-dm(100), -dm(60), dm(32))],
+            int(6),
+            vec![mast(dm(20), dm(170), &[], true)],
+            1,
+            3,
+        ),
+    };
+    let mut ports = Vec::new();
+    let span = length * 60 / 100;
+    for row in 0..rows {
+        let up = (deck * 55 / 100 + dm(8) + row * dm(20)).min(deck - dm(4));
+        for i in 0..per_row {
+            let along = -span / 2 + span * i / (per_row - 1).max(1) - dm(10);
+            for side in [-1, 1] {
+                ports.push(Port { along, side, up });
+            }
+        }
+    }
+    Ship {
+        kind,
+        side,
+        at,
+        yaw,
+        length,
+        beam,
+        deck,
+        raised,
+        bowsprit,
+        masts,
+        jib: Some(Sail::Set),
+        ports,
+        decks: Vec::new(),
     }
 }
 
-/// The masts of `kind`, aft to forward.
-pub fn masts(kind: ShipKind) -> &'static [Mast] {
-    match kind {
-        ShipKind::Galleon => &GALLEON_MASTS,
-        ShipKind::Frigate => &FRIGATE_MASTS,
-        ShipKind::Sloop => &SLOOP_MASTS,
-    }
+/// Draws ship `s` where it lies (`Ship.at`, `Ship.yaw`).
+pub fn ship_at(b: &mut Batch, s: &Ship, tick: u32, k: u32) {
+    ship(b, &pose(s.at, s.yaw, ONE), s, tick, k);
 }
 
-/// The hull's half width at `z` (the beam narrowing to the bow and less
-/// to the stern).
-pub fn half_beam(h: &Hull, z: i32) -> i32 {
-    let t = fx::div(z, h.length / 2).clamp(-ONE, ONE);
+/// The hull's half width `along` the ship (the beam narrowing to the bow,
+/// less to the stern).
+pub fn half_beam(s: &Ship, along: i32) -> i32 {
+    let t = fx::div(along, s.length / 2).clamp(-ONE, ONE);
     let narrow = if t > 0 {
         mul(mul(t, t), ONE * 55 / 100)
     } else {
         mul(mul(t, t), ONE * 22 / 100)
     };
-    mul(h.beam / 2, ONE - narrow)
+    mul(s.beam / 2, ONE - narrow)
 }
 
-/// The deck's height at `z`: the forecastle's, the quarterdeck's (or the
-/// poop's) where they stand, else the waist's.
-pub fn deck_at(h: &Hull, z: i32) -> i32 {
-    if let Some(p) = h.poop {
-        if z >= p.z0 && z <= p.z1 {
-            return p.y;
-        }
-    }
-    for r in [h.fore, h.quarter] {
-        if z >= r.z0 && z <= r.z1 {
-            return r.y;
-        }
-    }
-    h.deck
+/// The deck's height over the water `along` the ship: the highest raised
+/// deck there, else the main deck.
+pub fn deck_at(s: &Ship, along: i32) -> i32 {
+    s.raised
+        .iter()
+        .filter(|r| along >= r.0 && along <= r.1)
+        .map(|r| r.2)
+        .fold(s.deck, i32::max)
 }
 
-/// Every yard of `kind` in sail order (mast by mast aft to forward, each
-/// from the lowest up): the index a sail state list (`ship`'s `sails`)
-/// goes by.
-pub fn yards(kind: ShipKind) -> Vec<Yard> {
-    let h = hull(kind);
+/// A yard in the ship's frame: its middle, half span, and how far its
+/// square sail hangs when set.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct Spar {
+    at: V3,
+    half: i32,
+    drop: i32,
+}
+
+/// The yards of mast `m`, lowest first, in the ship's frame: each sail
+/// hangs to the next yard down, the lowest to just over the rail.
+fn spars(s: &Ship, m: usize) -> Vec<Spar> {
+    let mast = &s.masts[m];
+    let rail = deck_at(s, mast.along) + dm(15);
     let mut out = Vec::new();
-    for (m, mast) in masts(kind).iter().enumerate() {
-        let rail = deck_at(&h, mast.z) + dm(15);
-        for (i, &(y, half)) in mast.yards.iter().enumerate() {
-            let below = if i == 0 { rail } else { mast.yards[i - 1].0 };
-            out.push(Yard {
-                mast: m,
-                at: v3(0, y, mast.z + dm(6)),
-                half,
-                drop: y - below - dm(6),
-            });
-        }
-    }
-    out
-}
-
-/// Where vines can hang from on a ship of `kind`, in its frame: both tips
-/// of every yard (a little in from the end), then each mast's top under
-/// its cap. The course picks; the scene draws the vine down from it.
-pub fn rope_points(kind: ShipKind) -> Vec<V3> {
-    let mut out = Vec::new();
-    for y in yards(kind) {
-        let x = y.half * 92 / 100;
-        out.push(y.at.add(v3(-x, -dm(2), 0)));
-        out.push(y.at.add(v3(x, -dm(2), 0)));
-    }
-    for m in masts(kind) {
-        out.push(v3(0, m.top - dm(10), m.z + dm(6)));
-    }
-    out
-}
-
-/// The decks of `kind` you can stand on: the waist, then the forecastle,
-/// the quarterdeck and the poop, each a little inside the bulwarks.
-pub fn decks(kind: ShipKind) -> Vec<DeckTop> {
-    let h = hull(kind);
-    let inside = |z0: i32, z1: i32| half_beam(&h, z0).min(half_beam(&h, z1)) - dm(5);
-    let mut out = vec![DeckTop {
-        z0: h.quarter.z1,
-        z1: h.fore.z0,
-        half: inside(h.quarter.z1, h.fore.z0),
-        y: h.deck,
-    }];
-    out.push(DeckTop {
-        z0: h.fore.z0,
-        z1: h.fore.z1,
-        half: inside(h.fore.z0, h.fore.z1),
-        y: h.fore.y,
-    });
-    let q0 = h.poop.map(|p| p.z1).unwrap_or(h.quarter.z0);
-    out.push(DeckTop {
-        z0: q0,
-        z1: h.quarter.z1,
-        half: inside(q0, h.quarter.z1),
-        y: h.quarter.y,
-    });
-    if let Some(p) = h.poop {
-        out.push(DeckTop {
-            z0: p.z0,
-            z1: p.z1,
-            half: inside(p.z0, p.z1),
-            y: p.y,
+    let mut below = rail;
+    for y in &mast.yards {
+        let up = s.deck + y.height;
+        out.push(Spar {
+            at: v3(0, up, mast.along + dm(6)),
+            half: y.half_span,
+            drop: up - below - dm(6),
         });
+        below = up;
     }
     out
 }
@@ -524,43 +404,34 @@ fn paint(side: Side) -> Paint {
     }
 }
 
-/// A still ship of `kind` for `side` in frame `f` (its waterline at y 0,
-/// bow +z), each yard's sail as `sails` says (in `yards` order; missing
-/// entries are `Set`), its flags streaming with `tick`. `k` varies the
-/// patches and wear.
-pub fn ship(
-    b: &mut Batch,
-    f: &Affine,
-    kind: ShipKind,
-    side: Side,
-    sails: &[Sail],
-    tick: u32,
-    k: u32,
-) {
-    let h = hull(kind);
-    let p = paint(side);
-    hull_body(b, f, &h, &p);
-    castles(b, f, &h, &p, kind);
-    guns(b, f, &h, &p);
-    stern(b, f, &h, &p, side, tick);
-    bow(b, f, &h, &p, side);
-    // masts, tops, yards and sails
-    let ys = yards(kind);
-    let ms = masts(kind);
-    for mast in ms.iter() {
-        let foot = deck_at(&h, mast.z) - dm(5);
-        let w = h.beam * 8 / 100;
-        let mut from = v3(0, foot, mast.z);
-        for (i, &(y, _)) in mast.yards.iter().enumerate() {
-            let to = v3(0, y + dm(20), mast.z);
-            let wi = w * (10 - i as i32 * 3) / 10;
+/// Ship `s` in frame `f` (its own frame: waterline at y 0, bow +z): the
+/// hull, raised decks, gun ports with muzzles run out, stern and bow,
+/// masts with tops, yards and each sail as its `Sail` says, gaff sails,
+/// the jib, shrouds and stays, and its flags streaming with `tick`. `k`
+/// varies the patches and the tatters.
+pub fn ship(b: &mut Batch, f: &Affine, s: &Ship, tick: u32, k: u32) {
+    let p = paint(s.side);
+    hull_body(b, f, s, &p);
+    castles(b, f, s, &p);
+    guns(b, f, s);
+    stern(b, f, s, &p, tick);
+    bow(b, f, s, &p);
+    let tallest = s.masts.iter().map(|m| m.height).max().unwrap_or(0);
+    for (m, mast) in s.masts.iter().enumerate() {
+        let foot = deck_at(s, mast.along) - dm(5);
+        let top = s.deck + mast.height;
+        let w = s.beam * 8 / 100;
+        let mut from = v3(0, foot, mast.along);
+        let ys = spars(s, m);
+        for (i, y) in ys.iter().enumerate() {
+            let to = v3(0, y.at.y + dm(20), mast.along);
+            let wi = w * (10 - i as i32 * 3).max(3) / 10;
             bar(b, f, Mesh::Taper, from, to, wi, MAST, 0);
-            // the top (a platform) under each upper yard
             put(
                 b,
                 f,
                 Mesh::Hex,
-                v3(0, y + dm(16), mast.z),
+                v3(0, y.at.y + dm(16), mast.along),
                 v3(wi * 4, dm(2), wi * 4),
                 BELOW,
                 0,
@@ -572,8 +443,8 @@ pub fn ship(
             f,
             Mesh::Taper,
             from,
-            v3(0, mast.top, mast.z),
-            w * 3 / 10,
+            v3(0, top, mast.along),
+            w * 4 / 10,
             MAST,
             0,
         );
@@ -581,63 +452,69 @@ pub fn ship(
             b,
             f,
             Mesh::Ico,
-            v3(0, mast.top, mast.z),
+            v3(0, top, mast.along),
             v3(w / 2, w / 2, w / 2),
             MAST,
             0,
         );
-        shrouds(b, f, &h, mast);
-        // the flag at the tallest mast's head
-        let tallest = ms.iter().map(|m| m.top).max().unwrap_or(0);
-        if mast.top == tallest {
-            let head = v3(0, mast.top, mast.z);
-            match side {
-                Side::Pirate => jolly_roger(b, f, head, h.beam * 45 / 100, tick, k),
-                Side::Navy => pennant(b, f, head, h.beam * 80 / 100, tick),
+        shrouds(b, f, s, m);
+        for (i, y) in ys.iter().enumerate() {
+            let state = mast.yards[i].sail;
+            yard_and_sail(
+                b,
+                f,
+                y,
+                state,
+                &p,
+                s.side,
+                k.wrapping_add((m * 4 + i) as u32),
+            );
+        }
+        if let Some(state) = mast.gaff {
+            gaff_sail(b, f, s, m, state, &p, k.wrapping_add(m as u32 * 7));
+        }
+        if mast.height == tallest {
+            let head = v3(0, top, mast.along);
+            match s.side {
+                Side::Pirate => jolly_roger(b, f, head, s.beam * 45 / 100, tick, k),
+                Side::Navy => pennant(b, f, head, s.beam * 80 / 100, tick),
             }
         }
     }
-    for (i, y) in ys.iter().enumerate() {
-        let state = sails.get(i).copied().unwrap_or(Sail::Set);
-        yard_and_sail(b, f, y, state, &p, side, k.wrapping_add(i as u32));
-    }
-    stays(b, f, &h, ms);
+    stays(b, f, s, &p, k);
 }
 
-/// The hull: stations along the keel, each a bevelled block for the body
-/// and one for the topsides, a narrow one for the keel, a deck plank on
-/// top and bulwarks along each side.
-fn hull_body(b: &mut Batch, f: &Affine, h: &Hull, p: &Paint) {
-    // a station about every 4 m (a sloop 6, a galleon 11)
-    let n = (h.length / int(4)).clamp(6, 11);
-    let step = h.length / n;
+/// The hull: stations along the keel (about every 4 m), each a bevelled
+/// block for the body and the keel, a coloured wale, the topsides up to
+/// that station's deck, a two-tone deck plank and bulwarks with a cap.
+fn hull_body(b: &mut Batch, f: &Affine, s: &Ship, p: &Paint) {
+    let n = (s.length / int(4)).clamp(5, 11);
+    let step = s.length / n;
+    let keel = s.deck * 6 / 10;
     for i in 0..n {
-        let z = -h.length / 2 + step / 2 + step * i;
-        let hw = half_beam(h, z);
+        let z = -s.length / 2 + step / 2 + step * i;
+        let hw = half_beam(s, z);
         let len = step * 115 / 100;
-        let top = deck_at(h, z);
-        // the body, up to the wale
-        let wale = h.deck * 55 / 100;
+        let top = deck_at(s, z);
+        let wale = s.deck * 55 / 100;
         put(
             b,
             f,
             Mesh::Bevel,
-            v3(0, (wale - h.keel * 6 / 10) / 2, z),
-            v3(hw * 2, wale + h.keel * 6 / 10, len),
+            v3(0, (wale - keel * 6 / 10) / 2, z),
+            v3(hw * 2, wale + keel * 6 / 10, len),
             p.hull,
             0,
         );
-        // the keel
         put(
             b,
             f,
             Mesh::Bevel,
-            v3(0, -h.keel * 7 / 10, z),
-            v3(hw, h.keel * 6 / 10, len),
+            v3(0, -keel * 7 / 10, z),
+            v3(hw, keel * 6 / 10, len),
             p.hull,
             0,
         );
-        // the wale: a band of colour round the hull
         put(
             b,
             f,
@@ -647,7 +524,6 @@ fn hull_body(b: &mut Batch, f: &Affine, h: &Hull, p: &Paint) {
             p.wale,
             0,
         );
-        // the topsides, tumbling home a little, up to this station's deck
         put(
             b,
             f,
@@ -657,7 +533,6 @@ fn hull_body(b: &mut Batch, f: &Affine, h: &Hull, p: &Paint) {
             p.hull,
             0,
         );
-        // the deck planks, in two tones
         put(
             b,
             f,
@@ -667,9 +542,8 @@ fn hull_body(b: &mut Batch, f: &Affine, h: &Hull, p: &Paint) {
             if i % 2 == 0 { DECK } else { DECK_DARK },
             0,
         );
-        // bulwarks with a trim cap
-        for s in [-1, 1] {
-            let x = s * (hw * 95 / 100 - dm(1));
+        for side in [-1, 1] {
+            let x = side * (hw * 95 / 100 - dm(1));
             put(
                 b,
                 f,
@@ -692,108 +566,96 @@ fn hull_body(b: &mut Batch, f: &Affine, h: &Hull, p: &Paint) {
     }
 }
 
-/// The forecastle, quarterdeck and poop: their fronts with doors and
-/// windows, ladders up from the waist, the wheel and a hatch.
-fn castles(b: &mut Batch, f: &Affine, h: &Hull, p: &Paint, kind: ShipKind) {
-    let fronts = [(h.fore.z0, h.fore.y, 1), (h.quarter.z1, h.quarter.y, -1)];
-    for (z, y, dir) in fronts {
-        let hw = half_beam(h, z) * 90 / 100;
-        // the bulkhead facing the waist
-        put(
-            b,
-            f,
-            Mesh::Cube,
-            v3(0, (h.deck + y) / 2, z),
-            v3(hw * 2, y - h.deck, dm(2)),
-            shade(p.hull, 130),
-            0,
-        );
-        // a door and two windows
-        let face = z - dir * dm(2);
-        put(
-            b,
-            f,
-            Mesh::Cube,
-            v3(0, h.deck + dm(10), face),
-            v3(dm(10), dm(20), cm(8)),
-            PORT,
-            0,
-        );
-        for s in [-1, 1] {
+/// The raised decks' bulkheads where they step up from a lower deck (lit
+/// windows and a door, a rail along the edge, ladders up from the main
+/// deck), the wheel on the quarterdeck, a hatch and the capstan amidships,
+/// and on a galleon a ship's boat lashed in the waist.
+fn castles(b: &mut Batch, f: &Affine, s: &Ship, p: &Paint) {
+    // a raised deck's end at the stem or the stern needs no bulkhead
+    let end = s.length / 2 - int(1);
+    for r in &s.raised {
+        for (z, dir) in [(r.0, -1), (r.1, 1)] {
+            if z.abs() >= end {
+                continue;
+            }
+            let lower = deck_at(s, z + dir * dm(3));
+            if lower >= r.2 {
+                continue;
+            }
+            let hw = half_beam(s, z) * 90 / 100;
+            let face = z + dir * dm(2);
             put(
                 b,
                 f,
                 Mesh::Cube,
-                v3(s * hw / 2, h.deck + dm(14), face),
-                v3(dm(8), dm(6), cm(8)),
-                WINDOW,
-                ONE / 3,
+                v3(0, (lower + r.2) / 2, z),
+                v3(hw * 2, r.2 - lower, dm(2)),
+                shade(p.hull, 130),
+                0,
             );
-        }
-        // ladders up either side
-        for s in [-1, 1] {
-            let x = s * hw * 70 / 100;
-            put_turned(
+            if r.2 - lower > dm(18) {
+                put(
+                    b,
+                    f,
+                    Mesh::Cube,
+                    v3(0, lower + dm(9), face),
+                    v3(dm(9), dm(18), cm(8)),
+                    PORT,
+                    0,
+                );
+            }
+            for x in [-hw / 2, hw / 2] {
+                put(
+                    b,
+                    f,
+                    Mesh::Cube,
+                    v3(x, lower + (r.2 - lower) * 6 / 10, face),
+                    v3(dm(8), dm(6).min((r.2 - lower) / 3), cm(8)),
+                    WINDOW,
+                    ONE / 3,
+                );
+            }
+            if lower == s.deck {
+                for side in [-1, 1] {
+                    let x = side * hw * 70 / 100;
+                    let h = r.2 - lower;
+                    put_turned(
+                        b,
+                        f,
+                        Mesh::Wedge,
+                        v3(x, lower + h / 2, z + dir * h * 6 / 10),
+                        &Affine::rot_y(if dir < 0 { 0 } else { TURN / 2 }),
+                        v3(dm(12), h, h * 12 / 10),
+                        DECK_DARK,
+                        0,
+                    );
+                }
+            }
+            put(
                 b,
                 f,
-                Mesh::Wedge,
-                v3(x, (h.deck + y) / 2, z - dir * (y - h.deck) * 6 / 10),
-                &Affine::rot_y(if dir > 0 { 0 } else { TURN / 2 }),
-                v3(dm(12), y - h.deck, (y - h.deck) * 12 / 10),
-                DECK_DARK,
+                Mesh::Cube,
+                v3(0, r.2 + dm(8), z - dir * dm(1)),
+                v3(hw * 2, cm(8), cm(8)),
+                p.trim,
                 0,
             );
         }
-        // a rail along the raised deck's edge
-        put(
-            b,
-            f,
-            Mesh::Cube,
-            v3(0, y + dm(8), z - dir * dm(1)),
-            v3(hw * 2, cm(8), cm(8)),
-            p.trim,
-            0,
-        );
     }
-    if let Some(poop) = h.poop {
-        let hw = half_beam(h, poop.z1) * 88 / 100;
-        put(
-            b,
-            f,
-            Mesh::Cube,
-            v3(0, (h.quarter.y + poop.y) / 2, poop.z1),
-            v3(hw * 2, poop.y - h.quarter.y, dm(2)),
-            shade(p.hull, 130),
-            0,
-        );
-        for s in [-2, 0, 2] {
-            put(
-                b,
-                f,
-                Mesh::Cube,
-                v3(s * hw / 3, h.quarter.y + dm(14), poop.z1 + dm(1)),
-                v3(dm(8), dm(6), cm(8)),
-                WINDOW,
-                ONE / 3,
-            );
-        }
-        put(
-            b,
-            f,
-            Mesh::Cube,
-            v3(0, poop.y + dm(8), poop.z1 + dm(1)),
-            v3(hw * 2, cm(8), cm(8)),
-            p.trim,
-            0,
-        );
-    }
-    // the wheel on the quarterdeck
-    let wz = h.quarter.z1 - dm(25);
+    // the wheel, on the foremost after raised deck (or the main deck's
+    // after end)
+    let (wz, wy) = s
+        .raised
+        .iter()
+        .filter(|r| r.0 < 0 && r.1 < s.length / 4)
+        .map(|r| (r.1 - dm(25), r.2))
+        .max_by_key(|&(z, _)| z)
+        .unwrap_or((-s.length * 4 / 10, s.deck));
     put_turned(
         b,
         f,
         Mesh::Hex,
-        v3(0, h.quarter.y + dm(10), wz),
+        v3(0, wy + dm(10), wz),
         &Affine::rot_x(TURN / 4),
         v3(dm(13), dm(1), dm(13)),
         MAST,
@@ -803,19 +665,18 @@ fn castles(b: &mut Batch, f: &Affine, h: &Hull, p: &Paint, kind: ShipKind) {
         b,
         f,
         Mesh::Cube,
-        v3(0, h.quarter.y + dm(5), wz),
+        v3(0, wy + dm(5), wz),
         v3(dm(3), dm(10), dm(4)),
         BELOW,
         0,
     );
-    // a hatch grating and the capstan in the waist
-    let mid = (h.quarter.z1 + h.fore.z0) / 2;
+    // a hatch grating and the capstan amidships
     put(
         b,
         f,
         Mesh::Cube,
-        v3(0, h.deck + cm(8), mid - dm(30)),
-        v3(h.beam * 3 / 10, cm(16), dm(30)),
+        v3(0, s.deck + cm(8), -dm(30)),
+        v3(s.beam * 3 / 10, cm(16), dm(30)),
         BELOW,
         0,
     );
@@ -823,91 +684,89 @@ fn castles(b: &mut Batch, f: &Affine, h: &Hull, p: &Paint, kind: ShipKind) {
         b,
         f,
         Mesh::Hex,
-        v3(0, h.deck + dm(5), mid + dm(35)),
+        v3(0, s.deck + dm(5), dm(35)),
         v3(dm(10), dm(10), dm(10)),
         MAST,
         0,
     );
-    if kind == ShipKind::Galleon {
-        // a ship's boat lashed upside down in the waist
+    if s.kind == ShipKind::Galleon {
         put(
             b,
             f,
             Mesh::Barrel,
-            v3(0, h.deck + dm(7), mid + dm(5)),
-            v3(dm(18), dm(8), dm(50)),
+            v3(0, s.deck + dm(7), dm(65)),
+            v3(dm(18), dm(8), dm(40)),
             shade(DECK, 80),
             0,
         );
     }
 }
 
-/// Gun ports down both sides with the cannon's muzzles run out, and a
-/// painted strip along each row.
-fn guns(b: &mut Batch, f: &Affine, h: &Hull, p: &Paint) {
-    let span = h.length * 64 / 100;
-    let pitch = if h.length > int(30) { dm(30) } else { dm(28) };
-    let n = span / pitch;
-    for row in 0..h.gun_rows {
-        let y = h.deck * 55 / 100 + dm(8) + row * dm(20);
-        let y = y.min(h.deck - dm(4));
-        for s in [-1, 1] {
+/// The gun ports (`Ship.ports`): a dark port in the side with a muzzle run
+/// out of it, and a painted strip along each row.
+fn guns(b: &mut Batch, f: &Affine, s: &Ship) {
+    let p = paint(s.side);
+    let mut rows: Vec<i32> = s.ports.iter().map(|q| q.up).collect();
+    rows.sort_unstable();
+    rows.dedup();
+    let span = s.length * 56 / 100;
+    for (i, &up) in rows.iter().enumerate() {
+        for side in [-1, 1] {
             put(
                 b,
                 f,
                 Mesh::Cube,
-                v3(s * (half_beam(h, 0) * 95 / 100), y, -dm(10)),
-                v3(cm(10), dm(9), span + pitch),
-                if row % 2 == 0 { p.wale } else { p.hull },
+                v3(-side * half_beam(s, 0) * 95 / 100, up, -dm(10)),
+                v3(cm(10), dm(9), span),
+                if i % 2 == 0 { p.wale } else { p.hull },
                 0,
             );
-            for i in 0..=n {
-                let z = -span / 2 - dm(10) + i * pitch;
-                let hw = half_beam(h, z) * 95 / 100;
-                let x = s * hw;
-                put(
-                    b,
-                    f,
-                    Mesh::Cube,
-                    v3(x, y, z),
-                    v3(cm(12), dm(6), dm(7)),
-                    PORT,
-                    0,
-                );
-                bar(
-                    b,
-                    f,
-                    Mesh::Hex,
-                    v3(x, y, z),
-                    v3(x + s * dm(9), y + cm(4), z),
-                    dm(3),
-                    IRON,
-                    0,
-                );
-            }
         }
+    }
+    for q in &s.ports {
+        // the contract's starboard (+1) is this frame's -x
+        let x = -q.side * half_beam(s, q.along) * 95 / 100;
+        put(
+            b,
+            f,
+            Mesh::Cube,
+            v3(x, q.up, q.along),
+            v3(cm(12), dm(6), dm(7)),
+            PORT,
+            0,
+        );
+        bar(
+            b,
+            f,
+            Mesh::Hex,
+            v3(x, q.up, q.along),
+            v3(x - q.side * dm(9), q.up + cm(4), q.along),
+            dm(3),
+            IRON,
+            0,
+        );
     }
 }
 
-/// The stern: a transom with lit windows in rows, a gallery rail and
-/// lanterns; the ensign (navy) or a red flag (pirate) on a staff.
-fn stern(b: &mut Batch, f: &Affine, h: &Hull, p: &Paint, side: Side, tick: u32) {
-    let z = -h.length / 2 - dm(3);
-    let top = h.poop.map(|p| p.y).unwrap_or(h.quarter.y);
-    let hw = half_beam(h, -h.length / 2) * 90 / 100;
+/// The stern: a transom with rows of lit windows and gilded bands,
+/// lanterns on the taffrail, and the ensign (navy) or a red flag (pirate)
+/// on a staff.
+fn stern(b: &mut Batch, f: &Affine, s: &Ship, p: &Paint, tick: u32) {
+    let z = -s.length / 2 - dm(3);
+    let top = deck_at(s, -s.length / 2 + dm(10));
+    let hw = half_beam(s, -s.length / 2) * 90 / 100;
     put(
         b,
         f,
         Mesh::Bevel,
-        v3(0, (top + dm(10) + h.deck * 3 / 10) / 2, z),
-        v3(hw * 2, top + dm(10) - h.deck * 3 / 10, dm(8)),
+        v3(0, (top + dm(10) + s.deck * 3 / 10) / 2, z),
+        v3(hw * 2, top + dm(10) - s.deck * 3 / 10, dm(8)),
         shade(p.hull, 120),
         0,
     );
-    // rows of stern windows, one per raised deck
-    let rows = if h.poop.is_some() { 3 } else { 2 };
+    let rows = ((top - s.deck) / int(2) + 1).clamp(1, 3);
     for r in 0..rows {
-        let y = h.deck - dm(10) + r * (top - h.deck) / rows.max(1);
+        let y = s.deck - dm(10) + r * (top - s.deck + dm(10)) / rows;
         let n = if hw > int(4) { 5 } else { 3 };
         for i in 0..n {
             let x = (i * 2 - (n - 1)) * hw / (n + 1);
@@ -921,7 +780,6 @@ fn stern(b: &mut Batch, f: &Affine, h: &Hull, p: &Paint, side: Side, tick: u32) 
                 ONE / 2,
             );
         }
-        // a gilded band under each row
         put(
             b,
             f,
@@ -932,9 +790,8 @@ fn stern(b: &mut Batch, f: &Affine, h: &Hull, p: &Paint, side: Side, tick: u32) 
             0,
         );
     }
-    // lanterns on the taffrail
-    for s in [-1, 0, 1] {
-        let at = v3(s * hw * 8 / 10, top + dm(18), z);
+    for x in [-hw * 8 / 10, 0, hw * 8 / 10] {
+        let at = v3(x, top + dm(18), z);
         bar(
             b,
             f,
@@ -955,66 +812,80 @@ fn stern(b: &mut Batch, f: &Affine, h: &Hull, p: &Paint, side: Side, tick: u32) 
             ONE * 3 / 4,
         );
     }
-    // the staff and its flag
     let foot = v3(0, top, z + dm(3));
     let head = foot.add(v3(0, dm(55), -dm(20)));
     bar(b, f, Mesh::Hex, foot, head, cm(12), MAST, 0);
-    let size = h.beam * 35 / 100;
-    match side {
+    let size = s.beam * 35 / 100;
+    match s.side {
         Side::Navy => ensign(b, f, head, size, tick),
         Side::Pirate => plain_flag(b, f, head, size * 8 / 10, RED_FLAG, tick),
     }
 }
 
-/// The bow: a pointed beak, the bowsprit, a figurehead (gilded on the
-/// navy's ships, a bone ape skull on the pirates') and a jib stay.
-fn bow(b: &mut Batch, f: &Affine, h: &Hull, p: &Paint, side: Side) {
-    let z = h.length / 2;
-    let hw = half_beam(h, z);
-    let beak = h.beam * 45 / 100;
+/// The bow: a pointed beak, the bowsprit, and a figurehead (a gilded ape
+/// on the navy's ships, a bone ape skull on the pirates').
+fn bow(b: &mut Batch, f: &Affine, s: &Ship, p: &Paint) {
+    let z = s.length / 2;
+    let hw = half_beam(s, z);
+    let beak = s.beam * 45 / 100;
+    let keel = s.deck * 6 / 10;
+    let beak_y = (s.deck * 6 / 10 - keel / 2) / 2 + dm(4);
+    let beak_h = s.deck * 6 / 10 + keel / 2;
     put_turned(
         b,
         f,
         Mesh::Spike,
         v3(
             0,
-            (h.deck * 6 / 10 - h.keel / 2) / 2 + dm(4),
+            (s.deck * 6 / 10 - keel / 2) / 2 + dm(4),
             z + beak / 2 - dm(5),
         ),
         &Affine::rot_x(TURN / 4),
-        v3(hw * 2, beak, h.deck * 6 / 10 + h.keel / 2),
+        v3(hw * 2, beak, beak_h),
         p.hull,
         0,
     );
-    let root = v3(0, h.fore.y - dm(5), z - dm(10));
-    let tip = v3(0, h.fore.y + h.bowsprit * 4 / 10, z + h.bowsprit);
-    bar(b, f, Mesh::Taper, root, tip, h.beam * 5 / 100, MAST, 0);
-    // the figurehead under the bowsprit
-    let fig = v3(0, h.deck * 6 / 10, z + beak * 45 / 100);
-    let (c, glow) = match side {
+    if s.bowsprit > 0 {
+        let fore = deck_at(s, z - dm(10));
+        let root = v3(0, fore - dm(5), z - dm(10));
+        let tip = v3(0, fore + s.bowsprit * 4 / 10, z + s.bowsprit);
+        bar(b, f, Mesh::Taper, root, tip, s.beam * 5 / 100, MAST, 0);
+    }
+    // the figurehead rides the beak's upper edge, a third of the way out
+    let fig = v3(0, beak_y + beak_h * 30 / 100, z + beak * 30 / 100);
+    let (c, glow) = match s.side {
         Side::Navy => (GOLD, ONE / 6),
         Side::Pirate => (BONE, 0),
     };
-    put(b, f, Mesh::Ico, fig, v3(dm(12), dm(13), dm(12)), c, glow);
-    for s in [-1, 1] {
+    let size = s.beam / 10;
+    put(
+        b,
+        f,
+        Mesh::Ico,
+        fig,
+        v3(size, size * 11 / 10, size),
+        c,
+        glow,
+    );
+    for x in [-1, 1] {
         put(
             b,
             f,
             Mesh::Ico,
-            fig.add(v3(s * dm(7), dm(3), -dm(2))),
-            v3(dm(5), dm(5), dm(3)),
+            fig.add(v3(x * size * 6 / 10, size / 4, -size / 6)),
+            v3(size * 4 / 10, size * 4 / 10, size / 4),
             c,
             glow,
         );
     }
-    if side == Side::Pirate {
-        for s in [-1, 1] {
+    if s.side == Side::Pirate {
+        for x in [-1, 1] {
             put(
                 b,
                 f,
                 Mesh::Cube,
-                fig.add(v3(s * dm(3), dm(2), dm(5))),
-                v3(dm(3), dm(3), cm(6)),
+                fig.add(v3(x * size / 4, size / 6, size * 4 / 10)),
+                v3(size / 4, size / 4, cm(6)),
                 PORT,
                 0,
             );
@@ -1022,21 +893,26 @@ fn bow(b: &mut Batch, f: &Affine, h: &Hull, p: &Paint, side: Side) {
     }
 }
 
-/// The shrouds: two lines a side from the rail up to each mast's lowest
+/// The shrouds: two lines a side from the rail up to mast `m`'s lowest
 /// top, thin and dark so the vines stand out (MAPS art lessons).
-fn shrouds(b: &mut Batch, f: &Affine, h: &Hull, mast: &Mast) {
-    let deck = deck_at(h, mast.z);
-    let top = mast.yards[0].0 + dm(16);
-    for s in [-1, 1] {
-        for dz in [-dm(12), dm(6)] {
-            let z = mast.z + dz - dm(6);
-            let foot = v3(s * half_beam(h, z) * 95 / 100, deck + dm(10), z);
+fn shrouds(b: &mut Batch, f: &Affine, s: &Ship, m: usize) {
+    let mast = &s.masts[m];
+    let deck = deck_at(s, mast.along);
+    let top = mast
+        .yards
+        .first()
+        .map(|y| s.deck + y.height + dm(16))
+        .unwrap_or(s.deck + mast.height * 7 / 10);
+    for x in [-1, 1] {
+        for dz in [-dm(18), 0] {
+            let z = mast.along + dz;
+            let foot = v3(x * half_beam(s, z) * 95 / 100, deck + dm(10), z);
             bar(
                 b,
                 f,
                 Mesh::Cube,
                 foot,
-                v3(s * dm(5), top, mast.z),
+                v3(x * dm(5), top, mast.along),
                 cm(7),
                 RIGGING,
                 0,
@@ -1045,40 +921,185 @@ fn shrouds(b: &mut Batch, f: &Affine, h: &Hull, mast: &Mast) {
     }
 }
 
-/// The stays: from each mast's head forward and down to the next mast,
-/// the foremost to the bowsprit's tip.
-fn stays(b: &mut Batch, f: &Affine, h: &Hull, ms: &[Mast]) {
-    for w in ms.windows(2) {
-        let (a, c) = (w[0], w[1]);
-        let low = c.yards[0].0 + dm(16);
+/// The stays (from each mast's head down to the next mast forward's
+/// lowest top, the foremost's to the bowsprit's tip) and the jib under
+/// the forestay.
+fn stays(b: &mut Batch, f: &Affine, s: &Ship, p: &Paint, k: u32) {
+    let low = |m: &Mast| {
+        m.yards
+            .first()
+            .map(|y| s.deck + y.height + dm(16))
+            .unwrap_or(s.deck + m.height * 6 / 10)
+    };
+    // `masts` is fore first
+    for w in s.masts.windows(2) {
+        let (fore, aft) = (&w[0], &w[1]);
         bar(
             b,
             f,
             Mesh::Cube,
-            v3(0, a.top - dm(5), a.z),
-            v3(0, low, c.z),
+            v3(0, s.deck + aft.height - dm(5), aft.along),
+            v3(0, low(fore), fore.along),
             cm(7),
             RIGGING,
             0,
         );
     }
-    if let Some(fore) = ms.last() {
-        let tip = v3(0, h.fore.y + h.bowsprit * 4 / 10, h.length / 2 + h.bowsprit);
-        bar(
+    let Some(fore) = s.masts.first() else {
+        return;
+    };
+    let z = s.length / 2;
+    let bow_deck = deck_at(s, z - dm(10));
+    let tip = if s.bowsprit > 0 {
+        v3(0, bow_deck + s.bowsprit * 4 / 10, z + s.bowsprit)
+    } else {
+        v3(0, bow_deck + dm(10), z)
+    };
+    let head = v3(0, s.deck + fore.height - dm(5), fore.along);
+    bar(b, f, Mesh::Cube, head, tip, cm(7), RIGGING, 0);
+    // the jib: a right triangle of canvas, its clew aft at the foot, its
+    // slope along the forestay
+    let Some(jib) = s.jib else {
+        return;
+    };
+    let foot = bow_deck + dm(25);
+    let clew_z = fore.along + (tip.z - fore.along) / 4;
+    let along_stay = |zz: i32| {
+        let t = fx::div(zz - head.z, tip.z - head.z).clamp(0, ONE);
+        head.y + mul(tip.y - head.y, t)
+    };
+    let top = along_stay(clew_z);
+    let tack_z = tip.z - (tip.z - fore.along) / 6;
+    if top <= foot + int(1) || tack_z <= clew_z {
+        return;
+    }
+    let (h, l) = (top - foot, tack_z - clew_z);
+    match jib {
+        Sail::Set => put(
+            b,
+            f,
+            Mesh::Wedge,
+            v3(0, foot + h / 2, clew_z + l / 2),
+            v3(dm(2), h, l),
+            p.sail,
+            0,
+        ),
+        Sail::Torn => {
+            put(
+                b,
+                f,
+                Mesh::Wedge,
+                v3(0, foot + h * 7 / 10, clew_z + l * 3 / 10),
+                v3(dm(2), h * 6 / 10, l * 6 / 10),
+                p.sail,
+                0,
+            );
+            put_turned(
+                b,
+                f,
+                Mesh::Shard,
+                v3(0, foot + h * 3 / 10, clew_z + l / 6),
+                &Affine::rot_x(deg(pick(k, 33, -15, 15))),
+                v3(dm(2), h / 4, l / 6),
+                shade(p.sail, 90),
+                0,
+            );
+        }
+        Sail::Furled => bar(
+            b,
+            f,
+            Mesh::Hex,
+            v3(0, foot + dm(3), clew_z + l / 2),
+            tip,
+            dm(4),
+            shade(p.sail, 92),
+            0,
+        ),
+        Sail::Missing => {}
+    }
+}
+
+/// Mast `m`'s gaff sail (a spanker or a sloop's mainsail): a boom and a
+/// gaff reaching aft from the mast, the canvas between them as `state`
+/// says, over the deck aft of the mast.
+fn gaff_sail(b: &mut Batch, f: &Affine, s: &Ship, m: usize, state: Sail, p: &Paint, k: u32) {
+    let mast = &s.masts[m];
+    let deck = deck_at(s, mast.along - dm(10));
+    let boom_y = deck + dm(18);
+    let reach = (mast.height * 45 / 100).min(mast.along + s.length / 2 - dm(5));
+    if reach < int(2) {
+        return;
+    }
+    let lowest = mast
+        .yards
+        .first()
+        .map(|y| s.deck + y.height)
+        .unwrap_or(s.deck + mast.height * 8 / 10);
+    let gaff_y = (lowest - dm(15)).max(boom_y + int(3));
+    let (z0, z1) = (mast.along - dm(3), mast.along - reach);
+    bar(
+        b,
+        f,
+        Mesh::Hex,
+        v3(0, boom_y, z0),
+        v3(0, boom_y, z1),
+        dm(2),
+        MAST,
+        0,
+    );
+    bar(
+        b,
+        f,
+        Mesh::Hex,
+        v3(0, gaff_y, z0),
+        v3(0, gaff_y + dm(10), z1 - dm(5)),
+        dm(2),
+        MAST,
+        0,
+    );
+    let h = gaff_y - boom_y;
+    let mid = v3(0, (gaff_y + boom_y) / 2, (z0 + z1) / 2);
+    match state {
+        Sail::Set => put(
             b,
             f,
             Mesh::Cube,
-            v3(0, fore.top - dm(5), fore.z),
-            tip,
-            cm(7),
-            RIGGING,
+            mid,
+            v3(dm(2), h, reach - dm(4)),
+            p.sail,
             0,
-        );
+        ),
+        Sail::Furled => bar(
+            b,
+            f,
+            Mesh::Hex,
+            v3(0, boom_y + dm(3), z0),
+            v3(0, boom_y + dm(3), z1),
+            dm(6),
+            shade(p.sail, 92),
+            0,
+        ),
+        Sail::Torn => {
+            for (i, t) in [15, 85].into_iter().enumerate() {
+                let z = z0 - (reach * t / 100);
+                let len = h * pick(k, 34 + i as u32, 40, 80) / 100;
+                put(
+                    b,
+                    f,
+                    Mesh::Cube,
+                    v3(0, gaff_y - len / 2, z),
+                    v3(dm(2), len, reach / 5),
+                    p.sail,
+                    0,
+                );
+            }
+        }
+        Sail::Missing => {}
     }
 }
 
 /// A yard across its mast and, under it, its sail as `state` says.
-fn yard_and_sail(b: &mut Batch, f: &Affine, y: &Yard, state: Sail, p: &Paint, side: Side, k: u32) {
+fn yard_and_sail(b: &mut Batch, f: &Affine, y: &Spar, state: Sail, p: &Paint, side: Side, k: u32) {
     let w = y.half / 14;
     bar(
         b,
@@ -1115,7 +1136,7 @@ fn yard_and_sail(b: &mut Batch, f: &Affine, y: &Yard, state: Sail, p: &Paint, si
                 shade(sail, 96),
                 0,
             );
-            if side == Side::Pirate && k % 3 != 0 {
+            if side == Side::Pirate && !k.is_multiple_of(3) {
                 // a patch
                 let px = (pick(k, 11, -30, 30)) * span / 100;
                 let py = top - y.drop * pick(k, 12, 30, 70) / 100;
@@ -1208,7 +1229,7 @@ fn yard_and_sail(b: &mut Batch, f: &Affine, y: &Yard, state: Sail, p: &Paint, si
                 );
             }
         }
-        Sail::Gone => {
+        Sail::Missing => {
             // a scrap left at one end
             let s = if k.is_multiple_of(2) { 1 } else { -1 };
             put_turned(
@@ -2068,7 +2089,6 @@ pub fn treasure_chest(b: &mut Batch, f: &Affine, tick: u32) {
         cglow,
     );
     // the heap: bananas jumbled every way over the core
-    let mut k = 0u32;
     for i in 0..56u32 {
         let x = mul(w * 46 / 100, pick(i, 81, -ONE, ONE));
         let z = mul(d * 44 / 100, pick(i, 82, -ONE, ONE));
@@ -2076,8 +2096,7 @@ pub fn treasure_chest(b: &mut Batch, f: &Affine, tick: u32) {
             ONE - mul(fx::div(x.abs(), w / 2), ONE / 2) - mul(fx::div(z.abs(), d / 2), ONE / 2);
         let y = h + mul(int(3), mid) + cm(pick(i, 83, -20, 40));
         let at = v3(x, y, z);
-        let pk = glyph_pulse(tick, k);
-        k += 1;
+        let pk = glyph_pulse(tick, i);
         let c = mix(BANANA, rgb(255, 236, 120), pk);
         let glow = ONE / 3 + mul(pk, ONE / 3);
         if i % 14 == 5 {
@@ -2285,7 +2304,14 @@ pub fn deckhand(b: &mut Batch, f: &Affine, crew: Crew, pose: Pose, tick: u32, k:
         _ => *f,
     };
     let (shirt, legs) = match crew {
-        Crew::Pirate => (if k % 2 == 0 { SHIRT_RED } else { SHIRT_WHITE }, TROUSERS),
+        Crew::Pirate => (
+            if k.is_multiple_of(2) {
+                SHIRT_RED
+            } else {
+                SHIRT_WHITE
+            },
+            TROUSERS,
+        ),
         Crew::Navy => (COAT, BREECHES),
     };
     // legs: a lunge for a duel, apart otherwise
@@ -2329,7 +2355,7 @@ pub fn deckhand(b: &mut Batch, f: &Affine, crew: Crew, pose: Pose, tick: u32, k:
     );
     // hats
     match crew {
-        Crew::Pirate if k % 3 == 0 => {
+        Crew::Pirate if k.is_multiple_of(3) => {
             put(
                 b,
                 &g,
@@ -2347,7 +2373,11 @@ pub fn deckhand(b: &mut Batch, f: &Affine, crew: Crew, pose: Pose, tick: u32, k:
                 Mesh::Cube,
                 v3(0, dm(15) + cm(5), -cm(2)),
                 v3(dm(5) + cm(5), cm(14), dm(5) + cm(5)),
-                if k % 2 == 0 { FLAG_BLACK } else { SHIRT_RED },
+                if k.is_multiple_of(2) {
+                    FLAG_BLACK
+                } else {
+                    SHIRT_RED
+                },
                 0,
             );
         }
@@ -2577,11 +2607,13 @@ pub fn hull_hit(b: &mut Batch, f: &Affine, age: i32, k: u32) {
 // The model gallery (`?gallery=<key>`, `app/gallery.rs`).
 
 /// The keys `app/gallery.rs` shows from here.
-pub const GALLERY: [&str; 16] = [
+pub const GALLERY: [&str; 18] = [
     "galleon",
     "galleonnavy",
     "frigate",
     "frigatenavy",
+    "brig",
+    "brignavy",
     "sloop",
     "sloopnavy",
     "sails",
@@ -2596,36 +2628,48 @@ pub const GALLERY: [&str; 16] = [
     "bayall",
 ];
 
-/// The galleon's sails in the gallery: a gap through the mainmast's lower
-/// sails, the rest set (8 yards).
-const GALLEON_SAILS: [Sail; 8] = [
-    Sail::Set,
-    Sail::Set,
-    Sail::Gone,
-    Sail::Torn,
-    Sail::Set,
-    Sail::Set,
-    Sail::Set,
-    Sail::Furled,
-];
-const FRIGATE_SAILS: [Sail; 8] = [
-    Sail::Set,
-    Sail::Set,
-    Sail::Torn,
-    Sail::Gone,
-    Sail::Set,
-    Sail::Furled,
-    Sail::Set,
-    Sail::Set,
-];
-const SLOOP_SAILS: [Sail; 4] = [Sail::Gone, Sail::Set, Sail::Set, Sail::Torn];
+/// Sets the sails of `s` as listed, mast by mast (fore first), each
+/// mast's yards lowest first, then its gaff; entries past the list stay.
+pub fn with_sails(mut s: Ship, sails: &[Sail]) -> Ship {
+    let mut it = sails.iter().copied();
+    for m in &mut s.masts {
+        for y in &mut m.yards {
+            if let Some(v) = it.next() {
+                y.sail = v;
+            }
+        }
+        if let Some(g) = &mut m.gaff {
+            if let Some(v) = it.next() {
+                *g = v;
+            }
+        }
+    }
+    s
+}
+
+/// The gallery's ship of `kind` for `side`, with a gap or two shot
+/// through its sails the way the course will want them.
+fn gallery_ship(kind: ShipKind, side: Side) -> Ship {
+    use Sail::*;
+    let s = typical(kind, side, V3::ZERO, 0);
+    let sails: &[Sail] = match kind {
+        // fore: set, set, furled; main: missing, torn, set; mizzen: set,
+        // set, spanker set
+        ShipKind::Galleon => &[Set, Set, Furled, Missing, Torn, Set, Set, Set, Set],
+        ShipKind::Frigate => &[Set, Furled, Set, Torn, Missing, Set, Set, Set, Torn],
+        ShipKind::Brig => &[Missing, Set, Torn, Set, Set],
+        ShipKind::Sloop => &[Set],
+    };
+    with_sails(s, sails)
+}
 
 /// The middle and rough radius of a gallery model, metres.
 pub fn framing(key: &str) -> (V3, i32) {
     match key {
         "galleon" | "galleonnavy" => (v3(0, int(17), int(4)), int(44)),
         "frigate" | "frigatenavy" => (v3(0, int(15), int(3)), int(37)),
-        "sloop" | "sloopnavy" => (v3(0, int(10), int(2)), int(23)),
+        "brig" | "brignavy" => (v3(0, int(11), int(2)), int(27)),
+        "sloop" | "sloopnavy" => (v3(0, int(9), int(2)), int(21)),
         "sails" => (v3(0, int(5), 0), int(16)),
         "barrels" => (v3(0, dm(15), 0), int(5)),
         "dockstart" => (v3(0, int(2), int(10)), int(22)),
@@ -2652,51 +2696,37 @@ pub fn gallery(b: &mut Batch, key: &str, f: &Affine, tick: u32) {
         SEA,
         0,
     );
+    let kinds = [
+        ("galleon", ShipKind::Galleon),
+        ("frigate", ShipKind::Frigate),
+        ("brig", ShipKind::Brig),
+        ("sloop", ShipKind::Sloop),
+    ];
+    for (i, (name, kind)) in kinds.into_iter().enumerate() {
+        if key == name {
+            return ship(b, f, &gallery_ship(kind, Side::Pirate), tick, i as u32);
+        }
+        if key.strip_suffix("navy") == Some(name) {
+            return ship(b, f, &gallery_ship(kind, Side::Navy), tick, i as u32 + 10);
+        }
+    }
     match key {
-        "galleon" => ship(
-            b,
-            f,
-            ShipKind::Galleon,
-            Side::Pirate,
-            &GALLEON_SAILS,
-            tick,
-            1,
-        ),
-        "galleonnavy" => ship(b, f, ShipKind::Galleon, Side::Navy, &GALLEON_SAILS, tick, 2),
-        "frigate" => ship(
-            b,
-            f,
-            ShipKind::Frigate,
-            Side::Pirate,
-            &FRIGATE_SAILS,
-            tick,
-            3,
-        ),
-        "frigatenavy" => ship(b, f, ShipKind::Frigate, Side::Navy, &FRIGATE_SAILS, tick, 4),
-        "sloop" => ship(b, f, ShipKind::Sloop, Side::Pirate, &SLOOP_SAILS, tick, 5),
-        "sloopnavy" => ship(b, f, ShipKind::Sloop, Side::Navy, &SLOOP_SAILS, tick, 6),
         "sails" => {
-            // every state on a frigate's main topsail yard, pirate above,
-            // navy below
-            let y = Yard {
-                mast: 0,
-                at: v3(0, int(9), 0),
-                half: int(6),
-                drop: int(6),
-            };
-            let states = [Sail::Set, Sail::Furled, Sail::Torn, Sail::Gone];
-            for (i, s) in states.into_iter().enumerate() {
+            // every state on a yard, pirate above, navy below
+            let states = [Sail::Set, Sail::Furled, Sail::Torn, Sail::Missing];
+            for (i, st) in states.into_iter().enumerate() {
                 for (j, side) in [Side::Pirate, Side::Navy].into_iter().enumerate() {
                     let g = f.then(&Affine::translate(v3(
                         int(i as i32 * 13 - 20),
                         -int(j as i32 * 8),
                         0,
                     )));
-                    let y = Yard {
-                        at: y.at.add(v3(0, 0, 0)),
-                        ..y
+                    let y = Spar {
+                        at: v3(0, int(9), 0),
+                        half: int(6),
+                        drop: int(6),
                     };
-                    yard_and_sail(b, &g, &y, s, &paint(side), side, i as u32);
+                    yard_and_sail(b, &g, &y, st, &paint(side), side, i as u32);
                 }
             }
         }
@@ -2716,9 +2746,8 @@ pub fn gallery(b: &mut Batch, key: &str, f: &Affine, tick: u32) {
         "chest" => treasure_chest(b, f, tick),
         "doubloon" => {
             let right = v3(ONE, 0, 0);
-            let up = V3::UP;
-            doubloon(b, v3(-cm(80), 0, 0), right, up, 0, true);
-            doubloon(b, v3(cm(80), 0, 0), right, up, deg(35), false);
+            doubloon(b, v3(-cm(80), 0, 0), right, V3::UP, 0, true);
+            doubloon(b, v3(cm(80), 0, 0), right, V3::UP, deg(35), false);
         }
         "crew" => {
             let poses = [Pose::Duel, Pose::Cheer, Pose::Aim, Pose::Haul, Pose::Down];
@@ -2766,31 +2795,27 @@ pub fn gallery(b: &mut Batch, key: &str, f: &Affine, tick: u32) {
         }
         _ => {
             // a little battle: a pirate galleon and a navy frigate side by
-            // side, a sloop beyond, barrels, smoke and a splash between
-            let pg = f.then(&Affine::translate(v3(-int(22), 0, 0)));
-            ship(
-                b,
-                &pg,
-                ShipKind::Galleon,
-                Side::Pirate,
-                &GALLEON_SAILS,
-                tick,
-                1,
-            );
-            let nf = f.then(&Affine::translate(v3(int(20), 0, int(8))));
-            ship(
-                b,
-                &nf,
-                ShipKind::Frigate,
-                Side::Navy,
-                &FRIGATE_SAILS,
-                tick,
-                2,
-            );
-            let sl = f
-                .then(&Affine::translate(v3(int(4), 0, int(60))))
-                .then(&Affine::rot_y(deg(20)));
-            ship(b, &sl, ShipKind::Sloop, Side::Pirate, &SLOOP_SAILS, tick, 3);
+            // side, a sloop and a brig beyond, barrels, smoke and a splash
+            let ships = [
+                (ShipKind::Galleon, Side::Pirate, v3(-int(22), 0, 0), 0),
+                (ShipKind::Frigate, Side::Navy, v3(int(20), 0, int(8)), 0),
+                (
+                    ShipKind::Sloop,
+                    Side::Pirate,
+                    v3(int(4), 0, int(60)),
+                    deg(20),
+                ),
+                (
+                    ShipKind::Brig,
+                    Side::Navy,
+                    v3(-int(40), 0, int(60)),
+                    -deg(15),
+                ),
+            ];
+            for (i, (kind, side, at, yaw)) in ships.into_iter().enumerate() {
+                let g = f.then(&Affine::translate(at)).then(&Affine::rot_y(yaw));
+                ship(b, &g, &gallery_ship(kind, side), tick, i as u32);
+            }
             for i in 0..4 {
                 smoke_puff(
                     b,
@@ -2816,8 +2841,8 @@ pub fn gallery(b: &mut Batch, key: &str, f: &Affine, tick: u32) {
                 9,
                 0,
             );
+            let deck = typical(ShipKind::Galleon, Side::Pirate, V3::ZERO, 0).deck;
             for i in 0..6u32 {
-                let deck = hull(ShipKind::Galleon).deck;
                 let at = v3(
                     -int(22) + int(i as i32 % 3 - 1) * 2,
                     deck,
@@ -2830,14 +2855,8 @@ pub fn gallery(b: &mut Batch, key: &str, f: &Affine, tick: u32) {
                     } else {
                         -TURN / 4
                     }));
-                deckhand(
-                    b,
-                    &g,
-                    if i % 2 == 0 { Crew::Pirate } else { Crew::Navy },
-                    Pose::Duel,
-                    tick,
-                    i,
-                );
+                let crew = if i % 2 == 0 { Crew::Pirate } else { Crew::Navy };
+                deckhand(b, &g, crew, Pose::Duel, tick, i);
             }
         }
     }
@@ -2846,6 +2865,13 @@ pub fn gallery(b: &mut Batch, key: &str, f: &Affine, tick: u32) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    const KINDS: [ShipKind; 4] = [
+        ShipKind::Galleon,
+        ShipKind::Frigate,
+        ShipKind::Brig,
+        ShipKind::Sloop,
+    ];
 
     /// Triangles in a batch (each instance's mesh's).
     fn triangles(b: &Batch) -> usize {
@@ -2866,8 +2892,20 @@ mod tests {
         }
     }
 
-    /// The per-model costs, printed with `--nocapture` (BM rows): kept
-    /// under budgets so 20 ships and dozens of crew stay cheap.
+    fn all(kind: ShipKind, side: Side, sail: Sail) -> Ship {
+        let s = typical(kind, side, V3::ZERO, 0);
+        let n = s
+            .masts
+            .iter()
+            .map(|m| m.yards.len() + m.gaff.is_some() as usize)
+            .sum::<usize>();
+        let mut s = with_sails(s, &vec![sail; n]);
+        s.jib = Some(sail);
+        s
+    }
+
+    /// The per-model costs (SECOND-ORDER BM2): kept under budgets so 20
+    /// ships and dozens of crew stay cheap.
     #[test]
     fn the_models_stay_cheap() {
         let mut rows: Vec<(String, usize, usize)> = Vec::new();
@@ -2879,17 +2917,16 @@ mod tests {
             row
         };
         let id = Affine::IDENTITY;
-        for kind in [ShipKind::Galleon, ShipKind::Frigate, ShipKind::Sloop] {
+        for kind in KINDS {
             for side in [Side::Pirate, Side::Navy] {
-                let n = yards(kind).len();
-                let set = vec![Sail::Set; n];
-                let torn = vec![Sail::Torn; n];
+                let set = all(kind, side, Sail::Set);
+                let torn = all(kind, side, Sail::Torn);
                 let (_, shapes, tris) = cost(&format!("{kind:?} {side:?} all set"), &|b| {
-                    ship(b, &id, kind, side, &set, 0, 1)
+                    ship(b, &id, &set, 0, 1)
                 });
                 assert!(shapes < 420 && tris < 14_000, "{kind:?} {shapes} {tris}");
                 let (_, shapes, _) = cost(&format!("{kind:?} {side:?} all torn"), &|b| {
-                    ship(b, &id, kind, side, &torn, 0, 1)
+                    ship(b, &id, &torn, 0, 1)
                 });
                 assert!(shapes < 520, "{kind:?} {shapes}");
             }
@@ -2917,21 +2954,19 @@ mod tests {
         cost("smoke puff", &|b| smoke_puff(b, &id, ONE / 3, 1));
         cost("splash", &|b| splash(b, &id, ONE / 3, 1));
         cost("hull hit", &|b| hull_hit(b, &id, ONE / 3, 1));
-        for (name, shapes, tris) in rows {
-            println!("{name:32} {shapes:5} shapes {tris:6} triangles");
-        }
+        // the core may not print (tests/boundary.rs): set `SHOW` to see
+        // the table (name, shapes, triangles) in this assertion's message
+        const SHOW: bool = false;
+        assert!(!SHOW && rows.len() > 30, "{rows:#?}");
     }
 
     #[test]
     fn a_set_sail_fills_its_gap_and_the_others_open_it() {
-        // a ray through the middle of the main course: canvas only when set
-        let kind = ShipKind::Frigate;
-        let ys = yards(kind);
-        assert_eq!(ys.len(), 8);
-        let main_course = ys.iter().position(|y| y.mast == 1).unwrap();
-        let y = ys[main_course];
+        let s = typical(ShipKind::Frigate, Side::Navy, V3::ZERO, 0);
+        // the main course (mast 1, the lowest yard) hangs to the rail
+        let y = spars(&s, 1)[0];
         assert!(y.drop > int(6), "{}", y.drop);
-        let middle_shapes = |state: Sail| {
+        let canvas = |state: Sail| {
             let mut b = Batch::new();
             yard_and_sail(
                 &mut b,
@@ -2944,45 +2979,67 @@ mod tests {
             );
             b.count_of(Mesh::Cube) + b.count_of(Mesh::Shard)
         };
-        assert!(middle_shapes(Sail::Set) >= 2);
-        assert_eq!(middle_shapes(Sail::Furled), 0);
-        assert!(middle_shapes(Sail::Gone) <= 1);
-        // the torn sail's strips leave the middle half of the span open
-        // below its top strip (tatters reach at most a quarter down)
-        let mut b = Batch::new();
-        yard_and_sail(
-            &mut b,
+        assert!(canvas(Sail::Set) >= 2);
+        assert_eq!(canvas(Sail::Furled), 0);
+        assert!(canvas(Sail::Missing) <= 1);
+        // a whole ship draws more canvas with every sail set than with
+        // every sail gone
+        let mut set = Batch::new();
+        let mut gone = Batch::new();
+        ship(
+            &mut set,
             &Affine::IDENTITY,
-            &y,
-            Sail::Torn,
-            &paint(Side::Pirate),
-            Side::Pirate,
-            3,
+            &all(ShipKind::Galleon, Side::Pirate, Sail::Set),
+            0,
+            1,
         );
-        assert!(b.count_of(Mesh::Cube) >= 5);
+        ship(
+            &mut gone,
+            &Affine::IDENTITY,
+            &all(ShipKind::Galleon, Side::Pirate, Sail::Missing),
+            0,
+            1,
+        );
+        assert!(set.count_of(Mesh::Cube) > gone.count_of(Mesh::Cube) + 15);
     }
 
     #[test]
-    fn decks_sit_on_the_hull_and_ropes_hang_from_yards() {
-        for kind in [ShipKind::Galleon, ShipKind::Frigate, ShipKind::Sloop] {
-            let h = hull(kind);
-            let ds = decks(kind);
-            assert!(ds.len() >= 3, "{kind:?}");
-            for d in &ds {
-                assert!(d.z0 < d.z1 && d.half > dm(15), "{kind:?} {d:?}");
-                assert_eq!(deck_at(&h, (d.z0 + d.z1) / 2), d.y, "{kind:?} {d:?}");
+    fn typical_ships_fit_the_contract() {
+        for kind in KINDS {
+            let s = typical(kind, Side::Pirate, v3(int(10), 0, int(20)), deg(30));
+            // the brief's ~10 s end to end for the big ones; the smaller
+            // fill the gaps
+            let want = match kind {
+                ShipKind::Galleon => (int(40), int(50)),
+                ShipKind::Frigate => (int(32), int(40)),
+                ShipKind::Brig => (int(22), int(30)),
+                ShipKind::Sloop => (int(16), int(24)),
+            };
+            assert!(s.length >= want.0 && s.length <= want.1, "{kind:?}");
+            // masts fore first, every yard above the deck and inside the
+            // hull's length, the sloop's mast gaff-rigged
+            for w in s.masts.windows(2) {
+                assert!(w[0].along > w[1].along, "{kind:?}");
             }
-            // every rope point is over the hull or a yard's reach, and
-            // above every deck
-            for p in rope_points(kind) {
-                assert!(p.y > h.deck + int(5), "{kind:?} {p:?}");
-                assert!(p.z.abs() < h.length / 2, "{kind:?} {p:?}");
+            for (m, mast) in s.masts.iter().enumerate() {
+                assert!(mast.along.abs() < s.length / 2, "{kind:?}");
+                for (i, y) in mast.yards.iter().enumerate() {
+                    assert!(y.height > int(5) && y.height < mast.height, "{kind:?}");
+                    let (l, r) = s.yard_ends(m, i);
+                    assert_eq!(l.dist(r) / ONE, y.half_span * 2 / ONE, "{kind:?}");
+                }
             }
-            // walking the waist end to end: about the brief's 10 s for
-            // the big ships at a run (5 m/s)
-            let walk = ds.iter().map(|d| d.z1 - d.z0).sum::<i32>();
-            if kind == ShipKind::Galleon {
-                assert!(walk > int(40) && walk < int(55), "{walk}");
+            assert_eq!(
+                kind == ShipKind::Sloop,
+                s.masts.iter().all(|m| m.yards.is_empty())
+            );
+            // ports on both sides, under the main deck
+            assert!(s.ports.iter().any(|p| p.side > 0) && s.ports.iter().any(|p| p.side < 0));
+            assert!(s.ports.iter().all(|p| p.up < s.deck), "{kind:?}");
+            // the raised decks stand over the main deck inside the hull
+            for r in &s.raised {
+                assert!(r.0 < r.1 && r.2 > s.deck, "{kind:?}");
+                assert!(r.0 >= -s.length / 2 && r.1 <= s.length / 2, "{kind:?}");
             }
         }
     }
