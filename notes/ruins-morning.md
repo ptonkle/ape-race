@@ -8,6 +8,10 @@ The person went to bed at about 00:10 after playing 1.10.0–1.10.2. Each fix be
 - 1.10.1 (23:45): lit temple entrance attempt, random banana pile, cliffs, JOJO MODE, its own map card.
 - 1.10.2 (23:58): the river current only carries you downstream; turtles and statues apart.
 
+## Checks
+
+- Full checks on 1.10.1 passed in all three browsers (check.sh 8.3 min, check-online.sh 3.8 min; `notes/check-times.md`).
+
 ## Being fixed overnight (their feedback)
 
 | Item | Status | Version |
