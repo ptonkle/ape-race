@@ -1,5 +1,19 @@
 [
   {
+    "version": "1.11.0",
+    "date": "2026-10-15",
+    "notes": [
+      "What's New: these patch notes, on the main menu (the version number in the corner opens them too). A New marker shows after an update; tick Show minor patches to see every small fix."
+    ]
+  },
+  {
+    "version": "1.10.4",
+    "date": "2026-10-15",
+    "notes": [
+      "Sunset Ruins: the black block that filled the temple's mouth is gone; from the bridge you can see into the lit corridor."
+    ]
+  },
+  {
     "version": "1.10.3",
     "date": "2026-10-14",
     "notes": [
@@ -11,8 +25,8 @@
     "version": "1.10.2",
     "date": "2026-10-14",
     "notes": [
-      "Sunset Ruins: the river's current now only carries you downstream, never back up it.",
-      "Sunset Ruins: the turtles and the statues no longer stand inside each other."
+      "Sunset Ruins: the river no longer pushes you sideways; its current only carries you downstream, and your keys steer.",
+      "Sunset Ruins: the turtles no longer swim into the statues; the statues stand back from the water."
     ]
   },
   {
