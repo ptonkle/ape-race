@@ -709,6 +709,118 @@ fn panel_offsets(r: &RuinsLayout, k: usize, len: i32) -> Vec<i32> {
         .collect()
 }
 
+/// A carved panel on the temple's walls (`m::stone_panel`): the middle of
+/// its back face (on the wall's surface), the flat unit way out of the
+/// wall into the room, its width and height, and where it hangs.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct WallPanel {
+    pub back: V3,
+    pub out: V3,
+    pub w: i32,
+    pub h: i32,
+    pub on: PanelOn,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PanelOn {
+    /// corridor section `k`'s wall on `side` (-1 left, 1 right)
+    Corridor { k: usize, side: i32 },
+    /// the chamber's wall segment `s` (of `WALL_SEGMENTS`)
+    Chamber { s: i32 },
+}
+
+/// `m::stone_panel`'s depth: its back is this far behind its origin.
+const PANEL_DEPTH: i32 = cm(60);
+/// Its sockets' faces stand this far in front of its origin.
+const SOCKET_FRONT: i32 = cm(17);
+/// A glyph's bars reach this far behind its middle (`m::banana_glyph`).
+const GLYPH_BACK: i32 = cm(18);
+
+impl WallPanel {
+    /// The frame `m::stone_panel` is drawn in: its back on the wall.
+    pub fn frame(&self) -> Affine {
+        Affine::translate(self.back.add(self.out.scale(PANEL_DEPTH)))
+            .then(&Affine::looking(self.out, V3::UP))
+    }
+
+    /// The middles of the glyphs in its sockets: just in front of the
+    /// sockets' faces, clear of them (RS17).
+    pub fn glyphs(&self) -> Vec<V3> {
+        let across = right_of(self.out);
+        let lift = PANEL_DEPTH + SOCKET_FRONT + GLYPH_BACK + cm(5);
+        m::glyph_spots(self.w, self.h)
+            .into_iter()
+            .map(|sp| {
+                self.back
+                    .add(self.out.scale(lift))
+                    .add(across.scale(sp.x))
+                    .add(v3(0, sp.y, 0))
+            })
+            .collect()
+    }
+}
+
+/// The panels on the corridor's and the chamber's walls, each flat on its
+/// own wall (RS20, RS23): along each corridor section's walls at
+/// `panel_offsets`, and on every other chamber wall segment, no wider than
+/// the segment.
+pub fn wall_panels(r: &RuinsLayout) -> Vec<WallPanel> {
+    let floor = r.chamber.centre.y;
+    let mut out = Vec::new();
+    let inside_chamber = |p: V3| p.flat().sub(r.chamber.centre.flat()).len() < r.chamber.radius;
+    for (k, sec) in r.corridor.iter().enumerate() {
+        let d = sec.to.sub(sec.from).flat();
+        let len = d.len();
+        if len == 0 {
+            continue;
+        }
+        let fwd = d.norm();
+        let right = right_of(fwd);
+        let mid = sec.from.lerp(sec.to, ONE / 2);
+        for side in [-1, 1] {
+            let face = mid.add(right.scale(side * sec.half_width));
+            if inside_chamber(face) {
+                continue;
+            }
+            for along in panel_offsets(r, k, len) {
+                out.push(WallPanel {
+                    back: v3(face.x, floor + int(9), face.z).add(fwd.scale(along)),
+                    // (a whole unit: `right.scale(-side)` was a
+                    // near-zero vector, RS23)
+                    out: right.scale(-side * ONE),
+                    w: int(10),
+                    h: int(8),
+                    on: PanelOn::Corridor { k, side },
+                });
+            }
+        }
+    }
+    let ch = &r.chamber;
+    let seg_w = chamber_segment_width(r);
+    let gate = gate_angle(r);
+    for s in (0..WALL_SEGMENTS).step_by(2) {
+        let ang = s * TURN / WALL_SEGMENTS;
+        if fx::wrap(ang - gate).abs() < deg(10) {
+            continue;
+        }
+        let o = crate::geom::facing(ang, 0);
+        let face = ch.centre.add(o.scale(ch.radius));
+        out.push(WallPanel {
+            back: v3(face.x, floor + int(9), face.z),
+            out: o.neg(),
+            w: int(10).min(seg_w - int(1)),
+            h: int(8),
+            on: PanelOn::Chamber { s },
+        });
+    }
+    out
+}
+
+/// The chamber's wall segments' width (each a flat block).
+fn chamber_segment_width(r: &RuinsLayout) -> i32 {
+    mul(r.chamber.radius, (TURN / WALL_SEGMENTS) * 6283 / 1000) + int(1)
+}
+
 /// How far `p` is from the flat segment `a`–`b`.
 fn off_line(p: V3, a: V3, b: V3) -> i32 {
     let d = b.sub(a).flat();
@@ -737,6 +849,7 @@ fn near_turtle_lane(r: &RuinsLayout, p: V3) -> bool {
 /// trapdoors (whose leaves are drawn each frame) down to their pits.
 fn corridor_stone(c: &Course, r: &RuinsLayout, push: &mut Put) {
     let floor = r.chamber.centre.y;
+    let panels = wall_panels(r);
     let inside_chamber = |p: V3| p.flat().sub(r.chamber.centre.flat()).len() < r.chamber.radius;
     for (k, sec) in r.corridor.iter().enumerate() {
         let d = sec.to.sub(sec.from).flat();
@@ -753,7 +866,7 @@ fn corridor_stone(c: &Course, r: &RuinsLayout, push: &mut Put) {
             if inside_chamber(face) {
                 continue;
             }
-            let inward = right.scale(-side);
+            let inward = right.scale(-side * ONE);
             push(face, &mut |b| {
                 b.push(
                     Mesh::Cube,
@@ -779,12 +892,10 @@ fn corridor_stone(c: &Course, r: &RuinsLayout, push: &mut Put) {
                         0,
                     );
                 }
-                for along in panel_offsets(r, k, len) {
-                    let at = v3(face.x, floor + int(9), face.z)
-                        .add(fwd.scale(along))
-                        .add(inward.scale(cm(30)));
-                    let f = Affine::translate(at).then(&Affine::looking(inward, V3::UP));
-                    m::stone_panel(b, &f, int(10), int(8));
+                for p in &panels {
+                    if p.on == (PanelOn::Corridor { k, side }) {
+                        m::stone_panel(b, &p.frame(), p.w, p.h);
+                    }
                 }
             });
         }
@@ -925,7 +1036,8 @@ fn chamber_stone(r: &RuinsLayout, push: &mut Put) {
     let rad = ch.radius;
     let gate = gate_angle(r);
     let wall_h = ch.height + int(6);
-    let seg_w = mul(rad, (TURN / WALL_SEGMENTS) * 6283 / 1000) + int(1);
+    let seg_w = chamber_segment_width(r);
+    let panels = wall_panels(r);
     for k in 0..WALL_SEGMENTS {
         let ang = k * TURN / WALL_SEGMENTS;
         let out = crate::geom::facing(ang, 0);
@@ -980,10 +1092,10 @@ fn chamber_stone(r: &RuinsLayout, push: &mut Put) {
                     0,
                 );
             }
-            if k % 2 == 0 {
-                let at = v3(face.x, centre.y + int(9), face.z).sub(out.scale(cm(30)));
-                let f = Affine::translate(at).then(&Affine::looking(out.neg(), V3::UP));
-                m::stone_panel(b, &f, int(10), int(8));
+            for p in &panels {
+                if p.on == (PanelOn::Chamber { s: k }) {
+                    m::stone_panel(b, &p.frame(), p.w, p.h);
+                }
             }
         });
     }
@@ -1397,40 +1509,23 @@ fn glyphs(b: &mut Batch, r: &RuinsLayout, eye: V3, t: u32) {
         let f = Affine::translate(at).then(&Affine::looking(facing, V3::UP));
         m::banana_glyph(b, &f, t, k);
     };
-    let spots = m::glyph_spots(int(10), int(8));
-    for (si, sec) in r.corridor.iter().enumerate() {
-        let d = sec.to.sub(sec.from).flat();
-        if d.len() == 0 {
+    // in the panels' sockets (`WallPanel::glyphs`), and on the corridor
+    // walls one higher up over each panel
+    for p in wall_panels(r) {
+        let near_p = match p.on {
+            PanelOn::Corridor { .. } => near(p.back),
+            PanelOn::Chamber { .. } => p.back.flat().sub(eye.flat()).len() < int(150),
+        };
+        k += 3;
+        if !near_p {
             continue;
         }
-        let fwd = d.norm();
-        let right = right_of(fwd);
-        let mid = sec.from.lerp(sec.to, ONE / 2);
-        if !near(mid) {
-            k += 20;
-            continue;
+        for (i, at) in p.glyphs().into_iter().enumerate() {
+            glyph(b, at, p.out, k + i as u32);
         }
-        for side in [-1, 1] {
-            let face = mid.add(right.scale(side * sec.half_width));
-            if face.flat().sub(r.chamber.centre.flat()).len() < r.chamber.radius {
-                continue;
-            }
-            let inward = right.scale(-side);
-            let across = right_of(inward);
-            for along in panel_offsets(r, si, d.len()) {
-                let centre = v3(face.x, floor + int(9), face.z)
-                    .add(fwd.scale(along))
-                    .add(inward.scale(cm(70)));
-                for sp in &spots {
-                    k += 1;
-                    let at = centre.add(across.scale(sp.x)).add(v3(0, sp.y, 0));
-                    glyph(b, at, inward, k);
-                }
-                // higher up, one over each panel
-                k += 1;
-                let at = v3(centre.x, floor + int(21), centre.z);
-                glyph(b, at, inward, k);
-            }
+        if let PanelOn::Corridor { .. } = p.on {
+            let at = p.back.add(p.out.scale(cm(40)));
+            glyph(b, v3(at.x, floor + int(21), at.z), p.out, k + 2);
         }
     }
     // round the chamber
@@ -1445,11 +1540,6 @@ fn glyphs(b: &mut Batch, r: &RuinsLayout, eye: V3, t: u32) {
         let face = ch.centre.add(out.scale(ch.radius - cm(50)));
         if face.flat().sub(eye.flat()).len() > int(150) {
             continue;
-        }
-        let across = right_of(out.neg());
-        for sp in spots.iter().filter(|_| s % 2 == 0) {
-            let at = v3(face.x, floor + int(9) + sp.y, face.z).add(across.scale(sp.x));
-            glyph(b, at, out.neg(), 400 + s as u32 * 7);
         }
         for (j, y) in [int(24), int(36)].into_iter().enumerate() {
             if (s + j as i32) % 2 == 0 {
@@ -1629,4 +1719,133 @@ fn fly_line(c: &Course, s: i32) -> V3 {
     let across = mul(mul(sin(s / 160), int(4)), calm);
     let q = p.add(right_of(c.heading_at(s)).scale(across));
     v3(q.x, y, q.z)
+}
+
+#[cfg(test)]
+mod panel_tests {
+    use super::*;
+
+    /// Every carved panel on the temple's walls sits flush on its own wall
+    /// (its back on the wall's surface, facing straight out of it, wholly
+    /// on that wall's span: not past a corner, into the next section or
+    /// the chamber), and its glyphs sit just in front of its sockets, on
+    /// the panel (the person, 1.10.2: "still sections where the panels are
+    /// not flush", "you cannot see [the glyphs] at all"). The walls here
+    /// are worked out from the layout, not from `wall_panels`.
+    #[test]
+    fn every_wall_panel_and_glyph_sits_flush_on_its_own_wall() {
+        let tol = cm(3);
+        for c in [
+            crate::ruins::ruins(),
+            crate::ruins::ruins_seeded(7),
+            crate::ruins::ruins_seeded(1234),
+        ] {
+            let r = c.ruins.as_deref().unwrap();
+            let panels = wall_panels(r);
+            let (mut corridor, mut chamber) = (0, 0);
+            let ch = &r.chamber;
+            for p in &panels {
+                let across = right_of(p.out);
+                let ends = [
+                    p.back.add(across.scale(p.w / 2)),
+                    p.back.add(across.scale(-p.w / 2)),
+                ];
+                // the wall it is on: a point on its surface, the way out of
+                // it, along it, and its span along there
+                let (wall_at, normal, along, span) = match p.on {
+                    PanelOn::Corridor { k, side } => {
+                        corridor += 1;
+                        let sec = r.corridor[k];
+                        let fwd = sec.to.sub(sec.from).flat().norm();
+                        let right = right_of(fwd);
+                        let at = sec.from.add(right.scale(side * sec.half_width));
+                        (
+                            at,
+                            right.scale(-side * ONE),
+                            fwd,
+                            (0, sec.to.sub(sec.from).flat().len()),
+                        )
+                    }
+                    PanelOn::Chamber { s } => {
+                        chamber += 1;
+                        let o = crate::geom::facing(s * TURN / WALL_SEGMENTS, 0);
+                        let half = chamber_segment_width(r) / 2;
+                        let at = ch.centre.add(o.scale(ch.radius));
+                        (at, o.neg(), right_of(o), (-half, half))
+                    }
+                };
+                let what = format!("{:?} at {:?}", p.on, p.back);
+                // facing straight out of the wall, upright
+                assert_eq!(p.out.y, 0, "{what}: tilted");
+                assert!(
+                    p.out.dot(normal) > ONE * 999 / 1000,
+                    "{what}: at an angle to its wall"
+                );
+                // its back on the wall's surface, at both ends too
+                for q in [p.back, ends[0], ends[1]] {
+                    let gap = q.sub(wall_at).flat().dot(normal);
+                    assert!(
+                        gap.abs() <= tol,
+                        "{what}: {} cm off its wall",
+                        gap * 100 / ONE
+                    );
+                }
+                // wholly on that wall's span
+                for q in ends {
+                    let a = q.sub(wall_at).flat().dot(along);
+                    assert!(
+                        a >= span.0 - tol && a <= span.1 + tol,
+                        "{what}: hangs past its wall's end ({} m along of {}..{})",
+                        a / ONE,
+                        span.0 / ONE,
+                        span.1 / ONE
+                    );
+                    // not inside another corridor section or the chamber
+                    let inside = q.add(normal.scale(cm(50)));
+                    for (j, o) in r.corridor.iter().enumerate() {
+                        if matches!(p.on, PanelOn::Corridor { k, .. } if k == j) {
+                            continue;
+                        }
+                        // inside that section's floor (not past its ends)
+                        let d = o.to.sub(o.from).flat();
+                        let a = inside.sub(o.from).flat().dot(d.norm());
+                        let lateral = inside.sub(o.from).flat().dot(right_of(d.norm()));
+                        assert!(
+                            a < 0 || a > d.len() || lateral.abs() > o.half_width - cm(10),
+                            "{what}: runs into section {j}"
+                        );
+                    }
+                    if let PanelOn::Corridor { .. } = p.on {
+                        assert!(
+                            inside.flat().sub(ch.centre.flat()).len() > ch.radius,
+                            "{what}: runs into the chamber"
+                        );
+                    }
+                }
+                // the glyphs: on the panel, just in front of its sockets
+                let glyphs = p.glyphs();
+                assert!(!glyphs.is_empty(), "{what}: no glyphs");
+                for g in glyphs {
+                    let d = g.sub(wall_at).flat().dot(normal);
+                    let lo = PANEL_DEPTH + SOCKET_FRONT + GLYPH_BACK;
+                    assert!(
+                        d > lo && d < lo + cm(20),
+                        "{what}: glyph {} cm out from the wall, its sockets' faces at {}",
+                        d * 100 / ONE,
+                        (PANEL_DEPTH + SOCKET_FRONT) * 100 / ONE
+                    );
+                    let a = g.sub(p.back).flat().dot(across).abs();
+                    assert!(a + int(1) <= p.w / 2, "{what}: glyph off its panel");
+                    assert!(
+                        (g.y - p.back.y).abs() + int(1) <= p.h / 2,
+                        "{what}: glyph off its panel"
+                    );
+                }
+            }
+            assert!(
+                corridor > 20 && chamber > 10,
+                "{corridor} corridor, {chamber} chamber panels"
+            );
+        }
+    }
 }
