@@ -1234,7 +1234,7 @@ impl App {
             let crowns = crate::skiscape::crowns(&race.course, ski);
             chase = chase.with_crowns(at, crowns.into());
         }
-        // on Sunset Ruins the eye keeps inside the temple (RS22)
+        // on Sunset Ruins the eye keeps inside the temple (RS25)
         if let Some(r) = &race.course.ruins {
             let temple = crate::camera::Temple::of(r);
             chase = chase.with_temple(at, Some(std::sync::Arc::new(temple)));

@@ -306,7 +306,7 @@ pub fn scenery(c: &Course, r: &RuinsLayout) -> Scenery {
         let mh = c.heading_at(mo);
         // (its top 5 m under the temple floor: from the floor, its top
         // tier's crags and mossy ledges rose up to 4.5 m over it, 1-5 m
-        // inside the mouth, an olive slab on the way in, RS23)
+        // inside the mouth, an olive slab on the way in, RS26)
         let sunk = int(5);
         let face = v3(mp.x, floor - sunk, mp.z).sub(mh.scale(int(1)));
         push(mp, &mut |b| {
@@ -1349,7 +1349,7 @@ pub fn dynamic(b: &mut Batch, c: &Course, r: &RuinsLayout, eye: V3, t: u32, tick
         }
         // (no glow in the throat: since the mouth's plug went, RS21, its
         // flattened halo lay on the floor past the mouth as an olive slab,
-        // RS23; the braziers light the way in)
+        // RS26; the braziers light the way in)
     }
     // the glyphs: in the corridor's panels and up its walls, round the
     // chamber; pulsing

@@ -1,7 +1,7 @@
 //! Where the chase camera is as an ape of a Sunset Ruins tile race passes
 //! the temple mouth: the ape's and the eye's metres along the course,
 //! across it and over the temple floor, every ten ticks (SECOND-ORDER
-//! RS22).
+//! RS25).
 //!
 //!     cargo run --release -p tool_core --example mouth_camera -- "map=ruins,seed=1,focus=3" 2250 2450
 use tool_core::app::App;

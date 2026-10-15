@@ -59,7 +59,7 @@ pub struct Chase {
     /// how fast the reach is changing (a tick)
     pub reach_speed: i32,
     /// the temple the eye keeps inside of (Sunset Ruins; none on the
-    /// other maps), SECOND-ORDER RS22
+    /// other maps), SECOND-ORDER RS25
     pub temple: Option<Arc<Temple>>,
 }
 
@@ -350,7 +350,7 @@ fn open_reach(from: V3, dir: V3, at: i32, len: i32, near: &[&Crown], gap: i32) -
     len
 }
 
-/// Sunset Ruins' temple as the chase camera sees it (SECOND-ORDER RS22):
+/// Sunset Ruins' temple as the chase camera sees it (SECOND-ORDER RS25):
 /// the room the eye stays in once it is past the facade. In front of the
 /// facade the eye is free (the ground keeps it up); in the facade and the
 /// mouth's reveal it stays in the opening (under the reveal's roof, which
@@ -404,7 +404,10 @@ impl Temple {
             .collect();
         let ch = r.chamber;
         Temple {
-            face: V3 { y: floor, ..mo.centre },
+            face: V3 {
+                y: floor,
+                ..mo.centre
+            },
             inward: mo.fwd.flat().norm(),
             half: mo.half.x,
             top: mo.centre.y + mo.half.y,
@@ -757,7 +760,7 @@ mod tests {
 
     #[test]
     fn on_sunset_ruins_the_eye_stays_in_the_temple_as_the_apes_go_in() {
-        // RS22: following an ape in through the mouth, the eye rode over
+        // RS25: following an ape in through the mouth, the eye rode over
         // the reveal's roof and its top hid the view's lower half. AI
         // races on several seeds, a chase camera on each ape from the
         // ravine to 150 m into the corridor: past the facade the eye is
@@ -830,7 +833,10 @@ mod tests {
                     let inn = d.dot(o.fwd);
                     if temple.open(t) && inn > -int(6) && inn < int(12) {
                         assert!(e.y <= o.centre.y + o.half.y, "over the mouth's top: {why}");
-                        assert!(d.dot(right_of(o.fwd)).abs() <= o.half.x, "in its side: {why}");
+                        assert!(
+                            d.dot(right_of(o.fwd)).abs() <= o.half.x,
+                            "in its side: {why}"
+                        );
                     }
                     // and never in the face's solid boxes (ruins/facade.rs)
                     let fwd = r.mouth.opening.fwd;
