@@ -289,10 +289,13 @@ const SKI_HOP: [i32; 4] = [int(22), int(24), int(26), int(28)];
 /// comes mostly from the arms (RT2). Once the layout's stalls were fixed
 /// (RT6) the Monkey and the Ape bunched up again: the Ape got stronger
 /// arms (5 of 8) and the Monkey a slower reaction (16 ticks, not 14). The
-/// Monkey's misjudging is touchy: 6 m instead of 4 cost it 9 s.
-const RUINS_HESITATE: [u32; 4] = [12, 16, 5, 0];
+/// Monkey's misjudging is touchy: 6 m instead of 4 cost it 9 s. Once the
+/// temple face was solid (1.11.1) the Sloth came within 1 s of the Monkey
+/// and the Ape within 6 s of King Kong: the Sloth's arms are now 1 of 8 and
+/// the Ape's 4, with a 6-tick reaction (RT11).
+const RUINS_HESITATE: [u32; 4] = [12, 16, 6, 0];
 const RUINS_JITTER: [u32; 4] = [6, 5, 5, 0];
-const RUINS_DRIVE: [u32; 4] = [2, 3, 5, DUTY];
+const RUINS_DRIVE: [u32; 4] = [1, 3, 4, DUTY];
 const RUINS_NOISE: [i32; 4] = [int(8), int(4), int(3), 0];
 /// On Sunset Ruins, how near a low vine over the river must be for a
 /// swimmer to swim for it and catch it, not for the bank (RT10).
@@ -1603,17 +1606,7 @@ fn on_ground(a: &Ape, course: &Course, tick: u32, brain: &mut Brain) -> Controls
     let Some(t) = target else {
         return c;
     };
-    let an = course.anchor(t, tick);
-    let to = an.flat().sub(a.pos.flat());
-    // (Sunset Ruins: a low vine over the river is run for along the bank
-    // until it is near enough to swim to: heading straight for it from
-    // far off ran it into the water again and again, RT10)
-    if course.ruins.is_some()
-        && to.len() > RUINS_SWIM_TO
-        && course.water(v3(an.x, a.pos.y, an.z)).is_some()
-    {
-        return c;
-    }
+    let to = course.anchor(t, tick).flat().sub(a.pos.flat());
     c.yaw = yaw_of(to);
     brain.cands = ahead(course, a, prog - int(20), tick, tune);
     if !brain.cands.contains(&t) {

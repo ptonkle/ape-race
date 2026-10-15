@@ -36,8 +36,14 @@ impl Mouth {
         [
             (at(-side_x, (top + bottom) / 2), tall),
             (at(side_x, (top + bottom) / 2), tall),
-            (at(0, (top + hi) / 2), v3(o.half.x, (top - hi) / 2, o.half.z)),
-            (at(0, (lo + bottom) / 2), v3(o.half.x, (lo - bottom) / 2, o.half.z)),
+            (
+                at(0, (top + hi) / 2),
+                v3(o.half.x, (top - hi) / 2, o.half.z),
+            ),
+            (
+                at(0, (lo + bottom) / 2),
+                v3(o.half.x, (lo - bottom) / 2, o.half.z),
+            ),
         ]
     }
 }
@@ -154,7 +160,10 @@ mod tests {
                 past * 100 / ONE
             );
             assert!(on <= int(3), "{across}, {up}: still going in at {on}");
-            assert!(reset, "{across} m across, {up} m up: never fell into the ravine");
+            assert!(
+                reset,
+                "{across} m across, {up} m up: never fell into the ravine"
+            );
         }
     }
 
