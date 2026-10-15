@@ -209,7 +209,7 @@ fn nothing_goes_faster_than_the_cap() {
 }
 
 #[test]
-fn crossing_the_boundary_puts_the_ape_back_on_the_nearest_deck() {
+fn crossing_the_boundary_puts_the_ape_back_on_the_nearest_deck_behind() {
     let c = space(&[], vec![], false);
     let mut r = Race::new(c, &entries(2), false, 1);
     r.phase = crate::race::Phase::Running;
@@ -229,14 +229,17 @@ fn crossing_the_boundary_puts_the_ape_back_on_the_nearest_deck() {
     assert_eq!(a.pos, v3(0, BODY_DROP, int(5)));
     assert_eq!(a.yaw, 0);
     assert!(r.racers[0].eaten.is_none());
-    // the nearest either way (of two as near, the one behind); below
-    // and above count too
+    // the nearest behind, never one ahead however close (T80); below and
+    // above count too; off the back of the start, the start's deck
     for (pos, pad) in [
         (v3(0, -int(31), int(250)), 1),
         (v3(0, int(61), int(250)), 1),
-        (v3(0, -int(31), int(110)), 1),
+        (v3(0, -int(31), int(201)), 1),
+        (v3(0, -int(31), int(199)), 0),
+        (v3(0, -int(31), int(190)), 0),
+        (v3(0, -int(31), int(110)), 0),
         (v3(0, -int(31), int(100)), 0),
-        (v3(0, -int(31), int(102)), 0),
+        (v3(0, -int(31), int(2)), 0),
     ] {
         let a = &mut r.racers[1].ape;
         a.pos = pos;
