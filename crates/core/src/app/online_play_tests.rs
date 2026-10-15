@@ -692,3 +692,23 @@ fn the_joiner_sees_the_hosts_ruins_lobby_camera() {
         assert_eq!((a.eye, a.fwd), (b.eye, b.fwd), "{w}x{h}");
     }
 }
+
+/// Banana Bay Battle: the joiner's lobby camera is the host's, the fleet
+/// between the panels and the ape (`menu_dock`'s Bay test checks where).
+#[test]
+fn the_joiner_sees_the_hosts_bay_lobby_camera() {
+    let mut pair = Pair::lobby();
+    pair.apps[0].act("lobby.map", "bay");
+    pair.run(500);
+    for (w, h) in [(1920, 1080), (1366, 768), (1280, 720)] {
+        for a in pair.apps.iter_mut() {
+            a.resize(w, h);
+        }
+        let [host, joiner] = &pair.apps;
+        assert_eq!(joiner.screen, Screen::Lobby);
+        assert_eq!(joiner.map(), crate::map::Map::Bay);
+        assert_eq!(joiner.dock(), host.dock(), "{w}x{h}");
+        let (a, b) = (host.preview_camera(), joiner.preview_camera());
+        assert_eq!((a.eye, a.fwd), (b.eye, b.fwd), "{w}x{h}");
+    }
+}

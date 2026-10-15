@@ -44,6 +44,7 @@ use crate::scene::{Look, Scenery};
 use crate::snow::Weather;
 
 pub mod fleet;
+pub mod lobby;
 
 /// The sun's height over the horizon: 3 pm, high but not overhead.
 pub const SUN_HIGH: i32 = deg(40);

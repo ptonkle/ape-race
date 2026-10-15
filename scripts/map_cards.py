@@ -45,6 +45,9 @@ CARDS = {
     # down the river at the rope bridge, the temple's gaping mouth beyond
     # and the sunset glowing on the right
     "ruins": "460",
+    # alongside the fleet: a navy frigate under its purple flag, pirate
+    # ships ahead in line, a hull hit smoking, the flagged barrels
+    "bay": "230",
 }
 
 SCALE_TO_WEBP = """async ([w, h, q]) => {
