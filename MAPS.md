@@ -4,7 +4,7 @@ Notes for building the next map, from the Jungle (the first course) and the City
 
 ## Build steps (track these for every map)
 
-Keep `notes/<key>-progress.md` with one row per step and a status of **Done**, **In progress**, **Not started**, **Waiting on you** or **Blocked**, and show that table in every progress report (the person, 2026-10-14). The steps:
+Keep `notes/<key>-progress.md` with one row per step and a status of **Done**, **In progress**, **Not started**, **Waiting on you** or **Blocked**, and show that table in every progress report (the person, 2026-10-14; the `/progress-report` skill in ~/.claude/skills does this). The steps:
 
 1. Brief and answers
 2. Skeleton and contract
@@ -26,7 +26,7 @@ Keep `notes/<key>-progress.md` with one row per step and a status of **Done**, *
 18. Full checks
 19. Deploy
 
-New concepts get tracked too. Under the steps, the progress file has a **features table**: one row per concept from the brief (the river, the turtles, the trapdoors…), and a new row the moment anything new comes up (the person's feedback, a new mechanic, an idea mid-build), with its source. Each feature goes through the same stages: Model, Rule (or n/a), On course, Checked. If a new kind of work applies to every map, add it to the step list above as well.
+New concepts get tracked too. Under the steps, the progress file has a **features table**: one row per concept from the brief (the river, the turtles, the trapdoors…), and a new row the moment anything new comes up (the person's feedback, a new mechanic, an idea mid-build), with its source. Each feature goes through the same stages: Model, Gameplay (or n/a), Placed in course, Tested. If a new kind of work applies to every map, add it to the step list above as well.
 
 ## What a map is
 

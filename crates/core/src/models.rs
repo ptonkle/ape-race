@@ -1853,19 +1853,21 @@ fn shades(rig: &mut Rig, kind: Kind, l: &Look, h: &Frame) {
 // canteen on a strap hanging at the hip, and tiny round spectacles.
 
 /// The jacket's khaki, its darker trim (collar, pockets, belt), the pith
-/// helmet's pale cork and its brown band.
-const KHAKI: Rgb = rgb(214, 186, 124);
-const KHAKI_DARK: Rgb = rgb(156, 126, 76);
-const PITH: Rgb = rgb(234, 222, 184);
-const PITH_BAND: Rgb = rgb(112, 84, 52);
+/// helmet's pale cork and its dark band. Pale, cool and grey-leaning with
+/// dark trim (SECOND-ORDER RG8): under the Ruins' gold-orange light a warm
+/// khaki read the same orange as the fur, so value carries the contrast.
+const KHAKI: Rgb = rgb(200, 204, 190);
+const KHAKI_DARK: Rgb = rgb(92, 96, 82);
+const PITH: Rgb = rgb(248, 246, 238);
+const PITH_BAND: Rgb = rgb(46, 40, 38);
 /// The compass: a brass case, a cream face and a red needle.
 const BRASS: Rgb = rgb(206, 162, 64);
 const DIAL: Rgb = rgb(248, 242, 222);
 const NEEDLE: Rgb = rgb(212, 40, 36);
 /// The canteen: an olive tin body, a steel cap, a leather strap.
-const CANTEEN: Rgb = rgb(98, 110, 70);
+const CANTEEN: Rgb = rgb(58, 104, 62);
 const STEEL: Rgb = rgb(184, 188, 194);
-const LEATHER: Rgb = rgb(102, 66, 38);
+const LEATHER: Rgb = rgb(64, 38, 22);
 /// The spectacles: thin dark-gold wire round pale glass.
 const WIRE: Rgb = rgb(150, 116, 48);
 const SPECS_GLASS: Rgb = rgb(214, 236, 246);

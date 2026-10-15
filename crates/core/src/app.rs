@@ -1489,10 +1489,10 @@ impl App {
         let vivid = self.settings.colourblind;
         // each map has its own sky, fog and light (the City at dusk)
         let look = match (&self.play, self.stage) {
-            (Some(p), Stage::Race) => scene::look_of(&p.race.course),
+            (Some(p), Stage::Race) => scene::look_at(&p.race.course, cam.eye),
             _ => self
                 .course_of(self.shown_map())
-                .map(scene::look_of)
+                .map(|c| scene::look_at(c, cam.eye))
                 .unwrap_or_else(|| scene::look(self.shown_map())),
         };
         // the Ski Slope's snow greys the sky and closes the fog in (a
@@ -3257,7 +3257,10 @@ mod tests {
         b.load_replays(&saved);
         b.act("menu.replays", "");
         let shown = texts(&ui_of(&mut b)["panels"]);
-        assert!(shown.contains("★ Best · Jungle · Time Trial"), "{shown}");
+        assert!(
+            shown.contains("★ Best · Canopy Run · Time Trial"),
+            "{shown}"
+        );
         b.act("replays.watch.0", "");
         assert!(b.play.as_ref().unwrap().replay.is_some());
         b.act("replay.exit", "");
@@ -3294,7 +3297,8 @@ mod tests {
         b.act("menu.replays", "");
         let shown = texts(&ui_of(&mut b)["panels"]);
         assert!(
-            shown.contains("★ Best · Jungle · Time Trial · Chimpanzee · 1:15.00 · older layout"),
+            shown
+                .contains("★ Best · Canopy Run · Time Trial · Chimpanzee · 1:15.00 · older layout"),
             "{shown}"
         );
         assert!(shown.contains(r#""disabled":false"#), "{shown}");

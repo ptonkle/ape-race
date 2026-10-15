@@ -615,7 +615,7 @@ pub fn moai_head(b: &mut Batch, f: &Affine, k: u32, big: bool) {
     if big {
         // the ahu: a long low platform of fitted blocks behind and under
         for i in -3..=3 {
-            let h = 6 + (hash(k, 10 + i as u32) % 3) as i32;
+            let h = 6 + (hash(k, (10 + i) as u32) % 3) as i32;
             put(
                 b,
                 f,
@@ -2643,6 +2643,11 @@ pub fn sky(b: &mut Batch, eye: V3, sun_yaw: i32) {
         let el = deg(pick(i, 86, 4, 16));
         let at = eye.add(facing(a, el).scale(DOME - int(60)));
         let toward = (fx::cos(a - sun_yaw) + ONE) / 2;
+        // (the far side's clouds read as thin magenta streaks edge-on:
+        // only the sun's side has them, RS3)
+        if toward < ONE * 2 / 5 {
+            continue;
+        }
         let c = mix(rgb(150, 40, 70), rgb(255, 170, 70), mul(toward, toward));
         b.push(
             Mesh::Bevel,
