@@ -26,9 +26,9 @@ The standard map-build steps (MAPS.md "Build steps"), one row each. Status is on
 
 ## This map's features
 
-One row per concept from the brief, plus any added later (your feedback, a new idea, a new mechanic): add a row the moment it comes up. Each is tracked through the same stages: **Model** (drawn), **Rule** (physics or gameplay; "n/a" if only scenery), **Placed in course** (placed in the real layout), **Tested** (seen working in an in-game shot or proved by a test). Each cell is Done, In progress, Not started or n/a.
+One row per concept from the brief, plus any added later (your feedback, a new idea, a new mechanic): add a row the moment it comes up. Each is tracked through the same stages: **Model** (drawn), **Gameplay** (how it plays: physics, rules; "n/a" if only scenery), **Placed in course** (placed in the real layout), **Tested** (seen working in an in-game shot or proved by a test). Each cell is Done, In progress, Not started or n/a.
 
-| Feature | Source | Model | Rule | Placed in course | Tested |
+| Feature | Source | Model | Gameplay | Placed in course | Tested |
 | --- | --- | --- | --- | --- | --- |
 | Sunset sky (yellow → crimson) | Brief | Done | n/a | Done | Done |
 | Explorer outfit | Brief | Done | n/a | Done | Done |
