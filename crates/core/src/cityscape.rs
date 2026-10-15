@@ -3108,19 +3108,49 @@ pub fn spark(b: &mut Batch, at: V3, spin: i32) {
 
 // ---- the preview spot ----
 
-/// A place on the City to show an ape on the selection screen: a street
-/// corner a little way in, at dusk with the buildings behind. The feet's
-/// point on the ground and the way the ape faces, and a camera on it.
+/// How far past the bridge's first tower the lobby's ape stands.
+const PREVIEW_PAST_TOWER: i32 = int(30);
+
+/// A place on the City to show an ape on the selection screen (TRIAGE
+/// T77: the street corner it stood on before was dark on dark): out on
+/// the bridge, past its first tower, seen from further along the deck
+/// looking back, so the low sun is behind the camera and lights the ape,
+/// and behind it are the tower's floodlit arch, the cables sweeping up to
+/// it and Midtown's skyline beyond. Without a bridge, a street corner a
+/// little way in. The feet's point and the way the ape faces, and a
+/// camera on it.
 pub fn preview(c: &Course) -> (V3, i32, Camera) {
-    let s = int(60).min(c.length);
-    let fwd = c.heading_at(s);
-    let right = right_of(fwd);
-    let feet = on_ground(c.point(s).add(right.scale(c.half_width / 3)));
-    // the ape faces back toward the camera, which looks a little up the street
-    let eye = feet
-        .add(fwd.scale(-cm(290)))
-        .add(right.scale(-cm(60)))
-        .add(up(cm(125)));
+    let bridge = c.city.as_ref().and_then(|l| l.bridge.as_ref());
+    let (feet, eye) = match bridge {
+        Some(br) if !br.towers.is_empty() => {
+            let along = br.end.sub(br.start).flat().norm();
+            let side = right_of(along);
+            // past the first tower, a little left of the deck's middle
+            // (the lineup stands back toward the tower on the right)
+            let p = br.towers[0]
+                .add(along.scale(PREVIEW_PAST_TOWER))
+                .add(side.scale(cm(200)));
+            let feet = v3(p.x, br.start.y, p.z);
+            let eye = feet
+                .add(along.scale(cm(290)))
+                .add(side.scale(-cm(60)))
+                .add(up(cm(70)));
+            (feet, eye)
+        }
+        _ => {
+            let s = int(60).min(c.length);
+            let fwd = c.heading_at(s);
+            let right = right_of(fwd);
+            let feet = on_ground(c.point(s).add(right.scale(c.half_width / 3)));
+            // the ape faces back toward the camera, which looks a little
+            // up the street
+            let eye = feet
+                .add(fwd.scale(-cm(290)))
+                .add(right.scale(-cm(60)))
+                .add(up(cm(125)));
+            (feet, eye)
+        }
+    };
     let target = feet.add(up(cm(62)));
     let yaw = yaw_of(eye.sub(feet).flat());
     (
@@ -3358,11 +3388,16 @@ mod tests {
     }
 
     #[test]
-    fn the_preview_stands_in_the_street_facing_the_camera() {
+    fn the_preview_stands_on_the_bridge_facing_the_camera() {
         let c = Map::City.course();
         let city = c.city.as_ref().unwrap();
         let (feet, yaw, cam) = preview(&c);
-        assert_eq!(feet.y, c.floor(feet.x, feet.z));
+        // on the bridge's deck (TRIAGE T77), over the water
+        assert_eq!(
+            feet.y,
+            c.support(feet.add(v3(0, crate::rules::BODY_DROP, 0)))
+        );
+        assert!(c.water(feet).is_some(), "out over the river");
         for b in &city.blocks {
             let d = cam.eye.flat().sub(b.centre.flat());
             let inside =
