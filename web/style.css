@@ -558,6 +558,9 @@ body[data-dock] .panel.setup .toggle { margin: 0.2rem 0; flex-wrap: wrap; row-ga
 body[data-dock] .panel.setup .field label { white-space: nowrap; }
 body[data-dock] .panel.setup .tiles-field { margin: 0.1rem 0 0.3rem; }
 body[data-dock] .panel.setup .tile-hero img { aspect-ratio: 3 / 1; }
+/* on a short screen the picture is flatter, so the Weather row (Yeti Peak,
+   the bay) fits beside Colours and Costume without a scrollbar */
+@media (max-height: 760px) { body[data-dock] .panel.setup .tile-hero img { aspect-ratio: 5 / 1; } }
 body[data-dock] .panel.setup .picker { margin: 0.2rem 0 0.3rem; }
 body[data-dock] .panel.setup .picker .name { font-size: 1.4rem; }
 body[data-dock] .panel.setup .picker button { width: 2.2rem; height: 2.2rem; font-size: 1.2rem; }
