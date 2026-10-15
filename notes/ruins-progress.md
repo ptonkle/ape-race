@@ -11,15 +11,15 @@ The standard map-build steps (MAPS.md "Build steps"), one row each. Status is on
 | 5 | Sky and lighting | Done | Sunset dome, haze ring; inside and skylit looks |
 | 6 | Course layout | Done | 1.75 km: river, bridge, corridor, 300° chamber |
 | 7 | Map rules | Done | Current, ravine reset, bridge boost, spikes, trapdoors |
-| 8 | Art placed on the course | In progress | First pass committed; shots being taken |
-| 9 | Lobby spot and flyover | In progress | Lobby ledge, smooth flyover (fixes the failing test) |
+| 8 | Art placed on the course | In progress | Merged: the whole map draws on its course. Polish pass running (cliffs, a ground fold, dim glyphs) |
+| 9 | Lobby spot and flyover | In progress | Flyover smooth (its test passes); lobby being reframed |
 | 10 | AI validation | In progress | Merged: ordered over 8 layouts (Sloth 86.9, Monkey 77.7, Ape 71.3, King Kong 64.3 s); thin on 16 (the Ape stalls on 3); an agent is fixing the bridge and mouth stalls |
 | 11 | Medal times | Done | Author 0:54, Gold 1:01, Silver 1:11, Bronze 1:26 |
 | 12 | Step and frame cost | In progress | Worst step 7.1 ms near the start (other maps 1.4–2.7 ms); an agent is fixing it |
-| 13 | Colourblind and JOJO MODE | In progress | |
-| 14 | Map card | Not started | Copy of the Jungle's today |
-| 15 | Screenshots at 1920×1080 | In progress | Ape photos done (19, on the journal); in-game shots coming |
-| 16 | Other maps unchanged | Done | `jungle_unchanged`, `maps_unchanged`, `sector_unchanged` pass |
+| 13 | Colourblind and JOJO MODE | In progress | Colourblind fine; JOJO MODE misses the haze band and the temple face, being fixed |
+| 14 | Map card | In progress | Being made by the polish agent |
+| 15 | Screenshots at 1920×1080 | In progress | Apes, contrast and 14 in-game shots on the journal; finish shot and v2 coming |
+| 16 | Other maps unchanged | Done | All tests pass on main, the flyover too |
 | 17 | Docs | In progress | SECOND-ORDER rows written; README, MAPS.md, HANDOFF to do |
 | 18 | Full checks | Not started | `scripts/timed-checks.sh` |
 | 19 | Deploy | Waiting on you | Only on your go-ahead |
@@ -30,26 +30,28 @@ One row per concept from the brief, plus any added later (your feedback, a new i
 
 | Feature | Source | Model | Rule | Placed in course | Tested |
 | --- | --- | --- | --- | --- | --- |
-| Sunset sky (yellow → crimson) | Brief | Done | n/a | In progress | Not started |
+| Sunset sky (yellow → crimson) | Brief | Done | n/a | Done | Done |
 | Explorer outfit | Brief | Done | n/a | Done | Done |
 | Outfit stands apart from fur in the sunset | 1080p shots | Done | n/a | Done | Done |
 | Jaguar pith helmet | Your feedback | Done | n/a | Done | Done |
-| Dense jungle | Brief | Done | n/a | In progress | Not started |
-| Banana-bunch and moai ape ruins | Brief | Done | n/a | In progress | Not started |
-| River with rapids and current | Brief | In progress | Done | In progress | Not started |
-| Snapping turtles (bouncers) | Brief | Done | Done | In progress | Not started |
-| Waterfall and ravine reset | Brief | Done | Done | In progress | Not started |
-| Rope bridge, three gorillas wide | Brief | Done | n/a | In progress | Not started |
-| Boost vines launch into the mouth | Brief | In progress | Done | In progress | Not started |
+| Dense jungle | Brief | Done | n/a | Done | Done |
+| Banana-bunch and moai ape ruins | Brief | Done | n/a | Done | Done |
+| River with rapids and current | Brief | Done | Done | Done | Done |
+| Snapping turtles (bouncers) | Brief | Done | Done | Done | In progress |
+| Waterfall and ravine reset | Brief | Done | Done | Done | Done |
+| Rope bridge, three gorillas wide | Brief | Done | n/a | Done | Done |
+| Boost vines launch into the mouth | Brief | Done | Done | Done | Done |
 | Weaker AIs cross the bridge and mouth without stalling | AI tuning | n/a | In progress | In progress | Not started |
-| Temple mouth in Aztec relief, with depth | Brief, your feedback | Done | Done | In progress | Not started |
-| Waterfall from the mouth | Brief | Done | n/a | In progress | Not started |
-| Banana-glyph stonework, pulsing glow | Brief | Done | n/a | In progress | Not started |
-| Darker temple lighting | Brief | Done | n/a | In progress | Not started |
-| Floor spike traps | Brief | Done | Done | In progress | Not started |
-| Trip wires → trapdoors after 0.75 s | Brief | Done | Done | In progress | Not started |
-| Glowing banana-spike pits | Brief | Done | Done | In progress | Not started |
-| Pit vines drop when doors open | Brief | In progress | Done | In progress | Not started |
-| Counter-clockwise round chamber, invisible inner wall | Brief | In progress | Done | In progress | Not started |
-| Banana pile finish, packed solid | Brief, your feedback | Done | Done | In progress | Not started |
-| Skylight with foliage and soft spotlight | Brief | Done | n/a | In progress | Not started |
+| Temple mouth in Aztec relief, with depth | Brief, your feedback | Done | Done | Done | Done |
+| Waterfall from the mouth | Brief | Done | n/a | Done | Done |
+| Banana-glyph stonework, pulsing glow | Brief | Done | n/a | Done | Done |
+| Darker temple lighting | Brief | Done | n/a | Done | Done |
+| Floor spike traps | Brief | Done | Done | Done | Done |
+| Trip wires → trapdoors after 0.75 s | Brief | Done | Done | Done | Done |
+| Glowing banana-spike pits | Brief | Done | Done | Done | In progress |
+| Pit vines drop when doors open | Brief | Done | Done | Done | Done |
+| Counter-clockwise round chamber, invisible inner wall | Brief | Done | Done | Done | Done |
+| Banana pile finish, packed solid | Brief, your feedback | Done | Done | Done | In progress |
+| Skylight with foliage and soft spotlight | Brief | Done | n/a | Done | In progress |
+| Sun low and to the side, raking across the temple face | Models review | n/a | n/a | Done | Waiting on you |
+| Ravine sides read as rocky cliffs | In-game shots | In progress | n/a | In progress | Not started |
