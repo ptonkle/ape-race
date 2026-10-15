@@ -20,6 +20,8 @@ fn requests(a: &mut App) -> Vec<Value> {
 struct Pair {
     apps: [App; 2],
     now_us: i64,
+    /// the joiner's messages stop reaching the host (TRIAGE T71)
+    mute_joiner: bool,
 }
 
 impl Pair {
@@ -40,6 +42,7 @@ impl Pair {
         let mut pair = Pair {
             apps: [h, j],
             now_us: 0,
+            mute_joiner: false,
         };
         pair.run(1000);
         pair
@@ -53,6 +56,9 @@ impl Pair {
                 self.apps[k].advance(self.now_us);
                 let out: Vec<Value> = serde_json::from_str(&self.apps[k].take_outbox()).unwrap();
                 let from = if k == 0 { "H" } else { "J" };
+                if k == 1 && self.mute_joiner {
+                    continue;
+                }
                 for o in out {
                     let text = o["text"].as_str().unwrap();
                     self.apps[1 - k].net_event("message", from, text, k == 0);
@@ -457,4 +463,177 @@ fn floor_is_lava_online_the_jaguar_eats_on_every_browser() {
         matches!(host_row.fin, crate::online::Fin::Eaten(..)),
         "{rows:?}"
     );
+}
+
+fn item(ui: &Value, id: &str) -> Option<Value> {
+    ui["panels"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .flat_map(|p| p["items"].as_array().cloned().unwrap_or_default())
+        .find(|i| i["id"] == id)
+}
+
+#[test]
+fn the_hosts_weather_is_everyones_online() {
+    use crate::snow::Weather;
+    // TRIAGE T67: the host picks; the joiner sees it read-only, and its
+    // own Settings weather does not apply online
+    let mut p = Pair::lobby();
+    p.apps[1].settings.weather = Weather::Clear;
+    let ui: Value = serde_json::from_str(&p.apps[0].ui()).unwrap();
+    assert!(
+        item(&ui, "lobby.weather").is_none(),
+        "only on the Ski Slope"
+    );
+    p.apps[0].act("lobby.map", "ski");
+    p.run(200);
+    let host: Value = serde_json::from_str(&p.apps[0].ui()).unwrap();
+    let row = item(&host, "lobby.weather").expect("the host's weather select");
+    assert_eq!(row["type"], "select");
+    let options: Vec<&str> = row["options"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|o| o["value"].as_str().unwrap())
+        .collect();
+    let all: Vec<&str> = Weather::ALL.iter().map(|w| w.key()).collect();
+    assert_eq!(options, all, "every weather there is");
+    p.apps[0].act("lobby.weather", "snowing");
+    p.run(200);
+    assert_eq!(p.apps[0].settings.weather, Weather::Snowing);
+    let joiner: Value = serde_json::from_str(&p.apps[1].ui()).unwrap();
+    let row = item(&joiner, "lobby.weather").expect("the joiner's weather row");
+    assert_eq!(row["type"], "list", "read-only");
+    assert!(row.to_string().contains("Snowing"), "{row}");
+    assert!(p.apps[1].snowing(), "the host's snow in the joiner's lobby");
+    // a joiner cannot choose
+    p.apps[1].act("lobby.weather", "clear");
+    p.run(200);
+    assert_eq!(p.apps[0].weather(), Weather::Snowing);
+    p.race();
+    p.run(500);
+    assert!(p.apps[1].snowing(), "and in its race");
+    assert_eq!(p.apps[1].settings.weather, Weather::Clear, "its own kept");
+}
+
+#[test]
+fn a_racer_whose_updates_stop_is_named_on_the_hud() {
+    // TRIAGE T71: not frozen silently
+    let mut p = Pair::lobby();
+    p.race();
+    p.run(4000);
+    let hint = |a: &mut App| {
+        let ui: Value = serde_json::from_str(&a.ui()).unwrap();
+        ui["hud"]["hint"].as_str().unwrap_or_default().to_string()
+    };
+    let stalled = p.apps[0].t("hud.stalled");
+    assert!(!hint(&mut p.apps[0]).contains(&stalled));
+    p.mute_joiner = true;
+    p.run(crate::online::STALL_MS + 300);
+    let h = hint(&mut p.apps[0]);
+    assert!(h.contains(&stalled) && h.contains("Player"), "{h}");
+    p.mute_joiner = false;
+    p.run(300);
+    assert!(!hint(&mut p.apps[0]).contains(&stalled));
+}
+
+fn saved_room(a: &mut App) -> Option<String> {
+    let ui: Value = serde_json::from_str(&a.ui()).unwrap();
+    ui["save_online"].as_str().map(str::to_string)
+}
+
+#[test]
+fn a_refresh_rejoins_the_room_as_the_same_player() {
+    // TRIAGE T72: the room is remembered for the tab, and a fresh page
+    // given it joins again under the same client id
+    let mut h = app("h");
+    h.act("menu.online", "");
+    h.act("online.host", "");
+    let code = h.online.room.clone();
+    let hm: Value = serde_json::from_str(&saved_room(&mut h).expect("remembered")).unwrap();
+    assert_eq!(
+        (hm["room"].as_str(), hm["host"].as_bool()),
+        (Some(code.as_str()), Some(true))
+    );
+    let mut j = app("j");
+    j.act("menu.online", "");
+    j.act("online.room", &code);
+    j.act("online.join", "");
+    let memo = saved_room(&mut j).expect("the joiner's room remembered");
+    let m: Value = serde_json::from_str(&memo).unwrap();
+    assert_eq!(
+        (m["room"].as_str(), m["host"].as_bool()),
+        (Some(code.as_str()), Some(false))
+    );
+    assert_eq!(m["id"], "j");
+    // nothing new to save until something changes
+    assert_eq!(saved_room(&mut j), None);
+    let mut p = Pair {
+        apps: [h, j],
+        now_us: 0,
+        mute_joiner: false,
+    };
+    // the joiner's page reloads: a new random id, then the memo
+    let mut j = app("fresh");
+    j.act("flag.rejoin", &memo);
+    assert_eq!(j.online.client_id, "j");
+    assert_eq!(j.screen, Screen::Lobby);
+    let req = requests(&mut j);
+    assert_eq!(req[0]["op"], "join_room");
+    assert!(req[0]["room"].as_str().unwrap().ends_with(&code));
+    assert!(j.ui().contains(&j.t("online.rejoining")));
+    // the host's reloads: its room again, under the same code
+    let mut h = app("fresh");
+    h.act("flag.rejoin", &serde_json::to_string(&hm).unwrap());
+    assert_eq!(h.online.room, code);
+    assert_eq!(requests(&mut h)[0]["op"], "host_room");
+    assert!(h.online.session.as_ref().unwrap().is_host());
+    // Leave forgets it
+    p.apps[1].act("lobby.leave", "");
+    assert_eq!(saved_room(&mut p.apps[1]).as_deref(), Some(""));
+}
+
+#[test]
+fn a_rejoin_with_no_room_to_find_gives_up() {
+    let mut j = app("fresh");
+    j.act("flag.rejoin", r#"{"room":"ABCDEF","host":false,"id":"j"}"#);
+    let _ = saved_room(&mut j);
+    let mut now = 1_000_000;
+    j.advance(now);
+    now += (super::REJOIN_MS + 1000) * 1000;
+    j.advance(now);
+    j.advance(now + 10_000);
+    assert_eq!(j.screen, Screen::Online);
+    assert_eq!(j.online.status, "online.rejoin_failed");
+    assert_eq!(saved_room(&mut j).as_deref(), Some(""), "forgotten");
+}
+
+#[test]
+fn a_joiner_whose_host_drops_tries_the_room_again() {
+    let mut p = Pair::lobby();
+    let code = p.apps[0].online.room.clone();
+    let _ = requests(&mut p.apps[1]);
+    p.apps[1].net_event("disconnected", "H", "", false);
+    p.apps[1].advance(p.now_us + 10_000);
+    assert_eq!(p.apps[1].screen, Screen::Lobby, "still trying");
+    let req = requests(&mut p.apps[1]);
+    assert_eq!(req[0]["op"], "join_room");
+    assert!(req[0]["room"].as_str().unwrap().ends_with(&code));
+    // the host is back: the joiner is seated again
+    p.apps[1].net_event("connected", "H2", "", true);
+    for _ in 0..100 {
+        p.now_us += 10_000;
+        for k in 0..2 {
+            p.apps[k].advance(p.now_us);
+            let out: Vec<Value> = serde_json::from_str(&p.apps[k].take_outbox()).unwrap();
+            let (to, from) = if k == 0 { (1, "H2") } else { (0, "J") };
+            for o in out {
+                p.apps[to].net_event("message", from, o["text"].as_str().unwrap(), k == 0);
+            }
+        }
+    }
+    let o = p.apps[1].online.session.as_ref().unwrap();
+    assert_eq!(*o.status(), crate::online::Status::Lobby);
+    assert!(p.apps[1].online.rejoin.is_none());
 }

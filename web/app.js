@@ -9,6 +9,9 @@ const SAVE_KEY = "ape-race.settings";
 // The kept replays (TRIAGE T15) live under their own key: the core writes
 // and reads the text, the page only stores it.
 const REPLAYS_KEY = "ape-race.replays";
+// The online room this tab is in (TRIAGE T72), for a refresh: the core
+// writes and reads the text, the page keeps it for this tab only.
+const ONLINE_KEY = "ape-race.online";
 const el = (id) => document.getElementById(id);
 const make = (tag, cls, text) => {
   const e = document.createElement(tag);
@@ -33,6 +36,25 @@ function writeStore(key, text) {
   } catch (e) {
     // Storage can be blocked or full; settings then last for this visit only.
     return false;
+  }
+}
+
+// This tab's own storage, gone when the tab closes.
+function readTabStore(key) {
+  try {
+    return sessionStorage.getItem(key) || "";
+  } catch (e) {
+    return "";
+  }
+}
+
+// Empty text forgets the key.
+function writeTabStore(key, text) {
+  try {
+    if (text) sessionStorage.setItem(key, text);
+    else sessionStorage.removeItem(key);
+  } catch (e) {
+    // blocked storage: a refresh then starts at the title
   }
 }
 
@@ -590,6 +612,7 @@ function handle(view) {
     return;
   }
   if (view.save) writeStore(SAVE_KEY, view.save);
+  if (view.save_online !== undefined) writeTabStore(ONLINE_KEY, view.save_online);
   // Storage full: the core asks again with fewer recent replays, never
   // fewer bests (TRIAGE T55).
   if (view.save_replays && !writeStore(REPLAYS_KEY, view.save_replays)) game.replays_not_saved();
@@ -670,6 +693,10 @@ async function start() {
     history.replaceState(null, "", location.pathname + location.search);
     game.act("flag.room_link", linked);
   }
+  // the room this tab was in before a refresh (TRIAGE T72); an invite link
+  // opened just now comes first
+  const remembered = readTabStore(ONLINE_KEY);
+  if (remembered) game.act("flag.rejoin", remembered);
 
   let sceneVersion = null;
   function frame(now) {

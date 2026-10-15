@@ -54,6 +54,12 @@ struct Loopback {
     jitter_ms: i64,
     loss_permille: u64,
     gone: BTreeSet<usize>,
+    /// pairs of nodes with no path between them (no TURN, TRIAGE T71):
+    /// they never connect, and nothing between them arrives
+    cut: BTreeSet<(usize, usize)>,
+    /// how many states each node sent of apes it does not own (the host
+    /// passing them on, TRIAGE T71)
+    passed_on: BTreeMap<usize, usize>,
     drops: Vec<(usize, usize, String)>,
     queue: BTreeMap<(i64, u64), (usize, Event)>,
     seq: u64,
@@ -78,6 +84,8 @@ impl Loopback {
             jitter_ms,
             loss_permille: 0,
             gone: BTreeSet::new(),
+            cut: BTreeSet::new(),
+            passed_on: BTreeMap::new(),
             drops: Vec::new(),
             queue: BTreeMap::new(),
             seq: 0,
@@ -111,8 +119,20 @@ impl Loopback {
         self.queue.insert((at, self.seq), (from, event));
     }
 
+    /// No path between nodes `a` and `b`, from now on.
+    fn cut(&mut self, a: usize, b: usize) {
+        self.cut.insert((a.min(b), a.max(b)));
+    }
+
+    fn is_cut(&self, a: usize, b: usize) -> bool {
+        self.cut.contains(&(a.min(b), a.max(b)))
+    }
+
     /// Node `a` sees node `b` connect (and the other way), after a latency.
     fn connect(&mut self, a: usize, b: usize) {
+        if self.is_cut(a, b) {
+            return;
+        }
         for (x, y) in [(a, b), (b, a)] {
             let at = self.arrival(y, x);
             self.push(
@@ -169,7 +189,7 @@ impl Loopback {
                 Some(p) => vec![index_of(p)],
             };
             for to in targets {
-                if to >= self.count || self.gone.contains(&to) {
+                if to >= self.count || self.gone.contains(&to) || self.is_cut(from, to) {
                     continue;
                 }
                 if let Some(k) = self
@@ -185,6 +205,11 @@ impl Loopback {
                     && self.next_random() % 1000 < self.loss_permille
                 {
                     continue;
+                }
+                if out.text.starts_with("{\"t\":\"state\"")
+                    && !out.text.contains(&format!("\"i\":{from},"))
+                {
+                    *self.passed_on.entry(from).or_default() += 1;
                 }
                 let at = self.arrival(from, to);
                 self.push(
@@ -968,6 +993,39 @@ fn a_host_who_leaves_ends_the_lobby_and_a_race_goes_on_without_it() {
 }
 
 #[test]
+fn the_hosts_weather_reaches_every_lobby_and_rides_with_the_start() {
+    use tool_core::snow::Weather;
+    // TRIAGE T67: one weather for everyone, the host's
+    let mut net = Net::lobby(3);
+    let now = net.now;
+    net.nodes[0].set_map(Map::Ski, now).unwrap();
+    net.nodes[0].set_weather(Weather::Snowing, now).unwrap();
+    assert_eq!(
+        net.nodes[1].set_weather(Weather::Clear, now),
+        Err(OnlineError::NotHost)
+    );
+    net.run(1000);
+    for i in 0..3 {
+        assert_eq!(net.nodes[i].lobby().weather, Weather::Snowing, "node {i}");
+    }
+    // back to Clear, every roster to node 2 lost: its Start still carries it
+    let now = net.now;
+    net.nodes[0].set_weather(Weather::Clear, now).unwrap();
+    for _ in 0..40 {
+        net.lb.drops.push((0, 2, "\"roster\"".into()));
+    }
+    net.ready_all();
+    assert_eq!(net.nodes[2].weather(), Weather::Snowing, "node 2 missed it");
+    let now = net.now;
+    net.nodes[0].start(9, now).unwrap();
+    net.run(1000);
+    for i in 0..3 {
+        assert_eq!(*net.nodes[i].status(), Status::Racing);
+        assert_eq!(net.nodes[i].weather(), Weather::Clear, "node {i}");
+    }
+}
+
+#[test]
 fn the_hosts_map_reaches_every_lobby_and_rides_with_the_start() {
     let mut net = Net::lobby(3);
     let now = net.now;
@@ -1045,4 +1103,165 @@ fn a_client_from_before_the_ski_slope_is_refused_not_misled() {
         }
     );
     assert_eq!(net.nodes[0].lobby().seats.len(), 1);
+}
+
+// ---- no path between two joiners (TRIAGE T71) ----------------------------
+
+#[test]
+fn joiners_with_no_path_between_them_see_each_other_through_the_host() {
+    let mut net = Net::new(3, 7, 30, 20);
+    // joiners 1 and 2 both reach the host, never each other
+    net.lb.cut(1, 2);
+    net.arrive_in_order();
+    net.ready_all();
+    let now = net.now;
+    net.nodes[0].start(42, now).unwrap();
+    net.run(6000);
+    for (watcher, ape) in [(2, 1), (1, 2), (0, 1), (0, 2)] {
+        let seen = net.race(watcher).racers[ape].ape.pos;
+        assert_ne!(
+            seen, net.course.starts[ape],
+            "browser {watcher} sees ape {ape} move"
+        );
+        let lag = net.race(ape).racers[ape].ape.pos.dist(seen);
+        assert!(
+            lag < tool_core::fx::int(6),
+            "browser {watcher} draws ape {ape} near where it is: {} m apart",
+            lag / tool_core::fx::ONE
+        );
+        assert!(net.nodes[watcher].stalled(net.now).is_empty());
+    }
+    // a hit between them goes through the host, once
+    net.nodes[1].send_hit(2, 1, Item::Banana);
+    net.run(500);
+    assert_eq!(
+        net.applied[2],
+        vec![Hit {
+            victim: 2,
+            by: 1,
+            item: Item::Banana
+        }]
+    );
+}
+
+#[test]
+fn a_full_mesh_passes_nothing_on() {
+    let mut net = racing(3, 0);
+    net.run(6000);
+    // every joiner hears every other: the host passes no states on
+    assert_eq!(net.lb.passed_on.get(&0), None);
+    assert!(net.race(2).racers[1].ape.pos != net.course.starts[1]);
+}
+
+#[test]
+fn an_ape_whose_states_stop_is_marked_stalled() {
+    let mut net = racing(2, 0);
+    net.run(3000);
+    assert!(net.nodes[0].stalled(net.now).is_empty());
+    // the link goes quiet without closing
+    net.lb.cut(0, 1);
+    net.run(tool_core::online::STALL_MS + 200);
+    assert_eq!(net.nodes[0].stalled(net.now), vec![1]);
+    assert_eq!(net.nodes[1].stalled(net.now), vec![0]);
+}
+
+// ---- a refresh (TRIAGE T72) -------------------------------------------------
+
+/// Three seated players (nodes 0–2) and node 3: node 1's browser after a
+/// refresh, the same client id on a new transport id, not yet connected.
+fn with_refresh() -> Net {
+    let mut net = Net::new(4, 7, 30, 20);
+    net.nodes[3] = Online::join("client1", "Player 1", KINDS[1], 0);
+    net.alive[3] = false;
+    net.lb.gone.insert(3);
+    for b in 1..3 {
+        for a in 0..b {
+            net.lb.connect(a, b);
+        }
+        net.run(300);
+    }
+    net.run(1000);
+    net
+}
+
+impl Net {
+    /// Node 1 refreshes: its page stops (`leaves` says whether its links
+    /// close at once, as `pagehide` does, or linger, as after a crash) and
+    /// node 3 comes up in its place.
+    fn refresh_node_1(&mut self, leaves: bool) {
+        if leaves {
+            self.drop_node(1);
+        } else {
+            self.alive[1] = false;
+        }
+        self.lb.gone.remove(&3);
+        self.alive[3] = true;
+        self.lb.connect(0, 3);
+        self.lb.connect(2, 3);
+        self.run(1500);
+    }
+
+    fn seat_names(&self) -> Vec<String> {
+        let mut names: Vec<String> = self.nodes[0]
+            .lobby()
+            .seats
+            .iter()
+            .filter(|s| !s.ai)
+            .map(|s| s.name.clone())
+            .collect();
+        names.sort();
+        names
+    }
+}
+
+#[test]
+fn a_player_back_from_a_refresh_keeps_one_seat_in_the_lobby() {
+    for leaves in [true, false] {
+        let mut net = with_refresh();
+        net.refresh_node_1(leaves);
+        assert_eq!(*net.nodes[3].status(), Status::Lobby, "leaves: {leaves}");
+        // the crashed tab's links time out later: still one seat
+        if !leaves {
+            net.drop_node(1);
+            net.run(1500);
+        }
+        assert_eq!(
+            net.seat_names(),
+            vec!["Player 0", "Player 1", "Player 2"],
+            "leaves: {leaves}"
+        );
+        assert_eq!(*net.nodes[3].status(), Status::Lobby);
+    }
+}
+
+#[test]
+fn a_player_back_from_a_refresh_mid_race_waits_for_the_next_round() {
+    for leaves in [true, false] {
+        let mut net = with_refresh();
+        net.ready_all();
+        let now = net.now;
+        net.nodes[0].start(42, now).unwrap();
+        net.run(4000);
+        net.refresh_node_1(leaves);
+        assert_eq!(*net.nodes[3].status(), Status::Joining);
+        assert!(net.nodes[3].underway(), "told the race is under way");
+        // its old ape is out of this race, so the race can end
+        net.race_mut(0).racers[0].finish = Some(800);
+        net.race_mut(2).racers[2].finish = Some(600);
+        net.run(1000);
+        assert!(net.nodes[0].results_final(), "leaves: {leaves}");
+        let fin: Vec<Fin> = net.nodes[0].results().iter().map(|r| r.fin).collect();
+        assert_eq!(fin[2], Fin::Dnf);
+        // the next round seats it again, ready, and it races as ape 1
+        let now = net.now;
+        net.nodes[0].rematch(now).unwrap();
+        net.run(1500);
+        assert_eq!(*net.nodes[3].status(), Status::Lobby);
+        assert!(!net.nodes[3].underway());
+        let now = net.now;
+        net.nodes[0].start(43, now).unwrap();
+        net.run(500);
+        assert_eq!(*net.nodes[3].status(), Status::Racing, "leaves: {leaves}");
+        assert_eq!(net.nodes[3].local_index(), Some(1));
+    }
 }
