@@ -112,7 +112,9 @@ use crate::snow::Weather;
 /// with no link of their own (T71); `Underway` for a player back from a
 /// refresh mid-race (T72).
 /// 9: Random (TRIAGE T64): `random` in the Roster and the Start.
-pub const PROTOCOL: u32 = 9;
+/// 10: Sunset Ruins (2026-10-14): the map `ruins`, which a client of 9
+/// could not read in a Roster or a Start.
+pub const PROTOCOL: u32 = 10;
 /// The most apes in a race, humans and AI together.
 pub const MAX_APES: usize = 4;
 /// The most AI apes the host may add.

@@ -1053,6 +1053,8 @@ pub struct SavePoint {
     /// the one part of the course a race changes besides summoned vines:
     /// Sector Ape's switch door (when it last shut)
     pub door: Option<u32>,
+    /// and Sunset Ruins' trapdoors (when each was last tripped)
+    pub traps: Vec<Option<u32>>,
 }
 
 impl SavePoint {
@@ -1060,6 +1062,7 @@ impl SavePoint {
     /// while it is copied.
     pub fn of(race: &mut Race, brains: &[Brain], blank: &Course) -> SavePoint {
         let door = race.course.sector.as_ref().and_then(|s| s.door.shut_at);
+        let traps = crate::ruins::trap_state(&race.course);
         let course = std::mem::replace(&mut race.course, blank.clone());
         let copy = race.clone();
         race.course = course;
@@ -1067,6 +1070,7 @@ impl SavePoint {
             race: copy,
             brains: brains.to_vec(),
             door,
+            traps,
         }
     }
 }
@@ -1081,6 +1085,7 @@ pub fn put_back(save: SavePoint, race: &mut Race, brains: &mut Vec<Brain>) {
     if let Some(s) = race.course.sector.as_deref_mut() {
         s.door.shut_at = save.door;
     }
+    crate::ruins::put_trap_state(&mut race.course, &save.traps);
 }
 
 /// A recording being watched. The race itself is the `Play`'s.

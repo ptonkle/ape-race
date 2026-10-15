@@ -124,6 +124,7 @@ pub fn look(map: Map) -> Look {
         Map::City => crate::cityscape::look(),
         Map::Ski => crate::skiscape::look(),
         Map::Sector => crate::sectorscape::look(),
+        Map::Ruins => crate::ruinsscape::look(),
     }
 }
 
@@ -137,6 +138,7 @@ pub fn look_of(c: &Course) -> Look {
         Map::Ski => crate::skiscape::look_for(c),
         // the sun stands below, ahead and to the left of the course
         Map::Sector => crate::sectorscape::look_for(c),
+        Map::Ruins => crate::ruinsscape::look(),
     }
 }
 
@@ -446,6 +448,15 @@ pub fn scenery(c: &Course) -> Scenery {
     if let Some(s) = &c.sector {
         return crate::sectorscape::scenery(c, s);
     }
+    if let Some(r) = &c.ruins {
+        return crate::ruinsscape::scenery(c, r);
+    }
+    jungle_scenery(c)
+}
+
+/// The Jungle's scenery and ground, chunked (Sunset Ruins' stand-in draws
+/// it too, until `ruinsscape` has its own).
+pub(crate) fn jungle_scenery(c: &Course) -> Scenery {
     let n = chunk_count(c);
     let mut batches: Vec<Batch> = (0..n).map(|_| Batch::new()).collect();
     let chunk_of = |p: V3| chunk_of(c, p, n);
@@ -1756,6 +1767,9 @@ pub fn catch_up_colour(map: Map, vivid: bool) -> Rgb {
         (Map::City, false) => rgb(255, 60, 190),
         (Map::Ski, false) => rgb(30, 220, 90),
         (Map::Sector, false) => rgb(255, 80, 110),
+        // STAND-IN (Sunset Ruins' skeleton): a hot pink against its
+        // Jungle-green vines; the art agent chooses against the sunset
+        (Map::Ruins, false) => rgb(250, 70, 160),
         // the colourblind mode (TRIAGE T33): told from the map's vivid
         // vine by brightness, not hue alone, and kept off the item flowers'
         // violet: a deep red-orange under the bright green vines, a dark
@@ -1766,6 +1780,7 @@ pub fn catch_up_colour(map: Map, vivid: bool) -> Rgb {
         (Map::City, true) => rgb(255, 40, 200),
         (Map::Ski, true) => rgb(20, 40, 230),
         (Map::Sector, true) => rgb(255, 60, 70),
+        (Map::Ruins, true) => rgb(200, 0, 120),
     }
 }
 
@@ -2079,7 +2094,8 @@ pub fn preview(c: &Course) -> Preview {
         Map::Ski => crate::skiscape::preview(c),
         // a ship's deck, the sun's glow below and the mothership behind
         Map::Sector => crate::sectorscape::preview(c),
-        Map::Jungle => {
+        // STAND-IN (Sunset Ruins' skeleton): the Jungle's start tree
+        Map::Jungle | Map::Ruins => {
             let pl = c.platforms.first();
             let feet = pl.map_or(c.point(int(4)), |p| {
                 v3(p.centre.x, p.top, p.centre.z).add(p.fwd.scale(p.half_len / 2))
@@ -2128,6 +2144,7 @@ pub fn flyover_camera(c: &Course, ticks: u32, from: i32) -> Camera {
         // over the hill, high enough to see down it
         Map::Ski => int(16),
         Map::Sector => int(20),
+        Map::Ruins => int(14),
     };
     let eye = v3(p.x, c.terrain(p.x, p.z) + lift, p.z);
     // down the Ski Slope's hill, the glide looks down it too
