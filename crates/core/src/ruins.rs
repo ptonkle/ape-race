@@ -51,6 +51,7 @@ use crate::rules::TICKS_PER_SECOND;
 
 pub use layout::{ruins, ruins_seeded};
 
+mod facade;
 mod layout;
 mod rules;
 #[cfg(test)]
