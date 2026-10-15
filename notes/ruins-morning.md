@@ -7,6 +7,8 @@ The person went to bed at about 00:10 after playing 1.10.0–1.10.2. Each fix be
 - 1.10.0 (23:20): Sunset Ruins, maps renamed (Canopy Run, Concrete Jungle, Yeti Peak).
 - 1.10.1 (23:45): lit temple entrance attempt, random banana pile, cliffs, JOJO MODE, its own map card.
 - 1.10.2 (23:58): the river current only carries you downstream; turtles and statues apart.
+- 1.11.1 (overnight): the temple face is solid except its mouth; hit it and you drop into the ravine. The bridge boost aims 2 m inside the mouth (was 6 m) so a gentle release still gets in. **Known:** the AI spacing test fails (Sloth 80.5 s vs Monkey 79.5 s); an agent is on it.
+- 1.11.0 (overnight): What's New, patch notes in the game (main menu and the corner version; a New marker; "Show minor patches") and on the site at ptonkle.github.io/ape-race/patch-notes.html. The older entries were reconstructed from the history: **please read them over**.
 - 1.10.4 (00:50, overnight): the black block in the temple mouth removed (a solid near-black box from the first model filled the opening; the 1.10.1 glow was drawn on it). From the bridge you now see the lit corridor.
 - 1.10.3 (00:35, overnight): spike pits throw you out forward (out in about 1.6 s, was up to 8 s); a trapdoor never shuts on an ape in its pit, so the pit vines stay down and visible (they used to vanish the instant the door closed).
 
@@ -24,13 +26,14 @@ The person went to bed at about 00:10 after playing 1.10.0–1.10.2. Each fix be
 | Lobby camera looks at the ground; the ape sunk into the ground | In progress | |
 | Wall panels not flush in some sections; their banana glyphs can't be seen | In progress | |
 | Stuck in spike pits; pit vines disappear | Done | 1.10.3 |
-| You can fly straight through the temple face (no collision outside the mouth) | In progress | |
+| You can fly straight through the temple face (no collision outside the mouth) | Done | 1.11.1 |
+| The AI levels' spacing after the solid face (Sloth no longer 6 s behind the Monkey) | In progress | |
 
 ## Also overnight
 
 | Item | Status | Version |
 | --- | --- | --- |
-| Patch notes: a "What's new" panel in the game (the version label opens it too, a "New" marker after an update) and a patch-notes page on the site, from one file | In progress | |
+| Patch notes: a "What's new" panel in the game (the version label opens it too, a "New" marker after an update, Show minor patches) and a patch-notes page on the site, from one file | Done | 1.11.0 |
 
 ## Found overnight
 
@@ -39,4 +42,5 @@ The person went to bed at about 00:10 after playing 1.10.0–1.10.2. Each fix be
 
 ## Questions for the morning
 
-(none yet)
+1. The patch notes before 1.10.0 were written from the version history. Do they read right to you? (`data/patch-notes.json`, or the What's New panel with Show minor patches ticked.)
+2. The corner version opens What's New only from the title, Settings and Replays, not mid-race or in a lobby, so it never drops what you're doing. OK?

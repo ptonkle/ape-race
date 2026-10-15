@@ -22,7 +22,7 @@ The standard map-build steps (MAPS.md "Build steps"), one row each. Status is on
 | 16 | Other maps unchanged | Done | All tests pass on main, release and debug (a debug-only overflow found and fixed) |
 | 17 | Docs | In progress | SECOND-ORDER rows written; README, MAPS.md, HANDOFF to do |
 | 18 | Full checks | Done | 1.10.1 passed in Chromium, Firefox and WebKit: check 8.3 min, online 3.8 min; rerun before each deploy where time allows |
-| 19 | Deploy | Done | 1.10.0 23:20, 1.10.1 23:45, 1.10.2 23:58, 1.10.3 00:35, 1.10.4 00:50; fixes follow as 1.10.x |
+| 19 | Deploy | Done | 1.10.0 23:20 … 1.10.4 00:50, 1.11.0 (patch notes), 1.11.1 (solid face); fixes follow |
 
 ## This map's features
 
@@ -45,7 +45,7 @@ One row per concept from the brief, plus any added later (your feedback, a new i
 | Boost vines launch into the mouth | Brief | Done | Done | Done | Done |
 | Weaker AIs cross the bridge and mouth without stalling | AI tuning | n/a | Done | Done | Done |
 | Temple mouth in Aztec relief, with depth | Brief, your feedback | Done | Done | Done | Done |
-| Temple face is solid; only the mouth lets you in | Your feedback (1.10.2) | n/a | In progress | In progress | Not started |
+| Temple face is solid; only the mouth lets you in | Your feedback (1.10.2) | n/a | Done | Done | Done |
 | No black box in the mouth | Your feedback (1.10.2) | Done | n/a | Done | Done |
 | Waterfall from the mouth | Brief | Done | n/a | Done | Done |
 | Banana-glyph stonework, pulsing glow | Brief | Done | n/a | Done | Done |
@@ -68,4 +68,5 @@ One row per concept from the brief, plus any added later (your feedback, a new i
 | Lobby camera shows your ape with the temple mouth behind | Your feedback (1.10.1) | n/a | n/a | In progress | Not started |
 | Lobby ape stands on the surface, not sunk in | Your feedback (1.10.2) | n/a | n/a | In progress | Not started |
 | The Sloth finishes every layout | AI report (1.10.3) | n/a | In progress | n/a | Not started |
+| AI levels stay 6 s apart with the solid face | Ordering test (1.11.1) | n/a | In progress | n/a | Not started |
 | The camera stays out of the floor and walls just inside the mouth | Mouth shots (1.10.4) | n/a | In progress | In progress | Not started |
