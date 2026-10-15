@@ -45,6 +45,11 @@ WAIT_MS = transport.WAIT_MS
 STRINGS = json.loads((pathlib.Path(__file__).resolve().parents[2] / "data" / "strings.json").read_text())
 CITY = STRINGS["map.city"]
 check = transport.check
+# B's lobby shows the host's Equal Stats as this word (a list row)
+EQUAL_SHOWS = (
+    "([label, want]) => [...document.querySelectorAll('#menus td')]"
+    ".some(td => td.textContent === label && td.nextElementSibling && td.nextElementSibling.textContent === want)"
+)
 
 
 def by_id(id_):
@@ -154,11 +159,9 @@ def run_engine(p, engine, origin):
     # setting); every element still there stays the same element
     marks = ["lobby.ready", "lobby.name", "lobby.ape.next", "lobby.palette"]
     b.page.evaluate("ids => ids.forEach(id => { document.getElementById(id).__mark = id; })", marks)
-    before = b.page.inner_text("#menus")
-    a.click("lobby.equal")
-    b.page.wait_for_function("t => document.getElementById('menus').innerText !== t", arg=before, timeout=WAIT_MS)
-    a.click("lobby.equal")
-    b.page.wait_for_function("t => document.getElementById('menus').innerText === t", arg=before, timeout=WAIT_MS)
+    for want in (STRINGS["on"], STRINGS["off"]):
+        a.click("lobby.equal")
+        b.page.wait_for_function(EQUAL_SHOWS, arg=[STRINGS["setup.equal"], want], timeout=WAIT_MS)
     kept = b.page.evaluate("ids => ids.map(id => document.getElementById(id).__mark === id)", marks)
     check(all(kept), f"B's lobby keeps its elements while the host changes a setting {kept}")
     b.click("lobby.ready")
