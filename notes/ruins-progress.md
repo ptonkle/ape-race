@@ -22,7 +22,7 @@ The standard map-build steps (MAPS.md "Build steps"), one row each. Status is on
 | 16 | Other maps unchanged | Done | All tests pass on main, release and debug (a debug-only overflow found and fixed) |
 | 17 | Docs | In progress | SECOND-ORDER rows written; README, MAPS.md, HANDOFF to do |
 | 18 | Full checks | Done | 1.10.1 passed in Chromium, Firefox and WebKit: check 8.3 min, online 3.8 min; rerun before each deploy where time allows |
-| 19 | Deploy | Done | 1.10.0 at 23:20, 1.10.1 at 23:45, 1.10.2 (river) at 23:58; fixes follow as 1.10.x |
+| 19 | Deploy | Done | 1.10.0 23:20, 1.10.1 23:45, 1.10.2 23:58, 1.10.3 (spike pits) 00:35; fixes follow as 1.10.x |
 
 ## This map's features
 
@@ -56,9 +56,9 @@ One row per concept from the brief, plus any added later (your feedback, a new i
 | Floor spike traps | Brief | Done | Done | Done | Done |
 | Trip wires → trapdoors after 0.75 s | Brief | Done | Done | Done | Done |
 | Glowing banana-spike pits | Brief | Done | Done | Done | In progress |
-| Out of a spike pit within a few seconds, never stuck | Your feedback (1.10.0) | n/a | In progress | In progress | Not started |
+| Out of a spike pit within a few seconds, never stuck | Your feedback (1.10.0) | n/a | Done | Done | Done |
 | Pit vines drop when doors open | Brief | Done | Done | Done | In progress |
-| Pit vines stay visible while they can be grabbed | Your feedback (1.10.0) | In progress | In progress | In progress | Not started |
+| Pit vines stay visible while they can be grabbed | Your feedback (1.10.0) | Done | Done | Done | Done |
 | Counter-clockwise round chamber, invisible inner wall | Brief | Done | Done | Done | Done |
 | Banana pile finish, packed solid | Brief, your feedback | Done | Done | Done | In progress |
 | Skylight with foliage and soft spotlight | Brief | Done | n/a | Done | In progress |
@@ -67,3 +67,4 @@ One row per concept from the brief, plus any added later (your feedback, a new i
 | Banana pile heaped at random, not in rings | Your feedback | Done | n/a | Done | Done |
 | Lobby camera shows your ape with the temple mouth behind | Your feedback (1.10.1) | n/a | n/a | In progress | Not started |
 | Lobby ape stands on the surface, not sunk in | Your feedback (1.10.2) | n/a | n/a | In progress | Not started |
+| The Sloth finishes every layout | AI report (1.10.3) | n/a | Not started | n/a | Not started |

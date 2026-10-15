@@ -7,6 +7,7 @@ The person went to bed at about 00:10 after playing 1.10.0–1.10.2. Each fix be
 - 1.10.0 (23:20): Sunset Ruins, maps renamed (Canopy Run, Concrete Jungle, Yeti Peak).
 - 1.10.1 (23:45): lit temple entrance attempt, random banana pile, cliffs, JOJO MODE, its own map card.
 - 1.10.2 (23:58): the river current only carries you downstream; turtles and statues apart.
+- 1.10.3 (00:35, overnight): spike pits throw you out forward (out in about 1.6 s, was up to 8 s); a trapdoor never shuts on an ape in its pit, so the pit vines stay down and visible (they used to vanish the instant the door closed).
 
 ## Checks
 
@@ -19,7 +20,7 @@ The person went to bed at about 00:10 after playing 1.10.0–1.10.2. Each fix be
 | Black box in the temple mouth (a solid dark block from the model, `ruinsmodels.rs` "the throat") | In progress | |
 | Lobby camera looks at the ground; the ape sunk into the ground | In progress | |
 | Wall panels not flush in some sections; their banana glyphs can't be seen | In progress | |
-| Stuck in spike pits; pit vines disappear | In progress | |
+| Stuck in spike pits; pit vines disappear | Done | 1.10.3 |
 | You can fly straight through the temple face (no collision outside the mouth) | In progress | |
 
 ## Also overnight
@@ -27,6 +28,10 @@ The person went to bed at about 00:10 after playing 1.10.0–1.10.2. Each fix be
 | Item | Status | Version |
 | --- | --- | --- |
 | Patch notes: a "What's new" panel in the game (the version label opens it too, a "New" marker after an update) and a patch-notes page on the site, from one file | In progress | |
+
+## Found overnight
+
+- On one of the 16 test layouts the Sloth never finishes Sunset Ruins (the AI report shows its mean as infinite). It was there before the spike-pit fix. Queued for an agent once the current ones land.
 
 ## Questions for the morning
 
