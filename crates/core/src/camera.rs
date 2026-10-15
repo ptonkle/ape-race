@@ -771,6 +771,7 @@ mod tests {
             let r = course.ruins.clone().unwrap();
             let temple = Arc::new(Temple::of(&r));
             let floor = r.chamber.centre.y;
+            let boxes = r.mouth.face_boxes(floor);
             let (from, to) = (r.marks.lip - int(40), r.marks.mouth + int(150));
             let entries: Vec<Entry> = Kind::ALL[..4]
                 .iter()
@@ -820,6 +821,25 @@ mod tests {
                     }
                     if temple.open(t) {
                         assert!(temple.open(e), "in the stone: {why}");
+                    }
+                    // in the mouth (from its lips 6 m out to the back of
+                    // its reveal 12 m in), in the opening: under its top
+                    // (the reveal's roof) and between its sides
+                    let o = r.mouth.opening;
+                    let d = e.sub(o.centre);
+                    let inn = d.dot(o.fwd);
+                    if temple.open(t) && inn > -int(6) && inn < int(12) {
+                        assert!(e.y <= o.centre.y + o.half.y, "over the mouth's top: {why}");
+                        assert!(d.dot(right_of(o.fwd)).abs() <= o.half.x, "in its side: {why}");
+                    }
+                    // and never in the face's solid boxes (ruins/facade.rs)
+                    let fwd = r.mouth.opening.fwd;
+                    for (c, half) in &boxes {
+                        let d = e.sub(*c);
+                        let inside = d.dot(right_of(fwd)).abs() <= half.x
+                            && d.y.abs() <= half.y
+                            && d.dot(fwd).abs() <= half.z;
+                        assert!(!inside, "in the facade: {why}");
                     }
                     checked += 1;
                 }
