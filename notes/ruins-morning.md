@@ -7,6 +7,7 @@ The person went to bed at about 00:10 after playing 1.10.0–1.10.2. Each fix be
 - 1.10.0 (23:20): Sunset Ruins, maps renamed (Canopy Run, Concrete Jungle, Yeti Peak).
 - 1.10.1 (23:45): lit temple entrance attempt, random banana pile, cliffs, JOJO MODE, its own map card.
 - 1.10.2 (23:58): the river current only carries you downstream; turtles and statues apart.
+- 1.11.2 (overnight): the lobby stands your ape on a ruin in the river with the temple mouth and sunset behind (the menus had ignored each map's own lobby camera, hence the ground); the wall panels sit flat and their glyphs glow (one bug did both: a near-zero direction vector). Open: in the online lobby the mouth hides behind the Race Setup panel; an agent is on it.
 - 1.11.1 (overnight): the temple face is solid except its mouth; hit it and you drop into the ravine. The bridge boost aims 2 m inside the mouth (was 6 m) so a gentle release still gets in. **Known:** the AI spacing test fails (Sloth 80.5 s vs Monkey 79.5 s); an agent is on it.
 - 1.11.0 (overnight): What's New, patch notes in the game (main menu and the corner version; a New marker; "Show minor patches") and on the site at ptonkle.github.io/ape-race/patch-notes.html. The older entries were reconstructed from the history: **please read them over**.
 - 1.10.4 (00:50, overnight): the black block in the temple mouth removed (a solid near-black box from the first model filled the opening; the 1.10.1 glow was drawn on it). From the bridge you now see the lit corridor.
@@ -23,8 +24,9 @@ The person went to bed at about 00:10 after playing 1.10.0–1.10.2. Each fix be
 | Black box in the temple mouth (a solid dark block from the model, `ruinsmodels.rs` "the throat") | Done | 1.10.4 |
 | Just inside the mouth the chase camera ends up in a shape (half the view a brown plane); an olive slab on the floor | In progress (found overnight) | |
 | The Sloth never finishes one of the 16 test layouts | In progress (found overnight) | |
-| Lobby camera looks at the ground; the ape sunk into the ground | In progress | |
-| Wall panels not flush in some sections; their banana glyphs can't be seen | In progress | |
+| Lobby camera looks at the ground; the ape sunk into the ground | Done | 1.11.2 |
+| Online lobby: the temple mouth hidden behind a panel | In progress | |
+| Wall panels not flush in some sections; their banana glyphs can't be seen | Done | 1.11.2 |
 | Stuck in spike pits; pit vines disappear | Done | 1.10.3 |
 | You can fly straight through the temple face (no collision outside the mouth) | Done | 1.11.1 |
 | The AI levels' spacing after the solid face (Sloth no longer 6 s behind the Monkey) | In progress | |
