@@ -286,9 +286,10 @@ impl Difficulty {
 }
 
 /// The Ski Slope's reaction times, easiest level first (see
-/// [`Difficulty::tuning_on`]).
-const SKI_HESITATE: [u32; 4] = [6, 2, 1, 0];
-const SKI_DRIVE: [u32; 4] = [2, 5, 7, DUTY];
+/// [`Difficulty::tuning_on`]). TRIAGE T84 (fewer low vines) moved the
+/// Monkey's 2 → 3 and the Ape's drive 7 → 8 to keep the levels 6 s apart.
+const SKI_HESITATE: [u32; 4] = [6, 3, 1, 0];
+const SKI_DRIVE: [u32; 4] = [2, 5, 8, DUTY];
 const SKI_NOISE: [i32; 4] = [int(6), int(4), int(2), 0];
 const SKI_HOP: [i32; 4] = [int(22), int(24), int(26), int(28)];
 

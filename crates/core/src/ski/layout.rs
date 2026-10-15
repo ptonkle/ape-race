@@ -19,9 +19,9 @@
 //!   big conifer's branch at the nearer edge of its lane (a fence or an
 //!   island), else (a middle lane far from any chair) now and then from a
 //!   wire strung between two conifers across the run. Low vines (their
-//!   ends 2–3.5 m over the snow) at every station: two across the whole
-//!   run, one by each fence, and one in each branch of a fork (TRIAGE
-//!   T74). Two helicopters.
+//!   ends 2–3.5 m over the snow), one at every station: across the whole
+//!   run by each fence in turn, in a fork in each branch in turn (TRIAGE
+//!   T74, thinned by T84). Two helicopters.
 //! - **Landmarks**: one of each kind, in order down the hill, just before
 //!   the turn or fork they announce, outside the run.
 
@@ -617,32 +617,30 @@ pub fn ski_seeded(seed: u64) -> Course {
             }
         }
         stations.push(here);
-        // low vines to climb back up by (TRIAGE T74: at every station, not
-        // every other, as a skiing ape passes them quickly): across the
-        // whole run one by each fence, in a fork's branch one, by the
-        // branch's fence or its island
+        // low vines to climb back up by, one at every station (TRIAGE T74
+        // put two at every station, T84 thinned them back): across the
+        // whole run by one fence and the other in turn, in a fork in one
+        // branch and the other in turn, by the branch's fence or its island
         if station > 0 {
             let lanes = lanes_at(&c, int(s + 7));
-            for &(m, h, lo_tree, hi_tree) in &lanes {
-                let signs: Vec<i32> = match (lo_tree, hi_tree) {
-                    (true, false) => vec![-1],
-                    (false, true) => vec![1],
-                    _ if lanes.len() == 1 => vec![-1, 1],
-                    _ if b.dice.below(2) == 0 => vec![-1],
-                    _ => vec![1],
-                };
-                for sign in signs {
-                    // (9–12 m in from the edge its tree stands by, its end
-                    // 2–3.5 m over the snow)
-                    let reach = (h - int(b.dice.range(9, 12))).max(0);
-                    let length = int(24) + cm(b.dice.range(-50, 100));
-                    let (at, off) = (int(s + 7), m + sign * reach);
-                    if b.vine(&mut c, at, off, int(27), int(27) - length, true)
-                        .is_none()
-                    {
-                        b.vine(&mut c, at, 2 * m - off, int(27), int(27) - length, true);
-                    }
-                }
+            let turn = station % 2;
+            let (m, h, lo_tree, hi_tree) = lanes[turn % lanes.len()];
+            let sign = match (lo_tree, hi_tree) {
+                (true, false) => -1,
+                (false, true) => 1,
+                _ if lanes.len() == 1 => [-1, 1][turn],
+                _ if b.dice.below(2) == 0 => -1,
+                _ => 1,
+            };
+            // (9–12 m in from the edge its tree stands by, its end
+            // 2–3.5 m over the snow)
+            let reach = (h - int(b.dice.range(9, 12))).max(0);
+            let length = int(24) + cm(b.dice.range(-50, 100));
+            let (at, off) = (int(s + 7), m + sign * reach);
+            if b.vine(&mut c, at, off, int(27), int(27) - length, true)
+                .is_none()
+            {
+                b.vine(&mut c, at, 2 * m - off, int(27), int(27) - length, true);
             }
         }
         station += 1;
