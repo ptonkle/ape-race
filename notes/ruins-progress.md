@@ -32,7 +32,7 @@ One row per concept from the brief, plus any added later (your feedback, a new i
 | --- | --- | --- | --- | --- | --- |
 | Sunset sky (yellow → crimson) | Brief | Done | n/a | In progress | Not started |
 | Explorer outfit | Brief | Done | n/a | Done | Done |
-| Outfit stands apart from fur in the sunset | 1080p shots | In progress | n/a | Not started | Not started |
+| Outfit stands apart from fur in the sunset | 1080p shots | Done | n/a | Done | Done |
 | Jaguar pith helmet | Your feedback | Done | n/a | Done | Done |
 | Dense jungle | Brief | Done | n/a | In progress | Not started |
 | Banana-bunch and moai ape ruins | Brief | Done | n/a | In progress | Not started |
