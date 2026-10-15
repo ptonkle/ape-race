@@ -1570,7 +1570,11 @@ fn on_ground(a: &Ape, course: &Course, tick: u32, brain: &mut Brain) -> Controls
         let an = course.anchor(i, tick);
         // (Sector Ape: a deck may be under vines out of a jump's reach, or
         // over vines hanging below it)
-        if (!raised || course.sector.is_some()) && course.vine_bottom(i, tick) > top {
+        // (Banana Bay Battle: a deck too: running off it at a rope out of
+        // reach only drops the ape into the water and back on the deck)
+        if (!raised || course.sector.is_some() || course.bay.is_some())
+            && course.vine_bottom(i, tick) > top
+        {
             continue;
         }
         // (... or behind it: running back off a deck only drops the ape off
