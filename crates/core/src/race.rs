@@ -398,6 +398,8 @@ impl Race {
             if self.space_rules(i) {
                 continue;
             }
+            // Sunset Ruins: the trip wires
+            self.trip_wires(i);
             if self.floor_is_lava(i) {
                 self.eat(i);
                 continue;
@@ -486,6 +488,8 @@ impl Race {
         // Sector Ape: a remote ape can shut the door too, from its state
         if i < self.racers.len() {
             self.switch(i);
+            // Sunset Ruins: and trip a wire
+            self.trip_wires(i);
         }
     }
 

@@ -197,6 +197,9 @@ pub struct Course {
     /// Sector Ape's bodies, vine directions, boundary, door, mechs and set
     /// pieces (`sector.rs`); `None` on the other maps
     pub sector: Option<Box<crate::sector::SectorLayout>>,
+    /// Sunset Ruins' river, turtles, ravine, bridge, temple, traps and
+    /// chamber (`ruins.rs`); `None` on the other maps
+    pub ruins: Option<Box<crate::ruins::RuinsLayout>>,
 }
 
 /// A straight street of a course with sharp corners (the City). The
@@ -785,6 +788,7 @@ pub(crate) fn centreline(name: &'static str, legs: &[Leg]) -> Course {
         ski: None,
         terrain: crate::ski::Terrain::Hills,
         sector: None,
+        ruins: None,
     }
 }
 

@@ -118,6 +118,8 @@ pub fn medals(map: Map) -> [u32; 4] {
         Map::City => CITY,
         Map::Ski => SKI,
         Map::Sector => SECTOR,
+        // STAND-IN (Sunset Ruins' skeleton): the Jungle's until measured
+        Map::Ruins => JUNGLE,
     }
 }
 
