@@ -51,6 +51,7 @@ use crate::rules::TICKS_PER_SECOND;
 
 pub use layout::{ruins, ruins_seeded};
 
+mod facade;
 mod layout;
 mod rules;
 #[cfg(test)]
@@ -63,6 +64,10 @@ pub const TRAP_DELAY: u32 = TICKS_PER_SECOND as u32 * 3 / 4;
 /// How long a trapdoor stays open, its pit vines down (ticks; about 8 s,
 /// the person's answer). Then it closes and re-arms.
 pub const TRAP_OPEN: u32 = 8 * TICKS_PER_SECOND as u32;
+
+/// While an ape is in an open pit or on its vines, the door stays open at
+/// least this much longer (ticks; 1 s): it never shuts on an ape (RC9).
+pub const TRAP_HOLD: u32 = TICKS_PER_SECOND as u32;
 
 /// How long a spiked ape cannot grab (ticks; about 1 s).
 pub const SPIKE_NO_GRAB: u32 = TICKS_PER_SECOND as u32;
@@ -159,6 +164,13 @@ pub const BOOST_DECENT: i32 = int(6);
 /// A turtle's shell top above the water, and its radius as a bouncer.
 pub const TURTLE_TOP: i32 = cm(60);
 pub const TURTLE_RADIUS: i32 = cm(220);
+/// The landmarks are drawn this many times their `scale` (as
+/// `ruinsscape`'s `LANDMARK_SCALE`), and at scale one stand within this
+/// radius of `at` (the moai's muzzle, 2.7 m out, is the farthest).
+pub const LANDMARK_DRAWN: i32 = ONE * 7 / 2;
+pub const LANDMARK_FOOTPRINT: i32 = int(3);
+/// A turtle turns back this far short of the bank (its shell's edge).
+pub const TURTLE_SHORT: i32 = int(2);
 /// No bouncer on Sunset Ruins stands taller than this above the land.
 pub const BOUNCER_TALLEST: i32 = int(5);
 
@@ -525,6 +537,40 @@ impl Race {
         for t in s.traps.iter_mut() {
             if t.armed(tick) && t.near_wire(pos) {
                 t.tripped_at = Some(tick);
+            }
+        }
+    }
+
+    /// A trapdoor never shuts on an ape: while ape `i` is down in an open
+    /// pit or holds one of its vines, the door stays open (and its vines
+    /// down) at least `TRAP_HOLD` more (RC9). From the race's state, so
+    /// every browser holds it alike (for a remote ape from its reported
+    /// state, as the wires).
+    pub(crate) fn hold_doors(&mut self, i: usize) {
+        let tick = self.tick;
+        let Some(r) = self.racers.get(i) else {
+            return;
+        };
+        if r.finish.is_some() || r.eaten.is_some() {
+            return;
+        }
+        let (feet, held) = (r.ape.feet(), r.ape.swinging());
+        let Some(s) = self.course.ruins.as_deref_mut() else {
+            return;
+        };
+        for k in 0..s.traps.len() {
+            let t = &s.traps[k];
+            let Some(at) = t.tripped_at else {
+                continue;
+            };
+            if !t.open(tick) {
+                continue;
+            }
+            let inside = held.is_some_and(|v| t.vines.contains(&v))
+                || (s.over_door(k, feet) && feet.y < t.door.centre.y - cm(30));
+            let shuts = at + TRAP_DELAY + TRAP_OPEN;
+            if inside && shuts < tick + TRAP_HOLD {
+                s.traps[k].tripped_at = Some(tick + TRAP_HOLD - TRAP_DELAY - TRAP_OPEN);
             }
         }
     }

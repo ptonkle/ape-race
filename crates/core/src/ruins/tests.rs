@@ -405,3 +405,287 @@ fn clear_of_everything_means_nothing_holds_an_ape() {
         assert!(clear > 1000, "{clear}");
     }
 }
+
+/// How far across the course's centreline `p` is (right positive), and
+/// how far along it.
+fn across(c: &Course, p: V3) -> (i32, i32) {
+    let i = c.nearest_anywhere(p);
+    let s = i as i32 * crate::course::STEP;
+    let right = crate::geom::right_of(c.heading_at(s));
+    (p.flat().sub(c.point(s).flat()).dot(right), s)
+}
+
+#[test]
+fn a_swimmer_with_no_keys_drifts_only_downstream_even_at_the_bend() {
+    // (live feedback: "water pushes you to the side": a player's swimmer
+    // made for the nearer bank by itself)
+    let c = ruins();
+    let lip = c.ruins.as_ref().unwrap().marks.lip;
+    let step = crate::course::STEP;
+    // the sharpest turn along the river (the S-bend)
+    let bend = (1..(lip - int(40)) / step)
+        .map(|i| i * step)
+        .filter(|&s| s > int(40))
+        .max_by_key(|&s| {
+            let (a, b) = (c.heading_at(s - int(5)), c.heading_at(s + int(5)));
+            -(a.dot(b) as i64)
+        })
+        .unwrap();
+    let mut spots: Vec<i32> = (60..(lip / ONE - 40)).step_by(45).map(int).collect();
+    spots.push(bend);
+    for s in spots {
+        for off in [0, int(6), -int(6)] {
+            let mut r = running(false);
+            // (the turtles sunk out of the way: a bounce is not the current)
+            for t in &mut r.course.ruins.as_deref_mut().unwrap().turtles {
+                t.from.y -= int(100);
+                t.to.y -= int(100);
+            }
+            let right = crate::geom::right_of(r.course.heading_at(s));
+            let p = r.course.point(s).add(right.scale(off));
+            let Some(surface) = r.course.water(p) else {
+                panic!("no river at {} m", s / ONE)
+            };
+            let hands = surface - crate::rules::SWIM_SINK + crate::rules::BODY_DROP;
+            put(&mut r, v3(p.x, hands, p.z), V3::ZERO, Mode::Grounded);
+            let (side0, s0) = across(&r.course, p);
+            for _ in 0..3 * TICKS_PER_SECOND {
+                r.step(&[Controls::default()]);
+            }
+            let a = &r.racers[0].ape;
+            let (side1, s1) = across(&r.course, a.pos);
+            assert!(
+                (side1 - side0).abs() <= int(1),
+                "at {} m, {} m across: pushed {} cm to the side",
+                s / ONE,
+                off / ONE,
+                (side1 - side0) * 100 / ONE
+            );
+            assert!(
+                s1 - s0 > int(6),
+                "at {} m: carried {} cm downstream",
+                s / ONE,
+                (s1 - s0) * 100 / ONE
+            );
+        }
+    }
+}
+
+#[test]
+fn no_turtle_swims_into_a_ruin_and_no_ruin_stands_in_the_river() {
+    let c = ruins();
+    let r = c.ruins.as_ref().unwrap();
+    assert!(!r.landmarks.is_empty() && !r.turtles.is_empty());
+    for l in &r.landmarks {
+        let foot = fx::mul(fx::mul(LANDMARK_FOOTPRINT, LANDMARK_DRAWN), l.scale);
+        for t in &r.turtles {
+            // the closest the turtle's path comes to the ruin
+            let d = t.to.sub(t.from).flat();
+            let k = fx::div(l.at.sub(t.from).flat().dot(d), d.dot(d).max(1)).clamp(0, ONE);
+            let near = t.from.flat().add(d.scale(k));
+            let gap = near.dist(l.at.flat()) - foot - TURTLE_RADIUS;
+            assert!(
+                gap >= 2 * TURTLE_RADIUS,
+                "a turtle passes {} cm from a ruin's footprint",
+                gap * 100 / ONE
+            );
+        }
+        // no part of the footprint over the water
+        for k in 0..16 {
+            let o = crate::geom::facing(k * crate::fx::TURN / 16, 0).scale(foot);
+            let q = l.at.add(o);
+            assert!(
+                r.river.water_at(q.x, q.z).is_none(),
+                "a ruin stands in the river"
+            );
+        }
+    }
+    // each turtle stays in the water, short of the bank
+    for t in &r.turtles {
+        for end in [t.from, t.to] {
+            let (side, _) = across(&c, end);
+            assert!(
+                side.abs() + TURTLE_RADIUS <= RIVER_HALF - TURTLE_SHORT + cm(20),
+                "a turtle's shell reaches {} cm from the middle",
+                (side.abs() + TURTLE_RADIUS) * 100 / ONE
+            );
+        }
+    }
+}
+
+/// How many ticks ape 0, dropped from the floor's height into trapdoor
+/// `k`'s pit `along`/`across` from the door's middle just as it opens,
+/// takes to be out (back over the floor, or on a vine), driving `c`
+/// (facing along the course). None if not out in `limit` ticks.
+fn time_out_of_pit(k: usize, along: i32, across: i32, c: Controls, limit: u32) -> Option<u32> {
+    let mut r = running(false);
+    let tick = r.tick;
+    let door = {
+        let s = r.course.ruins.as_deref_mut().unwrap();
+        s.traps[k].tripped_at = Some(tick - TRAP_DELAY);
+        s.traps[k].door
+    };
+    let floor = door.centre.y;
+    let right = crate::geom::right_of(door.fwd);
+    let p = door
+        .centre
+        .add(door.fwd.scale(along))
+        .add(right.scale(across));
+    put(
+        &mut r,
+        v3(p.x, floor + crate::rules::BODY_DROP, p.z),
+        V3::ZERO,
+        Mode::Flying,
+    );
+    let c = Controls {
+        yaw: crate::geom::yaw_of(door.fwd),
+        ..c
+    };
+    for n in 0..limit {
+        r.step(&[c]);
+        let a = &r.racers[0].ape;
+        let feet = a.feet();
+        let lay = r.course.ruins.as_deref().unwrap();
+        let open = lay.traps[k].open(r.tick);
+        let over = open && lay.over_door(k, feet);
+        if a.swinging().is_some() || (!over && feet.y >= floor - cm(50)) {
+            return Some(n + 1);
+        }
+    }
+    None
+}
+
+/// Every point of every pit (2 m apart, 1 m in from the door's edges):
+/// the worst time out (ticks) with no keys and with W + grab held, and
+/// the last place either worst got worse.
+fn worst_out_of_pits(limit: u32) -> (u32, u32, String) {
+    let lay = ruins();
+    let lay = lay.ruins.as_ref().unwrap();
+    let door = lay.traps[0].door;
+    let (hz, hx) = (door.half.z - int(1), door.half.x - int(1));
+    let keys = Controls {
+        fwd: 1,
+        grab: true,
+        ..Controls::default()
+    };
+    let (mut idle, mut held) = (0, 0);
+    let mut worst = String::new();
+    for k in 0..lay.traps.len() {
+        let mut along = -hz;
+        while along <= hz {
+            let mut across = -hx;
+            while across <= hx {
+                let a = time_out_of_pit(k, along, across, Controls::default(), limit)
+                    .unwrap_or(limit + 1);
+                let b = time_out_of_pit(k, along, across, keys, limit).unwrap_or(limit + 1);
+                if a > idle || b > held {
+                    worst = format!(
+                        "pit {k}, {} m along, {} m across",
+                        along / ONE,
+                        across / ONE
+                    );
+                }
+                idle = idle.max(a);
+                held = held.max(b);
+                across += int(2);
+            }
+            along += int(2);
+        }
+    }
+    (idle, held, worst)
+}
+
+#[test]
+fn an_ape_in_a_pit_is_out_within_three_seconds_or_two_with_w_and_grab() {
+    let tps = crate::rules::TICKS_PER_SECOND as u32;
+    let (idle, held, worst) = worst_out_of_pits(20 * tps);
+    // (hundredths of a second)
+    let s = |t: u32| t * 100 / tps;
+    let say = format!(
+        "{} cs with no keys, {} cs with W + grab (worst {worst})",
+        s(idle),
+        s(held)
+    );
+    assert!(
+        idle <= 3 * tps && held <= 2 * tps,
+        "out of a pit after {say}"
+    );
+}
+
+/// How many shapes the frame's vines batch has, looking down the
+/// corridor at trapdoor `k`'s door from 20 m before it.
+fn vine_shapes(r: &Race, k: usize) -> usize {
+    let door = r.course.ruins.as_ref().unwrap().traps[k].door;
+    let eye = door
+        .centre
+        .sub(door.fwd.scale(int(20)))
+        .add(v3(0, int(4), 0));
+    let cam = crate::render::Camera {
+        eye,
+        fwd: door.fwd,
+        fov: crate::fx::deg(70),
+    };
+    let apes: Vec<V3> = r.racers.iter().map(|x| x.ape.pos).collect();
+    let b = crate::scene::dynamic(&crate::scene::Frame {
+        race: r,
+        cam: &cam,
+        apes: &apes,
+        local: Some(0),
+        tick: r.tick,
+        chains: &[],
+        vivid: false,
+        gear: None,
+        flashes: &[],
+    })
+    .0;
+    let (v, _) = b.finish(crate::render::DYNAMIC_BUFFER);
+    v.len() / crate::render::INSTANCE_VALUES
+}
+
+#[test]
+fn a_door_never_shuts_on_an_ape_in_its_pit_and_its_vines_stay_drawn() {
+    let mut r = running(false);
+    r.tick += TRAP_DELAY + TRAP_OPEN;
+    let t0 = r.tick;
+    let shut = vine_shapes(&r, 0);
+    // tripped long ago: the door shuts in 5 ticks
+    let at = t0 + 5 - TRAP_DELAY - TRAP_OPEN;
+    r.course.ruins.as_deref_mut().unwrap().traps[0].tripped_at = Some(at);
+    let open = vine_shapes(&r, 0);
+    assert!(
+        open > shut,
+        "the pit vines are drawn while open: {shut} then {open}"
+    );
+    // an ape down in the pit, held there
+    let door = r.course.ruins.as_ref().unwrap().traps[0].door;
+    let deep = v3(door.centre.x, door.centre.y - int(2), door.centre.z);
+    for _ in 0..crate::rules::TICKS_PER_SECOND as u32 * 3 {
+        put(&mut r, deep, V3::ZERO, Mode::Flying);
+        r.step(&[Controls::default()]);
+        let lay = r.course.ruins.as_ref().unwrap();
+        assert!(
+            lay.traps[0].open(r.tick),
+            "shut on the ape at tick {}",
+            r.tick - t0
+        );
+        let v = lay.traps[0].vines[0];
+        assert!(!lay.vine_up(v, r.tick));
+        assert_eq!(
+            vine_shapes(&r, 0),
+            open,
+            "the pit vines drawn as long as they hang"
+        );
+    }
+    // out of the pit: it shuts within `TRAP_HOLD`, its vines go up
+    put(
+        &mut r,
+        door.centre.add(door.fwd.scale(int(20))),
+        V3::ZERO,
+        Mode::Flying,
+    );
+    for _ in 0..TRAP_HOLD + 1 {
+        r.step(&[Controls::default()]);
+    }
+    assert!(!r.course.ruins.as_ref().unwrap().traps[0].open(r.tick));
+    assert_eq!(vine_shapes(&r, 0), shut);
+}

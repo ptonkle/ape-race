@@ -1035,16 +1035,9 @@ pub fn temple_face(b: &mut Batch, f: &Affine, tick: u32) {
             if t % 2 == 0 { TEMPLE_DARK } else { TEMPLE },
         );
     }
-    // the throat: dark behind the opening, so the mouth reads as gaping
-    put(
-        b,
-        f,
-        Mesh::Cube,
-        v3(0, MOUTH_H / 2, -int(8)),
-        v3(MOUTH_W, MOUTH_H, int(12)),
-        MOUTH_DARK,
-        0,
-    );
+    // no plug in the throat: the opening is open, so the lit corridor
+    // shows through it (the person, 1.10.2: a solid near-black box filled
+    // the mouth; apes flew through it and saw only black)
     put(
         b,
         f,

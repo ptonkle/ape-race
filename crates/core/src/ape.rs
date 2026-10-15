@@ -74,7 +74,7 @@ pub struct Ape {
     /// bounce): its landing does not roll on (TRIAGE row 25)
     hopped: bool,
     /// the vine let go of last, and how many ticks ago
-    last_vine: Option<(usize, i32)>,
+    pub(crate) last_vine: Option<(usize, i32)>,
     /// the nearest centreline sample, kept as a search hint
     pub hint: usize,
     /// where the ape faces, for drawing
@@ -478,11 +478,14 @@ impl Ape {
 
     /// In the river: swim (the river's running) toward the nearest way out
     /// unless WASD say otherwise, and climb out on reaching a bank or a
-    /// ladder; a boat bounces the swimmer up (as a mushroom).
+    /// ladder; a boat bounces the swimmer up (as a mushroom). On Sunset
+    /// Ruins only WASD steer: with no keys the current alone carries the
+    /// swimmer, downstream (the AI swims for a bank with keys of its own).
     fn swim(&mut self, wish: V3, course: &Course) {
         let exit = course.water_exit(self.pos);
         let dir = match exit {
             _ if wish != V3::ZERO => wish,
+            _ if course.ruins.is_some() => V3::ZERO,
             Some((to, _)) if to.flat().dist(self.pos.flat()) > cm(20) => {
                 to.flat().sub(self.pos.flat()).norm()
             }
@@ -643,6 +646,10 @@ impl Ape {
         self.vel = v;
         if wall {
             self.happened.push(Happening::Wall);
+        }
+        // Sunset Ruins: the temple's face, solid but for its mouth
+        if course.ruins.is_some() {
+            self.hit_facade(course, before);
         }
         // Sector Ape: the ships, the debris and the door
         if course.sector.is_some() {
