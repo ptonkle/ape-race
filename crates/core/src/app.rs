@@ -1489,10 +1489,10 @@ impl App {
         let vivid = self.settings.colourblind;
         // each map has its own sky, fog and light (the City at dusk)
         let look = match (&self.play, self.stage) {
-            (Some(p), Stage::Race) => scene::look_of(&p.race.course),
+            (Some(p), Stage::Race) => scene::look_at(&p.race.course, cam.eye),
             _ => self
                 .course_of(self.shown_map())
-                .map(scene::look_of)
+                .map(|c| scene::look_at(c, cam.eye))
                 .unwrap_or_else(|| scene::look(self.shown_map())),
         };
         // the Ski Slope's snow greys the sky and closes the fog in (a

@@ -138,7 +138,18 @@ pub fn look_of(c: &Course) -> Look {
         Map::Ski => crate::skiscape::look_for(c),
         // the sun stands below, ahead and to the left of the course
         Map::Sector => crate::sectorscape::look_for(c),
-        Map::Ruins => crate::ruinsscape::look(),
+        // the sunset down the river, its sun 30° off the fall
+        Map::Ruins => crate::ruinsscape::look_for(c),
+    }
+}
+
+/// The look for an eye at `eye` on a course: `look_of`, except on Sunset
+/// Ruins, where it darkens past the temple's mouth and is skylit in the
+/// chamber.
+pub fn look_at(c: &Course, eye: V3) -> Look {
+    match &c.ruins {
+        Some(r) => crate::ruinsscape::look_at(c, r, eye),
+        None => look_of(c),
     }
 }
 
@@ -1390,6 +1401,23 @@ pub fn vine_look_on(map: Map, in_reach: bool, vivid: bool, tick: u32) -> VineLoo
             halo: look.width * crate::sectorscape::TETHER_HALO,
             ..look
         },
+        // Sunset Ruins' jade ropes: against the gold and crimson sky and
+        // the dark temple alike, with a soft glow
+        (Map::Ruins, false, false) => VineLook {
+            colour: crate::ruinsscape::VINE_JADE,
+            glow: ONE / 2,
+            halo: look.width * crate::ruinsscape::VINE_HALO,
+            ..look
+        },
+        (Map::Ruins, false, true) => VineLook {
+            colour: crate::ruinsscape::VINE_JADE_VIVID,
+            halo: look.width * crate::ruinsscape::VINE_HALO,
+            ..look
+        },
+        (Map::Ruins, true, _) => VineLook {
+            halo: look.width * crate::ruinsscape::VINE_HALO,
+            ..look
+        },
         _ => look,
     }
 }
@@ -1430,6 +1458,10 @@ pub fn dynamic(f: &Frame) -> (Batch, Batch) {
     for i in 0..c.vines.len() {
         let a = c.anchor(i, tick);
         if a.flat().sub(eye.flat()).len() > near {
+            continue;
+        }
+        // Sunset Ruins: a pit's vines are drawn up while its trapdoor is shut
+        if c.ruins.as_ref().is_some_and(|r| r.vine_up(i, tick)) {
             continue;
         }
         let look = vine_look_on(map, Some(i) == reach, f.vivid, f.tick);
@@ -1478,6 +1510,9 @@ pub fn dynamic(f: &Frame) -> (Batch, Batch) {
     if let Some(s) = &c.sector {
         crate::sectorscape::dynamic(&mut b, c, s, eye, f.tick, tick);
         crate::sectorscape::flashes(&mut b, f.flashes, tick, f.tick);
+    }
+    if let Some(r) = &c.ruins {
+        crate::ruinsscape::dynamic(&mut b, c, r, eye, f.tick, tick);
     }
     for (k, r) in race.racers.iter().enumerate() {
         // Floor is Lava (TRIAGE T37): the jaguar, and the ape until the bite
@@ -2094,8 +2129,10 @@ pub fn preview(c: &Course) -> Preview {
         Map::Ski => crate::skiscape::preview(c),
         // a ship's deck, the sun's glow below and the mothership behind
         Map::Sector => crate::sectorscape::preview(c),
-        // STAND-IN (Sunset Ruins' skeleton): the Jungle's start tree
-        Map::Jungle | Map::Ruins => {
+        // a stone ledge on the riverbank, the temple's mouth ahead and the
+        // sunset over its shoulder
+        Map::Ruins => crate::ruinsscape::preview(c),
+        Map::Jungle => {
             let pl = c.platforms.first();
             let feet = pl.map_or(c.point(int(4)), |p| {
                 v3(p.centre.x, p.top, p.centre.z).add(p.fwd.scale(p.half_len / 2))
@@ -2123,6 +2160,10 @@ pub fn flyover_camera(c: &Course, ticks: u32, from: i32) -> Camera {
     // through space, weaving between the vines (not a glide over ground)
     if c.sector.is_some() {
         return crate::sectorscape::flyover_camera(c, ticks, from);
+    }
+    // down the river, over the falls, in through the mouth: a smooth line
+    if c.ruins.is_some() {
+        return crate::ruinsscape::flyover_camera(c, ticks, from);
     }
     let lap = (c.length - int(100)).max(int(1)) as i64;
     let s = ((ticks as i64 * int(6) as i64 / crate::rules::TICKS_PER_SECOND as i64 + from as i64)
@@ -2170,6 +2211,10 @@ pub fn backdrop(b: &mut Batch, c: &Course, eye: V3, tick: u32) {
     if let Some(s) = &c.sector {
         crate::sectorscape::lobby_backdrop(b, c, s, eye, tick);
     }
+    // the sunset sky, the river's foam and turtles, the falls, the temple
+    if let Some(r) = &c.ruins {
+        crate::ruinsscape::dynamic(b, c, r, eye, tick, tick);
+    }
 }
 
 /// What moves behind the title: the vines, swaying (drawn as
@@ -2180,6 +2225,9 @@ pub fn flyover_dynamic(c: &Course, tick: u32, vivid: bool, eye: V3) -> (Batch, B
     let map = Map::of(c);
     let look = vine_look_on(map, false, vivid, tick);
     for i in 0..c.vines.len() {
+        if c.ruins.as_ref().is_some_and(|r| r.vine_up(i, tick)) {
+            continue;
+        }
         let a = c.anchor(i, tick);
         let t = tick + i as u32 * 37;
         vine_along(
@@ -2211,6 +2259,9 @@ pub fn flyover_dynamic(c: &Course, tick: u32, vivid: bool, eye: V3) -> (Batch, B
     }
     if let Some(s) = &c.sector {
         crate::sectorscape::dynamic(&mut rest, c, s, eye, tick, tick);
+    }
+    if let Some(r) = &c.ruins {
+        crate::ruinsscape::dynamic(&mut rest, c, r, eye, tick, tick);
     }
     (b, rest)
 }
