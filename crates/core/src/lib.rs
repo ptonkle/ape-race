@@ -18,6 +18,8 @@ pub mod ai;
 pub mod ape;
 pub mod api;
 pub mod app;
+pub mod bay;
+pub mod bayscape;
 pub mod camera;
 pub mod city;
 pub mod cityscape;
