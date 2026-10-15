@@ -1636,20 +1636,23 @@ pub fn preview(c: &Course) -> (V3, i32, Camera) {
         Some(r) => lobby_spot(c, r),
         None => (c.starts[0], c.heading_at(0)),
     };
-    // low and nearly level, a little further back than the other maps'
-    // lobbies: the ape in front, the mouth and the sky behind (not the
-    // ground at its feet, the person 1.10.1)
+    let camera = lobby_camera(feet, look);
+    (feet, yaw_of(camera.eye.sub(feet).flat()), camera)
+}
+
+/// The lobby camera for an ape standing at `feet`, the camera behind it
+/// looking `look` (flat): low and nearly level, a little further back
+/// than the other maps' lobbies: the ape in front, the mouth and the sky
+/// behind (not the ground at its feet, the person 1.10.1). The menus turn
+/// it further to fit their dock (`app::menu_dock`, RS25).
+pub fn lobby_camera(feet: V3, look: V3) -> Camera {
     let eye = feet.sub(look.scale(LOBBY_BACK)).add(v3(0, LOBBY_EYE_UP, 0));
     let target = feet.add(v3(0, LOBBY_AIM_UP, 0));
-    (
-        feet,
-        yaw_of(eye.sub(feet).flat()),
-        Camera {
-            eye,
-            fwd: target.sub(eye).norm(),
-            fov: deg(34),
-        },
-    )
+    Camera {
+        eye,
+        fwd: target.sub(eye).norm(),
+        fov: deg(34),
+    }
 }
 
 /// The lobby camera: this far behind the ape, this high over its feet,

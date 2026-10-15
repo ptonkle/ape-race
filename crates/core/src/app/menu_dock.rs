@@ -16,7 +16,7 @@ use serde_json::{json, Value};
 use super::{App, Stage};
 use crate::course::Course;
 use crate::fx::{self, cm, deg, ratio, ONE, TURN};
-use crate::geom::{v3, V3};
+use crate::geom::{facing, v3, yaw_of, V3};
 use crate::map::Map;
 use crate::models;
 use crate::render::{Batch, Camera};
@@ -37,6 +37,11 @@ const FOCUS_UP: i32 = cm(62);
 /// ape (`models::showcase_camera`: 1.25 m up, 2.9 m off).
 const EYE_UP: i32 = cm(125);
 const EYE_BACK: i32 = cm(290);
+/// Half the ape's width on screen in Sunset Ruins' lobby, as a share of
+/// the height (the lobby camera stands 3.6 m back).
+const APE_HALF_W: i32 = ratio(14, 100);
+/// The most Sunset Ruins' lobby camera turns from its own view.
+const MAX_TURN: i32 = deg(30);
 
 /// Where the previewed ape stands on a map and the way the camera looks
 /// at it (flat, unit). The Jungle: its stage at the origin, seen from +z
@@ -133,11 +138,53 @@ impl App {
     pub(super) fn preview_camera(&self) -> Camera {
         let map = self.map();
         let (feet, look) = self.preview_at();
-        let cam = match (map, self.course_of(map)) {
-            (Map::Ruins, Some(c)) => crate::scene::preview(c).camera,
-            _ => preview_view(feet, look),
+        let focus = feet.add(v3(0, FOCUS_UP, 0));
+        match (map, self.course_of(map)) {
+            (Map::Ruins, Some(c)) => self.ruins_camera(c, focus),
+            _ => self.framed(preview_view(feet, look), focus),
+        }
+    }
+
+    /// Sunset Ruins' lobby camera, framed beside the menus and turned so
+    /// the temple's mouth sits in the open part between the docked panels
+    /// and the ape (RS23, RS25): its middle halfway between the dock's
+    /// edge and the ape's left side, whether one panel or two are docked.
+    /// The turn is found by a few secant steps on where the mouth lands.
+    fn ruins_camera(&self, c: &Course, focus: V3) -> Camera {
+        let Some(r) = c.ruins.as_deref() else {
+            return self.framed(crate::scene::preview(c).camera, focus);
         };
-        self.framed(cam, feet.add(v3(0, FOCUS_UP, 0)))
+        let (feet, look) = crate::ruinsscape::lobby_spot(c, r);
+        let base = yaw_of(look);
+        let cam_at = |turn: i32| {
+            let cam = crate::ruinsscape::lobby_camera(feet, facing(base + turn, 0));
+            self.framed(cam, focus)
+        };
+        let Dock::Side(dock) = self.dock() else {
+            return cam_at(0);
+        };
+        let (w, h) = (self.view_w.max(1), self.view_h.max(1));
+        let ape = dock + (w - dock) / 2;
+        let target = fx::div(dock + ape - fx::mul(h, APE_HALF_W), 2 * w) * 100;
+        let mouth = r.mouth.opening.centre;
+        let aspect = fx::div(w, h);
+        let miss = |turn: i32| {
+            cam_at(turn)
+                .screen(aspect, mouth)
+                .map_or(0, |(x, _)| x - target)
+        };
+        let (mut t0, mut t1) = (0, deg(3));
+        let (mut f0, mut f1) = (miss(t0), miss(t1));
+        for _ in 0..4 {
+            if f1 == f0 {
+                break;
+            }
+            let t2 = t1 - (f1 as i64 * (t1 - t0) as i64 / (f1 - f0) as i64) as i32;
+            let t2 = t2.clamp(-MAX_TURN, MAX_TURN);
+            (t0, f0) = (t1, f1);
+            (t1, f1) = (t2, miss(t2));
+        }
+        cam_at(t1)
     }
 
     /// The preview's moving parts: the vines (on a map's own ground) and
@@ -281,31 +328,58 @@ mod tests {
 
     #[test]
     fn on_sunset_ruins_the_lobby_camera_looks_past_the_ape_at_the_temple_mouth() {
-        // the person (1.10.1): "just looking at the ground"
-        for (w, h) in [(1920, 1080), (1280, 720)] {
-            let mut a = app_at(Screen::Setup, w, h);
-            a.act("setup.map", "ruins");
-            let c = a.course_of(Map::Ruins).unwrap();
-            let cam = a.preview_camera();
-            // nearly level, not pitched down at the feet
-            assert!(
-                cam.fwd.y.abs() < fx::sin(deg(4)),
-                "{w}x{h}: pitch {}",
-                cam.fwd.y
-            );
-            // the mouth on screen, left of the ape and right of the menus
-            let mouth = c.ruins.as_deref().unwrap().mouth.opening.centre;
-            let (mx, my) = cam.screen(fx::div(w, h), mouth).unwrap();
-            let (mx, my) = (mx / ONE, my / ONE);
-            let (x, y) = ape_on_screen(&a);
-            let Dock::Side(dock) = a.dock() else { panic!() };
-            assert!(
-                mx > dock * 100 / w && mx < x,
-                "{w}x{h}: mouth at {mx}%, ape {x}%"
-            );
-            assert!((15..=70).contains(&my), "{w}x{h}: mouth {my}% down");
-            assert!((40..=70).contains(&y), "{w}x{h}: ape at {y}% down");
+        // the person (1.10.1): "just looking at the ground"; RS23: in the
+        // online lobby the mouth sat behind the Race Setup panel
+        for (w, h) in [(1920, 1080), (1366, 768), (1280, 720)] {
+            for (name, a) in ruins_screens(w, h) {
+                assert_eq!(a.map(), Map::Ruins, "{name}");
+                let c = a.course_of(Map::Ruins).unwrap();
+                let cam = a.preview_camera();
+                // nearly level, not pitched down at the feet
+                assert!(
+                    cam.fwd.y.abs() < fx::sin(deg(4)),
+                    "{name} {w}x{h}: pitch {}",
+                    cam.fwd.y
+                );
+                // the mouth's middle in the open part, between the menus'
+                // edge and the ape's left side
+                let mouth = c.ruins.as_deref().unwrap().mouth.opening.centre;
+                let (mx, my) = cam.screen(fx::div(w, h), mouth).unwrap();
+                let (mx, my) = (mx / ONE, my / ONE);
+                let (x, y) = ape_on_screen(&a);
+                let Dock::Side(dock) = a.dock() else { panic!() };
+                let ape_left = x - fx::mul(h, APE_HALF_W) * 100 / w;
+                assert!(
+                    mx > dock * 100 / w + 2 && mx < ape_left - 2,
+                    "{name} {w}x{h}: mouth at {mx}%, menus to {}%, ape from {ape_left}%",
+                    dock * 100 / w
+                );
+                assert!((15..=70).contains(&my), "{name} {w}x{h}: mouth {my}% down");
+                let open_middle = (dock + (w - dock) / 2) * 100 / w;
+                assert!(
+                    (x - open_middle).abs() <= 2,
+                    "{name} {w}x{h}: ape at {x}%, open part's middle {open_middle}%"
+                );
+                assert!((40..=70).contains(&y), "{name} {w}x{h}: ape at {y}% down");
+            }
         }
+    }
+
+    /// Race Setup, Time Trial and the online lobby (two panels docked)
+    /// on Sunset Ruins.
+    fn ruins_screens(w: i32, h: i32) -> Vec<(&'static str, App)> {
+        let mut setup = app_at(Screen::Setup, w, h);
+        setup.act("setup.map", "ruins");
+        let mut trial = app_at(Screen::Title, w, h);
+        trial.act("menu.trial", "");
+        trial.act("setup.map", "ruins");
+        assert!(trial.trial && trial.screen == Screen::Setup);
+        let mut lobby = app_at(Screen::Online, w, h);
+        lobby.act("online.host", "");
+        lobby.act("lobby.map", "ruins");
+        assert_eq!(lobby.screen, Screen::Lobby);
+        assert_eq!(lobby.dock(), Dock::Side(2 * PANEL_W + 3 * GAP));
+        vec![("setup", setup), ("trial", trial), ("lobby", lobby)]
     }
 
     #[test]

@@ -668,3 +668,24 @@ fn random_online_the_host_picks_and_every_browser_races_that_map() {
         );
     }
 }
+
+/// RS25: the joiner's lobby docks the same two panels as the host's, so
+/// on Sunset Ruins it sees the same camera, the temple's mouth between
+/// the panels and the ape (`menu_dock`'s Ruins test checks where).
+#[test]
+fn the_joiner_sees_the_hosts_ruins_lobby_camera() {
+    let mut pair = Pair::lobby();
+    pair.apps[0].act("lobby.map", "ruins");
+    pair.run(500);
+    for (w, h) in [(1920, 1080), (1366, 768), (1280, 720)] {
+        for a in pair.apps.iter_mut() {
+            a.resize(w, h);
+        }
+        let [host, joiner] = &pair.apps;
+        assert_eq!(joiner.screen, Screen::Lobby);
+        assert_eq!(joiner.map(), crate::map::Map::Ruins);
+        assert_eq!(joiner.dock(), host.dock(), "{w}x{h}");
+        let (a, b) = (host.preview_camera(), joiner.preview_camera());
+        assert_eq!((a.eye, a.fwd), (b.eye, b.fwd), "{w}x{h}");
+    }
+}
