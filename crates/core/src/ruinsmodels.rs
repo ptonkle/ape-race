@@ -242,7 +242,7 @@ fn halo(b: &mut Batch, f: &Affine, mesh: Mesh, at: V3, size: V3, c: Rgb, strengt
 }
 
 /// A small hash for per-piece variety.
-fn hash(k: u32, salt: u32) -> u32 {
+pub(crate) fn hash(k: u32, salt: u32) -> u32 {
     let mut x = k.wrapping_mul(0x9E37_79B9) ^ salt.wrapping_mul(0x85EB_CA6B);
     x ^= x >> 15;
     x = x.wrapping_mul(0x2C1B_3C6D);
@@ -250,12 +250,12 @@ fn hash(k: u32, salt: u32) -> u32 {
 }
 
 /// A value from `lo` to `hi` (inclusive-ish) for piece `k`.
-fn pick(k: u32, salt: u32, lo: i32, hi: i32) -> i32 {
+pub(crate) fn pick(k: u32, salt: u32, lo: i32, hi: i32) -> i32 {
     lo + (hash(k, salt) % ((hi - lo).max(0) as u32 + 1)) as i32
 }
 
 /// A slow wave in `-ONE..ONE` with a period of `secs` seconds.
-fn wave(tick: u32, secs: i32, phase: i32) -> i32 {
+pub(crate) fn wave(tick: u32, secs: i32, phase: i32) -> i32 {
     let period = (secs * TICKS_PER_SECOND).max(1) as u32;
     sin((tick % period) as i32 * (TURN / period as i32) + phase)
 }
@@ -287,7 +287,16 @@ fn moss(b: &mut Batch, f: &Affine, top: V3, w: i32, k: u32) {
 
 /// One banana from `base`, reaching out along the flat `out` and curving
 /// up, `len` long and `w` thick: three facets and a dark tip.
-fn banana(b: &mut Batch, f: &Affine, base: V3, out: V3, len: i32, w: i32, c: Rgb, glow: i32) {
+pub(crate) fn banana(
+    b: &mut Batch,
+    f: &Affine,
+    base: V3,
+    out: V3,
+    len: i32,
+    w: i32,
+    c: Rgb,
+    glow: i32,
+) {
     let o = out.flat().norm();
     let p = |along: i32, rise: i32| {
         base.add(o.scale(mul(len, along)))
@@ -309,7 +318,16 @@ fn banana(b: &mut Batch, f: &Affine, base: V3, out: V3, len: i32, w: i32, c: Rgb
 
 /// A bunch of `n` bananas round a stalk at `at` (the hand's middle), each
 /// `len` long: a ring of them curving out and up, a stalk on top.
-fn bunch(b: &mut Batch, f: &Affine, at: V3, n: i32, len: i32, c: Rgb, glow: i32, k: u32) {
+pub(crate) fn bunch(
+    b: &mut Batch,
+    f: &Affine,
+    at: V3,
+    n: i32,
+    len: i32,
+    c: Rgb,
+    glow: i32,
+    k: u32,
+) {
     let w = len / 4;
     for i in 0..n {
         let yaw = i * TURN / n + (k as i32) * 977;
