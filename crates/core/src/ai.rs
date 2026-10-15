@@ -720,7 +720,11 @@ fn ahead_from_cached(
     let mut good: Vec<(i64, usize)> = Vec::new();
     let mut rest = Vec::new();
     for (i, v) in course.vines.iter().enumerate() {
-        if v.at <= from || v.at > from + tune.look || Some(i) == held || off_limits(course, i, tune)
+        if v.at <= from
+            || v.at > from + tune.look
+            || Some(i) == held
+            || off_limits(course, i, tune)
+            || drawn_up(course, i, tick)
         {
             continue;
         }
@@ -785,11 +789,19 @@ fn aim_point(course: &Course, i: usize, tick: u32) -> V3 {
 /// Whether vine `i` is on a hidden route this level does not look for
 /// (Sector Ape's wreck passage).
 fn off_limits(course: &Course, i: usize, tune: Tuning) -> bool {
+    // (Sunset Ruins: a pit's vines are for when its trapdoor is open:
+    // `drawn_up`)
     !tune.hidden
         && course
             .sector
             .as_ref()
             .is_some_and(|s| s.routes.iter().any(|r| r.hidden && r.vines.contains(&i)))
+}
+
+/// Whether vine `i` is drawn up out of reach at `tick` (Sunset Ruins: a
+/// pit vine over a shut trapdoor).
+fn drawn_up(course: &Course, i: usize, tick: u32) -> bool {
+    course.ruins.as_ref().is_some_and(|r| r.vine_up(i, tick))
 }
 
 /// The vine to make for after `target`.
@@ -1455,6 +1467,7 @@ fn on_ground(a: &Ape, course: &Course, tick: u32, brain: &mut Brain) -> Controls
             || v.at > prog + int(120)
             || Some(i) == brain.avoid
             || off_limits(course, i, tune)
+            || drawn_up(course, i, tick)
         {
             continue;
         }

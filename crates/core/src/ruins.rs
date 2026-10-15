@@ -39,8 +39,10 @@
 //! physics, the AI) and the scene (drawing): the course fills a
 //! `RuinsLayout` on `Course.ruins`; the scene draws from it.
 //!
-//! STAND-IN (the skeleton, 2026-10-14): `ruins()` is the Jungle's layout
-//! under this map's name with an empty layout; the course agent replaces it.
+//! The course is in `ruins/layout.rs`, the rules it adds (the current,
+//! the turtles, the ravine, the bridge's boost, the spikes, the pits, the
+//! temple's walls and ceilings) in `ruins/rules.rs`; every one is gated on
+//! `Course.ruins`, so the other maps do not change.
 
 use crate::fx::{self, cm, int, ONE};
 use crate::geom::{v3, V3};
@@ -50,6 +52,7 @@ use crate::rules::TICKS_PER_SECOND;
 pub use layout::{ruins, ruins_seeded};
 
 mod layout;
+mod rules;
 #[cfg(test)]
 mod tests;
 
@@ -64,9 +67,11 @@ pub const TRAP_OPEN: u32 = 8 * TICKS_PER_SECOND as u32;
 /// How long a spiked ape cannot grab (ticks; about 1 s).
 pub const SPIKE_NO_GRAB: u32 = TICKS_PER_SECOND as u32;
 
-/// A gorilla's width, arms in (a first guess from `models`: shoulders 31 cm
-/// from the middle, plus the arms). The bridge is three of these wide.
-pub const GORILLA_WIDTH: i32 = cm(100);
+/// A gorilla's width, arms in, as drawn in a race (measured from
+/// `models`: shoulder joints 31 cm from the middle plus half a 16 cm arm,
+/// each side, at the gorilla's 122% and `scene::RACE_SCALE` 300%: 2.86 m).
+/// The bridge is three of these wide.
+pub const GORILLA_WIDTH: i32 = cm(286);
 
 /// The rope bridge's deck width: three gorillas.
 pub const BRIDGE_WIDTH: i32 = 3 * GORILLA_WIDTH;
@@ -111,6 +116,66 @@ pub struct RuinsLayout {
     /// where an ape stands behind the menus (the lobby zone): the hands'
     /// place and the way it faces
     pub lobby: (V3, i32),
+    /// where each part of the course begins, metres along it
+    pub marks: Marks,
+}
+
+/// Where each part of Sunset Ruins begins, metres along the course
+/// (fixed point): the river runs from the start to `lip`, the ravine from
+/// `lip` to `mouth`, the temple corridor from `mouth` to `chamber`, the
+/// ring round the chamber from `chamber` to `turn_in`, and from `turn_in`
+/// the path heads for the pile at the centre.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Marks {
+    pub lip: i32,
+    pub mouth: i32,
+    pub chamber: i32,
+    pub turn_in: i32,
+}
+
+/// The river's fall: metres of drop a metre along it (6%).
+pub const GRADE: i32 = ONE * 6 / 100;
+/// The temple's floor is this far below the lip.
+pub const TEMPLE_BELOW_LIP: i32 = int(6);
+/// The ravine's floor is this far below the lip (no ape reaches it).
+pub const RAVINE_DEPTH: i32 = int(90);
+/// The river's half width; its banks run on to the corridor's walls.
+pub const RIVER_HALF: i32 = int(14);
+/// The current's speed downstream (slower than a swim, far slower than a
+/// swing).
+pub const CURRENT: i32 = int(3);
+/// The temple corridor's half width and its ceiling's height.
+pub const CORRIDOR_HALF: i32 = int(15);
+pub const CORRIDOR_HEIGHT: i32 = int(32);
+/// The chamber's roof above its floor, and its ring's half width.
+pub const CHAMBER_HEIGHT: i32 = int(46);
+pub const RING_HALF: i32 = int(16);
+/// How hard a spike flings an ape up.
+pub const SPIKE_FLING: i32 = int(14);
+/// The bridge's boost: the least speed toward the mouth it flings an ape
+/// at, and how fast toward the mouth a release must be going to get it.
+pub const BOOST_SPEED: i32 = int(26);
+pub const BOOST_DECENT: i32 = int(6);
+/// A turtle's shell top above the water, and its radius as a bouncer.
+pub const TURTLE_TOP: i32 = cm(60);
+pub const TURTLE_RADIUS: i32 = cm(220);
+/// No bouncer on Sunset Ruins stands taller than this above the land.
+pub const BOUNCER_TALLEST: i32 = int(5);
+
+/// The land's height `u` metres along the fall from the start: the
+/// river's slope to the lip `lip`, the ravine's floor to the mouth
+/// `mouth`, then the temple's floor.
+pub fn height_at(u: i32, lip: i32, mouth: i32) -> i32 {
+    let at_lip = -fx::mul(GRADE, lip);
+    if u <= 0 {
+        0
+    } else if u < lip {
+        -fx::mul(GRADE, u)
+    } else if u < mouth {
+        at_lip - RAVINE_DEPTH
+    } else {
+        at_lip - TEMPLE_BELOW_LIP
+    }
 }
 
 /// The river: a chain of centreline points, upstream first. Between two
@@ -149,15 +214,30 @@ impl River {
     pub fn water_at(&self, x: i32, z: i32) -> Option<Water> {
         let p = v3(x, 0, z);
         let mut best: Option<(i64, Water)> = None;
-        for w in self.points.windows(2) {
+        let last = self.points.len().saturating_sub(2);
+        for (k, w) in self.points.windows(2).enumerate() {
             let (a, b) = (w[0], w[1]);
+            // (quick reject: outside the stretch's box)
+            let r = a.half_width.max(b.half_width);
+            if x < a.at.x.min(b.at.x) - r
+                || x > a.at.x.max(b.at.x) + r
+                || z < a.at.z.min(b.at.z) - r
+                || z > a.at.z.max(b.at.z) + r
+            {
+                continue;
+            }
             let d = b.at.sub(a.at).flat();
             let len = d.len();
             if len == 0 {
                 continue;
             }
             let dir = d.norm();
-            let along = p.sub(a.at.flat()).dot(dir).clamp(0, len);
+            let along = p.sub(a.at.flat()).dot(dir);
+            // no water before the first point or past the last (the lip)
+            if (k == 0 && along < 0) || (k == last && along > len) {
+                continue;
+            }
+            let along = along.clamp(0, len);
             let t = fx::div(along, len);
             let mid = a.at.flat().add(dir.scale(along));
             let off = p.sub(mid).len_xz() as i64;
@@ -471,4 +551,4 @@ pub fn wire_across(c: &crate::course::Course, s: i32, half: i32) -> (V3, V3) {
 }
 
 /// The bridge's width is three gorillas (kept here so a change shows).
-const _: () = assert!(BRIDGE_WIDTH == int(3));
+const _: () = assert!(BRIDGE_WIDTH == 3 * cm(286));

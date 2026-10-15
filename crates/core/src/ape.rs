@@ -55,6 +55,8 @@ pub enum Happening {
     /// Sector Ape: thrown off a ship or a piece of debris, elastically,
     /// with a boost
     Rebound,
+    /// Sunset Ruins: flung up by a spike trap or the spikes in a pit
+    Spiked,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -97,6 +99,8 @@ pub struct Ape {
     /// Sector Ape: ticks before a rebound off debris boosts again (a
     /// rebound with the boost comes once, not every tick of a touch)
     pub rebound_cool: u8,
+    /// Sunset Ruins: ticks left before a spiked ape can grab again
+    pub no_grab: i32,
 }
 
 impl Ape {
@@ -119,6 +123,7 @@ impl Ape {
             banana_drag: 0,
             climb: None,
             rebound_cool: 0,
+            no_grab: 0,
         }
     }
 
@@ -167,11 +172,17 @@ impl Ape {
         }
         let mut best = None;
         let mut best_d = self.phys.reach;
+        let ruins = course.ruins.as_deref();
         for i in 0..course.vines.len() {
             if let Some((v, ago)) = self.last_vine {
                 if v == i && ago < RELEASE_IGNORE {
                     continue;
                 }
+            }
+            // (Sunset Ruins: a pit vine is up out of reach while its
+            // trapdoor is shut)
+            if ruins.is_some_and(|r| r.vine_up(i, tick)) {
+                continue;
             }
             let a = course.anchor(i, tick);
             // quick reject by height and distance
@@ -203,6 +214,9 @@ impl Ape {
             self.last_vine = Some((v, ago + 1));
         }
         let stunned = self.stun > 0;
+        if self.no_grab > 0 {
+            self.no_grab -= 1;
+        }
 
         // climbing out of the river (the City): nothing else until out
         if let Some(top) = self.climb {
@@ -210,10 +224,21 @@ impl Ape {
             return;
         }
 
+        // Sunset Ruins: a pit vine drawn up with its trapdoor shut lets go
+        if let (Mode::Swinging { vine, .. }, Some(r)) = (self.mode, course.ruins.as_deref()) {
+            if r.vine_up(vine, tick) {
+                self.release(vine);
+            }
+        }
+
         // let go
         if let Mode::Swinging { vine, .. } = self.mode {
             if !c.grab || stunned {
                 self.release(vine);
+                // (Sunset Ruins: the rope bridge's boost)
+                if course.ruins.is_some() {
+                    self.bridge_boost(vine, course);
+                }
                 // (Sector Ape: an odd vine's slingshot)
                 if course.sector.is_some() {
                     self.sling(vine, course);
@@ -244,7 +269,7 @@ impl Ape {
 
         // Holding grab catches the first vine in reach (TRIAGE row 9: no
         // timing, no Missed Grab, no cooldown).
-        if c.grab && !stunned && self.swinging().is_none() {
+        if c.grab && !stunned && self.no_grab == 0 && self.swinging().is_none() {
             if let Some(v) = self.vine_in_reach(course, tick) {
                 self.grab(v, course, tick);
             }
@@ -465,6 +490,15 @@ impl Ape {
         };
         let flat = self.vel.flat();
         let target = dir.scale(SWIM_SPEED);
+        // (Sunset Ruins: the current carries the swimmer downstream)
+        let target = match course.ruins.as_deref() {
+            Some(r) => target.add(
+                r.river
+                    .water_at(self.pos.x, self.pos.z)
+                    .map_or(V3::ZERO, |w| w.current),
+            ),
+            None => target,
+        };
         let diff = target.sub(flat);
         let step = mul(WATER_DRAG, DT);
         let next = if diff.len() <= step {
@@ -634,7 +668,10 @@ impl Ape {
                 return;
             }
         }
-        let support = course.support(self.pos);
+        let support = match course.ruins {
+            Some(_) => course.support_at(self.pos, tick),
+            None => course.support(self.pos),
+        };
         let feet = self.pos.y - BODY_DROP;
         if feet <= support {
             self.pos.y = support + BODY_DROP;
@@ -671,6 +708,10 @@ impl Ape {
         } else if self.mode == Mode::Grounded && feet > support + ONE / 4 {
             // walked off an edge
             self.mode = Mode::Flying;
+        }
+        // Sunset Ruins: the spike traps and the pits' spikes
+        if course.ruins.is_some() {
+            self.spikes(course, tick);
         }
     }
 
