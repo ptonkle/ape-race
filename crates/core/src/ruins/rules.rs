@@ -18,7 +18,7 @@ impl RuinsLayout {
     }
 
     /// Whether `p` (flat) is over trapdoor `k`'s door.
-    fn over_door(&self, k: usize, p: V3) -> bool {
+    pub(crate) fn over_door(&self, k: usize, p: V3) -> bool {
         let d = &self.traps[k].door;
         let q = v3(p.x, d.centre.y, p.z);
         d.contains(q)
@@ -29,6 +29,14 @@ impl RuinsLayout {
 /// river's surface, from points 40 m apart on a 6% fall, is under 3 m
 /// over the bank beside it at most; `tests.rs` checks it).
 pub(crate) const FLOOR_OVER_LAND: i32 = int(8);
+
+/// A pit's spikes throw an ape over the pit's far edge this long after
+/// (seconds, fixed point): a spike's fling is above the floor from 0.37 s
+/// to 1.28 s after, so it passes the edge in the air.
+const PIT_THROW: i32 = ONE * 11 / 10;
+
+/// ... and this far past the edge (air drag takes a little).
+const PIT_THROW_PAST: i32 = int(2);
 
 /// The chamber's invisible inner wall ends this far short of the turn in.
 const INNER_OPEN: i32 = int(24);
@@ -278,12 +286,27 @@ impl Ape {
             let q = v3(feet.x, a.centre.y, feet.z);
             a.contains(q) && feet.y <= a.centre.y + a.half.y + cm(20)
         });
-        let in_pit = r
+        let pit = r
             .traps
             .iter()
             .enumerate()
-            .any(|(k, t)| t.open(tick) && r.over_door(k, feet) && feet.y <= t.pit + cm(30));
-        if on_trap || in_pit {
+            .find(|&(k, t)| t.open(tick) && r.over_door(k, feet) && feet.y <= t.pit + cm(30));
+        if let Some((_, t)) = pit {
+            // a pit's spikes throw the ape on over its far edge (RC9): up
+            // as a trap's, and forward along the course fast enough to
+            // pass the edge `PIT_THROW` after (it lands on the floor beyond
+            // instead of back on the spikes, again and again until the
+            // door shut, up to 8 s)
+            let d = &t.door;
+            let along = feet.flat().sub(d.centre.flat()).dot(d.fwd);
+            let to_edge = d.half.z - along + PIT_THROW_PAST;
+            let need = fx::div(to_edge, PIT_THROW);
+            let own = self.vel.flat().dot(d.fwd) / 2;
+            self.vel = d.fwd.scale(need.max(own)).add(v3(0, SPIKE_FLING, 0));
+            self.mode = Mode::Flying;
+            self.no_grab = SPIKE_NO_GRAB as i32;
+            self.happened.push(Happening::Spiked);
+        } else if on_trap {
             self.vel = v3(self.vel.x / 2, SPIKE_FLING, self.vel.z / 2);
             self.mode = Mode::Flying;
             self.no_grab = SPIKE_NO_GRAB as i32;
