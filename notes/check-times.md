@@ -19,3 +19,5 @@ One row per run of `scripts/timed-checks.sh`, newest last. Seconds per step; `lo
 | 2026-10-15 17:44 | 1.12.0 | 8fe929e+ | 25.08 | online | release=0.2 transport=18.8 a=118.1 | 137.1 | pass |
 | 2026-10-15 18:14 | 1.12.0 | 3065415 | 20.57 | check | (stopped early) | - | FAIL (exit 101) |
 | 2026-10-15 18:15 | 1.12.0 | 3065415 | 19.58 | online | release=9.0 transport=21.0 a=125.2 | 155.2 | pass |
+| 2026-10-15 18:18 | 1.12.0 | 3ebdf65 | 20.92 | check | format=1.0 lint=2.8 core=90.6 release=8.4 WebAssembly=0.1 browser=302.4 | 405.3 | pass |
+| 2026-10-15 18:25 | 1.12.0 | 3ebdf65 | 14.27 | online | release=0.3 transport=16.3 a=76.1 | 92.7 | pass |
