@@ -55,3 +55,4 @@ One row per concept from the brief, plus any added later (your feedback, a new i
 | Skylight with foliage and soft spotlight | Brief | Done | n/a | Done | In progress |
 | Sun low and to the side, raking across the temple face | Models review | n/a | n/a | Done | Waiting on you |
 | Ravine sides read as rocky cliffs | In-game shots | In progress | n/a | In progress | Not started |
+| Banana pile heaped at random, not in rings | Your feedback | In progress | n/a | In progress | Not started |
