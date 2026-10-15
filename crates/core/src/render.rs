@@ -146,7 +146,9 @@ impl Batch {
             list.extend(from);
         }
         if halos.count() > 0 {
-            self.halos.get_or_insert_with(|| Box::new(Batch::new())).append(halos);
+            self.halos
+                .get_or_insert_with(|| Box::new(Batch::new()))
+                .append(halos);
         }
     }
 

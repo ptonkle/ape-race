@@ -2201,11 +2201,21 @@ pub fn banana_pile(b: &mut Batch, f: &Affine, tick: u32) {
     for i in 0..6u32 {
         let yaw = (i as i32) * TURN / 6 + pick(i, 61, 0, 8000);
         let phi = deg(pick(i, 62, 5, 45));
-        let at = facing(yaw, 0)
-            .scale(mul(rx, fx::cos(phi)) * 4 / 5)
-            .add(v3(0, middle.y + mul(ry, sin(phi)) * 4 / 5, 0));
+        let at = facing(yaw, 0).scale(mul(rx, fx::cos(phi)) * 4 / 5).add(v3(
+            0,
+            middle.y + mul(ry, sin(phi)) * 4 / 5,
+            0,
+        ));
         let s = int(pick(i, 63, 5, 8));
-        put(b, f, Mesh::Geo, at, v3(s, s * 3 / 4, s), core, ONE / 4 + mul(p, ONE / 6));
+        put(
+            b,
+            f,
+            Mesh::Geo,
+            at,
+            v3(s, s * 3 / 4, s),
+            core,
+            ONE / 4 + mul(p, ONE / 6),
+        );
     }
     // a random heap of giant bananas over the mound's surface: each at
     // its own place, yaw, tilt and size (a fixed seed, so the same every
@@ -2249,7 +2259,16 @@ pub fn banana_pile(b: &mut Batch, f: &Affine, tick: u32) {
             .then(&Affine::rot_y(pick(i, 71, 0, TURN)))
             .then(&Affine::rot_x(tilt))
             .then(&Affine::rot_z(deg(pick(i, 72, -40, 40))));
-        banana(b, &g, v3(0, 0, -mul(len, ONE * 39 / 100)), v3(0, 0, ONE), len, w, c, glow);
+        banana(
+            b,
+            &g,
+            v3(0, 0, -mul(len, ONE * 39 / 100)),
+            v3(0, 0, ONE),
+            len,
+            w,
+            c,
+            glow,
+        );
     }
     // a great bunch on top, a little off-centre and leaning
     let top = f
@@ -2372,7 +2391,16 @@ pub fn skylight(b: &mut Batch, f: &Affine, r: i32, hang: i32, shaft: i32, tick: 
                 mul(t, cm(80)),
             );
             let p = top.add(v3(sway, -mul(len, t), sway / 2));
-            bar(b, f, Mesh::Taper, prev, p, cm(16) - s * cm(1), VINE, ONE / 4);
+            bar(
+                b,
+                f,
+                Mesh::Taper,
+                prev,
+                p,
+                cm(16) - s * cm(1),
+                VINE,
+                ONE / 4,
+            );
             if s % 2 == 0 {
                 put_turned(
                     b,

@@ -270,7 +270,16 @@ pub fn scenery(c: &Course, r: &RuinsLayout) -> Scenery {
         // under the falls themselves, wet dark rock
         let face = v3(lp.x, lip_h, lp.z).sub(lh.scale(int(3)));
         push(lp, &mut |b| {
-            crag(b, face, lh, -(RIVER_HALF + int(4)), RIVER_HALF + int(4), depth, 60, 1)
+            crag(
+                b,
+                face,
+                lh,
+                -(RIVER_HALF + int(4)),
+                RIVER_HALF + int(4),
+                depth,
+                60,
+                1,
+            )
         });
         for side in [-1, 1] {
             let p = face.add(right_of(lh).scale(side * int(70)));
@@ -280,7 +289,16 @@ pub fn scenery(c: &Course, r: &RuinsLayout) -> Scenery {
                 } else {
                     (RIVER_HALF + int(4), int(130))
                 };
-                crag(b, face, lh, a0, a1, depth, 92, if side < 0 { 10 } else { 12 })
+                crag(
+                    b,
+                    face,
+                    lh,
+                    a0,
+                    a1,
+                    depth,
+                    92,
+                    if side < 0 { 10 } else { 12 },
+                )
             });
         }
         let mo = r.marks.mouth;
@@ -288,7 +306,16 @@ pub fn scenery(c: &Course, r: &RuinsLayout) -> Scenery {
         let mh = c.heading_at(mo);
         let face = v3(mp.x, floor, mp.z).sub(mh.scale(int(1)));
         push(mp, &mut |b| {
-            crag(b, face, mh.neg(), -int(120), int(120), floor - (lip_h - depth), 84, 30)
+            crag(
+                b,
+                face,
+                mh.neg(),
+                -int(120),
+                int(120),
+                floor - (lip_h - depth),
+                84,
+                30,
+            )
         });
     }
     ravine_mist_rocks(&mut push, c, r);
@@ -337,11 +364,19 @@ pub fn scenery(c: &Course, r: &RuinsLayout) -> Scenery {
                     shade(CLIFF, 84 + pick(k, 145, -12, 14)),
                     0,
                 );
-                if t > 0 && hash(k, 146) % 3 == 0 {
+                if t > 0 && hash(k, 146).is_multiple_of(3) {
                     b.push(
                         Mesh::Blob,
-                        &m::pose(v3(at.x, y - th / 2 + int(1), at.z).add(out.scale(int(3))), yaw_of(out), ONE)
-                            .then(&Affine::scale(v3(w * 2 / 3, int(2), int(4)))),
+                        &m::pose(
+                            v3(at.x, y - th / 2 + int(1), at.z).add(out.scale(int(3))),
+                            yaw_of(out),
+                            ONE,
+                        )
+                        .then(&Affine::scale(v3(
+                            w * 2 / 3,
+                            int(2),
+                            int(4),
+                        ))),
                         shade(MOSS, 80),
                         0,
                     );
@@ -438,13 +473,21 @@ pub fn scenery(c: &Course, r: &RuinsLayout) -> Scenery {
     push(lobby, &mut |b| {
         b.push(
             Mesh::Bevel,
-            &block(lobby.sub(v3(0, int(2), 0)), lobby.sub(view_to), v3(int(5), int(4), int(4))),
+            &block(
+                lobby.sub(v3(0, int(2), 0)),
+                lobby.sub(view_to),
+                v3(int(5), int(4), int(4)),
+            ),
             STONE,
             0,
         );
         b.push(
             Mesh::Blob,
-            &block(lobby.sub(v3(0, cm(10), 0)), lobby.sub(view_to), v3(int(4), cm(40), int(3))),
+            &block(
+                lobby.sub(v3(0, cm(10), 0)),
+                lobby.sub(view_to),
+                v3(int(4), cm(40), int(3)),
+            ),
             MOSS,
             0,
         );
@@ -561,9 +604,7 @@ fn crag(b: &mut Batch, top_at: V3, fwd: V3, a0: i32, a1: i32, drop: i32, pct: i3
             let h = tier_h + int(pick(k, 102, 2, 9));
             let jut = int(t) * 2 + int(pick(k, 103, -1, 3));
             let y = top_at.y - tier_h * t - tier_h / 2 - int(pick(k, 104, 0, 3));
-            let at = top_at
-                .add(right.scale(mid_a))
-                .add(fwd.scale(jut - int(5)));
+            let at = top_at.add(right.scale(mid_a)).add(fwd.scale(jut - int(5)));
             let at = v3(at.x, y, at.z);
             let tone = pct + pick(k, 105, -14, 12);
             let col = if hash(k, 106).is_multiple_of(3) {
@@ -588,8 +629,11 @@ fn crag(b: &mut Batch, top_at: V3, fwd: V3, a0: i32, a1: i32, drop: i32, pct: i3
                 let ledge = at.add(fwd.scale(int(3))).add(v3(0, h / 2 - int(1), 0));
                 b.push(
                     Mesh::Blob,
-                    &m::pose(ledge, yaw_of(fwd), ONE)
-                        .then(&Affine::scale(v3(w * 2 / 3, int(2), int(5)))),
+                    &m::pose(ledge, yaw_of(fwd), ONE).then(&Affine::scale(v3(
+                        w * 2 / 3,
+                        int(2),
+                        int(5),
+                    ))),
                     shade(MOSS, 70 + pick(k, 111, 0, 30)),
                     0,
                 );
@@ -612,8 +656,11 @@ fn ravine_mist_rocks(push: &mut Put, c: &Course, r: &RuinsLayout) {
         push(p, &mut |b| {
             b.push(
                 Mesh::Ico,
-                &m::pose(p, pick(k, 124, 0, TURN), ONE)
-                    .then(&Affine::scale(v3(size, size * 2 / 3, size))),
+                &m::pose(p, pick(k, 124, 0, TURN), ONE).then(&Affine::scale(v3(
+                    size,
+                    size * 2 / 3,
+                    size,
+                ))),
                 shade(CLIFF, 70 + pick(k, 125, 0, 20)),
                 0,
             );
