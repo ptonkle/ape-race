@@ -2063,9 +2063,12 @@ pub fn flyover_camera(c: &Course, ticks: u32, from: i32) -> Camera {
 fn fly_line(c: &Course, s: i32) -> V3 {
     let p = c.point(s);
     let right = right_of(c.heading_at(s));
+    // a turn of the weave every 120 m across and 90 m up (an angle is a
+    // share of `TURN`, which is `ONE`: `s / 3` was a turn every 3 m, and
+    // the flyover shook, T83)
     let weave = (
-        mul(sin(s / 3), int(5)),
-        int(6) + mul(sin(s / 4 + 9_000), int(3)),
+        mul(sin(s / 120), int(5)),
+        int(6) + mul(sin(s / 90 + 9_000), int(3)),
     );
     let (across, up) = match c.sector.as_deref().and_then(|l| fly_route(c, l, s)) {
         Some(((a, u), k)) => (fx::lerp(weave.0, a, k), fx::lerp(weave.1, u, k)),
@@ -2075,51 +2078,90 @@ fn fly_line(c: &Course, s: i32) -> V3 {
     v3(q.x, up, q.z)
 }
 
+/// A point of the flyover's line through a route: (along, across, height).
+type RoutePoint = (i32, i32, i32);
+
+/// The flyover's route line is smoothed over this many metres either way.
+const SMOOTH_STEPS: i32 = 40;
+
 /// Where the flyover goes at `s` on a route through a split, if it is on
 /// one: (across, height) a little above that route's vines' ends, and how
 /// far it has eased onto it (0..=ONE). It takes the door's route (through
 /// the Hulk's corridor), else the one furthest out (between the wreck's
 /// halves); never the hidden one.
 fn fly_route(c: &Course, l: &SectorLayout, s: i32) -> Option<((i32, i32), i32)> {
-    let ease = int(45);
-    let r = l
+    let ease = int(90);
+    // each route's line (along, across, height) a little above its vines'
+    // ends, in order along the course, and how much it is preferred
+    let lines: Vec<((bool, i64), Vec<RoutePoint>)> = l
         .routes
         .iter()
-        .filter(|r| !r.hidden && r.vines.len() >= 2 && s > r.from - ease && s < r.to + ease)
-        .max_by_key(|r| {
+        .filter(|r| !r.hidden && r.vines.iter().filter(|&&v| v < c.vines.len()).count() >= 2)
+        .map(|r| {
             let out: i64 = r
                 .vines
                 .iter()
                 .filter_map(|&v| c.vines.get(v))
                 .map(|v| (v.anchor.flat().sub(c.point(v.at)).len() / ONE) as i64)
                 .sum();
-            (r.door, out / r.vines.len() as i64)
-        })?;
-    let mut pts: Vec<(i32, i32, i32)> = r
-        .vines
-        .iter()
-        .filter(|&&v| v < c.vines.len())
-        .map(|&v| {
-            let tip = c.tip(v, 0);
-            let (at, across) = c.progress(tip, c.nearest_anywhere(tip));
-            (at, across, tip.y + int(3))
+            let mut pts: Vec<RoutePoint> = r
+                .vines
+                .iter()
+                .filter(|&&v| v < c.vines.len())
+                .map(|&v| {
+                    let tip = c.tip(v, 0);
+                    let (at, across) = c.progress(tip, c.nearest_anywhere(tip));
+                    (at, across, tip.y + int(3))
+                })
+                .collect();
+            pts.sort_by_key(|p| p.0);
+            ((r.door, out / r.vines.len() as i64), pts)
         })
         .collect();
-    pts.sort_by_key(|p| p.0);
+    // where the flyover is on a route: from `ease` before its first vine
+    // to `ease` after its last. Of routes through the same split only the
+    // preferred one is ever taken, so it never jumps from one to another
+    let span = |pts: &[RoutePoint]| (pts[0].0 - ease, pts[pts.len() - 1].0 + ease);
+    let overlap = |a: (i32, i32), b: (i32, i32)| a.0 < b.1 && b.0 < a.1;
+    let (_, pts) = lines
+        .iter()
+        .filter(|(key, pts)| {
+            let (from, to) = span(pts);
+            s > from
+                && s < to
+                && !lines
+                    .iter()
+                    .any(|(k, p)| k > key && overlap(span(p), (from, to)))
+        })
+        .max_by_key(|(key, _)| *key)?;
     let (first, last) = (pts[0], pts[pts.len() - 1]);
-    let (a, u) = if s <= first.0 {
-        (first.1, first.2)
-    } else if s >= last.0 {
-        (last.1, last.2)
-    } else {
-        let k = pts
-            .windows(2)
-            .position(|w| s >= w[0].0 && s < w[1].0)
-            .unwrap_or(0);
-        let (p0, p1) = (pts[k], pts[k + 1]);
-        let t = fx::div(s - p0.0, (p1.0 - p0.0).max(1));
-        (fx::lerp(p0.1, p1.1, t), fx::lerp(p0.2, p1.2, t))
+    let at = |s: i32| {
+        if s <= first.0 {
+            (first.1, first.2)
+        } else if s >= last.0 {
+            (last.1, last.2)
+        } else {
+            let k = pts
+                .windows(2)
+                .position(|w| s >= w[0].0 && s < w[1].0)
+                .unwrap_or(0);
+            let (p0, p1) = (pts[k], pts[k + 1]);
+            let t = fx::div(s - p0.0, (p1.0 - p0.0).max(1));
+            (fx::lerp(p0.1, p1.1, t), fx::lerp(p0.2, p1.2, t))
+        }
     };
+    // the line through the vines' ends zigzags (they hang either side of
+    // the corridor every 5 to 20 m): it is smoothed over 40 m either way,
+    // weighted toward the middle, so the eye glides (T83)
+    let (mut a, mut u, mut wsum) = (0i64, 0i64, 0i64);
+    for d in -SMOOTH_STEPS..=SMOOTH_STEPS {
+        let w = (SMOOTH_STEPS + 1 - d.abs()) as i64;
+        let (x, y) = at(s + int(d));
+        a += x as i64 * w;
+        u += y as i64 * w;
+        wsum += w;
+    }
+    let (a, u) = ((a / wsum) as i32, (u / wsum) as i32);
     // eased on before the first vine and off after the last
     let k = if s < first.0 {
         fx::div((s - (first.0 - ease)).max(0), ease)
@@ -2471,5 +2513,59 @@ mod tests {
             seen += 1;
         }
         assert!(seen > 200, "{seen}");
+    }
+
+    /// The worst sway of a map's title flyover over a lap, sampled every
+    /// quarter second: (the eye's sideways or up-and-down acceleration, in
+    /// m/s², and how fast the view turns, in degrees a second).
+    fn flyover_sway(c: &Course) -> (i64, i64) {
+        let h = crate::rules::TICKS_PER_SECOND as u32 / 4;
+        let per_s = 4i64;
+        // one lap at the flyover's speed, short of where it wraps
+        let lap_ticks = ((c.length - int(160)) as i64 * crate::rules::TICKS_PER_SECOND as i64
+            / int(9) as i64) as u32;
+        let cams: Vec<Camera> = (0..lap_ticks / h)
+            .map(|k| scene::flyover_camera(c, k * h, 0))
+            .collect();
+        let (mut accel, mut turn) = (0i64, 0i64);
+        for w in cams.windows(3) {
+            let (a, b, d) = (w[0].eye, w[1].eye, w[2].eye);
+            let second = d.sub(b).sub(b.sub(a));
+            // Q16 metres over (1/4 s)²: m/s² is 16 times that
+            let acc = second.len() as i64 * per_s * per_s / ONE as i64;
+            accel = accel.max(acc);
+            // the angle between one look and the next: sin = |cross|
+            let s = w[0].fwd.cross(w[1].fwd).len().min(ONE);
+            let angle = fx::atan2(s, w[0].fwd.dot(w[1].fwd).max(1)) as i64 * 360 / TURN as i64;
+            turn = turn.max(angle * per_s);
+        }
+        (accel, turn)
+    }
+
+    #[test]
+    fn the_title_flyover_through_space_glides_without_shaking() {
+        // T83: on Sector Ape the title's flyover shook (its weave took a
+        // full turn every 3 to 4 m, swinging ±5 m three times a second, and
+        // it zigzagged between the corridor's vines). It glides as the
+        // other maps' do (their worst: 2 m/s², 16°/s)
+        for m in Map::ALL {
+            let (accel, turn) = flyover_sway(&m.course());
+            assert!(accel <= 4, "{m:?}: the eye sways {accel} m/s²");
+            assert!(turn <= 30, "{m:?}: the view turns {turn}°/s");
+        }
+        // and the smoothed line still clears every solid body
+        let c = Map::Sector.course();
+        let l = c.sector.as_deref().unwrap();
+        let tps = crate::rules::TICKS_PER_SECOND as u32;
+        let lap = ((c.length - int(160)) / int(9)) as u32 * tps;
+        for t in (0..lap).step_by(tps as usize / 8) {
+            let e = scene::flyover_camera(&c, t, 0).eye;
+            for (i, b) in l.bodies.iter().enumerate().filter(|(_, b)| b.solid()) {
+                let d = e.sub(b.frame.t);
+                let half = [b.half.x, b.half.y, b.half.z];
+                let inside = (b.axes().iter().zip(half)).all(|(a, h)| d.dot(*a).abs() < h + int(1));
+                assert!(!inside, "the eye goes through body {i} at tick {t}");
+            }
+        }
     }
 }

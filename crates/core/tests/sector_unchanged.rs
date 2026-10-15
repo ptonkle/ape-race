@@ -3,7 +3,9 @@
 //! races of four AI apes (one at each level, items on), hashed tick by tick
 //! over several seeds, plain and with Floor is Lava, must come out as they
 //! did before it, up to each ape's finish. A deliberate change to Sector Ape's physics or AI takes
-//! new hashes (say so in SECOND-ORDER); a speed-up never does.
+//! new hashes (say so in SECOND-ORDER); a speed-up never does. Taken again
+//! for T80 (a reset only onto a deck behind, and the Sloth's and Monkey's
+//! Sector tuning after it).
 
 use tool_core::ai::{think, Brain, Difficulty};
 use tool_core::map::Map;
@@ -80,11 +82,11 @@ fn sector_ape_plays_out_exactly_as_before_the_speed_ups() {
 
 const LAYOUT: u32 = 2_063_114_272;
 const SEEDS: [u64; 6] = [
-    970_790_375_226_778_214,
-    2_187_390_518_736_720_484,
-    5_108_604_221_190_233_657,
-    9_651_458_741_247_016_414,
-    13_901_648_368_043_051_799,
-    14_699_555_506_358_879_652,
+    9_749_239_232_439_204_287,
+    3_604_457_657_148_528_351,
+    11_299_388_982_505_847_099,
+    14_310_608_530_030_099_725,
+    4_405_341_000_277_605_177,
+    17_483_481_483_703_630_033,
 ];
-const LAVA: [u64; 2] = [10_393_549_843_376_945_085, 9_180_943_159_725_750_702];
+const LAVA: [u64; 2] = [12_173_875_390_533_199_151, 604_119_066_146_022_402];

@@ -37,23 +37,24 @@ impl Course {
     }
 
     /// The deck an ape at `p` is put back on: the closest piece of ground
-    /// (the person's words), the pad nearest it along the course; of two as
-    /// near, the one behind. It may be ahead, but the ape starts again from
-    /// a standstill there, so a reset is never a shortcut (SECOND-ORDER
-    /// SC rows).
+    /// behind it (the person, T80: "only put it on a deck behind you"),
+    /// the pad nearest it along the course whose middle is not ahead of it.
+    /// An ape behind every pad (only off the back of the start) goes back
+    /// on the first.
     pub fn pad_for(&self, p: V3, hint: usize) -> Option<usize> {
         let s = self.sector.as_deref()?;
         let (along, _) = self.progress(p, hint);
-        let mut best: Option<(i32, i32, usize)> = None;
+        // (behind it, how far behind) beats (ahead, how far ahead)
+        let mut best: Option<((bool, i32), usize)> = None;
         for &k in &s.pads {
             let pl = &self.platforms[k];
             let (at, _) = self.progress(pl.centre, self.nearest_anywhere(pl.centre));
-            let key = ((at - along).abs(), at);
-            if best.is_none_or(|(d, a, _)| key < (d, a)) {
-                best = Some((key.0, key.1, k));
+            let key = (at > along, (at - along).abs());
+            if best.is_none_or(|(b, _)| key < b) {
+                best = Some((key, k));
             }
         }
-        best.map(|(_, _, k)| k)
+        best.map(|(_, k)| k)
     }
 
     /// Where an ape put back on pad `k` stands (its hands), and the way it
