@@ -475,7 +475,7 @@ pub fn scenery(c: &Course, r: &RuinsLayout) -> Scenery {
             Mesh::Bevel,
             &block(
                 lobby.sub(v3(0, int(2), 0)),
-                lobby.sub(view_to),
+                lobby.sub(view_to).flat(),
                 v3(int(5), int(4), int(4)),
             ),
             STONE,
@@ -484,8 +484,8 @@ pub fn scenery(c: &Course, r: &RuinsLayout) -> Scenery {
         b.push(
             Mesh::Blob,
             &block(
-                lobby.sub(v3(0, cm(10), 0)),
-                lobby.sub(view_to),
+                lobby.sub(v3(0, cm(20), 0)),
+                lobby.sub(view_to).flat(),
                 v3(int(4), cm(40), int(3)),
             ),
             MOSS,
@@ -495,7 +495,7 @@ pub fn scenery(c: &Course, r: &RuinsLayout) -> Scenery {
     let mut clear: Vec<(V3, i32)> = r.landmarks.iter().map(|l| (l.at, int(13))).collect();
     clear.push((br.from, int(12)));
     clear.push((br.to, int(12)));
-    clear.push((lobby, int(16)));
+    clear.push((lobby, int(22)));
     let rows: [(i32, i32); 5] = [(18, 23), (26, 34), (37, 50), (55, 75), (82, 110)];
     let mut k = 0u32;
     let mut s = -int(50);
@@ -1464,26 +1464,31 @@ fn glyphs(b: &mut Batch, r: &RuinsLayout, eye: V3, t: u32) {
 // The lobby and the title's flyover.
 
 /// Where the lobby may stand, from the temple's mouth: metres back up the
-/// river and to its right, the first whose view of the mouth no ruin
-/// blocks (RS7, RS12).
+/// river and to its right, the first whose view of the mouth no ruin or
+/// vine tree blocks (RS7, RS12, RS21). First midstream, on a ruin block in
+/// the river (the vine trees line both banks, so no bank spot sees the
+/// mouth past them), the river running ahead over the lip.
 const LOBBY_TRIES: [(i32, i32); 8] = [
+    (115, 0),
+    (105, 0),
+    (125, 0),
+    (95, 0),
+    (85, 0),
     (125, 42),
     (110, 40),
-    (140, 42),
     (95, 38),
-    (155, 40),
-    (80, 34),
-    (70, 30),
-    (60, 26),
 ];
 /// How far right of the mouth the camera turns, so the mouth sits between
 /// the menus and the ape, clear of both.
-const LOBBY_TURN: i32 = -deg(13);
+const LOBBY_TURN: i32 = -deg(9);
+/// The lobby's ruin block stands this far out of the water (or the ground).
+const LOBBY_BLOCK_UP: i32 = cm(120);
 
-/// The lobby zone: a mossy ruin block on the river's right bank, back
-/// from the lip, the temple's gaping face across the ravine with its
-/// waterfall, the river pouring over the lip, the sunset sky round it.
-/// The feet's place and the flat way the camera looks.
+/// The lobby zone: a mossy ruin block in the river, back from the lip,
+/// the temple's gaping face across the ravine, the river pouring over the
+/// lip ahead, the sunset sky round it. The feet's place (exactly on the
+/// block's top, which `scenery` draws from it) and the flat way the
+/// camera looks.
 pub fn lobby_spot(c: &Course, r: &RuinsLayout) -> (V3, V3) {
     let mo = r.marks.mouth;
     let mh = c.heading_at(mo);
@@ -1493,18 +1498,36 @@ pub fn lobby_spot(c: &Course, r: &RuinsLayout) -> (V3, V3) {
             .point(mo)
             .sub(mh.scale(int(back)))
             .add(right_of(mh).scale(int(right)));
-        // on a ruin block a metre up (`scenery` draws it)
-        v3(p.x, c.terrain(p.x, p.z) + int(1), p.z)
+        let ground = c.terrain(p.x, p.z);
+        let ground = r
+            .river
+            .water_at(p.x, p.z)
+            .map_or(ground, |w| w.surface.max(ground));
+        v3(p.x, ground + LOBBY_BLOCK_UP, p.z)
+    };
+    // what stands between the feet and the mouth (more than 12 m ahead:
+    // what stands beside the ape is out of the camera's view)
+    let off = |p: V3, feet: V3| {
+        let d = mouth.sub(feet).flat();
+        if p.sub(feet).flat().dot(d.norm()) < int(12) {
+            i32::MAX
+        } else {
+            off_line(p, feet, mouth)
+        }
     };
     let clear = |feet: V3| {
-        r.landmarks
-            .iter()
-            .all(|l| off_line(l.at, feet, mouth) > int(32))
+        // a landmark more than 25 degrees off the line is out of the
+        // camera's view (half its width is 28, turned 13 toward it)
+        r.landmarks.iter().all(|l| {
+            let along = l.at.sub(feet).flat().dot(mouth.sub(feet).flat().norm());
+            let side = off(l.at, feet);
+            side > int(32) || side as i64 * 100 > along as i64 * 47
+        })
             && skyline_ruins(c, r)
                 .iter()
-                .all(|&(_, p)| off_line(p, feet, mouth) > int(24))
+                .all(|&(_, p)| off(p, feet) > int(24))
             && r.hangers.iter().all(|h| match *h {
-                crate::ruins::Hanger::Tree { trunk } => off_line(trunk, feet, mouth) > int(9),
+                crate::ruins::Hanger::Tree { trunk } => off(trunk, feet) > int(9),
                 _ => true,
             })
     };
@@ -1524,8 +1547,11 @@ pub fn preview(c: &Course) -> (V3, i32, Camera) {
         Some(r) => lobby_spot(c, r),
         None => (c.starts[0], c.heading_at(0)),
     };
-    let eye = feet.sub(look.scale(cm(290))).add(v3(0, cm(125), 0));
-    let target = feet.add(v3(0, cm(62), 0));
+    // low and nearly level, a little further back than the other maps'
+    // lobbies: the ape in front, the mouth and the sky behind (not the
+    // ground at its feet, the person 1.10.1)
+    let eye = feet.sub(look.scale(LOBBY_BACK)).add(v3(0, LOBBY_EYE_UP, 0));
+    let target = feet.add(v3(0, LOBBY_AIM_UP, 0));
     (
         feet,
         yaw_of(eye.sub(feet).flat()),
@@ -1536,6 +1562,12 @@ pub fn preview(c: &Course) -> (V3, i32, Camera) {
         },
     )
 }
+
+/// The lobby camera: this far behind the ape, this high over its feet,
+/// aimed at this height over its feet.
+const LOBBY_BACK: i32 = cm(360);
+const LOBBY_EYE_UP: i32 = cm(90);
+const LOBBY_AIM_UP: i32 = cm(100);
 
 /// The title's flyover on Sunset Ruins: a glide down the river, over the
 /// lip and the ravine and in through the temple's mouth, along the

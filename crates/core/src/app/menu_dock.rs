@@ -127,10 +127,17 @@ impl App {
         preview_spot(map, self.course_of(map))
     }
 
-    /// The preview camera on the chosen map, framed beside the menus.
+    /// The preview camera on the chosen map, framed beside the menus. On
+    /// Sunset Ruins the map's own lobby camera (`ruinsscape::preview`: low
+    /// and level, the temple's mouth behind the ape, not the ground).
     pub(super) fn preview_camera(&self) -> Camera {
+        let map = self.map();
         let (feet, look) = self.preview_at();
-        self.framed(preview_view(feet, look), feet.add(v3(0, FOCUS_UP, 0)))
+        let cam = match (map, self.course_of(map)) {
+            (Map::Ruins, Some(c)) => crate::scene::preview(c).camera,
+            _ => preview_view(feet, look),
+        };
+        self.framed(cam, feet.add(v3(0, FOCUS_UP, 0)))
     }
 
     /// The preview's moving parts: the vines (on a map's own ground) and
@@ -269,6 +276,28 @@ mod tests {
                 "{w}x{h}: ape at {x}%, open part's middle {open_middle}%"
             );
             assert!((40..=60).contains(&y), "{w}x{h}: ape at {y}% down");
+        }
+    }
+
+    #[test]
+    fn on_sunset_ruins_the_lobby_camera_looks_past_the_ape_at_the_temple_mouth() {
+        // the person (1.10.1): "just looking at the ground"
+        for (w, h) in [(1920, 1080), (1280, 720)] {
+            let mut a = app_at(Screen::Setup, w, h);
+            a.act("setup.map", "ruins");
+            let c = a.course_of(Map::Ruins).unwrap();
+            let cam = a.preview_camera();
+            // nearly level, not pitched down at the feet
+            assert!(cam.fwd.y.abs() < fx::sin(deg(4)), "{w}x{h}: pitch {}", cam.fwd.y);
+            // the mouth on screen, left of the ape and right of the menus
+            let mouth = c.ruins.as_deref().unwrap().mouth.opening.centre;
+            let (mx, my) = cam.screen(fx::div(w, h), mouth).unwrap();
+            let (mx, my) = (mx / ONE, my / ONE);
+            let (x, y) = ape_on_screen(&a);
+            let Dock::Side(dock) = a.dock() else { panic!() };
+            assert!(mx > dock * 100 / w && mx < x, "{w}x{h}: mouth at {mx}%, ape {x}%");
+            assert!((15..=70).contains(&my), "{w}x{h}: mouth {my}% down");
+            assert!((40..=70).contains(&y), "{w}x{h}: ape at {y}% down");
         }
     }
 
