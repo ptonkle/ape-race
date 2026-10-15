@@ -110,6 +110,24 @@ pub const SECTOR: [u32; 4] = [
     secs(SECTOR_AUTHOR),
 ];
 
+/// Sunset Ruins' target times in hundredths of a second (2026-10-14, set
+/// as the Jungle's were: King Kong alone as a Time Trial runs finishes in
+/// 54.9–71.4 s by kind, Lemur best; `tests/ruins_ai.rs`
+/// `ruins_time_trial_report`). Author just under the best kind, then the
+/// Jungle's steps of 7, 10 and 15 s.
+pub const RUINS_AUTHOR: u32 = 5_400;
+pub const RUINS_GOLD: u32 = 6_100;
+pub const RUINS_SILVER: u32 = 7_100;
+pub const RUINS_BRONZE: u32 = 8_600;
+
+/// Sunset Ruins' target times, in race ticks, slowest first.
+pub const RUINS: [u32; 4] = [
+    secs(RUINS_BRONZE),
+    secs(RUINS_SILVER),
+    secs(RUINS_GOLD),
+    secs(RUINS_AUTHOR),
+];
+
 /// A map's target times, in race ticks, slowest first (Bronze, Silver,
 /// Gold, Author).
 pub fn medals(map: Map) -> [u32; 4] {
@@ -118,8 +136,7 @@ pub fn medals(map: Map) -> [u32; 4] {
         Map::City => CITY,
         Map::Ski => SKI,
         Map::Sector => SECTOR,
-        // STAND-IN (Sunset Ruins' skeleton): the Jungle's until measured
-        Map::Ruins => JUNGLE,
+        Map::Ruins => RUINS,
     }
 }
 

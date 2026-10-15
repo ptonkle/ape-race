@@ -151,9 +151,26 @@ impl Difficulty {
     /// Ape has stronger arms and reacts sooner. On the Ski Slope the swings
     /// run fast downhill, so a level's reaction time would let the best
     /// release go by (stuck whirling on a vine): it reacts sooner there
-    /// (`SKI_HESITATE`), and looks further ahead.
-    fn tuning_on(self, city: bool, ski: bool, sector: bool) -> Tuning {
+    /// (`SKI_HESITATE`), and looks further ahead. Sunset Ruins has its own
+    /// reaction times, arms and misjudging (`RUINS_*`).
+    fn tuning_on(self, on: On) -> Tuning {
+        let On {
+            city,
+            ski,
+            sector,
+            ruins,
+        } = on;
         let t = self.tuning();
+        if ruins {
+            let k = self as usize;
+            return Tuning {
+                hesitate: RUINS_HESITATE[k],
+                jitter: RUINS_JITTER[k],
+                drive: RUINS_DRIVE[k],
+                noise: RUINS_NOISE[k],
+                ..t
+            };
+        }
         if sector {
             // Sector Ape: low gravity and high speed make long, floaty
             // hops (see `SECTOR_*`)
@@ -263,6 +280,27 @@ const SKI_DRIVE: [u32; 4] = [2, 5, 7, DUTY];
 const SKI_NOISE: [i32; 4] = [int(6), int(4), int(2), 0];
 const SKI_HOP: [i32; 4] = [int(22), int(24), int(26), int(28)];
 
+/// Sunset Ruins' handicaps, easiest level first (see
+/// [`Difficulty::tuning_on`]). With the Jungle's, the Monkey was no faster
+/// than the Sloth and the Ape barely 6 s behind King Kong: the levels lose
+/// their time in the same few places (the rope bridge, the mouth, the
+/// turn in), where a long reaction time lets the good release go by. Here
+/// the Monkey and the Ape react sooner and misjudge less, and the spacing
+/// comes mostly from the arms (RT2).
+const RUINS_HESITATE: [u32; 4] = [12, 14, 5, 0];
+const RUINS_JITTER: [u32; 4] = [6, 5, 5, 0];
+const RUINS_DRIVE: [u32; 4] = [2, 3, 4, DUTY];
+const RUINS_NOISE: [i32; 4] = [int(8), int(4), int(3), 0];
+
+/// Which map's tuning a brain uses (at most one is set; none is the Jungle).
+#[derive(Debug, Clone, Copy)]
+struct On {
+    city: bool,
+    ski: bool,
+    sector: bool,
+    ruins: bool,
+}
+
 /// The City's Monkey (see [`Difficulty::tuning_on`]).
 const CITY_MONKEY_HESITATE: u32 = 12;
 const CITY_MONKEY_NOISE: i32 = int(4);
@@ -355,6 +393,8 @@ pub struct Brain {
     ski: bool,
     /// racing on Sector Ape (set by [`think`] each tick)
     sector: bool,
+    /// racing on Sunset Ruins (set by [`think`] each tick)
+    ruins: bool,
     /// its own dice, for the handicaps
     dice: Dice,
     /// the first tick it may let go of the vine it holds
@@ -488,6 +528,7 @@ impl Brain {
             city: false,
             ski: false,
             sector: false,
+            ruins: false,
             dice: Dice(seed),
             ready: 0,
             grabbed: 0,
@@ -515,18 +556,28 @@ impl Brain {
 }
 
 impl Brain {
+    /// The map it races on, for its tuning.
+    fn on(&self) -> On {
+        On {
+            city: self.city,
+            ski: self.ski,
+            sector: self.sector,
+            ruins: self.ruins,
+        }
+    }
+
     /// Its handicaps this tick: its level's, or none while rescued.
     fn tune(&self, tick: u32) -> Tuning {
         let mut t = if tick < self.rescue_until {
             // (a rescue never shows it a hidden route its level does not
             // know)
-            let own = self.difficulty.tuning_on(self.city, self.ski, self.sector);
+            let own = self.difficulty.tuning_on(self.on());
             Tuning {
                 hidden: own.hidden,
-                ..Difficulty::KingKong.tuning_on(self.city, self.ski, self.sector)
+                ..Difficulty::KingKong.tuning_on(self.on())
             }
         } else {
-            self.difficulty.tuning_on(self.city, self.ski, self.sector)
+            self.difficulty.tuning_on(self.on())
         };
         // put back on a deck (Sector Ape), it misjudges a little more each
         // time: its plans are exact, so from the same deck it would make
@@ -567,6 +618,7 @@ pub fn think(race: &Race, who: usize, brain: &mut Brain) -> Controls {
     brain.city = race.course.city.is_some();
     brain.ski = race.course.ski.is_some();
     brain.sector = race.course.sector.is_some();
+    brain.ruins = race.course.ruins.is_some();
     // (Sector Ape: put back on a deck, it is shaken: see `Brain::tune`)
     if race
         .events
