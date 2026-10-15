@@ -16,6 +16,7 @@ The person went to bed at about 00:10 after playing 1.10.0–1.10.2. Each fix be
 | Lobby camera looks at the ground; the ape sunk into the ground | In progress | |
 | Wall panels not flush in some sections; their banana glyphs can't be seen | In progress | |
 | Stuck in spike pits; pit vines disappear | In progress | |
+| You can fly straight through the temple face (no collision outside the mouth) | In progress | |
 
 ## Also overnight
 

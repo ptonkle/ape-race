@@ -45,6 +45,8 @@ One row per concept from the brief, plus any added later (your feedback, a new i
 | Boost vines launch into the mouth | Brief | Done | Done | Done | Done |
 | Weaker AIs cross the bridge and mouth without stalling | AI tuning | n/a | Done | Done | Done |
 | Temple mouth in Aztec relief, with depth | Brief, your feedback | Done | Done | Done | Done |
+| Temple face is solid; only the mouth lets you in | Your feedback (1.10.2) | n/a | In progress | In progress | Not started |
+| No black box in the mouth | Your feedback (1.10.2) | In progress | n/a | In progress | Not started |
 | Waterfall from the mouth | Brief | Done | n/a | Done | Done |
 | Banana-glyph stonework, pulsing glow | Brief | Done | n/a | Done | Done |
 | Darker temple lighting | Brief | Done | n/a | Done | Done |
