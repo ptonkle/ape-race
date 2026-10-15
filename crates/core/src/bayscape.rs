@@ -43,6 +43,8 @@ use crate::rules::TICKS_PER_SECOND;
 use crate::scene::{Look, Scenery};
 use crate::snow::Weather;
 
+pub mod fleet;
+
 /// The sun's height over the horizon: 3 pm, high but not overhead.
 pub const SUN_HIGH: i32 = deg(40);
 /// The sun's bearing off the course's first heading (to the left, +yaw):
@@ -140,6 +142,12 @@ pub fn squall(look: Look) -> Look {
     }
 }
 
+/// Banana Bay Battle's scenery and ground, chunked: the fleet, the pier
+/// and the island (`fleet`, the art placed on the course).
+pub fn scenery(c: &Course, b: &BayLayout) -> Scenery {
+    fleet::scenery(c, b)
+}
+
 /// How often lightning may strike (ticks): each window has at most one
 /// strike, three windows in four.
 const STRIKE_EVERY: u32 = 7 * TICKS_PER_SECOND as u32;
@@ -210,13 +218,6 @@ fn cell_id(band: usize, ix: i32, iz: i32) -> u32 {
     (ix as u32).wrapping_mul(0x8DA6_B343)
         ^ (iz as u32).wrapping_mul(0xD816_3841)
         ^ (band as u32).wrapping_mul(0xCB1A_B31F)
-}
-
-/// Banana Bay Battle's scenery, chunked. STAND-IN: the Jungle's props,
-/// start trees and finish without its ground (the sea is drawn round the
-/// eye each frame instead, `dynamic`).
-pub fn scenery(c: &Course, _b: &BayLayout) -> Scenery {
-    crate::scene::jungle_scenery_on(c, false)
 }
 
 // ---------------------------------------------------------------------------
