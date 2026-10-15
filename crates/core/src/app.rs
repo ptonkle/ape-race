@@ -32,6 +32,8 @@ mod map_tests;
 mod medals;
 mod menu_dock;
 #[cfg(test)]
+mod notes_tests;
+#[cfg(test)]
 mod setup_tests;
 mod tile;
 
@@ -116,6 +118,11 @@ pub struct Settings {
     /// each kind's chosen colours (TRIAGE T49), by the kind's key; a kind
     /// not here wears the classic
     pub palettes: BTreeMap<String, u8>,
+    /// the newest version whose patch notes this player has opened ("" for
+    /// none): an older one lights "New" on the menu's What's New
+    pub notes_seen: String,
+    /// the patch notes list minor versions (x.y.z, z not 0) too
+    pub notes_minor: bool,
 }
 
 /// One map's personal bests, in race ticks.
@@ -151,6 +158,8 @@ impl Default for Settings {
             lava: false,
             weather: crate::snow::Weather::Clear,
             palettes: BTreeMap::new(),
+            notes_seen: String::new(),
+            notes_minor: false,
         }
     }
 }
@@ -234,6 +243,8 @@ pub enum Screen {
     Lobby,
     /// the kept replays (TRIAGE T15)
     Replays,
+    /// what each version changed (`patch_notes.rs`)
+    Notes,
 }
 
 /// The static scenery the page holds: `scene_version` changes with it.
@@ -738,7 +749,7 @@ impl App {
                     p.paused = !p.paused;
                 }
             }
-            Screen::Setup | Screen::Settings | Screen::Online | Screen::Replays => {
+            Screen::Setup | Screen::Settings | Screen::Online | Screen::Replays | Screen::Notes => {
                 self.go(Screen::Title)
             }
             _ => {}
@@ -752,7 +763,9 @@ impl App {
         self.celebrate = false;
         self.title_clicks = 0;
         let stage = match screen {
-            Screen::Title | Screen::Settings | Screen::Online | Screen::Replays => Stage::Flyover,
+            Screen::Title | Screen::Settings | Screen::Online | Screen::Replays | Screen::Notes => {
+                Stage::Flyover
+            }
             Screen::Setup | Screen::Lobby => Stage::Showcase,
             Screen::Lineup => Stage::Lineup,
             Screen::Race => Stage::Race,
@@ -1037,6 +1050,14 @@ impl App {
                 }
             }
             "menu.settings" => self.go(Screen::Settings),
+            "menu.notes" => self.open_notes(),
+            // the version in the corner opens the notes from the menus only,
+            // never mid-race
+            "version" if self.version_opens_notes() => self.open_notes(),
+            "notes.minor" => {
+                self.settings.notes_minor = value == "on";
+                self.save = true;
+            }
             "menu.back" | "menu.main" | "menu.quit" => self.go(Screen::Title),
             "menu.start" | "menu.restart" | "menu.rematch" => self.start_race(),
             "menu.resume" => {
@@ -1590,6 +1611,7 @@ impl App {
         let mut v = json!({
             "screen": self.screen,
             "version": format!("v{VERSION}"),
+            "version_opens": self.version_opens_notes(),
             "title": self.t("title"),
             "volume": self.settings.volume,
             "no_webgl": self.t("no_webgl"),
@@ -1612,6 +1634,7 @@ impl App {
             Screen::Online => self.online_panels(),
             Screen::Lobby => self.lobby_panels(),
             Screen::Replays => self.replays_panels(),
+            Screen::Notes => self.notes_panels(),
         };
         let still = self.play.as_ref().and_then(|p| p.still);
         let bare = still.is_some() || self.gallery.is_some();
@@ -1670,6 +1693,7 @@ impl App {
                 self.button("menu.online"),
                 self.button("menu.replays"),
                 self.button("menu.settings"),
+                self.notes_button(),
             ]}),
             self.controls_panel(),
         ]
@@ -1901,6 +1925,53 @@ impl App {
         }
         items.push(self.button("menu.back"));
         vec![json!({ "kind": "replays", "heading": self.t("replays.heading"), "items": items })]
+    }
+
+    /// What's New on the main menu, marked "New" while this version's notes
+    /// are unopened (a minor version too).
+    fn notes_button(&self) -> Value {
+        let mut b = self.button("menu.notes");
+        if crate::patch_notes::newer(VERSION, &self.settings.notes_seen) {
+            b["badge"] = json!(self.t("notes.new"));
+        }
+        b
+    }
+
+    fn version_opens_notes(&self) -> bool {
+        self.gallery.is_none()
+            && matches!(
+                self.screen,
+                Screen::Title | Screen::Settings | Screen::Replays | Screen::Notes
+            )
+    }
+
+    fn open_notes(&mut self) {
+        if self.settings.notes_seen != VERSION {
+            self.settings.notes_seen = VERSION.to_string();
+            self.save = true;
+        }
+        self.go(Screen::Notes);
+    }
+
+    /// The patch notes, newest first: the major versions only, unless the
+    /// player ticks minor ones in.
+    fn notes_panels(&self) -> Vec<Value> {
+        let entries: Vec<Value> = crate::patch_notes::all()
+            .into_iter()
+            .filter(|e| self.settings.notes_minor || !e.minor())
+            .map(|e| {
+                json!({ "version": format!("v{}", e.version), "date": e.date,
+                        "minor": e.minor(), "lines": e.notes })
+            })
+            .collect();
+        vec![
+            json!({ "kind": "notes", "heading": self.t("notes.heading"), "items": [
+                { "type": "toggle", "id": "notes.minor", "label": self.t("notes.minor"),
+                  "value": self.settings.notes_minor },
+                { "type": "notes", "id": "notes.list", "entries": entries },
+                self.button("menu.back"),
+            ]}),
+        ]
     }
 
     fn settings_panels(&self) -> Vec<Value> {

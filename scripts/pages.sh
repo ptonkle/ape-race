@@ -23,6 +23,9 @@ cp -r dist/. "$SITE/ape-race/"
 # The transport test page is for checks only.
 rm -f "$SITE/ape-race/nettest.html" "$SITE/ape-race/nettest.js"
 touch "$SITE/.nojekyll"
+# The patch notes as a plain page (ape-race/patch-notes.html), from the
+# same data/patch-notes.json the game's What's New reads.
+python3 scripts/patch_notes_html.py "$SITE/ape-race/patch-notes.html"
 # The thumbnail: the lineup screen (?lineup), at the home page's card size.
 "$PY" scripts/shot.py "$SITE/img/ape-race/lineup.png" --query lineup --size 990x557 --wait 2 >/dev/null
 # The action tiles (?tile=...): the same moments on every run. The home
