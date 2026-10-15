@@ -86,9 +86,7 @@ impl Gear {
             crate::map::Map::Ski => Gear::Ski,
             crate::map::Map::Sector => Gear::Space,
             crate::map::Map::Ruins => Gear::Explorer,
-            // Banana Bay Battle (briefs/banana-bay-battle.md): add, once
-            // `Map::Bay` exists (SECOND-ORDER BG1),
-            // crate::map::Map::Bay => Gear::Pirate,
+            crate::map::Map::Bay => Gear::Pirate,
             _ => Gear::None,
         }
     }
@@ -3183,8 +3181,7 @@ impl BigCat {
             crate::map::Map::Ski => SNOW_LEOPARD,
             crate::map::Map::Sector => SPACE_JAGUAR,
             crate::map::Map::Ruins => RUINS_JAGUAR,
-            // Banana Bay Battle: add, once `Map::Bay` exists (SECOND-ORDER
-            // BG1), crate::map::Map::Bay => NAVY_JAGUAR,
+            crate::map::Map::Bay => NAVY_JAGUAR,
             _ => JAGUAR,
         }
     }
@@ -4530,7 +4527,6 @@ mod tests {
             "pirate {pirate_all} vs explorer {explorer_all}: {}",
             lines.join("; ")
         );
-        eprintln!("{}", lines.join("\n"));
     }
 
     #[test]

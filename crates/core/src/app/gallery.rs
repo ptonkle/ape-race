@@ -8,9 +8,8 @@
 //! a positive pitch looks up from below), `dist` (metres; else framed to the
 //! model), `at` (the tick to start at), `hold` (`on`: stay at `at`) and `x`, `y`,
 //! `z` (metres: the camera's target, off the model's middle) and, for
-//! `cat`, `map` (whose big cat: `map=ruins` is the pith-helmeted jaguar)
-//! and `navy` (`on`: Banana Bay Battle's navy officer jaguar, before its
-//! map exists).
+//! `cat`, `map` (whose big cat: `map=ruins` is the pith-helmeted jaguar,
+//! `map=bay` the navy officer).
 //! E.g. `?gallery=wreck,yaw=40,pitch=12,at=300,hold=on`.
 
 use crate::baymodels as bay;
@@ -67,8 +66,6 @@ pub struct Gallery {
     pub bay: Option<usize>,
     /// `cat`: the map whose big cat it is (`map=ruins`; else Sector Ape's)
     pub map: crate::map::Map,
-    /// `cat`: the navy officer jaguar (`navy=on`), whatever the map
-    pub navy: bool,
 }
 
 impl Gallery {
@@ -84,7 +81,6 @@ impl Gallery {
             ruins: None,
             bay: None,
             map: crate::map::Map::Sector,
-            navy: false,
         };
         for (i, pair) in spec.split(',').enumerate() {
             if i == 0 {
@@ -104,7 +100,6 @@ impl Gallery {
                 "at" => g.at = v.parse().unwrap_or(g.at),
                 "hold" => g.hold = v == "on",
                 "map" => g.map = crate::map::Map::from_key(v).unwrap_or(g.map),
-                "navy" => g.navy = v == "on",
                 "x" => g.aim.x = n.map(int).unwrap_or(g.aim.x),
                 "y" => g.aim.y = n.map(int).unwrap_or(g.aim.y),
                 "z" => g.aim.z = n.map(int).unwrap_or(g.aim.z),
@@ -232,12 +227,7 @@ impl Gallery {
                     head_down: 0,
                     jaw: ONE / 2,
                 };
-                let cat = if self.navy {
-                    models::NAVY_JAGUAR
-                } else {
-                    models::BigCat::on(self.map)
-                };
-                models::jaguar(b, &j, 100, &cat);
+                models::jaguar(b, &j, 100, &models::BigCat::on(self.map));
             }
             // a line of the armada: grunts marching, a brute drifting
             _ => {
