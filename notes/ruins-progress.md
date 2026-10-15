@@ -53,6 +53,7 @@ One row per concept from the brief, plus any added later (your feedback, a new i
 | Floor spike traps | Brief | Done | Done | Done | Done |
 | Trip wires → trapdoors after 0.75 s | Brief | Done | Done | Done | Done |
 | Glowing banana-spike pits | Brief | Done | Done | Done | In progress |
+| Out of a spike pit within a few seconds, never stuck | Your feedback (1.10.0) | n/a | In progress | In progress | Not started |
 | Pit vines drop when doors open | Brief | Done | Done | Done | Done |
 | Counter-clockwise round chamber, invisible inner wall | Brief | Done | Done | Done | Done |
 | Banana pile finish, packed solid | Brief, your feedback | Done | Done | Done | In progress |
