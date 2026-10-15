@@ -53,8 +53,9 @@ pub struct Pose {
 /// Sector Ape (the space map, TRIAGE T75, not built yet) a Star Fox flight
 /// jacket, one metal arm and aviator sunglasses, or on Sunset Ruins
 /// (`Explorer`, 2026-10-14) a pith helmet, a khaki explorer jacket with a
-/// compass on the chest, a canteen at the hip and tiny round spectacles.
-/// Only the drawing changes.
+/// compass on the chest, a canteen at the hip and tiny round spectacles,
+/// or on Banana Bay Battle (`Pirate`, 2026-10-15) an assortment of pirate
+/// pieces, each kind its own mix (`pirate_kit`). Only the drawing changes.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub enum Gear {
     #[default]
@@ -62,17 +63,19 @@ pub enum Gear {
     Ski,
     Space,
     Explorer,
+    Pirate,
 }
 
 impl Gear {
-    /// The gear named `key` (`none`, `ski`, `space`, `explorer`; a tile's
-    /// `gear=`).
+    /// The gear named `key` (`none`, `ski`, `space`, `explorer`, `pirate`;
+    /// a tile's `gear=`).
     pub fn from_key(key: &str) -> Option<Gear> {
         match key {
             "none" => Some(Gear::None),
             "ski" => Some(Gear::Ski),
             "space" => Some(Gear::Space),
             "explorer" => Some(Gear::Explorer),
+            "pirate" => Some(Gear::Pirate),
             _ => None,
         }
     }
@@ -83,6 +86,9 @@ impl Gear {
             crate::map::Map::Ski => Gear::Ski,
             crate::map::Map::Sector => Gear::Space,
             crate::map::Map::Ruins => Gear::Explorer,
+            // Banana Bay Battle (briefs/banana-bay-battle.md): add, once
+            // `Map::Bay` exists (SECOND-ORDER BG1),
+            // crate::map::Map::Bay => Gear::Pirate,
             _ => Gear::None,
         }
     }
@@ -1194,6 +1200,9 @@ pub fn draw_in(b: &mut Batch, kind: Kind, palette: u8, pose: &Pose) {
         pith_helmet(&mut rig, cm(l.head), &skel.head);
         spectacles(&mut rig, kind, &l, &skel.head);
     }
+    if pose.gear == Gear::Pirate {
+        pirate(&mut rig, kind, &l, &m, &skel);
+    }
     if pose.stunned {
         stars(&mut rig, &skel.head, m.head, pose.tick);
     }
@@ -1376,7 +1385,9 @@ fn limbs(rig: &mut Rig, kind: Kind, l: &Look, m: &Dims, s: &Skel, gear: Gear) {
     let ff = &s.feet_frame;
     let space = gear == Gear::Space;
     // in a jacket the upper arms are in sleeves
-    let sleeved = space || gear == Gear::Explorer;
+    let sleeved = space || matches!(gear, Gear::Explorer | Gear::Pirate);
+    let kit = pirate_kit(kind);
+    let pirate = gear == Gear::Pirate;
     for (i, side) in SIDES.into_iter().enumerate() {
         // arm: a round shoulder, a tapering upper arm and forearm
         let sh = shoulder_of(&s.body, m, side);
@@ -1386,6 +1397,9 @@ fn limbs(rig: &mut Rig, kind: Kind, l: &Look, m: &Dims, s: &Skel, gear: Gear) {
         let metal = space && side == metal_side(kind);
         if metal {
             metal_arm(rig, ff, m, elbow, wrist, side);
+        } else if pirate && kit.hook == Some(side) {
+            rig.bone(elbow, wrist, pct(m.arm_w, 112), l.limb);
+            hook(rig, ff, wrist, m.arm_w);
         } else {
             rig.bone(elbow, wrist, pct(m.arm_w, 112), l.limb);
             hand(rig, ff, wrist, m.arm_w, side, l.skin);
@@ -1420,6 +1434,10 @@ fn limbs(rig: &mut Rig, kind: Kind, l: &Look, m: &Dims, s: &Skel, gear: Gear) {
         let (knee, ankle) = bend(hip, s.feet[i], m.leg, s.leg_hint[i]);
         rig.ball(hip, pct(m.leg_w, 150), l.limb);
         rig.bone(hip, knee, pct(m.leg_w, 130), l.limb);
+        if pirate && kit.peg == Some(side) {
+            peg_leg(rig, knee, ankle, m.leg_w);
+            continue;
+        }
         rig.bone(knee, ankle, pct(m.leg_w, 110), l.limb);
         let on = s.skis.map_or(*ff, |f| f[i]);
         foot(rig, &on, ankle, m.leg_w, side, l.skin);
@@ -2112,6 +2130,644 @@ fn spectacles(rig: &mut Rig, kind: Kind, l: &Look, h: &Frame) {
     rig.put(Mesh::Hex, rod(a, b, pct(d, 3)), WIRE);
 }
 
+// ---------------------------------------------------------------------------
+// Banana Bay Battle's pirates (2026-10-15, the person's brief): an
+// assortment of pirate pieces, each kind its own mix so the six read apart
+// (`pirate_kit`). Saturated, near-black or near-white pieces, so they stand
+// apart from each kind's fur by value under the 3 pm sun.
+
+/// The hats: a black tricorn with gold trim, and bandanas.
+const TRICORN: Rgb = rgb(30, 26, 30);
+const TRIM_GOLD: Rgb = rgb(238, 190, 52);
+const PLUME: Rgb = rgb(250, 250, 246);
+const BONE: Rgb = rgb(244, 240, 226);
+const BANDANA_RED: Rgb = rgb(208, 30, 40);
+const BANDANA_NAVY: Rgb = rgb(26, 42, 104);
+const BANDANA_GOLD: Rgb = rgb(244, 192, 30);
+const DOT: Rgb = rgb(252, 252, 250);
+const PATCH: Rgb = rgb(14, 12, 14);
+/// The tops: the captain's crimson coat over a white front, the striped
+/// shirt, the loose cream shirt and the navy waistcoat.
+const CAPTAIN_RED: Rgb = rgb(196, 30, 42);
+const SHIRT_WHITE: Rgb = rgb(246, 246, 240);
+const STRIPE_NAVY: Rgb = rgb(30, 40, 92);
+const SHIRT_CREAM: Rgb = rgb(242, 234, 212);
+const WAISTCOAT: Rgb = rgb(28, 40, 86);
+/// Belts, the bandolier and its cartridges, the scabbard and the cutlass's
+/// brass hilt.
+const BELT: Rgb = rgb(26, 20, 18);
+const BANDOLIER_DARK: Rgb = rgb(58, 34, 18);
+const CARTRIDGE: Rgb = rgb(222, 178, 70);
+const SCABBARD: Rgb = rgb(36, 24, 20);
+const HILT: Rgb = rgb(230, 184, 60);
+const GRIP: Rgb = rgb(90, 52, 30);
+/// The sashes, the peg leg and the hook.
+const SASH_MAROON: Rgb = rgb(128, 18, 44);
+const SASH_RED: Rgb = rgb(214, 36, 40);
+const PEG_WOOD: Rgb = rgb(138, 92, 48);
+const PEG_IRON: Rgb = rgb(44, 44, 50);
+const HOOK_STEEL: Rgb = rgb(206, 210, 220);
+/// A gold hoop earring.
+const HOOP: Rgb = rgb(250, 200, 50);
+/// The parrots, as body (and head), wings, tail and face accent: a green
+/// amazon and a scarlet macaw.
+const AMAZON: [Rgb; 4] = [
+    rgb(44, 168, 64),
+    rgb(36, 90, 210),
+    rgb(220, 40, 40),
+    rgb(250, 214, 40),
+];
+const MACAW: [Rgb; 4] = [
+    rgb(222, 36, 36),
+    rgb(36, 96, 220),
+    rgb(250, 200, 30),
+    rgb(250, 250, 246),
+];
+const BEAK: Rgb = rgb(236, 226, 196);
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum PirateHat {
+    /// bare-headed
+    None,
+    /// the tricorn; `true`: the captain's, with a plume and a skull
+    Tricorn(bool),
+    /// a bandana, with polka dots of the second colour
+    Bandana(Rgb, Option<Rgb>),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum PirateTop {
+    None,
+    CaptainsCoat,
+    Striped,
+    Shirt,
+    Waistcoat,
+}
+
+/// One kind's pirate pieces.
+#[derive(Debug, Clone, Copy)]
+struct PirateKit {
+    hat: PirateHat,
+    top: PirateTop,
+    /// the eye under the patch (-1 or 1)
+    patch: Option<i32>,
+    bandolier: Option<Rgb>,
+    sash: Option<Rgb>,
+    cutlass: bool,
+    /// the leg that is a peg, the hand that is a hook, the ear with a hoop
+    peg: Option<i32>,
+    hook: Option<i32>,
+    earring: Option<i32>,
+    /// the shoulder the parrot sits on, and its colours
+    parrot: Option<(i32, [Rgb; 4])>,
+}
+
+/// Each kind's pirate mix: the gorilla is the captain (tricorn with a
+/// plume and a skull, crimson coat, cutlass); the chimpanzee a deckhand
+/// (red bandana with white dots, eyepatch, striped shirt, gold earring);
+/// the orangutan the parrot's (navy bandana, cream shirt, bandolier, green
+/// parrot); the gibbon a swordsman (tricorn, maroon sash, peg leg,
+/// cutlass); the proboscis monkey the purser (white bandana with red dots,
+/// eyepatch, navy waistcoat buttoned over its pot belly, cutlass); the
+/// lemur the lookout (gold bandana, scarlet macaw, red sash, a hook).
+fn pirate_kit(kind: Kind) -> PirateKit {
+    let bare = PirateKit {
+        hat: PirateHat::None,
+        top: PirateTop::None,
+        patch: None,
+        bandolier: None,
+        sash: None,
+        cutlass: false,
+        peg: None,
+        hook: None,
+        earring: None,
+        parrot: None,
+    };
+    match kind {
+        Kind::Gorilla => PirateKit {
+            hat: PirateHat::Tricorn(true),
+            top: PirateTop::CaptainsCoat,
+            cutlass: true,
+            ..bare
+        },
+        Kind::Chimpanzee => PirateKit {
+            hat: PirateHat::Bandana(BANDANA_RED, Some(DOT)),
+            top: PirateTop::Striped,
+            patch: Some(1),
+            earring: Some(-1),
+            ..bare
+        },
+        Kind::Orangutan => PirateKit {
+            hat: PirateHat::Bandana(BANDANA_NAVY, None),
+            top: PirateTop::Shirt,
+            bandolier: Some(BANDOLIER_DARK),
+            parrot: Some((-1, AMAZON)),
+            ..bare
+        },
+        Kind::Gibbon => PirateKit {
+            hat: PirateHat::Tricorn(false),
+            sash: Some(SASH_MAROON),
+            cutlass: true,
+            peg: Some(1),
+            ..bare
+        },
+        Kind::Proboscis => PirateKit {
+            hat: PirateHat::Bandana(DOT, Some(BANDANA_RED)),
+            top: PirateTop::Waistcoat,
+            patch: Some(-1),
+            cutlass: true,
+            ..bare
+        },
+        Kind::Lemur => PirateKit {
+            hat: PirateHat::Bandana(BANDANA_GOLD, None),
+            sash: Some(SASH_RED),
+            hook: Some(1),
+            parrot: Some((-1, MACAW)),
+            ..bare
+        },
+    }
+}
+
+/// Everything a pirate wears but the peg leg and the hook (`limbs` draws
+/// those in place of a foot and a hand).
+fn pirate(rig: &mut Rig, kind: Kind, l: &Look, m: &Dims, s: &Skel) {
+    let kit = pirate_kit(kind);
+    let d = cm(l.head);
+    let h = &s.head;
+    match kit.hat {
+        PirateHat::None => {}
+        PirateHat::Tricorn(captain) => tricorn(rig, d, h, captain),
+        PirateHat::Bandana(c, dots) => bandana(rig, d, h, c, dots),
+    }
+    if let Some(side) = kit.patch {
+        eyepatch(rig, kind, l, h, side);
+    }
+    if let Some(side) = kit.earring {
+        hoop(rig, d, h, side);
+    }
+    match kit.top {
+        PirateTop::None => {}
+        PirateTop::CaptainsCoat => captains_coat(rig, m, s),
+        PirateTop::Striped => striped_shirt(rig, m, s),
+        PirateTop::Shirt => loose_shirt(rig, m, s),
+        PirateTop::Waistcoat => waistcoat(rig, m, s),
+    }
+    if let Some(c) = kit.sash {
+        sash(rig, m, s, c);
+    }
+    if let Some(c) = kit.bandolier {
+        bandolier(rig, m, s, c);
+    }
+    if kit.cutlass {
+        cutlass(rig, m, s);
+    }
+    if let Some((side, colours)) = kit.parrot {
+        parrot(rig, m, s, d, side, colours);
+    }
+}
+
+/// A black tricorn: a crown, a flat brim and three upturned sides meeting
+/// in corners (one to the front), gold along their tops; the captain's has
+/// a white plume and a white skull and crossbones on the front.
+fn tricorn(rig: &mut Rig, d: i32, h: &Frame, captain: bool) {
+    let p = |x: i32, y: i32, z: i32| v3(pct(d, x), pct(d, y), pct(d, z));
+    rig.put(Mesh::Geo, h.shape(p(0, 48, -4), p(86, 54, 88)), TRICORN);
+    let floor = h.at(0, pct(d, 34), -pct(d, 4));
+    rig.put(
+        Mesh::Hex,
+        rod(floor, floor.add(h.y.scale(pct(d, 4))), pct(d, 100)),
+        TRICORN,
+    );
+    let r = pct(d, 96);
+    let corner = |k: i32| {
+        let a = deg(120 * k);
+        h.at(
+            mul(fx::sin(a), r),
+            pct(d, 50),
+            mul(fx::cos(a), r) - pct(d, 4),
+        )
+    };
+    for k in 0..3 {
+        let (a, b) = (corner(k), corner(k + 1));
+        let along = b.sub(a);
+        let out = dir_or(along.cross(h.y), h.z);
+        // leaning out a little
+        let up = h.y.add(out.scale(ONE / 4));
+        rig.put(
+            Mesh::Bevel,
+            Affine {
+                c0: along,
+                c1: up.scale(pct(d, 30)),
+                c2: out.scale(pct(d, 6)),
+                t: a.lerp(b, ONE / 2),
+            },
+            TRICORN,
+        );
+        let lift = up.scale(pct(d, 15));
+        rig.put(
+            Mesh::Hex,
+            rod(a.add(lift), b.add(lift), pct(d, 6)),
+            TRIM_GOLD,
+        );
+    }
+    if captain {
+        let base = h.at(pct(d, 30), pct(d, 64), -pct(d, 20));
+        rig.blade(
+            base,
+            base.add(h.dir(30, 50, -70).scale(pct(d, 70))),
+            h.y,
+            pct(d, 26),
+            pct(d, 8),
+            PLUME,
+        );
+        // the skull on the crown's front, over crossed bones
+        let at = h.at(0, pct(d, 54), pct(d, 40));
+        rig.put(
+            Mesh::Ico,
+            h.shape(V3::ZERO, p(18, 16, 10))
+                .at(at.add(h.z.scale(pct(d, 2)))),
+            BONE,
+        );
+        for s in SIDES {
+            let a = at.add(h.x.scale(s * pct(d, 16))).add(h.y.scale(pct(d, 12)));
+            let b = at.sub(h.x.scale(s * pct(d, 16))).sub(h.y.scale(pct(d, 12)));
+            rig.put(Mesh::Hex, rod(a, b, pct(d, 5)), BONE);
+        }
+    }
+}
+
+/// A bandana over the top of the head, knotted at the back with two tails,
+/// with polka `dots` of that colour.
+fn bandana(rig: &mut Rig, d: i32, h: &Frame, c: Rgb, dots: Option<Rgb>) {
+    let p = |x: i32, y: i32, z: i32| v3(pct(d, x), pct(d, y), pct(d, z));
+    let (cy, cz) = (36, -6);
+    let size = p(108, 60, 108);
+    rig.put(Mesh::Geo, h.shape(p(0, cy, cz), size), c);
+    let knot = h.at(0, pct(d, 30), -pct(d, 58));
+    rig.ball(knot, pct(d, 20), shade(c, 88));
+    for s in SIDES {
+        rig.blade(
+            knot,
+            knot.add(h.dir(s * 30, -70, -40).scale(pct(d, 44))),
+            h.x,
+            pct(d, 20),
+            pct(d, 6),
+            shade(c, 92),
+        );
+    }
+    if let Some(dot) = dots {
+        // on the cap's surface
+        for (x, y, z) in [(-40, 50, 60), (40, 50, 60), (0, 90, 40)] {
+            let n = v3(int(x), int(y), int(z)).norm();
+            let at = h.at(
+                mul(n.x, size.x / 2),
+                pct(d, cy) + mul(n.y, size.y / 2),
+                pct(d, cz) + mul(n.z, size.z / 2),
+            );
+            rig.ball(at, pct(d, 13), dot);
+        }
+    }
+}
+
+/// A black patch over the eye on `side`, its strap round the head rising
+/// over the other ear.
+fn eyepatch(rig: &mut Rig, kind: Kind, l: &Look, h: &Frame, side: i32) {
+    let d = cm(l.head);
+    let (ey, ex) = eye_spot(kind);
+    let z = (42 + l.eye / 2 + 4).max(38 + (l.brow + 14) / 2 + 3);
+    let c = h.at(side * pct(d, ex), pct(d, ey), pct(d, z));
+    rig.put(
+        Mesh::Hex,
+        rod(c, c.add(h.z.scale(pct(d, 3))), pct(d, l.eye + 10)),
+        PATCH,
+    );
+    // the strap's plane passes through the patch and tips up by a half
+    // toward the far side: y = ey + ex / 2 - side * x / 2
+    let n = h.dir(side * 50, 100, 0);
+    let o = h.at(0, pct(d, ey + ex / 2), 0);
+    rig.put(
+        Mesh::Hex,
+        rod(
+            o.sub(n.scale(pct(d, 2))),
+            o.add(n.scale(pct(d, 2))),
+            pct(d, 116),
+        ),
+        PATCH,
+    );
+}
+
+/// A gold hoop hanging from the ear on `side`.
+fn hoop(rig: &mut Rig, d: i32, h: &Frame, side: i32) {
+    let r = pct(d, 9);
+    let c = h.at(side * pct(d, 52), -pct(d, 18) - r, pct(d, 2));
+    let point = |k: i32| {
+        let a = deg(60 * k);
+        c.add(h.y.scale(mul(fx::cos(a), r)))
+            .add(h.z.scale(mul(fx::sin(a), r)))
+    };
+    for k in 0..6 {
+        rig.glow(
+            Mesh::Hex,
+            rod(point(k), point(k + 1), pct(d, 4)),
+            HOOP,
+            ONE / 6,
+        );
+    }
+}
+
+/// A garment round the torso from `hem` to `top` (percent of the torso up
+/// from the hips), `wide` percent of the torso across and `deep` percent
+/// of its depth, with a yoke over the shoulders when it reaches them.
+#[allow(clippy::too_many_arguments)]
+fn garment(rig: &mut Rig, m: &Dims, s: &Skel, hem: i32, top: i32, wide: i32, deep: i32, c: Rgb) {
+    let body = &s.body;
+    let (w, t, d) = (m.w, m.t, m.d);
+    let tall = top - hem;
+    rig.put(
+        Mesh::Barrel,
+        body.shape(
+            v3(0, pct(t, hem + tall / 2), 0),
+            v3(pct(w, wide), pct(t, tall), pct(d, deep)),
+        ),
+        c,
+    );
+    if top > 96 {
+        rig.put(
+            Mesh::Bevel,
+            body.shape(
+                v3(0, pct(t, 88), -pct(d, 4)),
+                v3(2 * m.shoulder + pct(m.arm_w, 90), pct(t, 28), pct(d, 86)),
+            ),
+            c,
+        );
+    }
+}
+
+/// Sleeves over each arm from the shoulder, `to` percent of the way to the
+/// elbow (over 100: on down the forearm, 200 the wrist), `puff` percent of
+/// the arm's width, ending in a `cuff`.
+fn sleeves(rig: &mut Rig, m: &Dims, s: &Skel, to: i32, puff: i32, c: Rgb, cuff: Rgb) {
+    for (i, side) in SIDES.into_iter().enumerate() {
+        let sh = shoulder_of(&s.body, m, side);
+        let (elbow, wrist) = bend(sh, s.hands[i], m.arm, s.arm_hint[i]);
+        let aw = m.arm_w;
+        rig.ball(sh, pct(aw, puff + 14), c);
+        let (from, end) = if to <= 100 {
+            (sh, sh.lerp(elbow, ONE * to / 100))
+        } else {
+            rig.put(Mesh::Taper, rod(sh, elbow, pct(aw, puff)), c);
+            rig.ball(elbow, pct(aw, puff - 10), c);
+            (elbow, elbow.lerp(wrist, ONE * (to - 100) / 100))
+        };
+        rig.put(Mesh::Taper, rod(from, end, pct(aw, puff)), c);
+        let back = from.lerp(end, ONE * 78 / 100);
+        rig.put(Mesh::Hex, rod(back, end, pct(aw, puff - 6)), cuff);
+    }
+}
+
+/// The captain's long crimson coat over a white front, gold edging and
+/// buttons, sleeves to the wrists with gold cuffs, a black belt with a
+/// gold buckle.
+fn captains_coat(rig: &mut Rig, m: &Dims, s: &Skel) {
+    let body = &s.body;
+    let (w, t, d) = (m.w, m.t, m.d);
+    let at = |x: i32, y: i32, z: i32| v3(pct(w, x), pct(t, y), pct(d, z));
+    // deep enough to cover the gorilla's chest slabs
+    garment(rig, m, s, -18, 104, 116, 130, CAPTAIN_RED);
+    rig.put(
+        Mesh::Cube,
+        body.shape(at(0, 66, 65), at(22, 64, 4)),
+        SHIRT_WHITE,
+    );
+    for side in SIDES {
+        rig.put(
+            Mesh::Cube,
+            body.shape(at(side * 13, 52, 66), at(4, 92, 4)),
+            TRIM_GOLD,
+        );
+        for y in [60, 80] {
+            let b = body.at(side * pct(w, 24), pct(t, y), pct(d, 64));
+            rig.ball(b, pct(w, 8), TRIM_GOLD);
+        }
+    }
+    rig.put(
+        Mesh::Barrel,
+        body.shape(at(0, 26, 0), at(122, 9, 136)),
+        BELT,
+    );
+    rig.put(
+        Mesh::Bevel,
+        body.shape(at(0, 26, 68), at(16, 10, 4)),
+        TRIM_GOLD,
+    );
+    sleeves(rig, m, s, 196, 150, CAPTAIN_RED, TRIM_GOLD);
+}
+
+/// A white shirt with three navy stripes round it and short sleeves.
+fn striped_shirt(rig: &mut Rig, m: &Dims, s: &Skel) {
+    let body = &s.body;
+    let (w, t, d) = (m.w, m.t, m.d);
+    garment(rig, m, s, 26, 104, 112, 114, SHIRT_WHITE);
+    for y in [40, 58, 76] {
+        rig.put(
+            Mesh::Barrel,
+            body.shape(v3(0, pct(t, y), 0), v3(pct(w, 117), pct(t, 7), pct(d, 119))),
+            STRIPE_NAVY,
+        );
+    }
+    sleeves(rig, m, s, 40, 150, SHIRT_WHITE, STRIPE_NAVY);
+}
+
+/// A loose cream shirt with puffed sleeves gathered at the elbows.
+fn loose_shirt(rig: &mut Rig, m: &Dims, s: &Skel) {
+    garment(rig, m, s, 24, 104, 116, 118, SHIRT_CREAM);
+    sleeves(rig, m, s, 100, 172, SHIRT_CREAM, shade(SHIRT_CREAM, 86));
+}
+
+/// A navy waistcoat, roomy enough to button down over a pot belly, with
+/// brass buttons and a black belt.
+fn waistcoat(rig: &mut Rig, m: &Dims, s: &Skel) {
+    let body = &s.body;
+    let (w, t, d) = (m.w, m.t, m.d);
+    garment(rig, m, s, 26, 92, 128, 160, WAISTCOAT);
+    for y in [42, 56, 70] {
+        let b = body.at(0, pct(t, y), pct(d, 78));
+        rig.ball(b, pct(w, 9), CARTRIDGE);
+    }
+    rig.put(
+        Mesh::Barrel,
+        body.shape(
+            v3(0, pct(t, 30), 0),
+            v3(pct(w, 132), pct(t, 8), pct(d, 164)),
+        ),
+        BELT,
+    );
+}
+
+/// A sash round the waist, knotted on one side with two tails hanging.
+fn sash(rig: &mut Rig, m: &Dims, s: &Skel, c: Rgb) {
+    let body = &s.body;
+    let (w, t, d) = (m.w, m.t, m.d);
+    rig.put(
+        Mesh::Barrel,
+        body.shape(
+            v3(0, pct(t, 22), 0),
+            v3(pct(w, 116), pct(t, 16), pct(d, 118)),
+        ),
+        c,
+    );
+    let knot = body.at(pct(w, 48), pct(t, 22), pct(d, 34));
+    rig.ball(knot, pct(w, 22), shade(c, 90));
+    for (out, len) in [(10, 50), (-6, 40)] {
+        rig.blade(
+            knot,
+            knot.add(body.dir(out, -100, 10).scale(pct(t, len))),
+            body.z,
+            pct(w, 18),
+            pct(d, 6),
+            shade(c, 94),
+        );
+    }
+}
+
+/// A bandolier from one shoulder across the chest and back to the other
+/// hip, with brass cartridges along the front.
+fn bandolier(rig: &mut Rig, m: &Dims, s: &Skel, c: Rgb) {
+    let body = &s.body;
+    let (w, t, d) = (m.w, m.t, m.d);
+    let top = body.at(pct(w, 36), pct(t, 100), pct(d, 42));
+    let low = body.at(-pct(w, 50), pct(t, 22), pct(d, 54));
+    rig.put(Mesh::Hex, rod(top, low, pct(w, 13)), c);
+    let back_top = body.at(pct(w, 36), pct(t, 100), -pct(d, 42));
+    let back_low = body.at(-pct(w, 50), pct(t, 22), -pct(d, 54));
+    rig.put(Mesh::Hex, rod(back_top, back_low, pct(w, 13)), c);
+    let along = dir_or(low.sub(top), body.y);
+    let across = dir_or(along.cross(body.z), body.x);
+    for k in [28, 44, 60, 76] {
+        let at = top.lerp(low, ONE * k / 100).add(body.z.scale(pct(d, 5)));
+        rig.put(
+            Mesh::Bevel,
+            Affine {
+                c0: along.scale(pct(w, 8)),
+                c1: across.scale(pct(w, 14)),
+                c2: body.z.scale(pct(d, 6)),
+                t: at,
+            },
+            CARTRIDGE,
+        );
+    }
+}
+
+/// A cutlass in a dark scabbard hanging at the hip, pointing down and
+/// back, its brass guard, grip and pommel up by the waist.
+fn cutlass(rig: &mut Rig, m: &Dims, s: &Skel) {
+    let body = &s.body;
+    let (w, t) = (m.w, m.t);
+    let top = body.at(-pct(w, 60), pct(t, 26), pct(m.d, 12));
+    let down = body.dir(-12, -80, -52);
+    let len = pct(t, 118);
+    let tip = top.add(down.scale(len));
+    rig.put(Mesh::Taper, rod(top, tip, pct(w, 11)), SCABBARD);
+    rig.ball(tip, pct(w, 7), HILT);
+    rig.put(
+        Mesh::Hex,
+        rod(top, top.add(down.scale(pct(len, 8))), pct(w, 13)),
+        HILT,
+    );
+    let guard = top.sub(down.scale(pct(len, 3)));
+    rig.put(
+        Mesh::Hex,
+        rod(guard, guard.sub(down.scale(pct(len, 4))), pct(w, 24)),
+        HILT,
+    );
+    let grip_end = guard.sub(down.scale(pct(len, 20)));
+    rig.put(Mesh::Hex, rod(guard, grip_end, pct(w, 7)), GRIP);
+    rig.ball(grip_end, pct(w, 10), HILT);
+}
+
+/// A parrot perched on the shoulder on `side`, facing ahead: body, head,
+/// hooked beak, eyes, folded wings, a long tail down the back and a face
+/// accent, sized by the ape's head `d`. `colours`: body (and head),
+/// wings, tail, accent.
+fn parrot(rig: &mut Rig, m: &Dims, s: &Skel, d: i32, side: i32, colours: [Rgb; 4]) {
+    let body = &s.body;
+    let [plumage, wing, tail, accent] = colours;
+    // upright and facing the way the head does, however the ape leans
+    let perch = shoulder_of(body, m, side)
+        .add(V3::UP.scale(pct(m.arm_w, 90)))
+        .add(body.x.scale(side * pct(m.arm_w, 20)));
+    let f = Frame::upright(perch, V3::UP, s.head.z);
+    // (no smaller than a lemur's head would make it, so it reads)
+    let k = pct(d, 90).max(cm(21));
+    let p = |x: i32, y: i32, z: i32| v3(pct(k, x), pct(k, y), pct(k, z));
+    rig.put(Mesh::Geo, f.shape(p(0, 36, 0), p(36, 58, 40)), plumage);
+    rig.put(Mesh::Ico, f.shape(p(0, 78, 6), p(32, 30, 32)), plumage);
+    rig.put(Mesh::Ico, f.shape(p(0, 76, 18), p(20, 16, 10)), accent);
+    rig.put(
+        Mesh::Spike,
+        rod(
+            f.at(0, pct(k, 76), pct(k, 20)),
+            f.at(0, pct(k, 64), pct(k, 34)),
+            pct(k, 16),
+        ),
+        BEAK,
+    );
+    for x in SIDES {
+        rig.put(Mesh::Octa, f.shape(p(x * 14, 84, 14), p(5, 7, 5)), BLACK);
+        rig.blade(
+            f.at(x * pct(k, 18), pct(k, 58), -pct(k, 2)),
+            f.at(x * pct(k, 16), pct(k, 4), -pct(k, 16)),
+            f.z,
+            pct(k, 26),
+            pct(k, 8),
+            wing,
+        );
+    }
+    rig.blade(
+        f.at(0, pct(k, 14), -pct(k, 14)),
+        f.at(0, -pct(k, 60), -pct(k, 34)),
+        f.x,
+        pct(k, 18),
+        pct(k, 6),
+        tail,
+    );
+}
+
+/// A steel hook in place of a hand: a leather cup at the wrist and a
+/// curved hook ahead along the hand's axes.
+fn hook(rig: &mut Rig, f: &Frame, wrist: V3, w: i32) {
+    let cup = wrist.add(f.z.scale(pct(w, 70)));
+    rig.put(Mesh::Hex, rod(wrist, cup, pct(w, 150)), GRIP);
+    let p1 = cup.add(f.z.scale(pct(w, 110)));
+    let p2 = p1.add(f.z.scale(pct(w, 50))).add(f.y.scale(pct(w, 70)));
+    let p3 = p2.sub(f.z.scale(pct(w, 50))).add(f.y.scale(pct(w, 40)));
+    rig.put(Mesh::Hex, rod(cup, p1, pct(w, 34)), HOOK_STEEL);
+    rig.put(Mesh::Hex, rod(p1, p2, pct(w, 32)), HOOK_STEEL);
+    rig.put(Mesh::Spike, rod(p2, p3, pct(w, 30)), HOOK_STEEL);
+}
+
+/// A wooden peg from the knee in place of the lower leg and foot: a
+/// darker cup round the knee, the peg tapering down, an iron tip.
+fn peg_leg(rig: &mut Rig, knee: V3, ankle: V3, w: i32) {
+    let way = dir_or(ankle.sub(knee), V3::UP.neg());
+    let tip = ankle.add(way.scale(pct(w, 50)));
+    rig.put(
+        Mesh::Hex,
+        rod(
+            knee.sub(way.scale(pct(w, 40))),
+            knee.add(way.scale(pct(w, 50))),
+            pct(w, 150),
+        ),
+        shade(PEG_WOOD, 70),
+    );
+    rig.put(Mesh::Taper, rod(knee, tip, pct(w, 90)), PEG_WOOD);
+    rig.put(
+        Mesh::Hex,
+        rod(tip.sub(way.scale(pct(w, 20))), tip, pct(w, 56)),
+        PEG_IRON,
+    );
+}
+
 /// The proboscis monkey's nose: four points from its root on the face to its
 /// tip. It droops over the mouth; falling blows it up, running forward
 /// presses it back, sideways speed swings it the other way, and it wobbles
@@ -2178,7 +2834,8 @@ fn disc(rig: &mut Rig, h: &Frame, at: V3, across: i32, thick: i32, c: Rgb) {
 fn head(rig: &mut Rig, kind: Kind, l: &Look, h: &Frame, pose: &Pose) {
     let d = cm(l.head);
     let p = |x: i32, y: i32, z: i32| v3(pct(d, x), pct(d, y), pct(d, z));
-    let helmeted = matches!(pose.gear, Gear::Ski | Gear::Explorer);
+    // (a pirate's tricorn or bandana covers the head too)
+    let helmeted = matches!(pose.gear, Gear::Ski | Gear::Explorer | Gear::Pirate);
     // the skull, and the bare face on its front
     rig.put(Mesh::Geo, h.shape(V3::ZERO, p(100, 94, 96)), l.fur);
     let face_size = match kind {
@@ -2464,6 +3121,9 @@ pub struct BigCat {
     pub helmet: bool,
     /// the explorers' pith helmet (Sunset Ruins' jaguar)
     pub pith: bool,
+    /// a navy officer's bicorne, blue coat and gold epaulettes (Banana Bay
+    /// Battle's jaguar)
+    pub navy: bool,
 }
 
 pub const JAGUAR: BigCat = BigCat {
@@ -2475,6 +3135,7 @@ pub const JAGUAR: BigCat = BigCat {
     tail: 100,
     helmet: false,
     pith: false,
+    navy: false,
 };
 
 /// The jaguar in a classic cartoon bubble space helmet and nothing else,
@@ -2492,6 +3153,15 @@ pub const RUINS_JAGUAR: BigCat = BigCat {
     ..JAGUAR
 };
 
+/// The jaguar as a navy officer, for Banana Bay Battle (the person,
+/// 2026-10-15: a Royal Navy-style jaguar, "every map it's a jaguar"): a
+/// bicorne, a blue coat with a white front and gold epaulettes, and no
+/// real nation's insignia.
+pub const NAVY_JAGUAR: BigCat = BigCat {
+    navy: true,
+    ..JAGUAR
+};
+
 /// Smoky grey-white with charcoal rosettes round grey middles, pale
 /// green-grey eyes and a very thick tail.
 pub const SNOW_LEOPARD: BigCat = BigCat {
@@ -2503,6 +3173,7 @@ pub const SNOW_LEOPARD: BigCat = BigCat {
     tail: 150,
     helmet: false,
     pith: false,
+    navy: false,
 };
 
 impl BigCat {
@@ -2512,6 +3183,8 @@ impl BigCat {
             crate::map::Map::Ski => SNOW_LEOPARD,
             crate::map::Map::Sector => SPACE_JAGUAR,
             crate::map::Map::Ruins => RUINS_JAGUAR,
+            // Banana Bay Battle: add, once `Map::Bay` exists (SECOND-ORDER
+            // BG1), crate::map::Map::Bay => NAVY_JAGUAR,
             _ => JAGUAR,
         }
     }
@@ -2586,6 +3259,9 @@ pub fn jaguar(b: &mut Batch, j: &crate::jaguar::Jaguar, scale: i32, cat: &BigCat
             cat.spot,
         );
         rig.put(Mesh::Hex, rod(at, at.add(n.scale(cm(3))), cm(5)), cat.deep);
+    }
+    if cat.navy {
+        navy_coat(&mut rig, &body);
     }
     jaguar_legs(&mut rig, j, &body, fwd, cat);
     jaguar_head(&mut rig, j, &body, fwd, cat);
@@ -2743,6 +3419,84 @@ fn jaguar_head(rig: &mut Rig, j: &crate::jaguar::Jaguar, body: &Frame, fwd: V3, 
         };
         pith_helmet(rig, cm(28), &top);
     }
+    if cat.navy {
+        bicorne(rig, &h);
+    }
+}
+
+/// The navy officer's colours: a deep blue coat, a white front, gold
+/// epaulettes and edging, a black bicorne.
+const NAVY_BLUE: Rgb = rgb(24, 38, 96);
+const NAVY_WHITE: Rgb = rgb(246, 244, 236);
+const EPAULETTE: Rgb = rgb(240, 194, 56);
+const BICORNE: Rgb = rgb(22, 22, 28);
+
+/// The officer's coat over the jaguar's shoulders and back (`body`: y
+/// along the spine, z up): the blue coat over the front two thirds with a
+/// high collar, a white front on the chest with gold buttons either side,
+/// gold epaulettes with fringes on the shoulders, and two coat tails over
+/// the haunches. Plain: no nation's badge or colours.
+fn navy_coat(rig: &mut Rig, body: &Frame) {
+    rig.put(
+        Mesh::Barrel,
+        body.shape(p3(0, 16, 3), p3(58, 92, 62)),
+        NAVY_BLUE,
+    );
+    let collar = body.at(0, cm(54), cm(6));
+    rig.put(
+        Mesh::Hex,
+        rod(collar, collar.add(body.y.scale(cm(7))), cm(36)),
+        NAVY_BLUE,
+    );
+    // the white front, facing ahead under the chin
+    rig.put(
+        Mesh::Bevel,
+        body.shape(p3(0, 60, -6), p3(22, 6, 26)),
+        NAVY_WHITE,
+    );
+    for s in SIDES {
+        for z in [2, -12] {
+            rig.ball(body.at(s * cm(14), cm(61), cm(z)), cm(4), EPAULETTE);
+        }
+        let top = body.at(s * cm(20), cm(40), cm(29));
+        let out = body.dir(s * 50, 0, 100);
+        rig.put(
+            Mesh::Hex,
+            rod(top, top.add(out.scale(cm(3))), cm(17)),
+            EPAULETTE,
+        );
+        // the fringe hanging down the outside of the shoulder
+        let side = body.at(s * cm(28), cm(40), cm(19));
+        rig.put(
+            Mesh::Hex,
+            rod(side, side.add(body.x.scale(s * cm(3))), cm(13)),
+            shade(EPAULETTE, 86),
+        );
+        // the coat tail over the haunch
+        rig.blade(
+            body.at(s * cm(12), -cm(26), cm(22)),
+            body.at(s * cm(18), -cm(56), cm(8)),
+            body.x,
+            cm(18),
+            cm(3),
+            NAVY_BLUE,
+        );
+    }
+}
+
+/// A black bicorne worn side to side over the jaguar's head `h` (30 cm
+/// across): a crown, a tall brim pointing out over each ear, gold trim up
+/// its two top edges, gold tassels at its points and a plain gold cockade.
+fn bicorne(rig: &mut Rig, h: &Frame) {
+    rig.put(Mesh::Geo, h.shape(p3(0, 14, -2), p3(24, 14, 22)), BICORNE);
+    let (l, r) = (h.at(-cm(30), cm(20), -cm(2)), h.at(cm(30), cm(20), -cm(2)));
+    rig.blade(l, r, h.y, cm(24), cm(6), BICORNE);
+    let apex = h.at(0, cm(32), cm(1));
+    for tip in [l, r] {
+        rig.put(Mesh::Hex, rod(tip, apex, cm(2)), EPAULETTE);
+        rig.ball(tip, cm(5), EPAULETTE);
+    }
+    rig.ball(h.at(-cm(9), cm(24), cm(2)), cm(6), EPAULETTE);
 }
 
 /// A cartoon bubble helmet over the head `h`: a clear glass ball (a soft
@@ -3624,6 +4378,217 @@ mod tests {
                     }
                     assert!(x.at.dist(pose.hands) <= int(3));
                 }
+            }
+        }
+    }
+
+    /// Triangles drawn for these shapes.
+    fn triangles(s: &[Shape]) -> usize {
+        s.iter()
+            .map(|x| {
+                let m = Mesh::ALL.iter().find(|m| **m as u32 == x.mesh).unwrap();
+                crate::mesh::vertices(*m).len() / crate::mesh::VERTEX_VALUES / 3
+            })
+            .sum()
+    }
+
+    /// The colours that mark each piece of a kind's pirate kit.
+    fn kit_colours(kind: Kind) -> Vec<Rgb> {
+        let k = pirate_kit(kind);
+        let mut c = Vec::new();
+        match k.hat {
+            PirateHat::None => {}
+            PirateHat::Tricorn(captain) => {
+                c.extend([TRICORN, TRIM_GOLD]);
+                if captain {
+                    c.extend([PLUME, BONE]);
+                }
+            }
+            PirateHat::Bandana(b, dots) => {
+                c.push(b);
+                c.extend(dots);
+            }
+        }
+        c.extend(k.patch.map(|_| PATCH));
+        c.extend(k.earring.map(|_| HOOP));
+        c.extend(match k.top {
+            PirateTop::None => vec![],
+            PirateTop::CaptainsCoat => vec![CAPTAIN_RED, SHIRT_WHITE, BELT],
+            PirateTop::Striped => vec![SHIRT_WHITE, STRIPE_NAVY],
+            PirateTop::Shirt => vec![SHIRT_CREAM],
+            PirateTop::Waistcoat => vec![WAISTCOAT, BELT],
+        });
+        c.extend(k.sash);
+        if let Some(b) = k.bandolier {
+            c.extend([b, CARTRIDGE]);
+        }
+        if k.cutlass {
+            c.extend([SCABBARD, HILT, GRIP]);
+        }
+        c.extend(k.peg.map(|_| PEG_WOOD));
+        c.extend(k.hook.map(|_| HOOK_STEEL));
+        if let Some((_, p)) = k.parrot {
+            c.extend(p);
+            c.push(BEAK);
+        }
+        c
+    }
+
+    #[test]
+    fn on_banana_bay_every_kind_wears_its_own_pirate_mix_in_every_pose() {
+        // the person, 2026-10-15: "an assortment of pirate-related costumes
+        // ... cutlasses in the scabbard, eyepatch, bandana, tricorn, pegleg,
+        // bandolier, [parrot] on the shoulder" (briefs/banana-bay-battle.md)
+        assert_eq!(Gear::from_key("pirate"), Some(Gear::Pirate));
+        for map in crate::map::Map::ALL {
+            assert_eq!(Gear::on(map) == Gear::Pirate, map.key() == "bay", "{map:?}");
+        }
+        // every piece the brief names is worn by some kind
+        let all: Vec<PirateKit> = Kind::ALL.iter().map(|k| pirate_kit(*k)).collect();
+        assert!(all.iter().any(|k| matches!(k.hat, PirateHat::Tricorn(_))));
+        assert!(all.iter().any(|k| matches!(k.hat, PirateHat::Bandana(..))));
+        assert!(all.iter().any(|k| k.patch.is_some()));
+        assert!(all.iter().any(|k| k.cutlass));
+        assert!(all.iter().any(|k| k.bandolier.is_some()));
+        assert!(all.iter().any(|k| k.peg.is_some()));
+        assert!(all.iter().any(|k| k.parrot.is_some()));
+        // each kind its own mix, so they read apart
+        for (i, a) in Kind::ALL.iter().enumerate() {
+            for b in &Kind::ALL[i + 1..] {
+                assert_ne!(kit_colours(*a), kit_colours(*b), "{a:?} {b:?}");
+            }
+        }
+        for kind in Kind::ALL {
+            let kit = pirate_kit(kind);
+            for p in poses() {
+                let pose = Pose {
+                    gear: Gear::Pirate,
+                    ..p
+                };
+                let s = drawn(kind, &pose);
+                let bare = drawn(kind, &p);
+                assert!(
+                    s.len() > bare.len() + 8,
+                    "{kind:?} {} vs {}",
+                    s.len(),
+                    bare.len()
+                );
+                assert!((50..=300).contains(&s.len()), "{kind:?} {} shapes", s.len());
+                let has = |c: Rgb| s.iter().any(|x| x.colour == c);
+                for c in kit_colours(kind) {
+                    assert!(has(c), "{kind:?} {pose:?}: no {c:?}");
+                }
+                // none of the other maps' gear
+                assert!(
+                    !has(JACKET) && !has(LENS) && !has(KHAKI) && !has(PITH),
+                    "{kind:?}"
+                );
+                // a peg leg: one foot fewer; a hook: one hand fewer
+                let count = |c: Rgb| s.iter().filter(|x| x.colour == c).count();
+                let bare_count = |c: Rgb| bare.iter().filter(|x| x.colour == c).count();
+                let skin = look(kind).skin;
+                let (feet, hands) = (kit.peg.is_some(), kit.hook.is_some());
+                if feet || hands {
+                    assert!(count(skin) < bare_count(skin), "{kind:?}");
+                }
+                for x in &s {
+                    for a in x.axes {
+                        assert!(
+                            a.len() >= ONE / 500 && a.len() <= int(2),
+                            "{kind:?} mesh {} colour {:?} axis {}",
+                            x.mesh,
+                            x.colour,
+                            a.len()
+                        );
+                    }
+                    assert!(x.at.dist(pose.hands) <= int(3));
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn the_pirate_outfits_cost_about_what_the_explorer_outfit_does() {
+        // SECOND-ORDER BG2: the triangles a pirate adds over the bare ape,
+        // against the explorer outfit's, kind by kind
+        let mut lines = Vec::new();
+        let (mut pirate_all, mut explorer_all) = (0, 0);
+        for kind in Kind::ALL {
+            let p = at_rest();
+            let tris = |g: Gear| triangles(&drawn(kind, &Pose { gear: g, ..p }));
+            let bare = tris(Gear::None);
+            let (pirate, explorer) = (tris(Gear::Pirate) - bare, tris(Gear::Explorer) - bare);
+            lines.push(format!(
+                "{kind:?}: bare {bare}, explorer +{explorer}, pirate +{pirate}"
+            ));
+            pirate_all += pirate;
+            explorer_all += explorer;
+            assert!(pirate <= explorer * 3 / 2, "{}", lines.join("; "));
+        }
+        assert!(
+            pirate_all <= explorer_all * 5 / 4,
+            "pirate {pirate_all} vs explorer {explorer_all}: {}",
+            lines.join("; ")
+        );
+        eprintln!("{}", lines.join("\n"));
+    }
+
+    #[test]
+    fn only_the_banana_bay_jaguar_dresses_as_a_navy_officer() {
+        // the person, 2026-10-15: a Royal Navy-style jaguar (bicorne, blue
+        // coat, gold epaulettes), no real nation's insignia
+        use crate::map::Map;
+        for map in Map::ALL {
+            assert_eq!(BigCat::on(map).navy, map.key() == "bay", "{map:?}");
+        }
+        for head_down in [0, ONE] {
+            let j = crate::jaguar::Jaguar {
+                feet: V3::ZERO,
+                yaw: 0,
+                gait: 0,
+                stride: ONE,
+                leap: 0,
+                head_down,
+                jaw: ONE / 2,
+            };
+            let draw = |cat: &BigCat| {
+                let mut b = Batch::new();
+                jaguar(&mut b, &j, 100, cat);
+                shapes(b)
+            };
+            let navy = draw(&NAVY_JAGUAR);
+            let has = |s: &[Shape], c: Rgb| s.iter().any(|x| x.colour == c);
+            for c in [NAVY_BLUE, NAVY_WHITE, EPAULETTE, BICORNE] {
+                assert!(has(&navy, c), "no {c:?}");
+            }
+            for other in [JAGUAR, SPACE_JAGUAR, RUINS_JAGUAR, SNOW_LEOPARD] {
+                let s = draw(&other);
+                assert!(!has(&s, NAVY_BLUE) && !has(&s, BICORNE), "{other:?}");
+            }
+            // the same cat underneath
+            let plain = draw(&JAGUAR);
+            let coat = |s: &[Shape]| s.iter().filter(|x| x.colour == JAG_COAT).count();
+            assert_eq!(coat(&navy), coat(&plain));
+            // the bicorne's crown sits on the head, over the eyes
+            let eyes: Vec<V3> = plain
+                .iter()
+                .filter(|x| x.colour == JAG_EYE)
+                .map(|x| x.at)
+                .collect();
+            let brow = eyes[0].lerp(eyes[1], ONE / 2);
+            let crown = navy
+                .iter()
+                .find(|x| x.colour == BICORNE && x.mesh == Mesh::Geo as u32)
+                .unwrap()
+                .at;
+            assert!(
+                crown.dist(brow) < cm(22),
+                "crown {} from the brow",
+                crown.dist(brow)
+            );
+            // the gold (epaulettes, collar, buttons) up off the ground
+            for x in navy.iter().filter(|x| x.colour == EPAULETTE) {
+                assert!(x.at.y > cm(15), "gold at {}", x.at.y);
             }
         }
     }
