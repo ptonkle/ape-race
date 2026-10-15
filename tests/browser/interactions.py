@@ -259,7 +259,10 @@ def run(page, check, engine):
     page.click("[id='menu.back']")
 
     # The Ski Slope's weather (2026-10-13): chosen in Settings, kept after a
-    # reload, and shown under the map on the Ski Slope's setup only
+    # reload, and shown under the map on the Ski Slope's setup only. The
+    # mouse leaves Back's spot first: Settings sits under it on the title
+    # and wobbles while hovered, which Firefox never calls stable
+    page.mouse.move(5, 5)
     page.click("[id='menu.settings']")
     page.select_option("[id='settings.weather']", "snowing")
     page.click("[id='menu.back']")
