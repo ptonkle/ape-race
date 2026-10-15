@@ -11,18 +11,18 @@ The standard map-build steps (MAPS.md "Build steps"), one row each. Status is on
 | 5 | Sky and lighting | Done | Sunset dome, haze ring; inside and skylit looks |
 | 6 | Course layout | Done | 1.75 km: river, bridge, corridor, 300° chamber |
 | 7 | Map rules | Done | Current, ravine reset, bridge boost, spikes, trapdoors |
-| 8 | Art placed on the course | In progress | Merged: the whole map draws on its course. Polish pass running (cliffs, a ground fold, dim glyphs) |
-| 9 | Lobby spot and flyover | In progress | Flyover smooth (its test passes); lobby being reframed |
+| 8 | Art placed on the course | Done | Placed and polished (1.10.1): lit entrance, cliffs, random pile, glyphs in step; panel glyph sockets and one jog panel still off |
+| 9 | Lobby spot and flyover | In progress | Flyover done; lobby looks at the ground (your feedback), being fixed |
 | 10 | AI validation | Done | Ordered over 32 layouts: Sloth 88.1, Monkey 78.2, Ape 71.9, King Kong 64.7 s; river, bridge and turn-in stalls fixed |
 | 11 | Medal times | Done | Author 0:56, Gold 1:03, Silver 1:13, Bronze 1:28 (re-measured) |
 | 12 | Step and frame cost | Done | Worst step 2.75 ms over 2,000 frames (was 7.1); race results unchanged by the speed-ups |
-| 13 | Colourblind and JOJO MODE | In progress | Colourblind fine; JOJO MODE misses the haze band and the temple face, being fixed |
-| 14 | Map card | In progress | Being made by the polish agent |
+| 13 | Colourblind and JOJO MODE | Done | Colourblind and JOJO MODE both recolour the whole map (1.10.1) |
+| 14 | Map card | Done | Its own card from the flyover: bridge, mouth, sunset (live in 1.10.1) |
 | 15 | Screenshots at 1920×1080 | In progress | Apes, contrast and 14 in-game shots on the journal; finish shot and v2 coming |
 | 16 | Other maps unchanged | Done | All tests pass on main, release and debug (a debug-only overflow found and fixed) |
 | 17 | Docs | In progress | SECOND-ORDER rows written; README, MAPS.md, HANDOFF to do |
 | 18 | Full checks | In progress | Early run on main passed in Chromium (browser and online); deployed without the full three-browser run, on your word |
-| 19 | Deploy | Done | 1.10.0 live at 23:20 (the polish pass follows as 1.10.1) |
+| 19 | Deploy | Done | 1.10.0 at 23:20, 1.10.1 at 23:45; fixes follow as 1.10.x |
 
 ## This map's features
 
@@ -48,8 +48,8 @@ One row per concept from the brief, plus any added later (your feedback, a new i
 | Waterfall from the mouth | Brief | Done | n/a | Done | Done |
 | Banana-glyph stonework, pulsing glow | Brief | Done | n/a | Done | Done |
 | Darker temple lighting | Brief | Done | n/a | Done | Done |
-| You can see into the temple from the bridge and through the mouth | Your feedback (1.10.0) | In progress | n/a | In progress | Not started |
-| Wall panels sit flush along every wall, past the bends | Your feedback (1.10.0) | In progress | n/a | In progress | Not started |
+| You can see into the temple from the bridge and through the mouth | Your feedback (1.10.0) | Done | n/a | Done | Done |
+| Wall panels sit flush along every wall, past the bends | Your feedback (1.10.0) | In progress | n/a | In progress | In progress |
 | Floor spike traps | Brief | Done | Done | Done | Done |
 | Trip wires → trapdoors after 0.75 s | Brief | Done | Done | Done | Done |
 | Glowing banana-spike pits | Brief | Done | Done | Done | In progress |
@@ -60,5 +60,6 @@ One row per concept from the brief, plus any added later (your feedback, a new i
 | Banana pile finish, packed solid | Brief, your feedback | Done | Done | Done | In progress |
 | Skylight with foliage and soft spotlight | Brief | Done | n/a | Done | In progress |
 | Sun low and to the side, raking across the temple face | Models review, your choice | n/a | n/a | Done | Done |
-| Ravine sides read as rocky cliffs | In-game shots | In progress | n/a | In progress | Not started |
-| Banana pile heaped at random, not in rings | Your feedback | In progress | n/a | In progress | Not started |
+| Ravine sides read as rocky cliffs | In-game shots | Done | n/a | Done | Done |
+| Banana pile heaped at random, not in rings | Your feedback | Done | n/a | Done | Done |
+| Lobby camera shows your ape with the temple mouth behind | Your feedback (1.10.1) | n/a | n/a | In progress | Not started |
