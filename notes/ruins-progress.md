@@ -37,6 +37,7 @@ One row per concept from the brief, plus any added later (your feedback, a new i
 | Dense jungle | Brief | Done | n/a | Done | Done |
 | Banana-bunch and moai ape ruins | Brief | Done | n/a | Done | Done |
 | River with rapids and current | Brief | Done | Done | Done | Done |
+| The current carries you downstream only, never sideways | Your feedback (1.10.0) | n/a | In progress | In progress | Not started |
 | Snapping turtles (bouncers) | Brief | Done | Done | Done | In progress |
 | Waterfall and ravine reset | Brief | Done | Done | Done | Done |
 | Rope bridge, three gorillas wide | Brief | Done | n/a | Done | Done |
