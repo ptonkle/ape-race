@@ -1,13 +1,14 @@
 //! The AI on Banana Bay Battle (2026-10-15): every difficulty finishes it,
-//! from the water and the decks back onto the line, and no ape ever passes
-//! through a set sail. (The ordering test and medal times come with the
-//! tuning: SECOND-ORDER BC rows.)
+//! from the water and the decks back onto the line, no ape ever passes
+//! through a set sail, and the difficulties stay ordered and spaced, as on
+//! the Jungle (`tests/ai.rs`; SECOND-ORDER BT rows).
 
-use tool_core::ai::{think, trial_at, Brain, Difficulty};
+use tool_core::ai::{think, time_trial, trial_at, Brain, Difficulty, Trial};
 use tool_core::bay::{bay, bay_seeded, BayLayout, Sail};
 use tool_core::course::Course;
 use tool_core::fx::ONE;
 use tool_core::geom::V3;
+use tool_core::map::Map;
 use tool_core::race::{Driver, Entry, Event, Phase, Race};
 use tool_core::rules::{Kind, BODY_DROP, BODY_RADIUS, TICKS_PER_SECOND};
 
@@ -21,6 +22,85 @@ fn layout(k: u64) -> Course {
     } else {
         bay_seeded(0xBA7_BA77_0001 + k * 7919)
     }
+}
+
+fn secs(ticks: u32) -> f64 {
+    ticks as f64 / TICKS_PER_SECOND as f64
+}
+
+/// As `difficulties_are_ordered_and_spaced` on the Jungle: over sixteen
+/// layouts of Banana Bay Battle (one Chimpanzee, Equal Stats), each easier
+/// level's mean finish is at least `GAP` slower than the next harder's,
+/// and every race at every level finishes inside the limit (150 s).
+/// Sixteen, not eight: one layout's whirl on a rope can move a level's
+/// mean by 3 s (BT1).
+#[test]
+fn bay_difficulties_are_ordered_and_spaced() {
+    const GAP: f64 = 6.0;
+    let runs: Vec<_> = Difficulty::ALL
+        .into_iter()
+        .map(|level| {
+            std::thread::spawn(move || {
+                (0..16u64)
+                    .map(|k| {
+                        let t = trial_at(layout(k), &[Kind::Chimpanzee], &[level], true, LIMIT);
+                        let f = t[0].finish.unwrap_or_else(|| {
+                            panic!(
+                                "{} finishes bay layout {k} (at {} m)",
+                                level.key(),
+                                t[0].progress / ONE
+                            )
+                        });
+                        secs(f)
+                    })
+                    .collect::<Vec<f64>>()
+            })
+        })
+        .collect();
+    let mut means = Vec::new();
+    for (level, run) in Difficulty::ALL.into_iter().zip(runs) {
+        let row = run.join().expect("every race finishes");
+        let mean = row.iter().sum::<f64>() / row.len() as f64;
+        println!("{:<10} {row:.1?} mean {mean:.1} s", level.key());
+        means.push(mean);
+    }
+    for (i, w) in means.windows(2).enumerate() {
+        assert!(
+            w[0] >= w[1] + GAP,
+            "{} ({:.1} s) is not {GAP} s slower than {} ({:.1} s)",
+            Difficulty::ALL[i].key(),
+            w[0],
+            Difficulty::ALL[i + 1].key(),
+            w[1]
+        );
+    }
+}
+
+/// Banana Bay Battle's medal report: King Kong alone as a Time Trial runs,
+/// every kind and Equal Stats, against its medal times.
+#[test]
+#[ignore]
+fn bay_time_trial_report() {
+    let mut row: Vec<Trial> = Kind::ALL
+        .into_iter()
+        .map(|k| time_trial(bay(), k, false, LIMIT))
+        .collect();
+    row.push(time_trial(bay(), Kind::Chimpanzee, true, LIMIT));
+    println!("bay time trial (last: equal stats)");
+    for t in &row {
+        println!(
+            "  {:<11} finish {:>9}  grabs {:>3}  landings {:>2}  ground {:>5.1} s",
+            format!("{:?}", t.kind),
+            t.finish
+                .map(|f| format!("{:.2} s", secs(f)))
+                .unwrap_or("-".into()),
+            t.grabs,
+            t.landings,
+            secs(t.ground_ticks),
+        );
+    }
+    let medals = tool_core::trial::medals(Map::Bay).map(secs);
+    println!("medals bronze / silver / gold / author: {medals:.2?}");
 }
 
 /// Every level finishes four layouts inside the limit (150 s), as the

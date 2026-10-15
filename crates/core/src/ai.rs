@@ -151,16 +151,28 @@ impl Difficulty {
     /// Ape has stronger arms and reacts sooner. On the Ski Slope the swings
     /// run fast downhill, so a level's reaction time would let the best
     /// release go by (stuck whirling on a vine): it reacts sooner there
-    /// (`SKI_HESITATE`), and looks further ahead. Sunset Ruins has its own
-    /// reaction times, arms and misjudging (`RUINS_*`).
+    /// (`SKI_HESITATE`), and looks further ahead. Sunset Ruins and Banana
+    /// Bay Battle have their own reaction times, arms and misjudging
+    /// (`RUINS_*`, `BAY_*`).
     fn tuning_on(self, on: On) -> Tuning {
         let On {
             city,
             ski,
             sector,
             ruins,
+            bay,
         } = on;
         let t = self.tuning();
+        if bay {
+            let k = self as usize;
+            return Tuning {
+                jitter: BAY_JITTER[k],
+                drive: BAY_DRIVE[k],
+                hesitate: BAY_HESITATE[k],
+                noise: BAY_NOISE[k],
+                ..t
+            };
+        }
         if ruins {
             let k = self as usize;
             return Tuning {
@@ -297,6 +309,21 @@ const RUINS_HESITATE: [u32; 4] = [12, 16, 6, 0];
 const RUINS_JITTER: [u32; 4] = [6, 5, 5, 0];
 const RUINS_DRIVE: [u32; 4] = [1, 3, 4, DUTY];
 const RUINS_NOISE: [i32; 4] = [int(8), int(4), int(3), 0];
+/// Banana Bay Battle's handicaps, easiest level first (see
+/// [`Difficulty::tuning_on`]). With the Jungle's, the Sloth was no slower
+/// than the Monkey (72.7 vs 67.1 s over 16 layouts, some Sloth runs 56 s):
+/// the ships' swings are fast and long, so the Monkey's longer reaction
+/// (18 ticks to the Sloth's 14) lets the good release go by about as often
+/// as the Sloth's weak arms cost it. Here the Sloth reacts as late as the
+/// Monkey (its arms stay 2 of 8: at 1 it could not get off two decks
+/// it was put back on). The Ape then came within 6.6
+/// s of King Kong: it reacts later here (8 ticks, not 4). Its misjudging
+/// is touchy (3 m cost it 4.5 s; none left it whirling on a rope for 50 s
+/// on one layout), so it stays 2 m (BT1).
+const BAY_HESITATE: [u32; 4] = [18, 18, 8, 0];
+const BAY_JITTER: [u32; 4] = [14, 14, 4, 0];
+const BAY_DRIVE: [u32; 4] = [2, 3, 4, DUTY];
+const BAY_NOISE: [i32; 4] = [int(6), int(5), int(2), 0];
 /// On Sunset Ruins, how near a low vine over the river must be for a
 /// swimmer to swim for it and catch it, not for the bank (RT10).
 const RUINS_SWIM_TO: i32 = int(16);
@@ -308,6 +335,7 @@ struct On {
     ski: bool,
     sector: bool,
     ruins: bool,
+    bay: bool,
 }
 
 /// The City's Monkey (see [`Difficulty::tuning_on`]).
@@ -404,6 +432,8 @@ pub struct Brain {
     sector: bool,
     /// racing on Sunset Ruins (set by [`think`] each tick)
     ruins: bool,
+    /// racing on Banana Bay Battle (set by [`think`] each tick)
+    bay: bool,
     /// its own dice, for the handicaps
     dice: Dice,
     /// the first tick it may let go of the vine it holds
@@ -538,6 +568,7 @@ impl Brain {
             ski: false,
             sector: false,
             ruins: false,
+            bay: false,
             dice: Dice(seed),
             ready: 0,
             grabbed: 0,
@@ -572,6 +603,7 @@ impl Brain {
             ski: self.ski,
             sector: self.sector,
             ruins: self.ruins,
+            bay: self.bay,
         }
     }
 
@@ -628,6 +660,7 @@ pub fn think(race: &Race, who: usize, brain: &mut Brain) -> Controls {
     brain.ski = race.course.ski.is_some();
     brain.sector = race.course.sector.is_some();
     brain.ruins = race.course.ruins.is_some();
+    brain.bay = race.course.bay.is_some();
     // (Sector Ape: put back on a deck, it is shaken: see `Brain::tune`)
     if race
         .events
