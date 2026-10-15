@@ -33,8 +33,9 @@ use crate::scene::Look;
 
 /// The sun's height over the horizon: low and long.
 pub const SUN_HIGH: i32 = deg(7);
-/// The sun's bearing in the model gallery (a course turns it its own way).
-pub const SUN_YAW: i32 = deg(200);
+/// The sun's bearing in the model gallery, over the camera's shoulder so
+/// the models' fronts are lit (a course turns it its own way).
+pub const SUN_YAW: i32 = deg(25);
 /// The sunset light: a deep gold-orange, bright.
 pub const LIGHT: Rgb = rgb(292, 182, 96);
 /// The light from above (the ambient overhead, so the shadows' colour): a
@@ -42,10 +43,10 @@ pub const LIGHT: Rgb = rgb(292, 182, 96);
 pub const SKY: Rgb = rgb(150, 88, 128);
 /// The sky's dome overhead: crimson (`sky`).
 pub const ZENITH: Rgb = rgb(132, 16, 50);
-/// The low band of the sky, laid over the dome's yellow to orange: orange.
+/// The sky's middle, between the yellow haze and the crimson overhead.
 pub const BAND: Rgb = rgb(255, 112, 30);
 /// The haze at the horizon, the clear colour and the fog: golden yellow.
-pub const FOG: Rgb = rgb(255, 196, 92);
+pub const FOG: Rgb = rgb(255, 188, 82);
 /// The ground's bounce under things: a warm umber.
 pub const BOUNCE: Rgb = rgb(132, 82, 56);
 /// A faint warm edge light, the sun behind the silhouettes.
@@ -121,10 +122,11 @@ const GLYPH_DIM: Rgb = rgb(150, 104, 30);
 const BANANA_GOLD: Rgb = rgb(255, 196, 40);
 const BANANA_TIP: Rgb = rgb(96, 64, 26);
 
-const SHELL: Rgb = rgb(70, 82, 50);
-const SCUTE: Rgb = rgb(104, 108, 60);
-const TURTLE_SKIN: Rgb = rgb(118, 118, 78);
-const BEAK: Rgb = rgb(52, 48, 36);
+const SHELL: Rgb = rgb(96, 112, 60);
+const SCUTE: Rgb = rgb(150, 150, 80);
+const TURTLE_SKIN: Rgb = rgb(164, 160, 96);
+const TURTLE_THROAT: Rgb = rgb(222, 200, 120);
+const BEAK: Rgb = rgb(96, 84, 56);
 const TURTLE_EYE: Rgb = rgb(255, 120, 30);
 
 const PLANK: Rgb = rgb(132, 90, 54);
@@ -247,12 +249,20 @@ fn moss(b: &mut Batch, f: &Affine, top: V3, w: i32, k: u32) {
         Mesh::Blob,
         top,
         v3(w, w / 4, mul(w, ONE * 4 / 5)),
-        if k % 2 == 0 { MOSS } else { MOSS_DARK },
+        if k.is_multiple_of(2) { MOSS } else { MOSS_DARK },
         0,
     );
-    if k % 3 != 0 {
+    if !k.is_multiple_of(3) {
         let off = v3(w / 3, -w / 10, -w / 5);
-        put(b, f, Mesh::Blob, top.add(off), v3(w / 2, w / 5, w / 2), MOSS, 0);
+        put(
+            b,
+            f,
+            Mesh::Blob,
+            top.add(off),
+            v3(w / 2, w / 5, w / 2),
+            MOSS,
+            0,
+        );
     }
 }
 
@@ -260,7 +270,10 @@ fn moss(b: &mut Batch, f: &Affine, top: V3, w: i32, k: u32) {
 /// up, `len` long and `w` thick: three facets and a dark tip.
 fn banana(b: &mut Batch, f: &Affine, base: V3, out: V3, len: i32, w: i32, c: Rgb, glow: i32) {
     let o = out.flat().norm();
-    let p = |along: i32, rise: i32| base.add(o.scale(mul(len, along))).add(v3(0, mul(len, rise), 0));
+    let p = |along: i32, rise: i32| {
+        base.add(o.scale(mul(len, along)))
+            .add(v3(0, mul(len, rise), 0))
+    };
     let pts = [
         p(0, 0),
         p(ONE * 30 / 100, -ONE * 6 / 100),
@@ -288,8 +301,25 @@ fn bunch(b: &mut Batch, f: &Affine, at: V3, n: i32, len: i32, c: Rgb, glow: i32,
         banana(b, f, base, out, len - tier / 2, w, c, glow);
     }
     let crown = at.add(v3(0, len / 4, 0));
-    put(b, f, Mesh::Ico, crown, v3(w * 2, w * 3 / 2, w * 2), shade(c, 80), glow);
-    bar(b, f, Mesh::Taper, crown, crown.add(v3(0, len / 2, len / 8)), w * 3 / 4, shade(c, 60), glow / 2);
+    put(
+        b,
+        f,
+        Mesh::Ico,
+        crown,
+        v3(w * 2, w * 3 / 2, w * 2),
+        shade(c, 80),
+        glow,
+    );
+    bar(
+        b,
+        f,
+        Mesh::Taper,
+        crown,
+        crown.add(v3(0, len / 2, len / 8)),
+        w * 3 / 4,
+        shade(c, 60),
+        glow / 2,
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -309,7 +339,16 @@ pub fn banana_statue(b: &mut Batch, f: &Affine, k: u32, big: bool) {
     bunch(b, &g, d3(0, 6, 0), 7, int(3), STONE_LIGHT, 0, k);
     // a broken-off banana at the foot
     if k % 2 == 1 {
-        banana(b, f, d3(16, 1, 10), v3(ONE, 0, ONE / 3), int(2), cm(60), STONE, 0);
+        banana(
+            b,
+            f,
+            d3(16, 1, 10),
+            v3(ONE, 0, ONE / 3),
+            int(2),
+            cm(60),
+            STONE,
+            0,
+        );
     }
     // moss on the plinth and over the crown
     moss(b, f, d3(-5, 14, 4), int(1), k);
@@ -331,17 +370,49 @@ pub fn moai_head(b: &mut Batch, f: &Affine, k: u32, big: bool) {
     let tilt = Affine::rot_x(deg(pick(k, 3, -4, 6))).then(&Affine::rot_z(deg(pick(k, 4, -5, 5))));
     let g = f.then(&tilt);
     // neck and the long head
-    put(b, &g, Mesh::Bevel, d3(0, 10, -2), d3(30, 20, 26), STONE_DARK, 0);
+    put(
+        b,
+        &g,
+        Mesh::Bevel,
+        d3(0, 10, -2),
+        d3(30, 20, 26),
+        STONE_DARK,
+        0,
+    );
     put(b, &g, Mesh::Bevel, d3(0, 40, 0), d3(34, 44, 30), STONE, 0);
     // the crown: a low flat cranium with a sagittal crest (an ape's)
     put(b, &g, Mesh::Bevel, d3(0, 64, -2), d3(30, 8, 26), STONE, 0);
-    put(b, &g, Mesh::Wedge, d3(0, 70, -4), d3(6, 6, 18), STONE_DARK, 0);
+    put(
+        b,
+        &g,
+        Mesh::Wedge,
+        d3(0, 70, -4),
+        d3(6, 6, 18),
+        STONE_DARK,
+        0,
+    );
     // the brow ridge, heavy and overhanging
-    put(b, &g, Mesh::Bevel, d3(0, 54, 15), d3(36, 7, 8), STONE_LIGHT, 0);
+    put(
+        b,
+        &g,
+        Mesh::Bevel,
+        d3(0, 54, 15),
+        d3(36, 7, 8),
+        STONE_LIGHT,
+        0,
+    );
     // deep-set eyes: dark sockets under the brow
     for s in [-1, 1] {
         put(b, &g, Mesh::Cube, d3(s * 8, 48, 15), d3(8, 4, 2), CRACK, 0);
-        put(b, &g, Mesh::Bevel, d3(s * 8, 45, 15), d3(9, 2, 3), STONE_LIGHT, 0);
+        put(
+            b,
+            &g,
+            Mesh::Bevel,
+            d3(s * 8, 45, 15),
+            d3(9, 2, 3),
+            STONE_LIGHT,
+            0,
+        );
     }
     // a broad flat nose
     put_turned(
@@ -355,12 +426,20 @@ pub fn moai_head(b: &mut Batch, f: &Affine, k: u32, big: bool) {
         0,
     );
     for s in [-1, 1] {
-        put(b, &g, Mesh::Cube, d3(s * 3, 36, 19), d3(3, 2, 2), CRACK, 0);
+        put(b, &g, Mesh::Cube, d3(s * 3, 36, 20), d3(3, 2, 2), CRACK, 0);
     }
     // the jutting muzzle and a long tight mouth line
     put(b, &g, Mesh::Bevel, d3(0, 28, 15), d3(28, 14, 12), STONE, 0);
     put(b, &g, Mesh::Cube, d3(0, 27, 21), d3(20, 1, 2), CRACK, 0);
-    put(b, &g, Mesh::Bevel, d3(0, 20, 13), d3(20, 6, 10), STONE_DARK, 0);
+    put(
+        b,
+        &g,
+        Mesh::Bevel,
+        d3(0, 20, 13),
+        d3(20, 6, 10),
+        STONE_DARK,
+        0,
+    );
     // small ears
     for s in [-1, 1] {
         put_turned(
@@ -377,7 +456,15 @@ pub fn moai_head(b: &mut Batch, f: &Affine, k: u32, big: bool) {
     // moss on the crown and the brow, a streak down one cheek
     moss(b, &g, d3(0, 69, 0), cm(260), k);
     moss(b, &g, d3(-6, 58, 16), cm(120), k + 1);
-    put(b, &g, Mesh::Cube, d3(-13, 38, 14), d3(3, 18, 2), MOSS_DARK, 0);
+    put(
+        b,
+        &g,
+        Mesh::Cube,
+        d3(-13, 38, 14),
+        d3(3, 18, 2),
+        MOSS_DARK,
+        0,
+    );
     // a crack across the face
     put_turned(
         b,
@@ -411,7 +498,15 @@ pub fn moai_head(b: &mut Batch, f: &Affine, k: u32, big: bool) {
 /// radius `r`.
 fn ruin_base(b: &mut Batch, f: &Affine, r: i32, k: u32) {
     // a low stepped terrace
-    put(b, f, Mesh::Bevel, v3(0, -cm(30), 0), v3(r * 2 + int(2), cm(80), r * 2 + int(2)), STONE_DARK, 0);
+    put(
+        b,
+        f,
+        Mesh::Bevel,
+        v3(0, -cm(30), 0),
+        v3(r * 2 + int(2), cm(80), r * 2 + int(2)),
+        STONE_DARK,
+        0,
+    );
     for i in 0..7u32 {
         let yaw = (i as i32) * TURN / 7 + pick(k, 20 + i, 0, 4000);
         let at = facing(yaw, 0).scale(r + int(1) + cm(pick(k, 30 + i, 0, 160)));
@@ -454,7 +549,15 @@ pub fn turtle(b: &mut Batch, f: &Affine, phase: i32) {
     let bob = mul(s, cm(5));
     let g = f.then(&Affine::translate(v3(0, bob, 0)));
     // plastron and shell
-    put(b, &g, Mesh::Bevel, d3(0, 2, 0), d3(20, 3, 26), TURTLE_SKIN, 0);
+    put(
+        b,
+        &g,
+        Mesh::Bevel,
+        d3(0, 2, 0),
+        d3(20, 3, 26),
+        TURTLE_SKIN,
+        0,
+    );
     put(b, &g, Mesh::Geo, d3(0, 4, 0), d3(24, 10, 30), SHELL, 0);
     // the marginal scutes: a jagged skirt round the shell
     for i in 0..12 {
@@ -483,15 +586,33 @@ pub fn turtle(b: &mut Batch, f: &Affine, phase: i32) {
     }
     // the head on a thick neck, the jaw snapping with the stroke
     let snap = (s.max(0) * 20) / ONE;
-    put(b, &g, Mesh::Hex, d3(0, 3, 16), d3(7, 6, 6), TURTLE_SKIN, 0);
-    put(b, &g, Mesh::Ico, d3(0, 4, 20), d3(8, 7, 9), TURTLE_SKIN, 0);
+    bar(
+        b,
+        &g,
+        Mesh::Taper,
+        d3(0, 3, 12),
+        d3(0, 4, 18),
+        dm(6),
+        TURTLE_SKIN,
+        0,
+    );
+    put(b, &g, Mesh::Ico, d3(0, 4, 20), d3(7, 5, 8), TURTLE_SKIN, 0);
+    put(
+        b,
+        &g,
+        Mesh::Ico,
+        d3(0, 2, 19),
+        d3(5, 3, 6),
+        TURTLE_THROAT,
+        0,
+    );
     put_turned(
         b,
         &g,
         Mesh::Wedge,
-        d3(0, 5, 24),
+        d3(0, 4, 24),
         &Affine::rot_y(fx::HALF),
-        d3(5, 4, 4),
+        d3(4, 3, 3),
         BEAK,
         0,
     );
@@ -501,30 +622,82 @@ pub fn turtle(b: &mut Batch, f: &Affine, phase: i32) {
         Mesh::Wedge,
         d3(0, 2, 23),
         &Affine::rot_x(deg(snap)),
-        d3(5, 2, 4),
+        d3(4, 1, 3),
         BEAK,
         0,
     );
     for sx in [-1, 1] {
-        put(b, &g, Mesh::Sphere, d3(sx * 3, 6, 22), d3(2, 2, 2), TURTLE_EYE, ONE / 2);
+        put(
+            b,
+            &g,
+            Mesh::Sphere,
+            d3(sx * 2, 5, 22),
+            d3(1, 1, 1),
+            TURTLE_EYE,
+            ONE / 2,
+        );
     }
     // flippers: the front pair sweep, the hind kick opposite
     for sx in [-1, 1] {
         let sweep = deg(30) * s / ONE;
         let front = Affine::rot_y(sx * (deg(50) + sweep)).then(&Affine::rot_z(sx * deg(-10)));
-        put_turned(b, &g, Mesh::Shard, d3(sx * 13, 1, 8), &front.then(&Affine::rot_z(fx::QUARTER)), d3(3, 14, 6), TURTLE_SKIN, 0);
+        put_turned(
+            b,
+            &g,
+            Mesh::Shard,
+            d3(sx * 13, 1, 8),
+            &front.then(&Affine::rot_z(fx::QUARTER)),
+            d3(3, 14, 6),
+            TURTLE_SKIN,
+            0,
+        );
         let hind = Affine::rot_y(sx * (deg(140) - sweep));
-        put_turned(b, &g, Mesh::Shard, d3(sx * 10, 1, -12), &hind.then(&Affine::rot_z(fx::QUARTER)), d3(2, 8, 5), TURTLE_SKIN, 0);
+        put_turned(
+            b,
+            &g,
+            Mesh::Shard,
+            d3(sx * 10, 1, -12),
+            &hind.then(&Affine::rot_z(fx::QUARTER)),
+            d3(2, 8, 5),
+            TURTLE_SKIN,
+            0,
+        );
     }
     // the ridged tail
-    bar(b, &g, Mesh::Cone, d3(0, 2, -14), d3(0, 1, -24), dm(4), TURTLE_SKIN, 0);
+    bar(
+        b,
+        &g,
+        Mesh::Cone,
+        d3(0, 2, -14),
+        d3(0, 1, -24),
+        dm(4),
+        TURTLE_SKIN,
+        0,
+    );
     for i in 0..3 {
-        put(b, &g, Mesh::Pyramid, d3(0, 4, -16 - i * 3), d3(1, 2, 2), SCUTE, 0);
+        put(
+            b,
+            &g,
+            Mesh::Pyramid,
+            d3(0, 4, -16 - i * 3),
+            d3(1, 2, 2),
+            SCUTE,
+            0,
+        );
     }
     // its wake: foam at the bow and two trailing streaks
     put(b, f, Mesh::Blob, d3(0, 0, 18), d3(18, 2, 6), FOAM, ONE / 3);
     for sx in [-1, 1] {
-        put_turned(b, f, Mesh::Blob, d3(sx * 10, 0, -10), &Affine::rot_y(sx * deg(15)), d3(4, 1, 20), FOAM, ONE / 4);
+        put_turned(
+            b,
+            f,
+            Mesh::Blob,
+            d3(sx * 10, 0, -10),
+            &Affine::rot_y(sx * deg(15)),
+            d3(4, 1, 20),
+            FOAM,
+            ONE / 4,
+        );
     }
 }
 
@@ -548,7 +721,7 @@ pub fn rope_bridge(b: &mut Batch, f: &Affine, len: i32) {
         let z = cm(55) * i + cm(25);
         let k = i as u32;
         // the odd plank missing, the odd plank askew
-        if hash(k, 70) % 11 == 0 {
+        if hash(k, 70).is_multiple_of(11) {
             continue;
         }
         let skew = deg(pick(k, 71, -3, 3));
@@ -559,14 +732,23 @@ pub fn rope_bridge(b: &mut Batch, f: &Affine, len: i32) {
             v3(cm(pick(k, 72, -8, 8)), 0, z),
             &Affine::rot_y(skew),
             v3(BRIDGE_WIDTH + cm(30), cm(10), cm(38)),
-            if k % 3 == 0 { PLANK_DARK } else { PLANK },
+            if k.is_multiple_of(3) { PLANK_DARK } else { PLANK },
             0,
         );
     }
     // foot ropes under the planks' ends
     for sx in [-1, 1] {
         let x = sx * (half + cm(5));
-        bar(b, f, Mesh::Cyl, v3(x, -cm(8), 0), v3(x, -cm(8), len), cm(9), ROPE, 0);
+        bar(
+            b,
+            f,
+            Mesh::Cyl,
+            v3(x, -cm(8), 0),
+            v3(x, -cm(8), len),
+            cm(9),
+            ROPE,
+            0,
+        );
     }
     // the hand ropes, sagging a little over the segment
     let sag = |t: i32| BRIDGE_RAIL - mul(cm(25), sin(mul(t, fx::HALF)));
@@ -576,7 +758,16 @@ pub fn rope_bridge(b: &mut Batch, f: &Affine, len: i32) {
         for p in 0..pieces {
             let t0 = ratio(p, pieces);
             let t1 = ratio(p + 1, pieces);
-            bar(b, f, Mesh::Cyl, v3(x, sag(t0), mul(len, t0)), v3(x, sag(t1), mul(len, t1)), cm(7), ROPE, 0);
+            bar(
+                b,
+                f,
+                Mesh::Cyl,
+                v3(x, sag(t0), mul(len, t0)),
+                v3(x, sag(t1), mul(len, t1)),
+                cm(7),
+                ROPE,
+                0,
+            );
         }
         // V suspenders every 2.4 m, hand rope to deck edge
         let mut z = cm(120);
@@ -584,8 +775,26 @@ pub fn rope_bridge(b: &mut Batch, f: &Affine, len: i32) {
             let t = fx::div(z, len.max(1));
             let top = v3(x, sag(t), z);
             let foot = v3(sx * (half + cm(5)), 0, z);
-            bar(b, f, Mesh::Cyl, top, foot.add(v3(0, 0, -cm(40))), cm(4), ROPE, 0);
-            bar(b, f, Mesh::Cyl, top, foot.add(v3(0, 0, cm(40))), cm(4), ROPE, 0);
+            bar(
+                b,
+                f,
+                Mesh::Cyl,
+                top,
+                foot.add(v3(0, 0, -cm(40))),
+                cm(4),
+                ROPE,
+                0,
+            );
+            bar(
+                b,
+                f,
+                Mesh::Cyl,
+                top,
+                foot.add(v3(0, 0, cm(40))),
+                cm(4),
+                ROPE,
+                0,
+            );
             z += cm(240);
         }
     }
@@ -596,10 +805,35 @@ pub fn rope_bridge(b: &mut Batch, f: &Affine, len: i32) {
 pub fn bridge_posts(b: &mut Batch, f: &Affine) {
     let half = BRIDGE_WIDTH / 2 + cm(30);
     for sx in [-1, 1] {
-        put(b, f, Mesh::Bevel, v3(sx * half, -cm(20), 0), v3(cm(110), cm(60), cm(110)), STONE_DARK, 0);
-        bar(b, f, Mesh::Taper, v3(sx * half, 0, 0), v3(sx * half, cm(210), 0), cm(34), TRUNK, 0);
+        put(
+            b,
+            f,
+            Mesh::Bevel,
+            v3(sx * half, -cm(20), 0),
+            v3(cm(110), cm(60), cm(110)),
+            STONE_DARK,
+            0,
+        );
+        bar(
+            b,
+            f,
+            Mesh::Taper,
+            v3(sx * half, 0, 0),
+            v3(sx * half, cm(210), 0),
+            cm(34),
+            TRUNK,
+            0,
+        );
         for i in 0..3 {
-            put(b, f, Mesh::Hex, v3(sx * half, cm(140 + i * 18), 0), v3(cm(40), cm(8), cm(40)), ROPE, 0);
+            put(
+                b,
+                f,
+                Mesh::Hex,
+                v3(sx * half, cm(140 + i * 18), 0),
+                v3(cm(40), cm(8), cm(40)),
+                ROPE,
+                0,
+            );
         }
     }
 }
@@ -626,7 +860,15 @@ pub fn temple_mouth(b: &mut Batch, f: &Affine, tick: u32) {
     let wide = int(32);
     // the wall round the opening, in courses of block
     let course = |b: &mut Batch, x0: i32, x1: i32, y0: i32, y1: i32, z: i32, c: Rgb| {
-        put(b, f, Mesh::Bevel, v3((x0 + x1) / 2, (y0 + y1) / 2, z), v3(x1 - x0, y1 - y0, int(4)), c, 0);
+        put(
+            b,
+            f,
+            Mesh::Bevel,
+            v3((x0 + x1) / 2, (y0 + y1) / 2, z),
+            v3(x1 - x0, y1 - y0, int(4)),
+            c,
+            0,
+        );
     };
     course(b, -wide, -hw, foot, top, 0, SANDSTONE);
     course(b, hw, wide, foot, top, 0, SANDSTONE);
@@ -635,71 +877,256 @@ pub fn temple_mouth(b: &mut Batch, f: &Affine, tick: u32) {
     // stepped tiers behind and above, like a temple pyramid
     for t in 1..4 {
         let inset = int(5) * t;
-        course(b, -wide + inset, wide - inset, top + int(6) * (t - 1), top + int(6) * t, -int(3) * t, if t % 2 == 0 { SANDSTONE } else { SAND_LIGHT });
+        course(
+            b,
+            -wide + inset,
+            wide - inset,
+            top + int(6) * (t - 1),
+            top + int(6) * t,
+            -int(3) * t,
+            if t % 2 == 0 { SANDSTONE } else { SAND_LIGHT },
+        );
     }
     // the throat: dark behind the opening, so the mouth reads as gaping
-    put(b, f, Mesh::Cube, v3(0, MOUTH_H / 2, -int(8)), v3(MOUTH_W, MOUTH_H, int(12)), MOUTH_DARK, 0);
-    put(b, f, Mesh::Cube, v3(0, -cm(10), -int(4)), v3(MOUTH_W, cm(20), int(8)), RELIEF, 0);
+    put(
+        b,
+        f,
+        Mesh::Cube,
+        v3(0, MOUTH_H / 2, -int(8)),
+        v3(MOUTH_W, MOUTH_H, int(12)),
+        MOUTH_DARK,
+        0,
+    );
+    put(
+        b,
+        f,
+        Mesh::Cube,
+        v3(0, -cm(10), -int(4)),
+        v3(MOUTH_W, cm(20), int(8)),
+        RELIEF,
+        0,
+    );
     // lips: a raised, painted band round the opening
-    put(b, f, Mesh::Bevel, v3(0, MOUTH_H + int(1), int(2) + cm(50)), v3(MOUTH_W + int(4), int(2), int(2)), OCHRE, 0);
-    put(b, f, Mesh::Bevel, v3(0, -int(1), int(2) + cm(50)), v3(MOUTH_W + int(4), int(2), int(2)), OCHRE, 0);
+    put(
+        b,
+        f,
+        Mesh::Bevel,
+        v3(0, MOUTH_H + int(1), int(2) + cm(50)),
+        v3(MOUTH_W + int(4), int(2), int(2)),
+        OCHRE,
+        0,
+    );
+    put(
+        b,
+        f,
+        Mesh::Bevel,
+        v3(0, -int(1), int(2) + cm(50)),
+        v3(MOUTH_W + int(4), int(2), int(2)),
+        OCHRE,
+        0,
+    );
     for sx in [-1, 1] {
-        put(b, f, Mesh::Bevel, v3(sx * (hw + int(1)), MOUTH_H / 2, int(2) + cm(50)), v3(int(2), MOUTH_H + int(4), int(2)), OCHRE, 0);
+        put(
+            b,
+            f,
+            Mesh::Bevel,
+            v3(sx * (hw + int(1)), MOUTH_H / 2, int(2) + cm(50)),
+            v3(int(2), MOUTH_H + int(4), int(2)),
+            OCHRE,
+            0,
+        );
     }
     // fangs: two great ones at the corners, a row of smaller teeth
     for sx in [-1, 1] {
         let x = sx * (hw - int(2));
-        put_turned(b, f, Mesh::Spike, v3(x, MOUTH_H - int(3), int(2)), &Affine::rot_x(fx::HALF), v3(int(3), int(6), int(3)), IVORY, 0);
-        put(b, f, Mesh::Spike, v3(x, int(2), int(2)), v3(int(3), int(4), int(3)), IVORY, 0);
+        put_turned(
+            b,
+            f,
+            Mesh::Spike,
+            v3(x, MOUTH_H - int(3), int(2)),
+            &Affine::rot_x(fx::HALF),
+            v3(int(3), int(6), int(3)),
+            IVORY,
+            0,
+        );
+        put(
+            b,
+            f,
+            Mesh::Spike,
+            v3(x, int(2), int(2)),
+            v3(int(3), int(4), int(3)),
+            IVORY,
+            0,
+        );
     }
     for i in -3..=3 {
         let x = int(i * 3);
-        put_turned(b, f, Mesh::Pyramid, v3(x, MOUTH_H - cm(70), int(2)), &Affine::rot_x(fx::HALF), v3(int(2), cm(140), int(1)), IVORY, 0);
+        put_turned(
+            b,
+            f,
+            Mesh::Pyramid,
+            v3(x, MOUTH_H - cm(70), int(2)),
+            &Affine::rot_x(fx::HALF),
+            v3(int(2), cm(140), int(1)),
+            IVORY,
+            0,
+        );
     }
     // the nose: a broad stepped relief over the upper lip
-    put(b, f, Mesh::Bevel, v3(0, MOUTH_H + int(5), int(3)), v3(int(12), int(4), int(3)), SAND_LIGHT, 0);
-    put(b, f, Mesh::Bevel, v3(0, MOUTH_H + int(8), int(3)), v3(int(6), int(3), int(2)), SAND_LIGHT, 0);
+    put(
+        b,
+        f,
+        Mesh::Bevel,
+        v3(0, MOUTH_H + int(5), int(3)),
+        v3(int(12), int(4), int(3)),
+        SAND_LIGHT,
+        0,
+    );
+    put(
+        b,
+        f,
+        Mesh::Bevel,
+        v3(0, MOUTH_H + int(8), int(3)),
+        v3(int(6), int(3), int(2)),
+        SAND_LIGHT,
+        0,
+    );
     for sx in [-1, 1] {
-        put(b, f, Mesh::Cube, v3(sx * int(3), MOUTH_H + int(4), int(4) + cm(60)), v3(int(2), int(1), cm(20)), MOUTH_DARK, 0);
+        put(
+            b,
+            f,
+            Mesh::Cube,
+            v3(sx * int(3), MOUTH_H + int(4), int(4) + cm(60)),
+            v3(int(2), int(1), cm(20)),
+            MOUTH_DARK,
+            0,
+        );
     }
     // the eyes: square sockets ringed in turquoise, glowing amber within
     for sx in [-1, 1] {
         let at = v3(sx * int(10), MOUTH_H + int(13), int(2) + cm(40));
-        put(b, f, Mesh::Bevel, at, v3(int(8), int(6), cm(80)), TURQUOISE, 0);
-        put(b, f, Mesh::Cube, at.add(v3(0, 0, cm(30))), v3(int(5), int(3), cm(60)), MOUTH_DARK, 0);
-        put(b, f, Mesh::Octa, at.add(v3(0, 0, cm(60))), v3(int(2), int(2), cm(80)), GLYPH, ONE * 3 / 4);
-        halo(b, f, Mesh::Sphere, at.add(v3(0, 0, int(1))), v3(int(5), int(4), int(2)), GLYPH, ONE / 3);
+        put(
+            b,
+            f,
+            Mesh::Bevel,
+            at,
+            v3(int(8), int(6), cm(80)),
+            TURQUOISE,
+            0,
+        );
+        put(
+            b,
+            f,
+            Mesh::Cube,
+            at.add(v3(0, 0, cm(30))),
+            v3(int(5), int(3), cm(60)),
+            MOUTH_DARK,
+            0,
+        );
+        put(
+            b,
+            f,
+            Mesh::Octa,
+            at.add(v3(0, 0, cm(60))),
+            v3(int(2), int(2), cm(80)),
+            GLYPH,
+            ONE * 3 / 4,
+        );
+        halo(
+            b,
+            f,
+            Mesh::Sphere,
+            at.add(v3(0, 0, int(1))),
+            v3(int(5), int(4), int(2)),
+            GLYPH,
+            ONE / 3,
+        );
     }
     // the brow: a heavy band of step-fret relief across the face
-    put(b, f, Mesh::Bevel, v3(0, MOUTH_H + int(18), int(2) + cm(50)), v3(int(40), int(3), int(2)), RELIEF, 0);
-    step_fret(b, f, v3(-int(20), MOUTH_H + int(18), int(3) + cm(60)), int(40), int(1), SAND_LIGHT);
+    put(
+        b,
+        f,
+        Mesh::Bevel,
+        v3(0, MOUTH_H + int(18), int(2) + cm(50)),
+        v3(int(40), int(3), int(2)),
+        RELIEF,
+        0,
+    );
+    step_fret(
+        b,
+        f,
+        v3(-int(20), MOUTH_H + int(18), int(3) + cm(60)),
+        int(40),
+        int(1),
+        SAND_LIGHT,
+    );
     // ears: round discs with plugs at the facade's sides
     for sx in [-1, 1] {
         let at = v3(sx * (wide - int(4)), MOUTH_H + int(8), int(2) + cm(50));
-        put_turned(b, f, Mesh::Hex, at, &Affine::rot_x(fx::QUARTER), v3(int(8), int(1), int(8)), RELIEF, 0);
-        put_turned(b, f, Mesh::Hex, at.add(v3(0, 0, cm(60))), &Affine::rot_x(fx::QUARTER), v3(int(4), int(1), int(4)), TURQUOISE, 0);
+        put_turned(
+            b,
+            f,
+            Mesh::Hex,
+            at,
+            &Affine::rot_x(fx::QUARTER),
+            v3(int(8), int(1), int(8)),
+            RELIEF,
+            0,
+        );
+        put_turned(
+            b,
+            f,
+            Mesh::Hex,
+            at.add(v3(0, 0, cm(60))),
+            &Affine::rot_x(fx::QUARTER),
+            v3(int(4), int(1), int(4)),
+            TURQUOISE,
+            0,
+        );
     }
     // a headdress: a crown of stone plumes and a banana glyph in the middle
     for i in -6..=6 {
         let x = int(i * 4);
         let h = int(9) - (i.abs() * int(1)) / 2;
-        put_turned(b, f, Mesh::Shard, v3(x, top + int(19) + h / 2, -int(8)), &Affine::rot_z(deg(-i * 5)), v3(int(3), h, int(1)), if i % 2 == 0 { TURQUOISE } else { SAND_LIGHT }, 0);
+        put_turned(
+            b,
+            f,
+            Mesh::Shard,
+            v3(x, top + int(19) + h / 2, -int(8)),
+            &Affine::rot_z(deg(-i * 5)),
+            v3(int(3), h, int(1)),
+            if i % 2 == 0 { TURQUOISE } else { SAND_LIGHT },
+            0,
+        );
     }
-    let crown = f.then(&Affine::translate(v3(0, top + int(10), int(3))))
+    let crown = f
+        .then(&Affine::translate(v3(0, top + int(10), int(3))))
         .then(&Affine::scale(v3(int(3), int(3), int(3))));
     banana_glyph(b, &crown, tick, 0);
     // side panels of carved stonework down the cheeks and the jaw
     for sx in [-1, 1] {
         for row in 0..3 {
-            let at = v3(sx * (hw + int(9)), MOUTH_H - int(4) - int(row * 10), int(2) + cm(20));
+            let at = v3(
+                sx * (hw + int(9)),
+                MOUTH_H - int(4) - int(row * 10),
+                int(2) + cm(20),
+            );
             put(b, f, Mesh::Bevel, at, v3(int(8), int(8), cm(40)), RELIEF, 0);
-            let g = f.then(&Affine::translate(at.add(v3(0, 0, cm(40)))))
+            let g = f
+                .then(&Affine::translate(at.add(v3(0, 0, cm(40)))))
                 .then(&Affine::scale(v3(int(2), int(2), int(2))));
             banana_glyph(b, &g, tick, (row + 2 * (sx + 1)) as u32);
         }
     }
     // a chin: step-fret band under the lower lip
-    step_fret(b, f, v3(-hw, -int(4), int(2) + cm(60)), MOUTH_W, int(1), SAND_LIGHT);
+    step_fret(
+        b,
+        f,
+        v3(-hw, -int(4), int(2) + cm(60)),
+        MOUTH_W,
+        int(1),
+        SAND_LIGHT,
+    );
     // moss and creepers over the stone
     for i in 0..9u32 {
         let x = int(pick(i, 80, -30, 30));
@@ -707,10 +1134,33 @@ pub fn temple_mouth(b: &mut Batch, f: &Affine, tick: u32) {
         if x.abs() < hw + int(2) && y > -int(6) && y < MOUTH_H + int(2) {
             continue;
         }
-        put(b, f, Mesh::Blob, v3(x, y, int(2)), v3(int(4), int(3), int(1)), if i % 2 == 0 { MOSS } else { MOSS_DARK }, 0);
-        bar(b, f, Mesh::Cyl, v3(x, y, int(2) + cm(40)), v3(x + cm(40), y - int(6), int(2) + cm(40)), cm(20), VINE, 0);
+        put(
+            b,
+            f,
+            Mesh::Blob,
+            v3(x, y, int(2)),
+            v3(int(4), int(3), int(1)),
+            if i % 2 == 0 { MOSS } else { MOSS_DARK },
+            0,
+        );
+        bar(
+            b,
+            f,
+            Mesh::Cyl,
+            v3(x, y, int(2) + cm(40)),
+            v3(x + cm(40), y - int(6), int(2) + cm(40)),
+            cm(20),
+            VINE,
+            0,
+        );
     }
-    waterfall(b, &f.then(&Affine::translate(v3(0, 0, int(2)))), MOUTH_W - int(6), int(30), tick);
+    waterfall(
+        b,
+        &f.then(&Affine::translate(v3(0, 0, int(2)))),
+        MOUTH_W - int(6),
+        int(30),
+        tick,
+    );
 }
 
 /// A band of Aztec step-fret (stepped spirals as blocks) from `at` along
@@ -721,8 +1171,24 @@ fn step_fret(b: &mut Batch, f: &Affine, at: V3, len: i32, h: i32, c: Rgb) {
     for i in 0..n {
         let x = at.x + unit * i + unit / 2;
         let up = if i % 2 == 0 { h / 4 } else { -h / 4 };
-        put(b, f, Mesh::Cube, v3(x, at.y + up, at.z), v3(unit / 2, h / 2, cm(30)), c, 0);
-        put(b, f, Mesh::Cube, v3(x + unit / 4, at.y, at.z), v3(unit / 8, h, cm(30)), c, 0);
+        put(
+            b,
+            f,
+            Mesh::Cube,
+            v3(x, at.y + up, at.z),
+            v3(unit / 2, h / 2, cm(30)),
+            c,
+            0,
+        );
+        put(
+            b,
+            f,
+            Mesh::Cube,
+            v3(x + unit / 4, at.y, at.z),
+            v3(unit / 8, h, cm(30)),
+            c,
+            0,
+        );
     }
 }
 
@@ -743,9 +1209,25 @@ pub fn waterfall(b: &mut Batch, f: &Affine, w: i32, drop: i32, tick: u32) {
         let (a, z) = (curve(t0), curve(t1));
         let mid = a.lerp(z, ONE / 2);
         let d = z.sub(a);
-        let along = Affine::along(d);
         let len = d.len();
-        put_turned(b, f, Mesh::Cube, mid, &along, v3(w, len + cm(10), cm(40)), WATER, ONE / 3);
+        let y = d.norm();
+        let x = v3(ONE, 0, 0);
+        let along = Affine {
+            c0: x,
+            c1: y,
+            c2: x.cross(y).norm(),
+            t: V3::ZERO,
+        };
+        put_turned(
+            b,
+            f,
+            Mesh::Cube,
+            mid,
+            &along,
+            v3(w, len + cm(10), cm(40)),
+            WATER,
+            ONE / 3,
+        );
         // streaks, sliding down with the tick
         let n = (w / int(2)).max(1);
         for s in 0..n {
@@ -754,17 +1236,42 @@ pub fn waterfall(b: &mut Batch, f: &Affine, w: i32, drop: i32, tick: u32) {
             let tt = ((off + fx::HALF as i64) * ONE as i64 / TURN as i64) as i32;
             let p = a.lerp(z, tt);
             let x = -w / 2 + int(2) * s + int(1);
-            put_turned(b, f, Mesh::Cube, v3(x, p.y, p.z + cm(25)), &along, v3(cm(pick(k, 91, 40, 120)), len / 2, cm(10)), FOAM, ONE / 2);
+            put_turned(
+                b,
+                f,
+                Mesh::Cube,
+                v3(x, p.y, p.z + cm(25)),
+                &along,
+                v3(cm(pick(k, 91, 40, 120)), len / 2, cm(10)),
+                FOAM,
+                ONE / 2,
+            );
         }
     }
     // mist at the foot
     let foot = curve(ONE);
     for i in 0..5 {
         let x = -w / 2 + mul(w, ratio(i, 4));
-        halo(b, f, Mesh::Sphere, v3(x, foot.y + int(2), foot.z + int(2)), v3(int(8), int(5), int(6)), FOAM, ONE / 3);
+        halo(
+            b,
+            f,
+            Mesh::Sphere,
+            v3(x, foot.y + int(2), foot.z + int(2)),
+            v3(int(8), int(5), int(6)),
+            FOAM,
+            ONE / 3,
+        );
     }
     // the lip's foam
-    put(b, f, Mesh::Blob, v3(0, cm(20), cm(60)), v3(w + int(1), cm(60), int(1)), FOAM, ONE / 2);
+    put(
+        b,
+        f,
+        Mesh::Blob,
+        v3(0, cm(20), cm(60)),
+        v3(w + int(1), cm(60), int(1)),
+        FOAM,
+        ONE / 2,
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -783,26 +1290,88 @@ pub fn glyph_pulse(tick: u32, k: u32) -> i32 {
 /// `glyph_spots(w, h)` (draw the glyphs with `banana_glyph`, so they can
 /// pulse). Turn it face-down for a ceiling.
 pub fn stone_panel(b: &mut Batch, f: &Affine, w: i32, h: i32) {
-    put(b, f, Mesh::Cube, v3(0, 0, -cm(30)), v3(w, h, cm(60)), RELIEF, 0);
+    put(
+        b,
+        f,
+        Mesh::Cube,
+        v3(0, 0, -cm(30)),
+        v3(w, h, cm(60)),
+        RELIEF,
+        0,
+    );
     // a frame
     let edge = cm(50);
     for sy in [-1, 1] {
-        put(b, f, Mesh::Bevel, v3(0, sy * (h / 2 - edge / 2), cm(10)), v3(w, edge, cm(40)), SANDSTONE, 0);
+        put(
+            b,
+            f,
+            Mesh::Bevel,
+            v3(0, sy * (h / 2 - edge / 2), cm(10)),
+            v3(w, edge, cm(40)),
+            SANDSTONE,
+            0,
+        );
     }
     for sx in [-1, 1] {
-        put(b, f, Mesh::Bevel, v3(sx * (w / 2 - edge / 2), 0, cm(10)), v3(edge, h, cm(40)), SANDSTONE, 0);
+        put(
+            b,
+            f,
+            Mesh::Bevel,
+            v3(sx * (w / 2 - edge / 2), 0, cm(10)),
+            v3(edge, h, cm(40)),
+            SANDSTONE,
+            0,
+        );
     }
     // step-fret bands inside the frame
     let band = cm(60);
-    step_fret(b, f, v3(-w / 2 + edge, h / 2 - edge - band / 2, cm(10)), w - edge * 2, band, SAND_LIGHT);
-    step_fret(b, f, v3(-w / 2 + edge, -h / 2 + edge + band / 2, cm(10)), w - edge * 2, band, SAND_LIGHT);
+    step_fret(
+        b,
+        f,
+        v3(-w / 2 + edge, h / 2 - edge - band / 2, cm(10)),
+        w - edge * 2,
+        band,
+        SAND_LIGHT,
+    );
+    step_fret(
+        b,
+        f,
+        v3(-w / 2 + edge, -h / 2 + edge + band / 2, cm(10)),
+        w - edge * 2,
+        band,
+        SAND_LIGHT,
+    );
     // the field between: fitted blocks with sockets
     for (i, s) in glyph_spots(w, h).into_iter().enumerate() {
-        put(b, f, Mesh::Bevel, s.add(v3(0, 0, -cm(5))), v3(int(2) + cm(40), int(2) + cm(40), cm(20)), if i % 2 == 0 { SANDSTONE } else { STONE }, 0);
-        put(b, f, Mesh::Bevel, s.add(v3(0, 0, cm(2))), v3(int(2), int(2), cm(10)), MOUTH_DARK, 0);
+        put(
+            b,
+            f,
+            Mesh::Bevel,
+            s.add(v3(0, 0, -cm(5))),
+            v3(int(2) + cm(40), int(2) + cm(40), cm(20)),
+            if i % 2 == 0 { SANDSTONE } else { STONE },
+            0,
+        );
+        put(
+            b,
+            f,
+            Mesh::Bevel,
+            s.add(v3(0, 0, cm(2))),
+            v3(int(2), int(2), cm(10)),
+            MOUTH_DARK,
+            0,
+        );
         // turquoise studs at the socket's corners
         for (cx, cy) in [(-1, -1), (1, -1), (-1, 1), (1, 1)] {
-            put(b, f, Mesh::Octa, s.add(v3(cx * cm(115), cy * cm(115), cm(10))), v3(cm(20), cm(20), cm(20)), TURQUOISE, 0);
+            put(
+                b,
+                f,
+                Mesh::Octa,
+                s.add(v3(cx * cm(115), cy * cm(115), cm(10))),
+                v3(cm(20), cm(20), cm(20)),
+                TURQUOISE,
+                0,
+            );
         }
     }
 }
@@ -840,32 +1409,97 @@ pub fn banana_glyph(b: &mut Batch, f: &Affine, tick: u32, k: u32) {
         bar(b, f, Mesh::Hex, pts[i], pts[i + 1], widths[i], c, glow);
     }
     bar(b, f, Mesh::Cone, pts[3], d3(7, 6, 0), cm(16), c, glow);
-    bar(b, f, Mesh::Taper, pts[0], d3(-6, 6, 0), cm(14), shade(c, 70), glow);
+    bar(
+        b,
+        f,
+        Mesh::Taper,
+        pts[0],
+        d3(-6, 6, 0),
+        cm(14),
+        shade(c, 70),
+        glow,
+    );
     // a stepped ring of small blocks round it
     for i in 0..8 {
         let a = i * TURN / 8;
         let at = v3(mul(sin(a + fx::QUARTER), dm(8)), mul(sin(a), dm(8)), 0);
         put(b, f, Mesh::Cube, at, d3(1, 1, 1), shade(c, 85), glow / 2);
     }
-    halo(b, f, Mesh::Sphere, d3(0, 0, 2), v3(int(3), int(2) + cm(40), int(1)), GLYPH, mul(p, ONE / 2));
+    halo(
+        b,
+        f,
+        Mesh::Sphere,
+        d3(0, 0, 2),
+        v3(int(3), int(2) + cm(40), int(1)),
+        GLYPH,
+        mul(p, ONE / 2),
+    );
 }
 
 /// A floor spike trap 2.4 m square at the origin, on the floor: a stone
 /// plate with a grid of iron-rimmed holes, the spikes out by `up` (0 in,
 /// ONE fully out, about 1.1 m).
 pub fn spike_trap(b: &mut Batch, f: &Affine, up: i32) {
-    put(b, f, Mesh::Bevel, v3(0, -cm(5), 0), v3(cm(240), cm(10), cm(240)), STONE_DARK, 0);
-    put(b, f, Mesh::Cube, v3(0, cm(1), 0), v3(cm(250), cm(4), cm(10)), RELIEF, 0);
-    put(b, f, Mesh::Cube, v3(0, cm(1), 0), v3(cm(10), cm(4), cm(250)), RELIEF, 0);
+    put(
+        b,
+        f,
+        Mesh::Bevel,
+        v3(0, -cm(5), 0),
+        v3(cm(240), cm(10), cm(240)),
+        STONE_DARK,
+        0,
+    );
+    put(
+        b,
+        f,
+        Mesh::Cube,
+        v3(0, cm(1), 0),
+        v3(cm(250), cm(4), cm(10)),
+        RELIEF,
+        0,
+    );
+    put(
+        b,
+        f,
+        Mesh::Cube,
+        v3(0, cm(1), 0),
+        v3(cm(10), cm(4), cm(250)),
+        RELIEF,
+        0,
+    );
     let rise = mul(up.clamp(0, ONE), cm(110));
     for i in 0..4 {
         for j in 0..4 {
             let at = v3(cm(-90 + i * 60), 0, cm(-90 + j * 60));
-            put(b, f, Mesh::Hex, at.add(v3(0, cm(1), 0)), v3(cm(22), cm(3), cm(22)), CRACK, 0);
+            put(
+                b,
+                f,
+                Mesh::Hex,
+                at.add(v3(0, cm(1), 0)),
+                v3(cm(22), cm(3), cm(22)),
+                CRACK,
+                0,
+            );
             if rise > cm(2) {
                 let h = rise + cm(pick((i * 4 + j) as u32, 60, -10, 10)).min(rise / 4);
-                put(b, f, Mesh::Spike, at.add(v3(0, h / 2, 0)), v3(cm(18), h, cm(18)), IRON, 0);
-                put(b, f, Mesh::Spike, at.add(v3(0, h - cm(8), 0)), v3(cm(8), cm(16), cm(8)), RUST, 0);
+                put(
+                    b,
+                    f,
+                    Mesh::Spike,
+                    at.add(v3(0, h / 2, 0)),
+                    v3(cm(18), h, cm(18)),
+                    IRON,
+                    0,
+                );
+                put(
+                    b,
+                    f,
+                    Mesh::Spike,
+                    at.add(v3(0, h - cm(8), 0)),
+                    v3(cm(8), cm(16), cm(8)),
+                    RUST,
+                    0,
+                );
             }
         }
     }
@@ -876,15 +1510,58 @@ pub fn spike_trap(b: &mut Batch, f: &Affine, up: i32) {
 /// on the floor once `sprung`.
 pub fn trip_wire(b: &mut Batch, f: &Affine, len: i32, sprung: bool) {
     for x in [0, len] {
-        put(b, f, Mesh::Bevel, v3(x, cm(15), 0), v3(cm(26), cm(30), cm(26)), SANDSTONE, 0);
-        put(b, f, Mesh::Octa, v3(x, cm(36), 0), v3(cm(16), cm(16), cm(16)), TURQUOISE, 0);
+        put(
+            b,
+            f,
+            Mesh::Bevel,
+            v3(x, cm(15), 0),
+            v3(cm(26), cm(30), cm(26)),
+            SANDSTONE,
+            0,
+        );
+        put(
+            b,
+            f,
+            Mesh::Octa,
+            v3(x, cm(36), 0),
+            v3(cm(16), cm(16), cm(16)),
+            TURQUOISE,
+            0,
+        );
     }
     if sprung {
-        bar(b, f, Mesh::Cyl, v3(0, cm(4), 0), v3(len / 3, cm(1), cm(20)), cm(4), WIRE, 0);
-        bar(b, f, Mesh::Cyl, v3(len, cm(4), 0), v3(len * 2 / 3, cm(1), -cm(15)), cm(4), WIRE, 0);
+        bar(
+            b,
+            f,
+            Mesh::Cyl,
+            v3(0, cm(4), 0),
+            v3(len / 3, cm(1), cm(20)),
+            cm(4),
+            WIRE,
+            0,
+        );
+        bar(
+            b,
+            f,
+            Mesh::Cyl,
+            v3(len, cm(4), 0),
+            v3(len * 2 / 3, cm(1), -cm(15)),
+            cm(4),
+            WIRE,
+            0,
+        );
     } else {
         // taut and faintly bright, so a player can see it coming
-        bar(b, f, Mesh::Cyl, v3(0, cm(20), 0), v3(len, cm(20), 0), cm(4), WIRE, ONE / 3);
+        bar(
+            b,
+            f,
+            Mesh::Cyl,
+            v3(0, cm(20), 0),
+            v3(len, cm(20), 0),
+            cm(4),
+            WIRE,
+            ONE / 3,
+        );
     }
 }
 
@@ -894,10 +1571,26 @@ pub fn trip_wire(b: &mut Batch, f: &Affine, len: i32, sprung: bool) {
 pub fn trapdoor(b: &mut Batch, f: &Affine, w: i32, l: i32, open: i32) {
     let rim = cm(40);
     for sx in [-1, 1] {
-        put(b, f, Mesh::Bevel, v3(sx * (w / 2 + rim / 2), -cm(10), 0), v3(rim, cm(20), l + rim * 2), STONE_DARK, 0);
+        put(
+            b,
+            f,
+            Mesh::Bevel,
+            v3(sx * (w / 2 + rim / 2), -cm(10), 0),
+            v3(rim, cm(20), l + rim * 2),
+            STONE_DARK,
+            0,
+        );
     }
     for sz in [-1, 1] {
-        put(b, f, Mesh::Bevel, v3(0, -cm(10), sz * (l / 2 + rim / 2)), v3(w, cm(20), rim), STONE_DARK, 0);
+        put(
+            b,
+            f,
+            Mesh::Bevel,
+            v3(0, -cm(10), sz * (l / 2 + rim / 2)),
+            v3(w, cm(20), rim),
+            STONE_DARK,
+            0,
+        );
     }
     let swing = mul(open.clamp(0, ONE), deg(84));
     for sx in [-1, 1] {
@@ -906,11 +1599,27 @@ pub fn trapdoor(b: &mut Batch, f: &Affine, w: i32, l: i32, open: i32) {
             .then(&Affine::translate(hinge))
             .then(&Affine::rot_z(sx * swing));
         let half = w / 2 - cm(4);
-        put(b, &leaf, Mesh::Cube, v3(-sx * half / 2, -cm(8), 0), v3(half, cm(16), l - cm(8)), STONE, 0);
+        put(
+            b,
+            &leaf,
+            Mesh::Cube,
+            v3(-sx * half / 2, -cm(8), 0),
+            v3(half, cm(16), l - cm(8)),
+            STONE,
+            0,
+        );
         // the leaves' joint lines (so a shut door shows where it splits)
         for i in 0..3 {
             let z = -l / 2 + l * (2 * i + 1) / 6;
-            put(b, &leaf, Mesh::Cube, v3(-sx * half / 2, cm(1), z), v3(half, cm(2), cm(6)), CRACK, 0);
+            put(
+                b,
+                &leaf,
+                Mesh::Cube,
+                v3(-sx * half / 2, cm(1), z),
+                v3(half, cm(2), cm(6)),
+                CRACK,
+                0,
+            );
         }
     }
 }
@@ -919,7 +1628,15 @@ pub fn trapdoor(b: &mut Batch, f: &Affine, w: i32, l: i32, open: i32) {
 /// banana spikes, curving and pulsing faintly with `tick`, and a warm glow
 /// rising from it.
 pub fn pit_spikes(b: &mut Batch, f: &Affine, w: i32, l: i32, tick: u32) {
-    put(b, f, Mesh::Cube, v3(0, -cm(20), 0), v3(w, cm(40), l), RELIEF, 0);
+    put(
+        b,
+        f,
+        Mesh::Cube,
+        v3(0, -cm(20), 0),
+        v3(w, cm(40), l),
+        RELIEF,
+        0,
+    );
     let p = glyph_pulse(tick, 99);
     let c = mix(BANANA_GOLD, GLYPH, p);
     let glow = ONE / 2 + mul(p, ONE / 3);
@@ -938,10 +1655,27 @@ pub fn pit_spikes(b: &mut Batch, f: &Affine, w: i32, l: i32, tick: u32) {
             let tip = base.add(v3(lean.x, h, lean.z));
             bar(b, f, Mesh::Hex, base, mid, cm(22), c, glow);
             bar(b, f, Mesh::Spike, mid, tip, cm(18), c, glow);
-            bar(b, f, Mesh::Cone, tip, tip.add(tip.sub(mid).scale(ONE / 6)), cm(6), BANANA_TIP, 0);
+            bar(
+                b,
+                f,
+                Mesh::Cone,
+                tip,
+                tip.add(tip.sub(mid).scale(ONE / 6)),
+                cm(6),
+                BANANA_TIP,
+                0,
+            );
         }
     }
-    halo(b, f, Mesh::Sphere, v3(0, cm(80), 0), v3(w, int(2), l), GLYPH, mul(p, ONE / 3));
+    halo(
+        b,
+        f,
+        Mesh::Sphere,
+        v3(0, cm(80), 0),
+        v3(w, int(2), l),
+        GLYPH,
+        mul(p, ONE / 3),
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -954,7 +1688,15 @@ pub fn banana_pile(b: &mut Batch, f: &Affine, tick: u32) {
     // the dais
     for t in 0..3 {
         let r = int(13 - t * 2);
-        put(b, f, Mesh::Hex, v3(0, cm(60) + int(t) * 6 / 5, 0), v3(r * 2, int(1) + cm(20), r * 2), if t % 2 == 0 { SANDSTONE } else { SAND_LIGHT }, 0);
+        put(
+            b,
+            f,
+            Mesh::Hex,
+            v3(0, cm(60) + int(t) * 6 / 5, 0),
+            v3(r * 2, int(1) + cm(20), r * 2),
+            if t % 2 == 0 { SANDSTONE } else { SAND_LIGHT },
+            0,
+        );
     }
     let base = int(4);
     // rings of bunches, smaller toward the top, tumbled every which way
@@ -983,12 +1725,31 @@ pub fn banana_pile(b: &mut Batch, f: &Affine, tick: u32) {
     // loose bananas round the foot
     for i in 0..14u32 {
         let yaw = (i as i32) * TURN / 14 + 1500;
-        let at = facing(yaw, 0).scale(int(11) + cm(pick(i, 69, 0, 150))).add(v3(0, int(2) + cm(30), 0));
-        banana(b, f, at, facing(yaw + deg(pick(i, 70, -60, 60)), 0), int(2), cm(55), BANANA_GOLD, ONE / 3);
+        let at = facing(yaw, 0)
+            .scale(int(11) + cm(pick(i, 69, 0, 150)))
+            .add(v3(0, int(2) + cm(30), 0));
+        banana(
+            b,
+            f,
+            at,
+            facing(yaw + deg(pick(i, 70, -60, 60)), 0),
+            int(2),
+            cm(55),
+            BANANA_GOLD,
+            ONE / 3,
+        );
     }
     // a warm glow round the heap
     let p = glyph_pulse(tick, 7);
-    halo(b, f, Mesh::Sphere, v3(0, int(9), 0), v3(int(30), int(22), int(30)), GLYPH, ONE / 4 + mul(p, ONE / 5));
+    halo(
+        b,
+        f,
+        Mesh::Sphere,
+        v3(0, int(9), 0),
+        v3(int(30), int(22), int(30)),
+        GLYPH,
+        ONE / 4 + mul(p, ONE / 5),
+    );
 }
 
 /// A skylight in the temple's ceiling: a ring of carved stone of radius
@@ -1001,9 +1762,19 @@ pub fn skylight(b: &mut Batch, f: &Affine, r: i32, hang: i32, shaft: i32, tick: 
     for i in 0..n {
         let a = i * TURN / n;
         let at = facing(a, 0).scale(r + int(1));
-        put_turned(b, f, Mesh::Bevel, at.add(v3(0, int(1), 0)), &Affine::rot_y(a), v3(int(2) + cm(40), int(2), mul(r, ONE * 34 / 100)), if i % 2 == 0 { SANDSTONE } else { RELIEF }, 0);
+        put_turned(
+            b,
+            f,
+            Mesh::Bevel,
+            at.add(v3(0, int(1), 0)),
+            &Affine::rot_y(a),
+            v3(int(2) + cm(40), int(2), mul(r, ONE * 34 / 100)),
+            if i % 2 == 0 { SANDSTONE } else { RELIEF },
+            0,
+        );
         if i % 4 == 0 {
-            let g = f.then(&Affine::translate(at.add(v3(0, -cm(10), 0))))
+            let g = f
+                .then(&Affine::translate(at.add(v3(0, -cm(10), 0))))
                 .then(&Affine::rot_x(fx::QUARTER))
                 .then(&Affine::scale(v3(ONE, ONE, ONE)));
             banana_glyph(b, &g, tick, i as u32);
@@ -1014,10 +1785,27 @@ pub fn skylight(b: &mut Batch, f: &Affine, r: i32, hang: i32, shaft: i32, tick: 
         let a = (i as i32) * TURN / 14 + pick(i, 73, 0, 2000);
         let at = facing(a, 0).scale(r + cm(pick(i, 74, -40, 80)));
         let s = cm(pick(i, 75, 180, 320));
-        put(b, f, Mesh::Blob, at.add(v3(0, cm(40), 0)), v3(s, s * 2 / 3, s), if i % 3 == 0 { LEAF_LIGHT } else { LEAF }, 0);
+        put(
+            b,
+            f,
+            Mesh::Blob,
+            at.add(v3(0, cm(40), 0)),
+            v3(s, s * 2 / 3, s),
+            if i % 3 == 0 { LEAF_LIGHT } else { LEAF },
+            0,
+        );
         for j in 0..3 {
             let lean = Affine::rot_y(a + fx::HALF + deg(j * 30 - 30)).then(&Affine::rot_x(deg(60)));
-            put_turned(b, f, Mesh::Shard, at.add(v3(0, cm(20), 0)), &lean, v3(cm(60), s, cm(10)), PALM, 0);
+            put_turned(
+                b,
+                f,
+                Mesh::Shard,
+                at.add(v3(0, cm(20), 0)),
+                &lean,
+                v3(cm(60), s, cm(10)),
+                PALM,
+                0,
+            );
         }
     }
     // vines hanging into the light, swaying
@@ -1029,11 +1817,23 @@ pub fn skylight(b: &mut Batch, f: &Affine, r: i32, hang: i32, shaft: i32, tick: 
         let mut prev = top;
         for s in 1..=segs {
             let t = ratio(s, segs);
-            let sway = mul(wave(tick, 6 + (i % 3) as i32, (i as i32) * 5_000), mul(t, cm(80)));
+            let sway = mul(
+                wave(tick, 6 + (i % 3) as i32, (i as i32) * 5_000),
+                mul(t, cm(80)),
+            );
             let p = top.add(v3(sway, -mul(len, t), sway / 2));
             bar(b, f, Mesh::Taper, prev, p, cm(14) - s * cm(1), VINE, 0);
             if s % 2 == 0 {
-                put_turned(b, f, Mesh::Shard, p, &Affine::rot_y(a + s * 9000), v3(cm(40), cm(50), cm(8)), LEAF_LIGHT, 0);
+                put_turned(
+                    b,
+                    f,
+                    Mesh::Shard,
+                    p,
+                    &Affine::rot_y(a + s * 9000),
+                    v3(cm(40), cm(50), cm(8)),
+                    LEAF_LIGHT,
+                    0,
+                );
             }
             prev = p;
         }
@@ -1048,9 +1848,25 @@ pub fn skylight(b: &mut Batch, f: &Affine, r: i32, hang: i32, shaft: i32, tick: 
         rgb(255, 196, 110),
         ONE / 5,
     );
-    halo(b, f, Mesh::Sphere, v3(0, -shaft, 0), v3(r * 3, int(2), r * 3), rgb(255, 200, 120), ONE / 4);
+    halo(
+        b,
+        f,
+        Mesh::Sphere,
+        v3(0, -shaft, 0),
+        v3(r * 3, int(2), r * 3),
+        rgb(255, 200, 120),
+        ONE / 4,
+    );
     // the bit of sky seen through it
-    put(b, f, Mesh::Hex, v3(0, int(3), 0), v3(r * 2, cm(10), r * 2), mix(ZENITH, BAND, ONE / 3), SKY_GLOW);
+    put(
+        b,
+        f,
+        Mesh::Hex,
+        v3(0, int(3), 0),
+        v3(r * 2, cm(10), r * 2),
+        mix(ZENITH, BAND, ONE / 3),
+        SKY_GLOW,
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -1079,21 +1895,72 @@ pub fn jungle_tree(b: &mut Batch, f: &Affine, t: Tree, k: u32) {
     match t {
         Tree::Kapok => {
             let h = mul(int(22), v);
-            bar(b, f, Mesh::Taper, V3::ZERO, v3(0, h, 0), cm(140), TRUNK_LIGHT, 0);
+            bar(
+                b,
+                f,
+                Mesh::Taper,
+                V3::ZERO,
+                v3(0, h, 0),
+                cm(140),
+                TRUNK_LIGHT,
+                0,
+            );
             for i in 0..5 {
                 let a = i * TURN / 5 + (k as i32) * 701;
                 let out = facing(a, 0);
-                put_turned(b, f, Mesh::Wedge, out.scale(cm(110)).add(v3(0, cm(120), 0)), &Affine::rot_y(a + fx::HALF), v3(cm(30), cm(240), cm(180)), TRUNK, 0);
+                put_turned(
+                    b,
+                    f,
+                    Mesh::Wedge,
+                    out.scale(cm(110)).add(v3(0, cm(120), 0)),
+                    &Affine::rot_y(a + fx::HALF),
+                    v3(cm(30), cm(240), cm(180)),
+                    TRUNK,
+                    0,
+                );
             }
             // branches and a flat, layered crown
             for i in 0..4 {
                 let a = i * TURN / 4 + (k as i32) * 333;
                 let tip = facing(a, 0).scale(int(5)).add(v3(0, h + int(1), 0));
-                bar(b, f, Mesh::Taper, v3(0, h - int(2), 0), tip, cm(50), TRUNK, 0);
-                put(b, f, Mesh::Barrel, tip.add(v3(0, cm(80), 0)), v3(int(7), int(2), int(6)), if i % 2 == 0 { LEAF } else { LEAF_DARK }, 0);
+                bar(
+                    b,
+                    f,
+                    Mesh::Taper,
+                    v3(0, h - int(2), 0),
+                    tip,
+                    cm(50),
+                    TRUNK,
+                    0,
+                );
+                put(
+                    b,
+                    f,
+                    Mesh::Barrel,
+                    tip.add(v3(0, cm(80), 0)),
+                    v3(int(7), int(2), int(6)),
+                    if i % 2 == 0 { LEAF } else { LEAF_DARK },
+                    0,
+                );
             }
-            put(b, f, Mesh::Barrel, v3(0, h + int(2), 0), v3(int(9), int(3), int(9)), LEAF, 0);
-            put(b, f, Mesh::Blob, v3(0, h + int(3) + cm(50), 0), v3(int(6), int(2), int(6)), LEAF_LIGHT, 0);
+            put(
+                b,
+                f,
+                Mesh::Barrel,
+                v3(0, h + int(2), 0),
+                v3(int(9), int(3), int(9)),
+                LEAF,
+                0,
+            );
+            put(
+                b,
+                f,
+                Mesh::Blob,
+                v3(0, h + int(3) + cm(50), 0),
+                v3(int(6), int(2), int(6)),
+                LEAF_LIGHT,
+                0,
+            );
         }
         Tree::Palm => {
             let h = mul(int(10), v);
@@ -1104,18 +1971,44 @@ pub fn jungle_tree(b: &mut Batch, f: &Affine, t: Tree, k: u32) {
             for s in 1..=4 {
                 let t = ratio(s, 4);
                 let p = side.scale(mul(lean, mul(t, t))).add(v3(0, mul(h, t), 0));
-                bar(b, f, Mesh::Taper, prev, p, cm(46) - s * cm(4), TRUNK_LIGHT, 0);
+                bar(
+                    b,
+                    f,
+                    Mesh::Taper,
+                    prev,
+                    p,
+                    cm(46) - s * cm(4),
+                    TRUNK_LIGHT,
+                    0,
+                );
                 prev = p;
             }
             put(b, f, Mesh::Ico, prev, v3(cm(90), cm(70), cm(90)), TRUNK, 0);
             for i in 0..8 {
                 let fa = i * TURN / 8 + a;
                 let droop = Affine::rot_y(fa).then(&Affine::rot_x(deg(70 + (i % 3) * 12)));
-                put_turned(b, f, Mesh::Shard, prev.add(facing(fa, 0).scale(cm(170)).add(v3(0, -cm(30), 0))), &droop, v3(cm(80), int(4), cm(10)), if i % 2 == 0 { PALM } else { LEAF_LIGHT }, 0);
+                put_turned(
+                    b,
+                    f,
+                    Mesh::Shard,
+                    prev.add(facing(fa, 0).scale(cm(170)).add(v3(0, -cm(30), 0))),
+                    &droop,
+                    v3(cm(80), int(4), cm(10)),
+                    if i % 2 == 0 { PALM } else { LEAF_LIGHT },
+                    0,
+                );
             }
             // coconuts
             for i in 0..3 {
-                put(b, f, Mesh::Ico, prev.add(facing(i * 21_000, 0).scale(cm(40)).add(v3(0, -cm(50), 0))), v3(cm(36), cm(36), cm(36)), TRUNK, 0);
+                put(
+                    b,
+                    f,
+                    Mesh::Ico,
+                    prev.add(facing(i * 21_000, 0).scale(cm(40)).add(v3(0, -cm(50), 0))),
+                    v3(cm(36), cm(36), cm(36)),
+                    TRUNK,
+                    0,
+                );
             }
         }
         Tree::Fig => {
@@ -1131,15 +2024,44 @@ pub fn jungle_tree(b: &mut Batch, f: &Affine, t: Tree, k: u32) {
             // the wide crown
             for i in 0..5 {
                 let a = i * TURN / 5 + (k as i32) * 999;
-                let at = facing(a, 0).scale(int(4)).add(v3(0, h + cm(pick(k + i as u32, 83, 0, 200)), 0));
-                put(b, f, Mesh::Blob, at, v3(int(6), int(3), int(6)), if i % 2 == 0 { LEAF_DARK } else { LEAF }, 0);
+                let at = facing(a, 0).scale(int(4)).add(v3(
+                    0,
+                    h + cm(pick(k + i as u32, 83, 0, 200)),
+                    0,
+                ));
+                put(
+                    b,
+                    f,
+                    Mesh::Blob,
+                    at,
+                    v3(int(6), int(3), int(6)),
+                    if i % 2 == 0 { LEAF_DARK } else { LEAF },
+                    0,
+                );
                 // aerial roots hanging from it
                 for j in 0..2 {
                     let rx = at.add(facing(a + deg(j * 40), 0).scale(cm(150)));
-                    bar(b, f, Mesh::Cyl, rx.add(v3(0, -int(1), 0)), v3(rx.x, cm(pick(k + j as u32, 84, 20, 300)), rx.z), cm(10), TRUNK_LIGHT, 0);
+                    bar(
+                        b,
+                        f,
+                        Mesh::Cyl,
+                        rx.add(v3(0, -int(1), 0)),
+                        v3(rx.x, cm(pick(k + j as u32, 84, 20, 300)), rx.z),
+                        cm(10),
+                        TRUNK_LIGHT,
+                        0,
+                    );
                 }
             }
-            put(b, f, Mesh::Blob, v3(0, h + int(2), 0), v3(int(8), int(3), int(8)), LEAF, 0);
+            put(
+                b,
+                f,
+                Mesh::Blob,
+                v3(0, h + int(2), 0),
+                v3(int(8), int(3), int(8)),
+                LEAF,
+                0,
+            );
         }
         Tree::Blossom => {
             let h = mul(int(7), v);
@@ -1147,11 +2069,48 @@ pub fn jungle_tree(b: &mut Batch, f: &Affine, t: Tree, k: u32) {
             for i in 0..4 {
                 let a = i * TURN / 4 + (k as i32) * 555;
                 let tip = facing(a, 0).scale(int(2)).add(v3(0, h + int(1), 0));
-                bar(b, f, Mesh::Taper, v3(0, h - int(1), 0), tip, cm(24), TRUNK, 0);
-                put(b, f, Mesh::Blob, tip.add(v3(0, cm(60), 0)), v3(int(4), int(2), int(4)), if i % 2 == 0 { BLOSSOM } else { shade(BLOSSOM, 80) }, 0);
+                bar(
+                    b,
+                    f,
+                    Mesh::Taper,
+                    v3(0, h - int(1), 0),
+                    tip,
+                    cm(24),
+                    TRUNK,
+                    0,
+                );
+                put(
+                    b,
+                    f,
+                    Mesh::Blob,
+                    tip.add(v3(0, cm(60), 0)),
+                    v3(int(4), int(2), int(4)),
+                    if i % 2 == 0 {
+                        BLOSSOM
+                    } else {
+                        shade(BLOSSOM, 80)
+                    },
+                    0,
+                );
             }
-            put(b, f, Mesh::Blob, v3(0, h + int(2), 0), v3(int(5), int(2) + cm(50), int(5)), BLOSSOM, 0);
-            put(b, f, Mesh::Blob, v3(0, h + cm(60), 0), v3(int(4), int(1), int(4)), LEAF_DARK, 0);
+            put(
+                b,
+                f,
+                Mesh::Blob,
+                v3(0, h + int(2), 0),
+                v3(int(5), int(2) + cm(50), int(5)),
+                BLOSSOM,
+                0,
+            );
+            put(
+                b,
+                f,
+                Mesh::Blob,
+                v3(0, h + cm(60), 0),
+                v3(int(4), int(1), int(4)),
+                LEAF_DARK,
+                0,
+            );
         }
     }
 }
@@ -1165,28 +2124,18 @@ const DOME: i32 = int(560);
 /// The sunset sky round `eye`, the sun at bearing `sun_yaw`: a dome from
 /// the yellow haze at the horizon to crimson overhead (`scene.frag` paints
 /// it from the fog's colour to `uSky` × the dome's colour, so the
-/// colourblind mode and JOJO MODE still recolour it), an orange band
-/// laid over its low part, the sun's disc on the horizon in a gold
+/// colourblind mode and JOJO MODE still recolour it, and the mix passes
+/// through orange and red on the way), the sun's disc on the horizon in a gold
 /// corona, and long low streaks of cloud lit gold toward the sun and
 /// crimson away from it. All at a fixed distance, as if infinitely far.
 pub fn sky(b: &mut Batch, eye: V3, sun_yaw: i32) {
     let deep = [0, 1, 2].map(|k| fx::div(ZENITH[k], SKY[k].max(1)).min(ONE));
-    b.push(Mesh::Sphere, &placed(eye, 0, v3(DOME * 2, DOME * 2, DOME * 2)), deep, DOME_GLOW);
-    // the orange band: a ring of soft glows round the horizon (sky glows,
-    // unfogged), stronger toward the sun
-    let n = 16;
-    let at_r = DOME - int(40);
-    for i in 0..n {
-        let a = sun_yaw + i * TURN / n;
-        let toward = (fx::cos(a - sun_yaw) + ONE) / 2;
-        let at = eye.add(facing(a, deg(12)).scale(at_r));
-        b.push_halo(
-            Mesh::Sphere,
-            &placed(at, a, v3(int(260), int(110), int(60))),
-            BAND,
-            ONE * 3 + ONE / 4 + mul(toward, ONE / 3),
-        );
-    }
+    b.push(
+        Mesh::Sphere,
+        &placed(eye, 0, v3(DOME * 2, DOME * 2, DOME * 2)),
+        deep,
+        DOME_GLOW,
+    );
     // clouds: long flat streaks low in the sky
     for i in 0..9u32 {
         let a = sun_yaw + deg(pick(i, 85, -140, 140));
@@ -1196,15 +2145,33 @@ pub fn sky(b: &mut Batch, eye: V3, sun_yaw: i32) {
         let c = mix(rgb(150, 40, 70), rgb(255, 170, 70), mul(toward, toward));
         b.push(
             Mesh::Bevel,
-            &placed(at, a + fx::QUARTER, v3(int(pick(i, 87, 70, 140)), int(pick(i, 88, 4, 8)), int(pick(i, 89, 12, 24)))),
+            &placed(
+                at,
+                a + fx::QUARTER,
+                v3(
+                    int(pick(i, 87, 70, 140)),
+                    int(pick(i, 88, 4, 8)),
+                    int(pick(i, 89, 12, 24)),
+                ),
+            ),
             c,
             SKY_GLOW,
         );
     }
     // the sun on the horizon, in a corona
     let sun_at = eye.add(facing(sun_yaw, SUN_HIGH).scale(DOME - int(80)));
-    b.push(Mesh::Sphere, &placed(sun_at, 0, v3(int(36), int(36), int(36))), SUN, SKY_GLOW);
-    b.push_halo(Mesh::Sphere, &placed(sun_at, 0, v3(int(160), int(130), int(160))), rgb(255, 210, 90), ONE * 3 + ONE * 7 / 10);
+    b.push(
+        Mesh::Sphere,
+        &placed(sun_at, 0, v3(int(36), int(36), int(36))),
+        SUN,
+        SKY_GLOW,
+    );
+    b.push_halo(
+        Mesh::Sphere,
+        &placed(sun_at, 0, v3(int(160), int(130), int(160))),
+        rgb(255, 210, 90),
+        ONE * 3 + ONE * 7 / 10,
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -1264,7 +2231,15 @@ pub fn gallery(b: &mut Batch, key: &str, f: &Affine, tick: u32) {
             bridge_posts(b, f);
             // a gorilla-wide ruler: three 2 m blocks across the deck
             for i in -1..=1 {
-                put(b, f, Mesh::Cube, v3(int(2) * i, cm(5), int(6)), v3(int(2) - cm(10), cm(4), cm(40)), [ONE, 0, 0], ONE);
+                put(
+                    b,
+                    f,
+                    Mesh::Cube,
+                    v3(int(2) * i, cm(5), int(6)),
+                    v3(int(2) - cm(10), cm(4), cm(40)),
+                    [ONE, 0, 0],
+                    ONE,
+                );
             }
         }
         "mouth" => temple_mouth(b, f, tick),
@@ -1274,45 +2249,143 @@ pub fn gallery(b: &mut Batch, key: &str, f: &Affine, tick: u32) {
             let g = f.then(&Affine::translate(v3(0, int(4), 0)));
             stone_panel(b, &g, w, h);
             for (i, s) in glyph_spots(w, h).into_iter().enumerate() {
-                banana_glyph(b, &g.then(&Affine::translate(s.add(v3(0, 0, cm(10))))), tick, i as u32);
+                banana_glyph(
+                    b,
+                    &g.then(&Affine::translate(s.add(v3(0, 0, cm(10))))),
+                    tick,
+                    i as u32,
+                );
             }
         }
         "traps" => {
-            put(b, f, Mesh::Cube, v3(0, -cm(30), 0), v3(int(14), cm(40), int(10)), STONE_DARK, 0);
+            put(
+                b,
+                f,
+                Mesh::Cube,
+                v3(0, -cm(30), 0),
+                v3(int(14), cm(40), int(10)),
+                STONE_DARK,
+                0,
+            );
             spike_trap(b, &f.then(&Affine::translate(v3(-int(4), 0, -int(2)))), ONE);
-            spike_trap(b, &f.then(&Affine::translate(v3(-int(4), 0, int(2)))), ONE / 3);
-            trip_wire(b, &f.then(&Affine::translate(v3(-int(1), 0, int(3)))), int(5), false);
-            trip_wire(b, &f.then(&Affine::translate(v3(-int(1), 0, int(4)))), int(5), true);
-            trapdoor(b, &f.then(&Affine::translate(v3(int(3), 0, -int(1)))), int(4), int(4), ONE * 3 / 5);
+            spike_trap(
+                b,
+                &f.then(&Affine::translate(v3(-int(4), 0, int(2)))),
+                ONE / 3,
+            );
+            trip_wire(
+                b,
+                &f.then(&Affine::translate(v3(-int(1), 0, int(3)))),
+                int(5),
+                false,
+            );
+            trip_wire(
+                b,
+                &f.then(&Affine::translate(v3(-int(1), 0, int(4)))),
+                int(5),
+                true,
+            );
+            trapdoor(
+                b,
+                &f.then(&Affine::translate(v3(int(3), 0, -int(1)))),
+                int(4),
+                int(4),
+                ONE * 3 / 5,
+            );
         }
         "pit" => {
             trapdoor(b, f, int(6), int(6), ONE);
-            pit_spikes(b, &f.then(&Affine::translate(v3(0, -int(4), 0))), int(6), int(6), tick);
+            pit_spikes(
+                b,
+                &f.then(&Affine::translate(v3(0, -int(4), 0))),
+                int(6),
+                int(6),
+                tick,
+            );
         }
         "pile" => banana_pile(b, f, tick),
         "skylight" => {
             skylight(b, f, int(6), int(14), int(30), tick);
-            banana_pile(b, &f.then(&Affine::translate(v3(0, -int(30), 0))).then(&Affine::scale(v3(ONE / 2, ONE / 2, ONE / 2))), tick);
+            banana_pile(
+                b,
+                &f.then(&Affine::translate(v3(0, -int(30), 0)))
+                    .then(&Affine::scale(v3(ONE / 2, ONE / 2, ONE / 2))),
+                tick,
+            );
         }
         "trees" => {
-            jungle_tree(b, &f.then(&Affine::translate(v3(-int(16), 0, 0))), Tree::Kapok, 1);
-            jungle_tree(b, &f.then(&Affine::translate(v3(-int(4), 0, int(4)))), Tree::Palm, 2);
-            jungle_tree(b, &f.then(&Affine::translate(v3(int(7), 0, 0))), Tree::Fig, 3);
-            jungle_tree(b, &f.then(&Affine::translate(v3(int(18), 0, int(4)))), Tree::Blossom, 4);
+            jungle_tree(
+                b,
+                &f.then(&Affine::translate(v3(-int(16), 0, 0))),
+                Tree::Kapok,
+                1,
+            );
+            jungle_tree(
+                b,
+                &f.then(&Affine::translate(v3(-int(4), 0, int(4)))),
+                Tree::Palm,
+                2,
+            );
+            jungle_tree(
+                b,
+                &f.then(&Affine::translate(v3(int(7), 0, 0))),
+                Tree::Fig,
+                3,
+            );
+            jungle_tree(
+                b,
+                &f.then(&Affine::translate(v3(int(18), 0, int(4)))),
+                Tree::Blossom,
+                4,
+            );
         }
         "glyph" => banana_glyph(b, f, tick, 0),
         // a sample of everything, as it might stand by the river
         _ => {
-            put(b, f, Mesh::Cube, v3(0, -cm(30), 0), v3(int(90), cm(60), int(60)), rgb(84, 92, 44), 0);
-            banana_statue(b, &pose(v3(-int(14), 0, -int(6)), deg(20), ONE * 2), 1, true);
-            moai_head(b, &pose(v3(int(10), 0, -int(10)), -deg(15), ONE * 2), 2, true);
+            put(
+                b,
+                f,
+                Mesh::Cube,
+                v3(0, -cm(30), 0),
+                v3(int(90), cm(60), int(60)),
+                rgb(84, 92, 44),
+                0,
+            );
+            banana_statue(
+                b,
+                &pose(v3(-int(14), 0, -int(6)), deg(20), ONE * 2),
+                1,
+                true,
+            );
+            moai_head(
+                b,
+                &pose(v3(int(10), 0, -int(10)), -deg(15), ONE * 2),
+                2,
+                true,
+            );
             jungle_tree(b, &pose(v3(-int(30), 0, -int(18)), 0, ONE), Tree::Kapok, 5);
             jungle_tree(b, &pose(v3(int(28), 0, -int(16)), 0, ONE), Tree::Fig, 6);
             jungle_tree(b, &pose(v3(-int(26), 0, int(8)), 0, ONE), Tree::Palm, 7);
             jungle_tree(b, &pose(v3(int(26), 0, int(10)), 0, ONE), Tree::Blossom, 8);
-            put(b, f, Mesh::Cube, v3(0, cm(5), int(14)), v3(int(60), cm(10), int(10)), WATER, ONE / 4);
-            turtle(b, &pose(v3(-int(4), 0, int(14)), deg(90), ONE), turtle_phase(tick, 1));
-            turtle(b, &pose(v3(int(8), 0, int(12)), -deg(90), ONE), turtle_phase(tick, 2));
+            put(
+                b,
+                f,
+                Mesh::Cube,
+                v3(0, cm(5), int(14)),
+                v3(int(60), cm(10), int(10)),
+                WATER,
+                ONE / 4,
+            );
+            turtle(
+                b,
+                &pose(v3(-int(4), 0, int(14)), deg(90), ONE),
+                turtle_phase(tick, 1),
+            );
+            turtle(
+                b,
+                &pose(v3(int(8), 0, int(12)), -deg(90), ONE),
+                turtle_phase(tick, 2),
+            );
         }
     }
 }
