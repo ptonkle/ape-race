@@ -1258,6 +1258,10 @@ impl App {
             let temple = crate::camera::Temple::of(r);
             chase = chase.with_temple(at, Some(std::sync::Arc::new(temple)));
         }
+        // on Banana Bay Battle the eye keeps out of the ships (BP1)
+        if let Some(h) = crate::camera::Hulls::of(&race.course) {
+            chase = chase.with_hulls(at, Some(std::sync::Arc::new(h)));
+        }
         // Sector Ape runs about twice as fast: the view opens wider
         if race.course.sector.is_some() {
             chase.pace = crate::camera::SPACE_PACE;
@@ -1619,7 +1623,13 @@ impl App {
             };
             if let Some((c, tick)) = shown {
                 if let Some(bay) = &c.bay {
-                    crate::bayscape::dynamic(&mut batch, c, bay, &cam, tick, self.ticks, weather);
+                    let mut own = Batch::new();
+                    crate::bayscape::dynamic(&mut own, c, bay, &cam, tick, self.ticks, weather);
+                    // following JOJO MODE and the colourblind mode (BP5)
+                    crate::bayscape::follow(
+                        &mut own, colours.0, look.sky, world.0, world.1[0], vivid,
+                    );
+                    batch.append(own);
                 }
             }
         }
@@ -2446,7 +2456,8 @@ fn restore(p: &mut Play, save: replay::SavePoint) {
     let f = &p.race.racers[p.focus.racer];
     p.chase = Chase::new(f.ape.pos, p.chase.yaw, p.race.course.terrain)
         .with_crowns(f.ape.pos, p.chase.crowns.clone())
-        .with_temple(f.ape.pos, p.chase.temple.clone());
+        .with_temple(f.ape.pos, p.chase.temple.clone())
+        .with_hulls(f.ape.pos, p.chase.hulls.clone());
 }
 
 /// The course's way forward a little ahead of centreline sample `hint`.
@@ -2467,7 +2478,8 @@ fn refocus(p: &mut Play, from: Camera, ticks: u32) {
     let f = &p.race.racers[p.focus.racer];
     p.chase = Chase::new(f.ape.pos, p.chase.yaw, p.race.course.terrain)
         .with_crowns(f.ape.pos, p.chase.crowns.clone())
-        .with_temple(f.ape.pos, p.chase.temple.clone());
+        .with_temple(f.ape.pos, p.chase.temple.clone())
+        .with_hulls(f.ape.pos, p.chase.hulls.clone());
     p.prev[p.focus.racer] = f.ape.pos;
     p.out_for = 0;
     p.danced = 0;
@@ -2609,10 +2621,24 @@ fn replay_camera(p: &Play, view: replay::View, alpha: i32) -> Camera {
                 fov,
             }
         }
-        _ => match &p.replay {
-            Some(pb) => pb.orbit.camera(at, p.race.course.terrain),
-            None => camera::Orbit::default().camera(at, p.race.course.terrain),
-        },
+        _ => {
+            let cam = match &p.replay {
+                Some(pb) => pb.orbit.camera(at, p.race.course.terrain),
+                None => camera::Orbit::default().camera(at, p.race.course.terrain),
+            };
+            // on the bay, out of the sea and the ships (BP1)
+            match &p.chase.hulls {
+                Some(h) => {
+                    let eye = h.kept_out(at, cam.eye);
+                    Camera {
+                        eye,
+                        fwd: at.sub(eye).norm(),
+                        ..cam
+                    }
+                }
+                None => cam,
+            }
+        }
     }
 }
 
