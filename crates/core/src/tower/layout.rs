@@ -330,7 +330,7 @@ pub fn tower_seeded(seed: u64) -> Course {
     };
     let clouds = CloudBand {
         bottom: START_TOP + int(56),
-        top: START_TOP + int(84),
+        top: START_TOP + int(80),
     };
 
     // the climb's stations

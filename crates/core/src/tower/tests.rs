@@ -80,14 +80,21 @@ fn along_the_course_tells_the_coils_apart_by_height() {
     let c = tower();
     let n = c.path.len();
     let mid = n / 2;
-    // on the climb's top coil (the last spiral, 15 + 11 samples short of
-    // the tear, over the first) and the zipper's matching one: a point 3 m
-    // over the centreline, right above a sample of the coil below (the
-    // nearest sample in plan), is found on its own coil
-    let k = mid - 26;
-    let under = (0..k - 50)
-        .min_by_key(|&j| c.path[j].flat().sub(c.path[k].flat()).len())
-        .unwrap();
+    // on the climb's top coil (the last spiral, the first of its samples
+    // from 35 short of the tear that lies over a lower coil) and the
+    // zipper's matching one: a point 3 m over the centreline, right above
+    // a sample of the coil below (the nearest sample in plan), is found on
+    // its own coil
+    let under_of = |k: usize| {
+        (0..k - 50)
+            .min_by_key(|&j| c.path[j].flat().sub(c.path[k].flat()).len())
+            .unwrap()
+    };
+    let k = (mid - 70..mid - 35)
+        .rev()
+        .find(|&k| c.path[under_of(k)].flat().sub(c.path[k].flat()).len() < int(2))
+        .unwrap_or(mid - 35);
+    let under = under_of(k);
     assert!(
         c.path[under].flat().sub(c.path[k].flat()).len() < int(2),
         "the climb passes under itself in plan"
