@@ -1560,10 +1560,21 @@ pub fn dynamic(f: &Frame) -> (Batch, Batch) {
     } else {
         int(230)
     };
+    // Mape's Tower: the climb and the zipper share their space; the eye
+    // sees the beams of the half it is in (by the course, not the plane)
+    let deep = c
+        .tower
+        .as_ref()
+        .map(|_| c.nearest_anywhere(eye) > c.path.len() / 2);
     for i in 0..c.vines.len() {
         let a = c.anchor(i, tick);
         if a.flat().sub(eye.flat()).len() > near {
             continue;
+        }
+        if let (Some(deep), Some(t)) = (deep, &c.tower) {
+            if deep != matches!(t.hangers.get(i), Some(crate::tower::Hanger::Monster { .. })) {
+                continue;
+            }
         }
         // Sunset Ruins: a pit's vines are drawn up while its trapdoor is shut
         if c.ruins.as_ref().is_some_and(|r| r.vine_up(i, tick)) {

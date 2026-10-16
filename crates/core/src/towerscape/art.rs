@@ -183,7 +183,8 @@ fn shine(b: &mut Batch) {
 }
 
 /// Draws every part into `sink`.
-fn build(c: &Course, t: &TowerLayout, sink: &mut Sink) {
+fn build(c: &Course, t: &TowerLayout, sink: &mut Sink) -> Vec<Option<V3>> {
+    let mut tips = vec![None; c.vines.len()];
     let mut put = |part: &'static str, p: Option<V3>, draw: &mut dyn FnMut(&mut Batch)| {
         let mut b = Batch::new();
         draw(&mut b);
@@ -246,25 +247,48 @@ fn build(c: &Course, t: &TowerLayout, sink: &mut Sink) {
     }
 
     // the balconies, each with its mage casting toward its beams' anchors
-    let mut seen = Vec::new();
+    // (a balcony on top of another shares its mage)
+    let mut seen: Vec<(V3, Option<V3>)> = Vec::new();
     for (n, bal) in t.balconies.iter().enumerate() {
-        if !fresh(&mut seen, bal.at, int(3)) {
-            continue;
-        }
-        let yaw = yaw_of(bal.out);
-        let wall = bal.at.sub(bal.out.scale(bal.depth));
-        let f = at(wall, yaw);
-        put("balconies", Some(bal.at), &mut |b| {
-            m::balcony(b, &f, bal.half_width * 2, bal.depth, n as u32)
-        });
-        if bal.mage {
-            mage_on(c, t, n, wall, yaw, bal.depth, &mut put);
+        let tip = match seen
+            .iter()
+            .find(|(p, _)| !p.sub(bal.at).longer_than(int(3)))
+        {
+            Some(&(_, tip)) => tip,
+            None => {
+                let yaw = yaw_of(bal.out);
+                let wall = bal.at.sub(bal.out.scale(bal.depth));
+                let f = at(wall, yaw);
+                put("balconies", Some(bal.at), &mut |b| {
+                    m::balcony(b, &f, bal.half_width * 2, bal.depth, n as u32)
+                });
+                let tip = bal.mage.then(|| {
+                    let f = f.then(&Affine::translate(v3(0, 0, bal.depth / 2)));
+                    let spell = Spell::nth(n as u32);
+                    put("mages", Some(bal.at), &mut |b| {
+                        m::mage(b, &f, spell, MagePose::Cast, tick, n as u32)
+                    });
+                    f.apply(m::staff_tip(MagePose::Cast))
+                });
+                seen.push((bal.at, tip));
+                tip
+            }
+        };
+        if let Some(tip) = tip {
+            for i in cast_by(t, n) {
+                let z = c.anchor(i, 0);
+                put("mages", Some(bal.at), &mut |b| {
+                    m::spell_beam(b, &Affine::IDENTITY, tip, z, spell_of(t, i), tick, i as u32)
+                });
+                tips[i] = Some(tip);
+            }
         }
     }
 
     // the casters away from balconies: dragons, clouds, the start's and
-    // the orb's runes, the descent's creatures
-    let mut creatures = Vec::new();
+    // the orb's runes, the descent's creatures (one close to another
+    // casts both beams)
+    let mut creatures: Vec<(V3, V3)> = Vec::new();
     let mut clouds = Vec::new();
     for (i, h) in t.hangers.iter().enumerate() {
         let a = c.anchor(i, 0);
@@ -277,9 +301,11 @@ fn build(c: &Course, t: &TowerLayout, sink: &mut Sink) {
                 let f = tipped(yaw, a, |b, f| {
                     m::dragon(b, f, hide, m::Wings::Glide, spell, tick, i as u32)
                 });
+                let mut tip = a;
                 put("dragons", Some(a), &mut |b| {
-                    m::dragon(b, &f, hide, m::Wings::Glide, spell, tick, i as u32);
+                    tip = m::dragon(b, &f, hide, m::Wings::Glide, spell, tick, i as u32);
                 });
+                tips[i] = Some(tip);
             }
             Hanger::Cloud { .. } => {
                 if fresh(&mut clouds, a, int(8)) {
@@ -292,14 +318,23 @@ fn build(c: &Course, t: &TowerLayout, sink: &mut Sink) {
                 put("clouds", Some(a), &mut |b| {
                     m::cloud_anchor(b, &f, spell, tick, i as u32)
                 });
+                tips[i] = Some(a);
             }
             Hanger::Start | Hanger::Orb => {
                 put("anchors", Some(a), &mut |b| {
                     m::spell_anchor(b, &Affine::IDENTITY, a, spell, tick, i as u32)
                 });
+                tips[i] = Some(a);
             }
             Hanger::Monster { at: round } => {
-                if !fresh(&mut creatures, a, int(5)) {
+                if let Some(&(_, tip)) = creatures
+                    .iter()
+                    .find(|(p, _)| !p.sub(a).longer_than(int(5)))
+                {
+                    put("blobs", Some(a), &mut |b| {
+                        m::sea_beam(b, &Affine::IDENTITY, tip, a, spell, tick, i as u32)
+                    });
+                    tips[i] = Some(tip);
                     continue;
                 }
                 let face = t.zipper.axis.sub(round).flat();
@@ -308,18 +343,21 @@ fn build(c: &Course, t: &TowerLayout, sink: &mut Sink) {
                 } else {
                     V3::UP
                 });
+                let mut tip = a;
                 if i % 6 == 0 {
                     let f = tipped(yaw, a, |b, f| m::sea_monster(b, f, spell, tick, i as u32));
                     put("sea monsters", Some(a), &mut |b| {
-                        m::sea_monster(b, &f, spell, tick, i as u32);
+                        tip = m::sea_monster(b, &f, spell, tick, i as u32);
                     });
                 } else {
                     let size = int(3);
                     let f = tipped(yaw, a, |b, f| m::blob(b, f, size, spell, tick, i as u32));
                     put("blobs", Some(a), &mut |b| {
-                        m::blob(b, &f, size, spell, tick, i as u32);
+                        tip = m::blob(b, &f, size, spell, tick, i as u32);
                     });
                 }
+                creatures.push((a, tip));
+                tips[i] = Some(tip);
             }
             Hanger::Mage { .. } => {}
         }
@@ -436,38 +474,28 @@ fn build(c: &Course, t: &TowerLayout, sink: &mut Sink) {
     put("banana sea", None, &mut |b| {
         m::banana_sea(b, &f, int(200), tick)
     });
+    tips
 }
 
-/// A balcony's mage, about 1 m out on it, casting a beam from the staff's
-/// tip to each of its vines' anchors.
-fn mage_on(
-    c: &Course,
-    t: &TowerLayout,
-    n: usize,
-    wall: V3,
-    yaw: i32,
-    depth: i32,
-    put: &mut dyn FnMut(&'static str, Option<V3>, &mut dyn FnMut(&mut Batch)),
-) {
-    let f = at(wall, yaw).then(&Affine::translate(v3(0, 0, depth / 2)));
-    let spell = Spell::nth(n as u32);
-    let tip = f.apply(m::staff_tip(MagePose::Cast));
-    put("mages", Some(tip), &mut |b| {
-        m::mage(b, &f, spell, MagePose::Cast, 0, n as u32);
-        for (i, h) in t.hangers.iter().enumerate() {
-            if *h == (Hanger::Mage { balcony: n }) {
-                m::spell_beam(
-                    b,
-                    &Affine::IDENTITY,
-                    tip,
-                    c.anchor(i, 0),
-                    spell,
-                    0,
-                    i as u32,
-                );
-            }
-        }
-    });
+/// Where each vine's caster sends its spell from (a staff's tip, a
+/// creature's, a rune's), one per `Course.vines`; None if nothing drawn
+/// casts it.
+pub fn casters(c: &Course, t: &TowerLayout) -> Vec<Option<V3>> {
+    build(c, t, &mut |_, _, _| {})
+}
+
+/// The most shapes drawn at once from any eye along the course (a few
+/// metres over each tenth sample), and the scenery's total.
+pub fn worst_drawn(c: &Course) -> (usize, usize) {
+    use crate::render::{DRAW_VALUES, INSTANCE_VALUES};
+    let s = scene::scenery(c);
+    let mut most = 0;
+    for k in (0..c.path.len()).step_by(10) {
+        let eye = c.path[k].add(v3(0, int(4), 0));
+        let n: u32 = s.draws_near(eye).chunks(DRAW_VALUES).map(|d| d[3]).sum();
+        most = most.max(n as usize);
+    }
+    (most, s.values.len() / INSTANCE_VALUES)
 }
 
 /// The vines cast by balcony `n`'s mage.
@@ -477,4 +505,42 @@ pub fn cast_by(t: &TowerLayout, n: usize) -> impl Iterator<Item = usize> + '_ {
         .enumerate()
         .filter(move |(_, h)| **h == Hanger::Mage { balcony: n })
         .map(|(i, _)| i)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::map::Map;
+
+    /// The scenery budget (MAPS.md): about 20k shapes, 6-7k drawn at once.
+    const MOST_AT_ONCE: usize = 7_000;
+    const MOST: usize = 20_000;
+
+    #[test]
+    fn every_hanger_has_its_caster_drawn_at_its_beam() {
+        let c = Map::Tower.course();
+        let t = c.tower.as_ref().unwrap();
+        let tips = casters(&c, t);
+        assert_eq!(tips.len(), c.vines.len());
+        for (i, tip) in tips.iter().enumerate() {
+            let tip = tip.unwrap_or_else(|| panic!("vine {i} ({:?}) has no caster", t.hangers[i]));
+            // the caster's beam reaches the anchor (a spell beam from a
+            // staff's tip, else the tip is the anchor)
+            let a = c.anchor(i, 0);
+            assert!(
+                !tip.sub(a).longer_than(int(25)),
+                "vine {i} ({:?}): caster {} m from its anchor",
+                t.hangers[i],
+                tip.sub(a).len() / ONE
+            );
+        }
+    }
+
+    #[test]
+    fn the_scenery_stays_in_budget() {
+        let c = Map::Tower.course();
+        let (most, all) = worst_drawn(&c);
+        assert!(all <= MOST, "{all} shapes in all");
+        assert!(most <= MOST_AT_ONCE, "{most} shapes drawn at once");
+    }
 }
