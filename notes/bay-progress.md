@@ -22,7 +22,7 @@ The standard map-build steps (MAPS.md "Build steps"), one row each. Status is on
 | 16 | Other maps unchanged | Done | `jungle_unchanged`, `maps_unchanged`, `sector_unchanged` and the Ruins tests pass on final main |
 | 17 | Docs | Done | README, MAPS.md (what the bay taught), TRIAGE T87, HANDOFF; Settings weather select fixed (BW1) |
 | 18 | Full checks | Done | Final main: check.sh 307.6 s and check-online.sh 94.0 s, passed in Chromium, Firefox, WebKit |
-| 19 | Deploy | Waiting on you | Held at your word; patch-notes entry drafted in `notes/bay-morning.md` |
+| 19 | Deploy | Done | Live as v1.12.0 on 2026-10-15 (with T84, T88, T89), the T82 try on top as v1.12.1 |
 
 ## This map's features
 
