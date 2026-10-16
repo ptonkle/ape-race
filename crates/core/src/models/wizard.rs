@@ -331,11 +331,18 @@ fn robe(rig: &mut Rig, m: &Dims, s: &Skel, c: Rgb, trim: Rgb, moons: bool) {
     let (w, t, d) = (m.w, m.t, m.d);
     let at = |x: i32, y: i32, z: i32| v3(pct(w, x), pct(t, y), pct(d, z));
     garment(rig, m, s, -34, 104, 118, 130, c);
-    rig.put(
-        Mesh::Barrel,
-        body.shape(at(0, -30, 0), at(124, 8, 136)),
-        trim,
-    );
+    // the hem's trim: a band of rods round the robe's edge. (A filled flat
+    // barrel there hung under the belly of an ape on all fours like a
+    // saucer: the person, 2026-10-16, "weird discs on the bottom of the
+    // apes", T94)
+    let (rw, rd) = (pct(w, 120) / 2, pct(d, 132) / 2);
+    let hem = |k: i32| {
+        let a = deg(36 * k);
+        body.at(mul(fx::cos(a), rw), -pct(t, 34), mul(fx::sin(a), rd))
+    };
+    for k in 0..10 {
+        rig.put(Mesh::Hex, rod(hem(k), hem(k + 1), pct(w, 7)), trim);
+    }
     rig.put(Mesh::Cube, body.shape(at(0, 34, 65), at(10, 128, 4)), trim);
     let mark = if moons { MOON } else { trim };
     for (x, y) in [(-30, 8), (32, 54), (-26, 76), (28, -14)] {

@@ -5101,6 +5101,39 @@ mod tests {
         }
     }
 
+    /// The robe's hem is a band, not a flat disc: a filled flat barrel at
+    /// the hem hung under the belly of an ape on all fours like a saucer
+    /// (the person, 2026-10-16: "weird discs on the bottom of the apes",
+    /// T94).
+    #[test]
+    fn no_saucer_hangs_under_a_wizards_robe() {
+        use wizard::*;
+        for kind in Kind::ALL {
+            let Top::Robe { trim, .. } = kit(kind).top else {
+                continue;
+            };
+            for p in poses() {
+                let pose = Pose {
+                    gear: Gear::Wizard,
+                    ..p
+                };
+                let saucers: Vec<_> = drawn(kind, &pose)
+                    .into_iter()
+                    .filter(|x| x.mesh == Mesh::Barrel as u32 && x.colour == trim)
+                    .filter(|x| {
+                        let wide = x.axes[0].len().max(x.axes[2].len());
+                        x.axes[1].len() * 4 < wide
+                    })
+                    .collect();
+                assert!(
+                    saucers.is_empty(),
+                    "{kind:?} {pose:?}: {} flat {trim:?} barrel(s) at the hem",
+                    saucers.len()
+                );
+            }
+        }
+    }
+
     #[test]
     fn the_wizard_outfits_cost_about_what_the_explorer_outfit_does() {
         // SECOND-ORDER TG2: the triangles a wizard adds over the bare ape,
