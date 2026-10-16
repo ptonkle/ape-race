@@ -2449,8 +2449,12 @@ impl App {
         let span = (hi_x - lo_x).max(hi_z - lo_z).max(ONE);
         let pad = 60;
         let to = |q: V3| {
-            // x to the right, z (the way the course runs) up the map
-            let x = pad + ((q.x - lo_x) as i64 * (1000 - 2 * pad) as i64 / span as i64) as i32;
+            // seen from above with z (the way the course runs) up the map:
+            // the world is right-handed, so facing +z your right is -x,
+            // and +x goes to the LEFT of the map (TRIAGE T93: it was drawn
+            // to the right, the view from underneath, a mirror image)
+            let x =
+                1000 - pad - ((q.x - lo_x) as i64 * (1000 - 2 * pad) as i64 / span as i64) as i32;
             let y =
                 1000 - pad - ((q.z - lo_z) as i64 * (1000 - 2 * pad) as i64 / span as i64) as i32;
             (x, y)
@@ -3303,6 +3307,47 @@ mod tests {
         assert!(ui["hud"]["minimap"]["apes"].is_array());
         let (_, dynamic, _) = a.frame();
         assert!(!dynamic.is_empty());
+    }
+
+    /// The minimap is the course seen from above, not from below (TRIAGE
+    /// T93): a point to the right of the ape's heading in the world lies
+    /// to the right of that heading on the map too.
+    #[test]
+    fn the_minimap_is_seen_from_above_not_mirrored() {
+        for key in ["jungle", "city", "sector"] {
+            let mut a = app();
+            a.act("menu.race", "");
+            a.act("setup.map", key);
+            a.act("menu.start", "");
+            let me = a.play.as_ref().unwrap().local;
+            let (pos, fwd) = {
+                let p = a.play.as_ref().unwrap();
+                let r = &p.race.racers[me];
+                (r.ape.pos, p.race.course.heading_at(r.progress))
+            };
+            let right = crate::geom::right_of(fwd);
+            let mut map_at = |q: V3| -> (i64, i64) {
+                a.play.as_mut().unwrap().race.racers[me].ape.pos = q;
+                let ui: Value = serde_json::from_str(&a.ui()).unwrap();
+                let d = &ui["hud"]["minimap"]["apes"];
+                let d = d
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .find(|d| d["me"] == true)
+                    .unwrap();
+                (d["x"].as_i64().unwrap(), d["y"].as_i64().unwrap())
+            };
+            let o = map_at(pos);
+            let f = map_at(pos.add(fwd.scale(int(40))));
+            let r = map_at(pos.add(right.scale(int(40))));
+            // on the page (y down) the right of a heading (fx, fy) is
+            // (-fy, fx): a quarter turn clockwise
+            let (fx_, fy) = (f.0 - o.0, f.1 - o.1);
+            let (rx, ry) = (r.0 - o.0, r.1 - o.1);
+            let side = rx * -fy + ry * fx_;
+            assert!(side > 0, "{key}: right of the heading is drawn on its left (fwd {fx_},{fy}, right {rx},{ry})");
+        }
     }
 
     #[test]
