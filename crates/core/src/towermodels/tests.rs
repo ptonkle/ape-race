@@ -136,7 +136,7 @@ fn the_tower_models_stay_within_budget() {
         ),
         (
             "trampoline room",
-            shapes(&|b| trampoline_room(b, &id, int(14), int(22), false, t, 1)),
+            shapes(&|b| trampoline_room(b, &id, int(14), int(22), int(5), false, t, 1)),
             460,
         ),
         (

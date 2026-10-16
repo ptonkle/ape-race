@@ -88,6 +88,24 @@ const BRANCHES: [[usize; 3]; 3] = [[2, 3, 4], [6, 8, 9], [11, 12, 13]];
 /// The leg across the trampoline room (branch 2's second leg out).
 const ROOM_LEG: usize = 7;
 
+/// A sub-tower's radius is its turn's less this: the inner lane's beams
+/// hang 5 m in from the line, so 8 m clear of its wall, and a swing
+/// on a bridge toward it clears it too (TW12; it was 6).
+const SUB_CLEAR: i32 = int(13);
+/// A sub-tower's top stands this far over its turn (was 12 m: the
+/// balconies, 22 m over the line, were in the air above it, TW12).
+const SUB_OVER: i32 = int(25);
+/// The room's roof hole's radius, the orb mage's beam's length and how far
+/// under the roof its anchor is (TW12).
+const ROOF_HOLE: i32 = int(8);
+const ORB_BEAM: i32 = int(6);
+const ROOF_UNDER: i32 = cm(150);
+/// The beam over the roof hole hangs to this far over the roof.
+const EXIT_OVER: i32 = int(4);
+
+/// A balcony's depth out from its wall.
+const BALCONY_DEPTH: i32 = int(3);
+
 /// A station every this many metres.
 const GAP: i32 = 22;
 /// Vines hang from this far over the centreline at their place, to this
@@ -284,28 +302,52 @@ pub fn tower_seeded(seed: u64) -> Course {
     // the sub-towers: round the branches' turns (the room's is the room)
     let room_from = c.point(leg_at(ROOM_LEG));
     let room_to = c.point(leg_at(ROOM_LEG + 1));
-    let room_left = right_of(flat(c.heading_at(leg_at(ROOM_LEG)))).neg();
-    let room_mid = v3(
-        (room_from.x + room_to.x) / 2,
-        room_from.y - int(5),
-        (room_from.z + room_to.z) / 2,
-    )
-    .add(room_left.scale(int(6)));
+    // the room's middle is under where the line crosses its roof's plane
+    // (3 m under the line's top across it), so the hole there is the way
+    // out, and the doorway is where the line meets its wall (TW12)
+    let r0 = leg_at(ROOM_LEG);
+    let room_len = leg_at(ROOM_LEG + 1) - r0;
+    let roof = room_to.y - int(3);
+    let room_leg = CLIMB[ROOM_LEG];
+    let cross_at = r0 + room_len * (room_leg.2 - 3) / room_leg.2;
+    let cross = c.point(cross_at);
+    let room_mid = v3(cross.x, room_from.y - int(5), cross.z);
     let room_radius = int(14);
+    // (metres along the leg per metre in plan)
+    let room_run = fx::sqrt(int(room_leg.0 * room_leg.0 - room_leg.2 * room_leg.2));
+    let door_at = cross_at - mul(room_radius, fx::div(int(room_leg.0), room_run));
     let mut subs = Vec::new();
     for (b, legs) in BRANCHES.iter().enumerate() {
         let sub = if b == 1 {
             SubTower {
                 centre: v3(room_mid.x, 0, room_mid.z),
                 radius: room_radius,
-                top: room_to.y - int(3),
+                top: roof,
             }
         } else {
             let (o, r) = turn_centre(&c, legs[1]);
+            // (its foot stands over any lower coil passing under it, out
+            // of reach of that coil's beams: on a corbel, not the ground,
+            // TW12; the third sub-tower stood in spiral A's way)
+            let own = (leg_at(legs[0]) - int(10), leg_at(legs[2] + 1) + int(10));
+            let foot = c.path[..=(half / STEP) as usize]
+                .iter()
+                .enumerate()
+                .filter(|&(k, p)| {
+                    let at = k as i32 * STEP;
+                    (at < own.0 || at > own.1)
+                        && p.y < o.y
+                        && p.flat().sub(o.flat()).len() < r - SUB_CLEAR + int(16)
+                })
+                .map(|(_, p)| p.y + ANCHOR_OVER + int(4))
+                .max()
+                .unwrap_or(0);
             SubTower {
-                centre: v3(o.x, 0, o.z),
-                radius: r - int(6),
-                top: o.y + int(12),
+                centre: v3(o.x, foot, o.z),
+                // (well inside the inner lane's beams, `r - 8`, TW12)
+                radius: r - SUB_CLEAR,
+                // (tall enough for its balconies, 22 m over the line)
+                top: o.y + SUB_OVER,
             }
         };
         subs.push(sub);
@@ -315,18 +357,24 @@ pub fn tower_seeded(seed: u64) -> Course {
     // facing each station, a few metres under its beams
     let mut balconies: Vec<Balcony> = Vec::new();
     let mut balcony_for = |p: V3, y: i32| -> usize {
-        let towers = std::iter::once((keep_centre, keep_radius))
-            .chain(subs.iter().map(|s| (s.centre, s.radius)));
+        // (a sub-tower only where it stands at that height)
+        let towers = std::iter::once((keep_centre, keep_radius)).chain(
+            subs.iter()
+                .filter(|s| y >= s.centre.y && y <= s.top + int(3))
+                .map(|s| (s.centre, s.radius)),
+        );
         let (o, r) = towers
             .min_by_key(|&(o, r)| p.flat().sub(o.flat()).len() - r)
             .expect("the keep");
         let out = p.flat().sub(o.flat()).norm();
-        let at = o.add(out.scale(r));
+        // (its floor's outer edge: it stands out from the wall, its mage
+        // outside the stone, TW12)
+        let at = o.add(out.scale(r + BALCONY_DEPTH));
         balconies.push(Balcony {
             at: v3(at.x, y, at.z),
             out,
             half_width: int(3),
-            depth: int(3),
+            depth: BALCONY_DEPTH,
             mage: true,
             deck: None,
         });
@@ -361,7 +409,13 @@ pub fn tower_seeded(seed: u64) -> Course {
         let h = c.heading_at(at0);
         let r = right_of(h);
         let lanes: [i32; 2] = if branch {
-            [-8, 8]
+            // (the inner lane 5 m in, not 8: its swing on toward the
+            // sub-tower or the keep ran into the wall, TW12)
+            [-5, 8]
+        } else if leg >= SUMMIT_RUN {
+            // (off the keep: no lane on its side, whose swing back ran
+            // into its wall, TW12)
+            [0, 7]
         } else {
             match dice.below(3) {
                 0 => [0, 7],
@@ -374,7 +428,9 @@ pub fn tower_seeded(seed: u64) -> Course {
             let base = c.point(along).add(r.scale(int(lane)));
             let bottom = v3(base.x, base.y + BOTTOM_OVER, base.z);
             // one beam in five leans in from outside (the spell's way)
-            let leaning = lane != 0 && (station * 2 + n) % 5 == 2;
+            // (only an outer lane's: an inner lane's leaned its anchor
+            // into the keep's or a sub-tower's stone, TW12)
+            let leaning = lane > 0 && (station * 2 + n) % 5 == 2;
             let hang = if leaning {
                 lean(r.scale(-lane.signum()), LEAN)
             } else {
@@ -413,36 +469,48 @@ pub fn tower_seeded(seed: u64) -> Course {
         }
     }
 
-    // the trampoline room: trampolines under its diagonal, the orb mage's
-    // two beams, and a beam down through the roof hole
-    let r0 = leg_at(ROOM_LEG);
-    let room_len = leg_at(ROOM_LEG + 1) - r0;
+    // the trampoline room: a trampoline on the bridge's end before its
+    // doorway, one inside, one under the roof hole; the orb mage's beam
+    // hung from the roof inside, and a beam down into the hole (TW12)
     let mut trampolines = Vec::new();
-    for k in [int(2), room_len / 2, room_len - int(6)] {
-        let p = c.point(r0 + k);
+    let right_in = right_of(flat(c.heading_at(r0)));
+    for (k, under, aside) in [
+        (int(2), int(5), 0),
+        (int(12), int(5), 0),
+        (cross_at - r0 - int(5), int(10), int(3)),
+    ] {
+        let p = c.point(r0 + k).add(right_in.scale(aside));
         c.mushrooms.push(Mushroom {
-            top: v3(p.x, p.y - int(5), p.z),
+            top: v3(p.x, p.y - under, p.z),
             radius: MUSHROOM_RADIUS,
         });
         trampolines.push(c.mushrooms.len() - 1);
     }
+    let hole_tramp = c.mushrooms[trampolines[2]].top;
     let orb = (v3(room_mid.x, room_from.y + int(6), room_mid.z), int(3));
-    let rh = right_of(c.heading_at(r0));
-    for (k, len, side) in [(room_len / 3, int(12), 1), (room_len * 2 / 3, int(12), -1)] {
+    {
+        let k = int(15);
         let p = c.point(r0 + k);
-        let hang = lean(rh.scale(side), LEAN);
-        c.vines
-            .push(beam(v3(p.x, p.y + BOTTOM_OVER, p.z), hang, len, r0 + k));
+        let anchor = v3(p.x, roof - ROOF_UNDER, p.z);
+        c.vines.push(Vine {
+            anchor,
+            length: ORB_BEAM,
+            slide: None,
+            at: r0 + k,
+        });
         hangers.push(Hanger::Orb);
         lifts.push(true);
-        hangs.push(hang);
+        hangs.push(DOWN);
     }
-    let exit = c.point(leg_at(ROOM_LEG + 1));
+    let exit_at = cross_at + int(3);
+    let exit = c.point(exit_at);
     c.vines.push(beam(
-        v3(exit.x, exit.y + BOTTOM_OVER, exit.z),
+        // (its bottom over the roof: grabbed from under it, in the hole,
+        // the swing pressed the ape into the roof's edge, TW12)
+        v3(exit.x, roof + EXIT_OVER, exit.z),
         DOWN,
         int(14),
-        leg_at(ROOM_LEG + 1),
+        exit_at,
     ));
     hangers.push(Hanger::Orb);
     lifts.push(true);
@@ -488,9 +556,9 @@ pub fn tower_seeded(seed: u64) -> Course {
         room: Room {
             centre: room_mid,
             radius: room_radius,
-            height: exit.y - int(3) - room_mid.y,
-            door: room_from,
-            roof_exit: (v3(exit.x, exit.y - int(3), exit.z), int(5)),
+            height: roof - room_mid.y,
+            door: c.point(door_at),
+            roof_exit: (v3(cross.x, roof, cross.z), ROOF_HOLE),
             trampolines,
             orb,
         },
@@ -523,6 +591,7 @@ pub fn tower_seeded(seed: u64) -> Course {
         lifts: Vec::new(),
         hangs: Vec::new(),
         lobby: (c.starts[0], 0),
+        stone: Vec::new(),
     };
     layout.zipper.axis = layout.mirror(keep_centre);
 
@@ -636,17 +705,20 @@ pub fn tower_seeded(seed: u64) -> Course {
         let pad = pad_at(&mut c, at, bottom, int(4), int(5));
         layout.pads.push(pad);
     }
-    // the room's floor (a wide pad): a reset in the room bounces up it
-    let room_aim = c.point(r0 + room_len / 2);
-    let mut floor = pad_at(
-        &mut c,
-        r0,
-        room_aim,
-        room_radius - int(4),
-        room_radius - int(4),
-    );
-    floor.at = r0 + int(1);
-    layout.pads.push(floor);
+    // the room's floor (a wide pad): a reset in the room throws an ape
+    // onto the trampoline under the roof hole
+    c.platforms.push(Platform {
+        centre: room_mid,
+        fwd: flat(c.heading_at(r0)),
+        half_len: room_radius - int(4),
+        half_width: room_radius - int(4),
+        top: room_mid.y,
+    });
+    layout.pads.push(Pad {
+        platform: c.platforms.len() - 1,
+        at: r0 + int(1),
+        boost: boost(room_mid.add(v3(0, BODY_DROP, 0)), hole_tramp),
+    });
     layout.pads.sort_by_key(|p| p.at);
 
     // the banana zone: a wide floor from the last vines to the end and on
@@ -670,6 +742,7 @@ pub fn tower_seeded(seed: u64) -> Course {
     layout.hangers = hangers;
     layout.lifts = lifts;
     layout.hangs = hangs;
+    layout.stone = super::stone::stonework(&layout);
     c.tower = Some(Box::new(layout));
     c
 }

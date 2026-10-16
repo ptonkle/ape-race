@@ -576,11 +576,13 @@ pub fn trampoline_room(
     f: &Affine,
     r: i32,
     h: i32,
+    hole: i32,
     cutaway: bool,
     tick: u32,
     k: u32,
 ) {
-    let faces = if cutaway { 0b0111_1100 } else { 0xFF };
+    // (face 0, toward +z, is the doorway: open, TW12)
+    let faces = if cutaway { 0b0111_1100 } else { 0b1111_1110 };
     section(b, f, r, h, k, Detail::Near, faces);
     let d = 2 * r + cm(40);
     put(
@@ -682,10 +684,10 @@ pub fn trampoline_room(
         Spell::Arcane,
         tick,
     );
-    // the roof: slate sloping up to an opening rimmed in light
+    // the roof: a flat slate roof round an opening (radius `hole`) rimmed
+    // in light, as solid as it looks (TW12)
     let eave = r + cm(80);
-    let hole = r * 3 / 10;
-    let rise = (eave - hole) * 3 / 5;
+    let rise = 0;
     let side = side_of((eave + hole) / 2) + cm(30);
     for i in 0..8 {
         let a = TURN * i / 8;

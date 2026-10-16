@@ -664,6 +664,22 @@ impl Ape {
                 self.happened.push(Happening::Wall);
             }
         }
+        // Mape's Tower: the stonework is solid (TW12)
+        if let Some(t) = course.tower.as_deref() {
+            if let Some((p, v, wall)) = t.stone_push(self.pos, self.vel) {
+                (self.pos, self.vel) = (p, v);
+                if wall {
+                    self.happened.push(Happening::Wall);
+                    // a swing into stone lets go (as a Sector ship's hull):
+                    // the rope would only press it in again
+                    if let Mode::Swinging { vine, .. } = self.mode {
+                        self.mode = Mode::Flying;
+                        self.last_vine = Some((vine, 0));
+                        self.release_bonus = 0;
+                    }
+                }
+            }
+        }
         // Sector Ape: the ships, the debris and the door
         if course.sector.is_some() {
             self.hit_bodies(course, tick, before);

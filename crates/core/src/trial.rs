@@ -151,16 +151,17 @@ pub const BAY: [u32; 4] = [
     secs(BAY_AUTHOR),
 ];
 
-/// Mape's Tower's target times in hundredths of a second (2026-10-15, set
+/// Mape's Tower's target times in hundredths of a second (2026-10-16, set
 /// as the others' were: King Kong alone as a Time Trial runs finishes in
-/// 58.4–67.7 s by kind, the Lemur best, the Orangutan slowest;
-/// `tests/tower_ai.rs` `tower_time_trial_report`, SECOND-ORDER TM1).
-/// Author just under the best kind, then the Jungle's steps of 7, 10 and
-/// 15 s. Re-measure if the course's length changes.
-pub const TOWER_AUTHOR: u32 = 5_800;
-pub const TOWER_GOLD: u32 = 6_500;
-pub const TOWER_SILVER: u32 = 7_500;
-pub const TOWER_BRONZE: u32 = 9_000;
+/// 61.9–76.4 s by kind, the Lemur best, the Gorilla slowest, with the
+/// item crates (TI1) and the solid stone (TW12); `tests/tower_ai.rs`
+/// `tower_time_trial_report`, SECOND-ORDER TM1). Author just under the
+/// best kind, then the Jungle's steps of 7, 10 and 15 s. Re-measure if the
+/// course changes.
+pub const TOWER_AUTHOR: u32 = 6_100;
+pub const TOWER_GOLD: u32 = 6_800;
+pub const TOWER_SILVER: u32 = 7_800;
+pub const TOWER_BRONZE: u32 = 9_300;
 
 /// Mape's Tower's target times, in race ticks, slowest first.
 pub const TOWER: [u32; 4] = [

@@ -520,7 +520,16 @@ impl Course {
         // the City's river: its bed is below the water (city.rs)
         let mut top = self.floor(p.x, p.z);
         let feet = p.y - BODY_DROP;
-        for pl in &self.platforms {
+        // (Mape's Tower: a bridge's deck is its drawn slope, `stone_top`,
+        // not its flat platform, TW12)
+        let decks = match self.tower.as_deref() {
+            Some(t) => t.deck_platforms(),
+            None => 0..0,
+        };
+        for (n, pl) in self.platforms.iter().enumerate() {
+            if decks.contains(&n) {
+                continue;
+            }
             // (quick reject: no platform holds a point further off flat
             // than its half length and half width together)
             let reach = pl.half_len + pl.half_width;
@@ -538,6 +547,10 @@ impl Course {
             {
                 top = pl.top;
             }
+        }
+        // Mape's Tower: the tops of its stone and its bridges' decks
+        if let Some(h) = self.tower.as_deref().and_then(|t| t.stone_top(p)) {
+            top = top.max(h);
         }
         // Banana Bay Battle: the finish island's ground and its chest
         if let Some(b) = self.bay.as_deref() {

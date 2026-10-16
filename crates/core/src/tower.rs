@@ -31,8 +31,13 @@
 //! **Rules on this map** (each gated on `Course.tower`, so the other maps
 //! are untouched):
 //!
-//! - *No walls, no ceiling, no floor to stand on:* `Course::contain` does
-//!   nothing and `Course::on_floor` never fires (as on Sector Ape).
+//! - *The stone is solid, nothing else is (TW12, `tower/stone.rs`):* the
+//!   keep, the sub-towers and their roofs, the trampoline room's shell
+//!   (its doorway and roof hole open), the bridges' masonry and the topsy
+//!   towers push a body out (`Ape::collide`, `Happening::Wall`); their tops
+//!   are ground (`Course::support`). There is no corridor wall and no
+//!   ceiling (`Course::contain` does nothing) and `Course::on_floor` never
+//!   fires (as on Sector Ape).
 //! - *The boundary reset* (`tower/rules.rs`): an ape too far from the
 //!   centreline (`OUT_FAR`), too far under it (`OUT_BELOW`), or down on the
 //!   open ground is put on the reset pad (`Pad`) last behind it along the
@@ -55,12 +60,16 @@
 use crate::fx::{cm, int};
 use crate::geom::{v3, V3};
 
+#[cfg(test)]
+mod audit;
 mod layout;
 mod rules;
+mod stone;
 #[cfg(test)]
 mod tests;
 
 pub use layout::{tower, tower_seeded, Climb, CLIMB, START_TOP};
+pub use stone::{Gap, Solid};
 
 /// A body further than this from the centreline (in 3D) is out.
 pub const OUT_FAR: i32 = int(45);
@@ -107,6 +116,10 @@ pub struct TowerLayout {
     /// where an ape stands behind the menus: the hands' place and the way
     /// it faces
     pub lobby: (V3, i32),
+    /// the solid stonework (TW12: the keep, the sub-towers, the room's
+    /// shell, the bridges' masonry, the topsy towers), built from the
+    /// fields above (`stone.rs`)
+    pub stone: Vec<Solid>,
 }
 
 /// The main tower: a round stone keep (battlements, arrow slits, a
@@ -283,6 +296,17 @@ impl TowerLayout {
         p.x > self.zipper.mirror_x
     }
 
+    /// Where sub-tower `s`'s topsy-turvy twin hangs in the zipper (its
+    /// foot, it hangs down from there `TOPSY_TILT` off straight): in the
+    /// void where the mirrored keep would be, 20 m from the zip, out of
+    /// every swing's way (TW12; hung at the mirrored sub-tower's top the
+    /// zipper's beams hung inside them).
+    pub fn topsy_hang(&self, s: &SubTower) -> V3 {
+        let m = self.mirror(v3(s.centre.x, s.top, s.centre.z));
+        let axis = v3(self.zipper.axis.x, m.y, self.zipper.axis.z);
+        axis.add(m.sub(axis).flat().with_len(int(20)))
+    }
+
     /// Whether vine `i` is a climb vine.
     pub fn lifts(&self, i: usize) -> bool {
         self.lifts.get(i).copied().unwrap_or(false)
@@ -293,6 +317,9 @@ impl TowerLayout {
 pub fn split(course_length: i32) -> i32 {
     course_length / 2
 }
+
+/// How far a topsy tower leans off straight down (a turn's share).
+pub const TOPSY_TILT: i32 = crate::fx::ONE / 40;
 
 /// The thickness of a reset pad's slab (drawing).
 pub const PAD_THICK: i32 = cm(60);
