@@ -100,6 +100,10 @@ pub struct TowerLayout {
     /// whether each vine is a climb vine (`CLIMB_LIFT` on release while
     /// rising); one per `Course.vines`, same order
     pub lifts: Vec<bool>,
+    /// the unit way each vine hangs from its anchor (the spell sets the
+    /// beam's orientation); one per `Course.vines`, same order. Most are
+    /// straight down (`sector::DOWN`), a few lean, more in the zipper.
+    pub hangs: Vec<V3>,
     /// where an ape stands behind the menus: the hands' place and the way
     /// it faces
     pub lobby: (V3, i32),

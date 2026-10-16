@@ -9,8 +9,8 @@ The standard map-build steps (MAPS.md "Build steps"), one row each. Status is on
 | 3 | Ape costumes | Done | Wizard and witch mixes for all six kinds; the flame-demon cat (TG rows); wired to Map::Tower |
 | 4 | Models | Done | Climb half (towermodels.rs) and zipper half (zipper.rs, creatures.rs, deep.rs): keep, sub-towers, mages, dragons, beams, trampolines, room, clouds, summit, rift and eldritch banana, the zip, topsy towers, blobs, sea monsters, void platforms, banana sea |
 | 5 | Sky and lighting | Done (sky branch) | Clear golden afternoon, Twilight, Dawn by height; zipper void; cloud band; follows JOJO and colourblind (TS1–TS6); shots in notes/tower-shots/sky/ |
-| 6 | Course layout | In progress | agent: ~1,300 m, branches, balconies, room, clouds, summit, zipper; any-direction spell vines |
-| 7 | Map rules | In progress | with the course agent: lift, reset boost, AI bounds, ordering test |
+| 6 | Course layout | In progress | Real layout in (TC1): 698 m climb, 4 spirals, 3 branches, trampoline room, clouds, mirrored zipper; any-direction beams (TC2) |
+| 7 | Map rules | In progress | Pads aimed at the next station; AI bounds/re-pick (TC3); AI too slow (~140–148 s), ordering test and lift tuning open (TC4) |
 | 8 | Art placed on the course | Not started |  |
 | 9 | Lobby spot and flyover | Not started |  |
 | 10 | AI validation | Not started |  |
