@@ -6,8 +6,8 @@ The standard map-build steps (MAPS.md "Build steps"), one row each. Status is on
 | --- | --- | --- | --- |
 | 1 | Brief and answers | Done | `briefs/mapes-tower.md` |
 | 2 | Skeleton and contract | In progress | agent: Map::Tower, TowerLayout contract, vertical progress, stand-in course |
-| 3 | Ape costumes | In progress | agent: wizard/witch outfits, Balrog-like flame cat |
-| 4 | Models | In progress | agent: tower, sub-towers, balconies, mages, dragons, trampolines, wizard, banana, zip creatures |
+| 3 | Ape costumes | Done | Wizard and witch mixes for all six kinds; the flame-demon cat (TG rows); wired to Map::Tower when the skeleton lands |
+| 4 | Models | In progress | Climb half done (towermodels.rs: keep, sub-towers, bridges, mages, dragons, beams, trampolines, room, clouds, summit); zipper half and a better banana and tear in progress |
 | 5 | Sky and lighting | Not started |  |
 | 6 | Course layout | Not started |  |
 | 7 | Map rules | Not started |  |
