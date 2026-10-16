@@ -21,7 +21,7 @@ The standard map-build steps (MAPS.md "Build steps"), one row each. Status is on
 | 15 | Screenshots at 1920×1080 | Done | Models, outfits, sky, in-game rounds, lobby, flyover; the overhaul in `notes/bay-shots/overhaul/` (start, mid-course, overhead; no stairs close-up yet, BO9) |
 | 16 | Other maps unchanged | Done | `jungle_unchanged`, `maps_unchanged`, `sector_unchanged` and the Ruins tests pass on final main |
 | 17 | Docs | Done | README, MAPS.md (what the bay taught), TRIAGE T87, HANDOFF; Settings weather select fixed (BW1) |
-| 18 | Full checks | In progress | Overhaul branch: see HANDOFF / the agent report |
+| 18 | Full checks | Done | Overhaul branch (after merging main): `BUILDER_ENGINES=chromium ./scripts/check.sh` passed in 542 s; debug `cargo test --workspace` passed |
 | 19 | Deploy | Not started | The overhaul is not deployed (live: v1.12.0, v1.12.1 before it) |
 
 ## This map's features
@@ -48,6 +48,5 @@ One row per concept from the brief, plus any added later. Stages: **Model**, **G
 | Background battle beyond the barrels (51 ships, some burning) | Integrator, from the shots | Done | n/a | Done | Done |
 | Cream canvas; rolled furled sails; ragged torn sails | Integrator, from the shots | Done | n/a | Done | Done |
 | Camera keeps out of hulls, decks and yards | Integrator, from the shots | n/a | Done | Done | Done |
-
 | Pale ropes against darker decks, masts and rigging | Your feedback (BO4) | Done | n/a | Done | Done |
 | Stairs to the raised decks the right way round | Your feedback (BO5) | Done | n/a | Done | Not shot |
