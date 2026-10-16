@@ -1,0 +1,522 @@
+//! Mape's Tower's models for the climbing half (2026-10-15,
+//! `briefs/mapes-tower.md`, step 4 "Models"): stand-alone builders in the
+//! faceted low-poly style of `ruinsmodels.rs` and `baymodels.rs`. No course
+//! places them yet. Each is built in its own metres, +y up, +z its front
+//! (a balcony's outward side, a dragon's nose, a rift's face), its feet or
+//! base at y 0, and placed by a frame (`pose`) the caller passes. Each
+//! takes a few plain parameters (a radius, a height, a spell, a seed `k`);
+//! the stone is still (no tick, so it can go in the chunked scenery) and
+//! only the magic and the creatures move with the tick.
+//!
+//! **The hour: twilight (and dawn, the second weather).** A low rose sun
+//! a few degrees over the horizon, a deep indigo sky overhead, the lit
+//! windows warm. Step 5 owns the map's real `Look`; `gallery_look` here
+//! only lights the model shots the same way.
+//!
+//! A palette no other map uses: pale honey limestone in courses, indigo
+//! slate roofs, amber lit windows, the school's banners deep violet and
+//! gold, and the magic in five vivid spell colours (`Spell`).
+//!
+//! The parts, by file: `towermodels/keep.rs` the main keep, sub-towers,
+//! turrets, bridges and balconies; `folk.rs` the mages and the dragons with
+//! their riders; `magic.rs` spell beams, trampolines, platforms, clouds,
+//! the trampoline room; `summit.rs` the insane wizard, the tear and the
+//! eldritch banana.
+
+use crate::fx::{deg, int, mul, sin, ONE};
+use crate::geom::{facing, v3, Affine, V3};
+use crate::mesh::Mesh;
+use crate::render::{rgb, rod, Batch, Rgb};
+use crate::scene::Look;
+
+pub use crate::ruinsmodels::pose;
+pub(crate) use crate::ruinsmodels::{pick, wave};
+
+mod folk;
+mod keep;
+mod magic;
+mod summit;
+
+pub use folk::*;
+pub use keep::*;
+pub use magic::*;
+pub use summit::*;
+
+// ---------------------------------------------------------------------------
+// The gallery's light (step 5 owns the map's).
+
+/// The sun's height over the horizon at twilight.
+pub const SUN_HIGH: i32 = deg(9);
+/// The sun's bearing in the gallery.
+pub const SUN_YAW: i32 = deg(40);
+pub const SKY: Rgb = rgb(62, 56, 122);
+pub const FOG: Rgb = rgb(104, 92, 156);
+pub const LIGHT: Rgb = rgb(300, 214, 186);
+/// The sky's indigo, light from above and the shaded side.
+pub const AMBIENT: Rgb = rgb(96, 92, 150);
+
+/// Twilight light for the model gallery (`?gallery=keep`).
+pub fn gallery_look() -> Look {
+    Look {
+        sky: SKY,
+        fog: FOG,
+        fog_range: (int(300), int(900)),
+        light_dir: facing(SUN_YAW, SUN_HIGH),
+        light: LIGHT,
+        ground: AMBIENT,
+        rim: [0; 3],
+        far: crate::render::FAR,
+    }
+}
+
+// ---------------------------------------------------------------------------
+// The palette.
+
+pub(crate) const STONE: Rgb = rgb(206, 192, 168);
+pub(crate) const STONE_LIGHT: Rgb = rgb(224, 212, 188);
+pub(crate) const STONE_WARM: Rgb = rgb(196, 176, 148);
+pub(crate) const STONE_DARK: Rgb = rgb(150, 138, 124);
+pub(crate) const MORTAR: Rgb = rgb(84, 76, 78);
+pub(crate) const SLATE: Rgb = rgb(62, 70, 112);
+pub(crate) const SLATE_DARK: Rgb = rgb(42, 46, 80);
+pub(crate) const WINDOW: Rgb = rgb(255, 196, 108);
+pub(crate) const SLIT: Rgb = rgb(26, 22, 32);
+pub(crate) const WOOD: Rgb = rgb(112, 78, 50);
+pub(crate) const WOOD_DARK: Rgb = rgb(78, 54, 36);
+pub(crate) const ROPE: Rgb = rgb(184, 156, 108);
+pub(crate) const BANNER: Rgb = rgb(70, 38, 140);
+pub(crate) const GOLD: Rgb = rgb(240, 190, 60);
+pub(crate) const FUR: Rgb = rgb(110, 72, 44);
+pub(crate) const FACE: Rgb = rgb(206, 166, 120);
+pub(crate) const BEARD: Rgb = rgb(232, 230, 222);
+
+/// The kinds of spell the mages cast, each its own colour. The beams are
+/// the climb's vines; the course chooses which spell sets which
+/// orientation (the brief: "different magic spells which control the
+/// orientation of the vine").
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Spell {
+    /// violet
+    Arcane,
+    /// ice blue
+    Frost,
+    /// orange
+    Fire,
+    /// green
+    Verdant,
+    /// pink
+    Charm,
+}
+
+impl Spell {
+    pub const ALL: [Spell; 5] = [
+        Spell::Arcane,
+        Spell::Frost,
+        Spell::Fire,
+        Spell::Verdant,
+        Spell::Charm,
+    ];
+
+    /// The spell's bright colour (a beam's core, a staff's orb).
+    pub const fn colour(self) -> Rgb {
+        match self {
+            Spell::Arcane => rgb(196, 110, 255),
+            Spell::Frost => rgb(120, 226, 255),
+            Spell::Fire => rgb(255, 140, 44),
+            Spell::Verdant => rgb(96, 244, 128),
+            Spell::Charm => rgb(255, 118, 196),
+        }
+    }
+
+    /// The robes of a mage of this school: the spell's colour, deep.
+    pub const fn robe(self) -> Rgb {
+        match self {
+            Spell::Arcane => rgb(78, 40, 132),
+            Spell::Frost => rgb(36, 82, 132),
+            Spell::Fire => rgb(150, 44, 30),
+            Spell::Verdant => rgb(34, 100, 58),
+            Spell::Charm => rgb(132, 40, 96),
+        }
+    }
+
+    /// Spell `k` of the five, round and round.
+    pub fn nth(k: u32) -> Spell {
+        Spell::ALL[(k % 5) as usize]
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Helpers.
+
+/// A shape of `size` with its middle at `at`, in frame `f`.
+pub(crate) fn put(b: &mut Batch, f: &Affine, mesh: Mesh, at: V3, size: V3, c: Rgb, glow: i32) {
+    b.push(
+        mesh,
+        &f.then(&Affine::translate(at)).then(&Affine::scale(size)),
+        c,
+        glow,
+    );
+}
+
+/// The same, turned by `turn` about its middle.
+pub(crate) fn put_turned(
+    b: &mut Batch,
+    f: &Affine,
+    mesh: Mesh,
+    at: V3,
+    turn: &Affine,
+    size: V3,
+    c: Rgb,
+    glow: i32,
+) {
+    b.push(
+        mesh,
+        &f.then(&Affine::translate(at))
+            .then(turn)
+            .then(&Affine::scale(size)),
+        c,
+        glow,
+    );
+}
+
+/// A rod of `mesh`, `w` across, from `a` to `z` in frame `f`.
+pub(crate) fn bar(b: &mut Batch, f: &Affine, mesh: Mesh, a: V3, z: V3, w: i32, c: Rgb, glow: i32) {
+    if a.dist(z) > ONE / 100 {
+        b.push(mesh, &f.then(&rod(a, z, w)), c, glow);
+    }
+}
+
+/// A soft glow round a rod from `a` to `z`.
+pub(crate) fn halo_bar(b: &mut Batch, f: &Affine, a: V3, z: V3, w: i32, c: Rgb, strength: i32) {
+    if a.dist(z) > ONE / 100 {
+        b.push_halo(Mesh::Cyl, &f.then(&rod(a, z, w)), c, strength);
+    }
+}
+
+/// A soft glowing ball of diameter `d` at `at`.
+pub(crate) fn halo_ball(b: &mut Batch, f: &Affine, at: V3, d: i32, c: Rgb, strength: i32) {
+    b.push_halo(
+        Mesh::Sphere,
+        &f.then(&Affine::translate(at))
+            .then(&Affine::scale(v3(d, d, d))),
+        c,
+        strength,
+    );
+}
+
+/// Metres, from tenths (`dm(125)` is 12.5 m).
+pub(crate) const fn dm(x: i32) -> i32 {
+    x * (ONE / 10)
+}
+
+/// The point `r` out from the y axis at bearing `a` (0 is +z, a quarter
+/// turn +x), at height `y`.
+pub(crate) fn round(r: i32, a: i32, y: i32) -> V3 {
+    v3(mul(r, sin(a)), y, mul(r, crate::fx::cos(a)))
+}
+
+/// A pulse in `lo..ONE`, period `secs`, phase `k`.
+pub(crate) fn pulse(tick: u32, secs: i32, k: u32, lo: i32) -> i32 {
+    let w = wave(tick, secs, (k as i32).wrapping_mul(7_919));
+    lo + mul((w + ONE) / 2, ONE - lo)
+}
+
+// ---------------------------------------------------------------------------
+// The gallery (`?gallery=<key>`).
+
+pub const GALLERY: [&str; 20] = [
+    "keep",
+    "keepsection",
+    "turret",
+    "subtower",
+    "bridges",
+    "balcony",
+    "mages",
+    "dragon",
+    "dragons",
+    "beams",
+    "trampolines",
+    "trampolineroom",
+    "clouds",
+    "conjured",
+    "madwizard",
+    "rift",
+    "eldritch",
+    "summit",
+    "climb",
+    "towerall",
+];
+
+/// The middle and rough radius of a gallery model, metres.
+pub fn framing(key: &str) -> (V3, i32) {
+    match key {
+        "keep" => (v3(0, int(56), 0), int(84)),
+        "keepsection" => (v3(0, int(6), 0), int(14)),
+        "turret" => (v3(0, int(9), 0), int(9)),
+        "subtower" => (v3(0, int(20), 0), int(22)),
+        "bridges" => (v3(0, int(2), 0), int(26)),
+        "balcony" => (v3(0, int(2), int(1)), int(5)),
+        "mages" => (v3(0, int(1), 0), int(5)),
+        "dragon" => (v3(0, int(1), 0), int(11)),
+        "dragons" => (v3(0, int(4), 0), int(30)),
+        "beams" => (v3(0, int(8), 0), int(16)),
+        "trampolines" => (v3(0, int(1), 0), int(9)),
+        "trampolineroom" => (v3(0, int(10), 0), int(22)),
+        "clouds" => (v3(0, int(4), 0), int(26)),
+        "conjured" => (v3(0, int(1), 0), int(10)),
+        "madwizard" => (v3(0, int(3), 0), int(4)),
+        "rift" => (v3(0, int(16), 0), int(22)),
+        "eldritch" => (v3(0, 0, 0), int(48)),
+        "summit" => (v3(0, int(20), -int(30)), int(70)),
+        "climb" => (v3(0, int(30), 0), int(48)),
+        _ => (v3(0, int(70), 0), int(110)),
+    }
+}
+
+/// Draws gallery model `key` in frame `f` (turning) at `tick`.
+pub fn gallery(b: &mut Batch, key: &str, f: &Affine, tick: u32) {
+    let at = |x: i32, y: i32, z: i32| f.then(&Affine::translate(v3(x, y, z)));
+    match key {
+        "keep" => keep(b, f, int(10), 8, 7),
+        "keepsection" => keep_section(b, f, int(10), int(12), 3, Detail::Near),
+        "turret" => turret(b, f, int(3), int(12), 2),
+        "subtower" => sub_tower(b, f, int(6), int(30), 4),
+        "bridges" => {
+            arch_bridge(
+                b,
+                f,
+                v3(-int(12), 0, -int(10)),
+                v3(int(12), 0, -int(10)),
+                int(4),
+                1,
+            );
+            rope_bridge(
+                b,
+                f,
+                v3(-int(12), 0, 0),
+                v3(int(12), 0, 0),
+                int(2),
+                int(2),
+                2,
+            );
+            magic_bridge(
+                b,
+                f,
+                v3(-int(12), 0, int(10)),
+                v3(int(12), int(3), int(10)),
+                int(3),
+                Spell::Frost,
+                tick,
+            );
+        }
+        "balcony" => {
+            balcony(b, f, int(5), int(2), 1);
+            mage(b, &at(0, 0, int(1)), Spell::Arcane, MagePose::Cast, tick, 1);
+        }
+        "mages" => {
+            let poses = [
+                MagePose::Cast,
+                MagePose::Aim,
+                MagePose::Idle,
+                MagePose::Ride,
+                MagePose::Cast,
+            ];
+            for (i, s) in Spell::ALL.into_iter().enumerate() {
+                let x = int(i as i32 * 2 - 4);
+                mage(b, &at(x, 0, 0), s, poses[i], tick, i as u32);
+            }
+        }
+        "dragon" => {
+            dragon(b, f, Hide::Emerald, Wings::Flap, Spell::Fire, tick, 1);
+        }
+        "dragons" => {
+            let hides = [Hide::Emerald, Hide::Crimson, Hide::Bronze, Hide::Midnight];
+            let wings = [Wings::Flap, Wings::Glide, Wings::Bank, Wings::Dive];
+            for i in 0..4 {
+                let g = at(
+                    int((i % 2) * 26 - 13),
+                    int((i / 2) * 14 - 4),
+                    int((i % 2) * 6),
+                );
+                dragon(
+                    b,
+                    &g,
+                    hides[i as usize],
+                    wings[i as usize],
+                    Spell::nth(i as u32 + 1),
+                    tick + i as u32 * 17,
+                    i as u32,
+                );
+            }
+        }
+        "beams" => {
+            for (i, s) in Spell::ALL.into_iter().enumerate() {
+                let x = int(i as i32 * 5 - 10);
+                spell_beam(
+                    b,
+                    f,
+                    v3(x, int(16), 0),
+                    v3(x + int(i as i32 - 2) * 2, 0, int(2)),
+                    s,
+                    tick,
+                    i as u32,
+                );
+                spell_anchor(b, f, v3(x, int(16), 0), s, tick, i as u32);
+            }
+        }
+        "trampolines" => {
+            trampoline(
+                b,
+                &at(-int(6), 0, 0),
+                int(2),
+                Pad::Rune,
+                Spell::Arcane,
+                wave(tick, 2, 0).max(0),
+                tick,
+            );
+            trampoline(
+                b,
+                f,
+                int(2),
+                Pad::Cloth,
+                Spell::Charm,
+                wave(tick, 2, 9_000).max(0),
+                tick,
+            );
+            trampoline(
+                b,
+                &at(int(6), 0, 0),
+                int(2),
+                Pad::Jelly,
+                Spell::Verdant,
+                wave(tick, 2, 20_000).max(0),
+                tick,
+            );
+        }
+        "trampolineroom" => trampoline_room(b, f, int(14), int(22), true, tick, 1),
+        "clouds" => {
+            cloud(b, &at(-int(10), 0, 0), int(22), int(7), 1);
+            cloud(b, &at(int(12), int(4), -int(6)), int(16), int(5), 2);
+            cloud_anchor(b, &at(-int(10), int(3), 0), Spell::Frost, tick, 1);
+            cloud_anchor(b, &at(int(12), int(7), -int(6)), Spell::Arcane, tick, 2);
+        }
+        "conjured" => {
+            frost_disc(b, &at(-int(6), 0, 0), int(2), 1);
+            rune_stone(b, f, int(3), tick, 2);
+            crystal_ledge(b, &at(int(6), 0, 0), int(4), int(2), 3);
+        }
+        "madwizard" => mad_wizard(b, f, tick),
+        "rift" => rift(b, f, int(14), int(30), ONE, tick),
+        "eldritch" => eldritch_banana(b, f, int(60), tick),
+        "summit" => summit(b, f, tick),
+        "climb" => climb_scene(b, f, tick),
+        _ => {
+            keep(b, f, int(14), 10, 7);
+            sub_tower(b, &at(int(44), 0, int(10)), int(6), int(56), 3);
+            arch_bridge(
+                b,
+                f,
+                v3(int(14), int(48), int(4)),
+                v3(int(38), int(48), int(9)),
+                int(4),
+                2,
+            );
+            sub_tower(b, &at(-int(36), 0, -int(20)), int(5), int(84), 5);
+            rope_bridge(
+                b,
+                f,
+                v3(-int(13), int(76), -int(6)),
+                v3(-int(31), int(76), -int(18)),
+                int(2),
+                int(2),
+                3,
+            );
+            cloud(b, &at(int(20), int(96), int(20)), int(30), int(8), 3);
+            cloud(b, &at(-int(26), int(110), int(14)), int(26), int(7), 4);
+            dragon(
+                b,
+                &at(int(30), int(70), int(30)),
+                Hide::Crimson,
+                Wings::Flap,
+                Spell::Fire,
+                tick,
+                2,
+            );
+        }
+    }
+}
+
+/// A stretch of the climb, to see the pieces together: a keep section
+/// with two balconies and their mages, a sub-tower joined by an arch
+/// bridge, a dragon with its beam, a trampoline, a cloud with an anchor.
+fn climb_scene(b: &mut Batch, f: &Affine, tick: u32) {
+    let at = |x: i32, y: i32, z: i32| f.then(&Affine::translate(v3(x, y, z)));
+    for s in 0..5 {
+        keep_section(
+            b,
+            &at(0, int(s * 12), 0),
+            int(12),
+            int(12),
+            s as u32,
+            Detail::Near,
+        );
+    }
+    keep_crown(b, &at(0, int(60), 0), int(12), 4, 1);
+    for (i, (yaw, y)) in [(deg(10), 14), (deg(-70), 38)].into_iter().enumerate() {
+        let g = at(0, int(y), 0)
+            .then(&Affine::rot_y(yaw))
+            .then(&Affine::translate(v3(0, 0, int(12))));
+        balcony(b, &g, int(5), int(2), i as u32);
+        mage(
+            b,
+            &g.then(&Affine::translate(v3(0, 0, int(1)))),
+            Spell::nth(i as u32),
+            MagePose::Cast,
+            tick,
+            i as u32,
+        );
+        let tip = g.apply(staff_tip(MagePose::Cast).add(v3(0, 0, int(1))));
+        let end = tip.add(v3(int(8 - i as i32 * 16), -int(10), int(6)));
+        spell_beam(
+            b,
+            &Affine::IDENTITY,
+            tip,
+            end,
+            Spell::nth(i as u32),
+            tick,
+            i as u32,
+        );
+    }
+    sub_tower(b, &at(int(34), 0, int(8)), int(5), int(40), 2);
+    arch_bridge(
+        b,
+        f,
+        v3(int(12), int(26), int(4)),
+        v3(int(29), int(26), int(7)),
+        int(4),
+        1,
+    );
+    trampoline(
+        b,
+        &at(int(20), int(26), int(6)),
+        int(2),
+        Pad::Rune,
+        Spell::Arcane,
+        0,
+        tick,
+    );
+    cloud(b, &at(-int(10), int(54), int(20)), int(20), int(6), 2);
+    cloud_anchor(b, &at(-int(10), int(57), int(20)), Spell::Frost, tick, 1);
+    dragon(
+        b,
+        &at(-int(26), int(30), int(22)),
+        Hide::Bronze,
+        Wings::Flap,
+        Spell::Verdant,
+        tick,
+        3,
+    );
+}
+
+#[cfg(test)]
+mod tests;
