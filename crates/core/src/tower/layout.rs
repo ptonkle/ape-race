@@ -100,6 +100,8 @@ const SUB_OVER: i32 = int(25);
 const ROOF_HOLE: i32 = int(8);
 const ORB_BEAM: i32 = int(6);
 const ROOF_UNDER: i32 = cm(150);
+/// The beam over the roof hole hangs to this far over the roof.
+const EXIT_OVER: i32 = int(4);
 
 /// A balcony's depth out from its wall.
 const BALCONY_DEPTH: i32 = int(3);
@@ -503,7 +505,9 @@ pub fn tower_seeded(seed: u64) -> Course {
     let exit_at = cross_at + int(3);
     let exit = c.point(exit_at);
     c.vines.push(beam(
-        v3(exit.x, roof + int(1), exit.z),
+        // (its bottom over the roof: grabbed from under it, in the hole,
+        // the swing pressed the ape into the roof's edge, TW8)
+        v3(exit.x, roof + EXIT_OVER, exit.z),
         DOWN,
         int(14),
         exit_at,

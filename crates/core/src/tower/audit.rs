@@ -140,12 +140,17 @@ fn every_vine_is_clear_of_the_stone() {
 /// An ape flown at `to` from `from` (the hands) at `speed` m/s: where
 /// it is a second on, and whether it hit a wall.
 fn fly(c: &Course, from: V3, to: V3, speed: i32) -> (V3, bool) {
+    fly_for(c, from, to, speed, crate::rules::TICKS_PER_SECOND as u32)
+}
+
+/// `fly` for `ticks`.
+fn fly_for(c: &Course, from: V3, to: V3, speed: i32, ticks: u32) -> (V3, bool) {
     let mut a = Ape::new(Kind::Chimpanzee, true, from, 0);
     a.vel = to.sub(from).with_len(int(speed));
     a.mode = crate::ape::Mode::Flying;
     a.hint = c.nearest_anywhere(from);
     let mut hit = false;
-    for tick in 0..crate::rules::TICKS_PER_SECOND as u32 {
+    for tick in 0..ticks {
         a.step(&Default::default(), c, tick);
         hit |= a.happened.contains(&Happening::Wall);
         a.happened.clear();
@@ -209,11 +214,13 @@ fn the_rooms_door_and_roof_hole_let_an_ape_through() {
     let out = room.door.sub(room.centre).flat().norm();
     let roof = room.centre.y + room.height;
     let at_door = v3(room.door.x, room.centre.y + int(6), room.door.z);
-    let (end, hit) = fly(
+    // (half a second: on, it would reach the trampoline under the hole)
+    let (end, hit) = fly_for(
         &c,
         at_door.add(out.scale(int(4))),
         at_door.sub(out.scale(int(10))),
         16,
+        crate::rules::TICKS_PER_SECOND as u32 / 2,
     );
     assert!(!hit, "the doorway is open");
     assert!(
@@ -260,87 +267,4 @@ fn the_crown_and_the_bridge_decks_are_stood_on_where_drawn() {
         );
     }
     let _ = DOWN;
-}
-
-#[test]
-#[ignore]
-fn print_sub_towers() {
-    let c = tower();
-    let t = c.tower.as_deref().unwrap();
-    let mut seen = Vec::new();
-    for br in &t.branches {
-        let s = br.sub;
-        if seen.contains(&s.centre) {
-            continue;
-        }
-        seen.push(s.centre);
-        let near: Vec<(i32, i32)> = c
-            .path
-            .iter()
-            .enumerate()
-            .filter(|(_, p)| p.sub(s.centre).flat().len() < s.radius + int(14) && p.y < s.top)
-            .map(|(k, p)| (k as i32 * crate::course::STEP / ONE, p.y / ONE))
-            .collect();
-        println!(
-            "sub at {:?} r {} top {} near: {:?}",
-            (s.centre.x / ONE, s.centre.z / ONE),
-            s.radius / ONE,
-            s.top / ONE,
-            near
-        );
-    }
-    println!("keep r {} h {}", t.keep.radius / ONE, t.keep.height / ONE);
-}
-
-#[test]
-#[ignore]
-fn print_vine() {
-    let c = tower();
-    let t = c.tower.as_deref().unwrap();
-    let i: usize = std::env::var("VINE")
-        .map(|v| v.parse().unwrap())
-        .unwrap_or(39);
-    let v = c.vines[i];
-    let m = |p: V3| {
-        (
-            p.x as f64 / 65536.0,
-            p.y as f64 / 65536.0,
-            p.z as f64 / 65536.0,
-        )
-    };
-    println!(
-        "vine {i} anchor {:?} len {} hang {:?} at {}",
-        m(v.anchor),
-        v.length / ONE,
-        m(c.hang(i)),
-        v.at / ONE
-    );
-    for (k, s) in t.stone.iter().enumerate() {
-        println!("stone {k}: {:?}", s);
-    }
-    let h = c.hang(i);
-    let f = c.heading_at(v.at);
-    let way = v3(f.x, 0, f.z).norm();
-    println!("way {:?}", m(way));
-    for a in [15, 30, 45, 55] {
-        let d = way
-            .scale(cos(deg(-20)))
-            .add(right_of(way).scale(sin(deg(-20))));
-        let u = d.sub(h.scale(d.dot(h))).norm();
-        let p = v
-            .anchor
-            .add(h.scale(crate::fx::mul(v.length, cos(deg(a)))))
-            .add(u.scale(crate::fx::mul(v.length, sin(deg(a)))));
-        println!("{a}: {:?} {:?}", m(p), t.in_stone(p));
-    }
-    for br in &t.branches {
-        println!(
-            "branch from {:?} to {:?} sub {:?} r {} top {}",
-            m(br.from),
-            m(br.to),
-            m(br.sub.centre),
-            br.sub.radius / ONE,
-            br.sub.top / ONE
-        );
-    }
 }

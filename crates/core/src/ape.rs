@@ -670,6 +670,13 @@ impl Ape {
                 (self.pos, self.vel) = (p, v);
                 if wall {
                     self.happened.push(Happening::Wall);
+                    // a swing into stone lets go (as a Sector ship's hull):
+                    // the rope would only press it in again
+                    if let Mode::Swinging { vine, .. } = self.mode {
+                        self.mode = Mode::Flying;
+                        self.last_vine = Some((vine, 0));
+                        self.release_bonus = 0;
+                    }
                 }
             }
         }

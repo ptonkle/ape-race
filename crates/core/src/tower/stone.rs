@@ -262,10 +262,9 @@ impl TowerLayout {
     /// The bridges' decks' indices in `Course.platforms` (a run: they are
     /// pushed together); the ground there is the drawn slope instead.
     pub fn deck_platforms(&self) -> std::ops::Range<usize> {
-        let mut decks = self.branches.iter().filter_map(|b| b.deck);
-        match (decks.next(), decks.last()) {
+        let decks = || self.branches.iter().filter_map(|b| b.deck);
+        match (decks().min(), decks().max()) {
             (Some(a), Some(z)) => a..z + 1,
-            (Some(a), None) => a..a + 1,
             _ => 0..0,
         }
     }
