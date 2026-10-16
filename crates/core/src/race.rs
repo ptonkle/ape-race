@@ -183,6 +183,15 @@ impl Reward {
     }
 }
 
+/// A Hook that has caught its target (TRIAGE T90): for `left` ticks it
+/// tows ape `by` forward toward ape `to`, which it leaves alone.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Tow {
+    pub by: usize,
+    pub to: usize,
+    pub left: i32,
+}
+
 /// A thrown Banana, or a Hook on its way.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Shot {
@@ -243,6 +252,8 @@ pub struct Race {
     /// for each ape: how many vines it has summoned
     pub summon_count: Vec<u32>,
     pub shots: Vec<Shot>,
+    /// Hooks that caught their target, towing their user (TRIAGE T90)
+    pub tows: Vec<Tow>,
     pub events: Vec<Event>,
     pub equal_stats: bool,
     pub dice: Dice,
@@ -332,6 +343,7 @@ impl Race {
             summon_count: vec![0; n],
             used: Vec::new(),
             shots: Vec::new(),
+            tows: Vec::new(),
             events: Vec::new(),
             equal_stats,
             dice: Dice(seed),

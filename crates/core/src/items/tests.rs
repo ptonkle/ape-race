@@ -345,13 +345,13 @@ fn a_stick_knocks_a_swinging_ape_off_its_vine_and_misses_one_out_of_range() {
 }
 
 #[test]
-fn a_hook_takes_the_nearest_ape_ahead_not_one_behind_and_pulls_it_back() {
+fn a_hook_takes_the_nearest_ape_ahead_and_tows_the_user_without_pulling_it_back() {
     let mut r = race(4);
     put_at(&mut r, 0, 0, int(100), int(20));
     // behind and closest; ahead and near; ahead and further
     put_at(&mut r, 1, 0, int(95), int(20));
-    put_at(&mut r, 2, int(3), int(120), int(20));
-    put_at(&mut r, 3, 0, int(130), int(20));
+    put_at(&mut r, 2, int(3), int(140), int(20));
+    put_at(&mut r, 3, 0, int(150), int(20));
     for i in 1..4 {
         r.racers[i].ape.vel = v3(0, 0, int(15));
     }
@@ -359,17 +359,45 @@ fn a_hook_takes_the_nearest_ape_ahead_not_one_behind_and_pulls_it_back() {
     r.racers[0].item = Some(Item::Hook);
     use_item(&mut r, 0, &press());
     assert_eq!(r.shots[0].target, Some(2));
-    fly_until_hit(&mut r, HOOK_LIFE);
-    assert_eq!(hits(&r), vec![(2, 0, Item::Hook)]);
+    for _ in 0..HOOK_LIFE {
+        if r.shots.is_empty() {
+            break;
+        }
+        step(&mut r);
+    }
+    assert!(r.shots.is_empty());
+    // the hooked ape is not hit, slowed or pulled back (TRIAGE T90)
+    assert!(hits(&r).is_empty());
+    assert_eq!(r.racers[2].ape.stun, 0);
+    assert_eq!(r.tows.len(), 1);
+    // the user is towed forward, for longer than one tick: hold everyone
+    // still in the air and watch the user's speed toward it build
+    let mut gained = Vec::new();
+    for _ in 0..secs_to_ticks(150) {
+        for i in 0..4 {
+            r.racers[i].ape.pos.y = int(20);
+            r.racers[i].ape.vel.y = 0;
+        }
+        r.racers[2].ape.vel = v3(0, 0, int(15));
+        let before = r.racers[0].ape.vel.z;
+        step(&mut r);
+        gained.push(r.racers[0].ape.vel.z - before);
+    }
+    let late = &gained[gained.len() - 10..];
     assert!(
-        r.racers[2].ape.vel.z < 0,
-        "pulled back: {:?}",
+        late.iter().all(|&g| g > 0),
+        "still towed after 1.5 s: {late:?}"
+    );
+    assert!(
+        r.racers[2].ape.vel.z >= int(15) - ONE / 10,
+        "{:?}",
         r.racers[2].ape.vel
     );
-    assert!(r.racers[2].ape.stun > 0);
-    assert!(r.racers[0].ape.vel.z > int(5), "the user is pulled forward");
-    assert_eq!(r.racers[3].ape.vel, v3(0, 0, int(15)));
-    assert!(r.shots.is_empty());
+    // it lets go by `HOOK_TOW_TIME`
+    for _ in 0..HOOK_TOW_TIME {
+        step(&mut r);
+    }
+    assert!(r.tows.is_empty());
 }
 
 #[test]
