@@ -13,7 +13,7 @@ use crate::course::Course;
 use crate::fx::{self, int, mul, ONE};
 use crate::geom::{facing, v3, yaw_of, Affine, V3};
 use crate::mesh::Mesh;
-use crate::race::{Driver, Event, Item, Race, Shot, Summon};
+use crate::race::{Driver, Event, Item, Race, Shot, Summon, Tow};
 use crate::render::{self, placed, rgb, rod, Batch};
 use crate::rules::*;
 use serde::{Deserialize, Serialize};
@@ -328,6 +328,7 @@ pub fn roll_among(
 pub fn step(race: &mut Race) {
     pickups(race);
     fly(race);
+    tow(race);
     expire(race);
 }
 
@@ -453,9 +454,7 @@ fn fly(race: &mut Race) {
                     let step = mul(HOOK_SPEED, DT);
                     if to.len() <= step + BODY_RADIUS {
                         s.pos = s.pos.add(to);
-                        if owned {
-                            hooked(race, t, s.by);
-                        }
+                        hooked(race, t, s.by);
                         true
                     } else {
                         s.vel = to.with_len(HOOK_SPEED);
@@ -505,18 +504,36 @@ pub fn turn_toward(from: V3, to: V3, max: i32) -> V3 {
         .norm()
 }
 
-/// The Hook arrives: the target is hit and pulled back, and the user is
-/// pulled toward it.
+/// The Hook arrives: it tows the user toward the target for
+/// `HOOK_TOW_TIME` and leaves the target alone (TRIAGE T90).
 fn hooked(race: &mut Race, target: usize, by: usize) {
-    strike(race, target, by, Item::Hook);
-    if race.racers[by].driver != Driver::Remote {
-        let dir = race.racers[target]
-            .ape
-            .pos
-            .sub(race.racers[by].ape.pos)
-            .norm();
-        let me = &mut race.racers[by].ape;
-        me.vel = me.vel.add(dir.scale(HOOK_GAIN));
+    race.tows.retain(|t| t.by != by);
+    race.tows.push(Tow {
+        by,
+        to: target,
+        left: HOOK_TOW_TIME,
+    });
+}
+
+/// Each tow pulls its user toward the ape it hooked (only an ape this
+/// browser moves; the others' tows are kept for the rope), until its time
+/// is up, the user catches it, or either is out of the race.
+fn tow(race: &mut Race) {
+    let tows = std::mem::take(&mut race.tows);
+    for mut t in tows {
+        t.left -= 1;
+        let (Some(by), Some(to)) = (race.racers.get(t.by), race.racers.get(t.to)) else {
+            continue;
+        };
+        let gap = to.ape.middle().sub(by.ape.middle());
+        if t.left <= 0 || by.out() || to.out() || !gap.longer_than(HOOK_CAUGHT) {
+            continue;
+        }
+        if by.driver != Driver::Remote {
+            let me = &mut race.racers[t.by].ape;
+            me.vel = me.vel.add(gap.with_len(mul(HOOK_TOW, DT)));
+        }
+        race.tows.push(t);
     }
 }
 
@@ -557,11 +574,8 @@ fn effect(race: &mut Race, who: usize, by: usize, item: Item) {
             let push = ape.pos.sub(from).flat().with_len(mul(STICK_PUSH, scale));
             ape.hit(STICK_KEEP, STICK_STUN, push);
         }
-        Item::Hook => {
-            let pull = from.sub(ape.pos).with_len(mul(HOOK_PULL, scale));
-            ape.hit(HOOK_KEEP, HOOK_STUN, pull);
-        }
-        Item::Boost | Item::Vine => return,
+        // (a Hook no longer hits: it tows its user, TRIAGE T90)
+        Item::Hook | Item::Boost | Item::Vine => return,
     }
     race.events.push(Event::Body {
         who,
@@ -604,6 +618,13 @@ pub fn draw(b: &mut Batch, race: &Race) {
                 draw_hook(b, from, s.pos, s.vel);
             }
             Item::Stick | Item::Boost | Item::Vine => {}
+        }
+    }
+    // a caught Hook's rope, from its user to the ape it tows toward
+    for t in &race.tows {
+        if let (Some(by), Some(to)) = (race.racers.get(t.by), race.racers.get(t.to)) {
+            let at = to.ape.middle();
+            draw_hook(b, by.ape.pos, at, at.sub(by.ape.pos));
         }
     }
     for (i, r) in race.racers.iter().enumerate() {
