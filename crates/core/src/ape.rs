@@ -653,6 +653,13 @@ impl Ape {
         if course.ruins.is_some() {
             self.hit_facade(course, before);
         }
+        // Banana Bay Battle: the treasure chest is solid
+        if let Some(b) = course.bay.as_deref() {
+            if let Some((p, v)) = b.island.chest_push(self.pos, self.vel) {
+                (self.pos, self.vel) = (p, v);
+                self.happened.push(Happening::Wall);
+            }
+        }
         // Sector Ape: the ships, the debris and the door
         if course.sector.is_some() {
             self.hit_bodies(course, tick, before);

@@ -75,6 +75,11 @@ const HOP_MOST: i32 = int(26);
 /// How far each ship lies side by side with the enemy before it, at least.
 const BESIDE: i32 = int(12);
 
+/// Half the width of the island's flat lanes platform (the course's half
+/// width before the fleet overhaul widened it to `HALF_WIDTH`: the island
+/// is no wider, BO).
+const ISLAND_LANES: i32 = int(20);
+
 /// How many passes push the ships into place. The rules pull against each
 /// other (a pair side by side, the bowsprit ahead, the longest hop), so the
 /// passes stop short of a fixed point: three settle every layout tried
@@ -650,22 +655,12 @@ pub fn bay_seeded(seed: u64) -> Course {
     }
 
     // the island: a beach from just past the last bow on past the finish
-    // (a finished ape coasts on); a row of palms over the beach
-    let last = c.path.len() - 1;
-    let lh = c.heading[last];
-    let reach = crate::course::OUTRO;
-    let centre = c.path[last].add(lh.scale(int(50)));
-    let radius = length + int(50) - beach;
-    let from = c.point(beach);
-    let to = c.path[last].add(lh.scale(reach));
-    let mid = from.add(to).scale(ONE / 2);
-    c.platforms.push(Platform {
-        centre: v3(mid.x, ISLAND_TOP, mid.z),
-        fwd: lh,
-        half_len: to.sub(from).dot(lh) / 2,
-        half_width: int(42),
-        top: ISLAND_TOP,
-    });
+    // (a finished ape coasts on); a row of palms over the beach. Its
+    // ground is `island::Island::ground` (`Course::support`); the
+    // platform under the lanes is only the camera's floor there.
+    let island = island::build(&c, beach, &mut Dice(seed ^ 0x15_1A4D));
+    c.platforms
+        .push(island::lanes_platform(&island, ISLAND_LANES));
     let mut here = Vec::new();
     {
         let r = right_of(c.heading_at(palms_at));
@@ -686,15 +681,6 @@ pub fn bay_seeded(seed: u64) -> Course {
         }
     }
     stations.push((palms_at, here));
-    let chest = c.path[last].add(lh.scale(int(28)));
-    let island = Island {
-        centre: v3(centre.x, ISLAND_TOP, centre.z),
-        radius,
-        chest: v3(chest.x, ISLAND_TOP, chest.z),
-        chest_yaw: yaw_of(lh.neg()),
-        chest_size: v3(int(16), int(8), int(10)),
-    };
-
     c.vines = put.vines;
     // the two lines' stations interleave: in course order, and every
     // other one counted, as many arcs as one line of stations gave

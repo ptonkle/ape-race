@@ -45,6 +45,7 @@ use crate::snow::Weather;
 
 pub mod battle;
 pub mod fleet;
+pub mod island;
 pub mod lobby;
 
 /// The sun's height over the horizon: 3 pm, high but not overhead.
@@ -439,8 +440,8 @@ fn surface_of(w: &Water, x: i32, z: i32, tick: u32, storm: bool, chop: bool) -> 
 /// island's beach or under the dock).
 fn shallows(bay: &BayLayout, x: i32, z: i32) -> i32 {
     let p = v3(x, 0, z);
-    let isl = bay.island;
-    let d = p.sub(isl.centre.flat()).len() - isl.radius;
+    // out from the island's own shore (its lobes and coves)
+    let d = -bay.island.inland(x, z);
     let by_island = ONE - fx::div(d.clamp(0, int(60)), int(60));
     // the dock runs out from the shore: shallow along it and behind it
     let (a, e) = (bay.dock.from.flat(), bay.dock.to.flat());

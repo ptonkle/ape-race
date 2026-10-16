@@ -526,6 +526,18 @@ impl Course {
                 top = pl.top;
             }
         }
+        // Banana Bay Battle: the finish island's ground and its chest
+        if let Some(b) = self.bay.as_deref() {
+            let isl = &b.island;
+            for h in [isl.ground(p.x, p.z), isl.chest_top(p.x, p.z)]
+                .into_iter()
+                .flatten()
+            {
+                if feet >= h - cm(60) && h > top {
+                    top = h;
+                }
+            }
+        }
         top
     }
 
