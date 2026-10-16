@@ -36,7 +36,7 @@ maps-ski = "the Ski Slope (Yeti Peak)"
 maps-sector = "Sector Ape (space)"
 maps-ruins = "Sunset Ruins"
 maps-bay = "Banana Bay Battle"
-maps-tower = "Mape's Tower"
+maps-tower = "Mape's Tower (the wizard tower)"
 
 # Tags whose tests always run in a quick check.
 [always]
@@ -151,6 +151,10 @@ tags = ["boundary"]
 # integration tests: a change to one runs it
 "crates/core/tests/ai.rs" = ["ai", "maps-jungle"]
 "crates/core/tests/bay_ai.rs" = ["ai", "maps-bay"]
+"crates/core/src/tower.rs" = ["maps-tower"]
+"crates/core/src/tower/**" = ["maps-tower"]
+"crates/core/src/towerscape.rs" = ["maps-tower", "render"]
+"crates/core/tests/tower_ai.rs" = ["ai", "maps-tower"]
 "crates/core/tests/city_ai.rs" = ["ai", "maps-city"]
 "crates/core/tests/ruins_ai.rs" = ["ai", "maps-ruins"]
 "crates/core/tests/sector_ai.rs" = ["ai", "maps-sector"]
@@ -245,7 +249,7 @@ tags = ["boundary"]
 "lib:app::lava_tests::" = ["race", "camera", "replay", "menus"]
 "lib:app::look_tests::" = ["costumes", "render", "menus", "replay"]
 "lib:app::map_tests::" = ["menus", "replay", "race"]
-"lib:app::map_tests::in_a_race_on_every_map_the_scenery_is_cut_round_the_followed_ape" = ["camera", "render", "race", "maps-jungle", "maps-city", "maps-ski", "maps-sector", "maps-ruins", "maps-bay"]
+"lib:app::map_tests::in_a_race_on_every_map_the_scenery_is_cut_round_the_followed_ape" = ["camera", "render", "race", "maps-jungle", "maps-city", "maps-ski", "maps-sector", "maps-ruins", "maps-bay", "maps-tower"]
 "lib:app::medals::" = ["race", "menus"]
 "lib:app::menu_dock::" = ["menus", "camera", "maps-bay", "maps-ruins", "maps-city", "maps-jungle"]
 "lib:app::notes_tests::" = ["notes", "menus"]
@@ -260,6 +264,7 @@ tags = ["boundary"]
 "lib:baymodels::" = ["maps-bay", "render"]
 "lib:bayscape::" = ["maps-bay", "render"]
 "lib:towermodels::" = ["maps-tower", "render"]
+"lib:tower::" = ["maps-tower", "physics", "race", "maps-jungle", "maps-city", "maps-ski", "maps-sector", "maps-ruins", "maps-bay"]
 "lib:camera::" = ["camera"]
 "lib:camera::hulls::" = ["camera", "maps-bay"]
 "lib:city::" = ["maps-city", "physics"]
@@ -325,6 +330,7 @@ tags = ["boundary"]
 # integration tests: whole races, so they carry every concern a race has
 "test:ai" = ["ai", "physics", "race", "items", "maps-jungle"]
 "test:bay_ai" = ["ai", "physics", "race", "items", "maps-bay"]
+"test:tower_ai" = ["ai", "physics", "race", "camera", "maps-tower"]
 "test:city_ai" = ["ai", "physics", "race", "items", "maps-city"]
 "test:ruins_ai" = ["ai", "physics", "race", "items", "maps-ruins"]
 "test:sector_ai" = ["ai", "physics", "race", "items", "maps-sector"]
@@ -354,7 +360,7 @@ whats_new = ["notes", "menus"]
 city_map = ["menus", "maps-city", "maps-ski", "maps-jungle", "render"]
 weather = ["weather", "maps-ski", "menus", "render"]
 setup_layout = ["menus", "costumes", "weather"]
-random_map = ["menus", "race", "maps-city", "maps-jungle", "maps-sector", "maps-ruins", "maps-bay"]
+random_map = ["menus", "race", "maps-city", "maps-jungle", "maps-sector", "maps-ruins", "maps-bay", "maps-tower"]
 
 # Online check steps (scripts/check-online.sh) -> tags. They run only on
 # these tags (or `all`), never for `page` alone.

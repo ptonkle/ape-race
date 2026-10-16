@@ -100,7 +100,7 @@ impl Gear {
             crate::map::Map::Ruins => Gear::Explorer,
             crate::map::Map::Bay => Gear::Pirate,
             crate::map::Map::City => Gear::Tourist,
-            // TODO(tower integrator): `crate::map::Map::Tower => Gear::Wizard,` once Map::Tower is on this branch
+            crate::map::Map::Tower => Gear::Wizard,
             _ => Gear::None,
         }
     }
@@ -3234,7 +3234,7 @@ impl BigCat {
             crate::map::Map::Sector => SPACE_JAGUAR,
             crate::map::Map::Ruins => RUINS_JAGUAR,
             crate::map::Map::Bay => NAVY_JAGUAR,
-            // TODO(tower integrator): `crate::map::Map::Tower => FLAME_CAT,` once Map::Tower is on this branch
+            crate::map::Map::Tower => FLAME_CAT,
             _ => JAGUAR,
         }
     }

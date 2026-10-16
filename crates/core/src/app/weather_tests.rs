@@ -49,7 +49,9 @@ fn the_weather_is_in_settings_clear_by_default_and_kept_after_a_reload() {
             "Clear",
             "Snowing (Yeti Peak)",
             "Blizzard (Yeti Peak)",
-            "Squall (Banana Bay Battle)"
+            "Squall (Banana Bay Battle)",
+            "Twilight (Mape's Tower)",
+            "Dawn (Mape's Tower)"
         ]
     );
     a.act("settings.weather", "snowing");
@@ -222,6 +224,7 @@ fn on_the_ski_slope_the_racers_wear_their_gear_and_elsewhere_none() {
             Map::Ruins => models::Gear::Explorer,
             Map::Bay => models::Gear::Pirate,
             Map::City => models::Gear::Tourist,
+            Map::Tower => models::Gear::Wizard,
             _ => models::Gear::None,
         };
         assert_eq!(pose.gear, want, "{map:?}");
@@ -280,6 +283,7 @@ fn a_squall_is_offered_on_banana_bay_battle_only() {
             .unwrap_or_default();
         match map {
             Map::Bay => assert_eq!(values, ["clear", "squall"]),
+            Map::Tower => assert_eq!(values, ["clear", "twilight", "dawn"]),
             Map::Ski => assert_eq!(values, ["clear", "snowing", "blizzard"]),
             _ => assert!(values.is_empty(), "{map:?} offers {values:?}"),
         }

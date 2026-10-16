@@ -43,15 +43,21 @@ pub enum Weather {
     Blizzard,
     /// Banana Bay Battle's storm: rain, a dark sky, a rough sea, lightning
     Squall,
+    /// Mape's Tower at twilight (a light, nothing falls; STAND-IN sky)
+    Twilight,
+    /// Mape's Tower at dawn (a light, nothing falls; STAND-IN sky)
+    Dawn,
 }
 
 impl Weather {
     /// Every weather, in the order the Weather selects offer them.
-    pub const ALL: [Weather; 4] = [
+    pub const ALL: [Weather; 6] = [
         Weather::Clear,
         Weather::Snowing,
         Weather::Blizzard,
         Weather::Squall,
+        Weather::Twilight,
+        Weather::Dawn,
     ];
 
     /// The setting's word, and `weather.<key>` in data/strings.json.
@@ -61,12 +67,15 @@ impl Weather {
             Weather::Snowing => "snowing",
             Weather::Blizzard => "blizzard",
             Weather::Squall => "squall",
+            Weather::Twilight => "twilight",
+            Weather::Dawn => "dawn",
         }
     }
 
-    /// Whether snow or rain falls in it.
+    /// Whether snow or rain falls in it (Mape's Tower's twilight and dawn
+    /// are lights only).
     pub fn falls(self) -> bool {
-        self != Weather::Clear
+        fall_of(self).is_some()
     }
 
     /// The weathers a map offers, in the order its select lists them:
@@ -76,6 +85,7 @@ impl Weather {
         match map {
             Map::Ski => &[Weather::Clear, Weather::Snowing, Weather::Blizzard],
             Map::Bay => &[Weather::Clear, Weather::Squall],
+            Map::Tower => &[Weather::Clear, Weather::Twilight, Weather::Dawn],
             _ => &[Weather::Clear],
         }
     }
@@ -204,6 +214,7 @@ fn fall_of(w: Weather) -> Option<Fall> {
         Weather::Snowing => Some(SNOWING),
         Weather::Blizzard => Some(BLIZZARD),
         Weather::Squall => Some(RAIN),
+        Weather::Twilight | Weather::Dawn => None,
     }
 }
 
@@ -363,6 +374,8 @@ pub fn sky_in(w: Weather, look: Look) -> Look {
         Weather::Snowing => overcast(look),
         Weather::Blizzard => whiteout(look),
         Weather::Squall => crate::bayscape::squall(look),
+        Weather::Twilight => crate::towerscape::twilight(look),
+        Weather::Dawn => crate::towerscape::dawn(look),
     }
 }
 

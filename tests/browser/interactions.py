@@ -40,7 +40,7 @@ def chosen_map(page):
     return page.eval_on_selector_all("[id='setup.map'] .tile.chosen, [id='setup.map'] .card.chosen", "ts => ts.map(t => t.dataset.value)")
 
 
-MAPS = [STRINGS["map." + k] for k in ["jungle", "city", "ski", "sector", "ruins", "bay", "random"]]
+MAPS = [STRINGS["map." + k] for k in ["jungle", "city", "ski", "sector", "ruins", "bay", "tower", "random"]]
 
 
 def step_boot(page, check):

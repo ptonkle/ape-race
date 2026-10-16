@@ -1167,6 +1167,25 @@ fn a_client_from_before_banana_bay_battle_is_refused_not_misled() {
     assert_eq!(net.nodes[0].lobby().seats.len(), 1);
 }
 
+#[test]
+fn a_client_from_before_mapes_tower_is_refused_not_misled() {
+    // PROTOCOL 12 did not know `tower`: it is told to update instead
+    let mut net = Net::new(2, 3, 20, 10);
+    net.nodes[1] = Online::join("client1", "Old", Kind::Lemur, 0).with_protocol(12);
+    net.lb.connect_all();
+    net.run(1000);
+    assert_eq!(
+        *net.nodes[1].status(),
+        Status::Refused {
+            reason: Refusal::WrongVersion {
+                host: tool_core::online::PROTOCOL,
+                mine: 12
+            }
+        }
+    );
+    assert_eq!(net.nodes[0].lobby().seats.len(), 1);
+}
+
 // ---- no path between two joiners (TRIAGE T71) ----------------------------
 
 #[test]

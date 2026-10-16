@@ -1663,7 +1663,8 @@ fn on_ground(a: &Ape, course: &Course, tick: u32, brain: &mut Brain) -> Controls
         // over vines hanging below it)
         // (Banana Bay Battle: a deck too: running off it at a rope out of
         // reach only drops the ape into the water and back on the deck)
-        if (!raised || course.sector.is_some() || course.bay.is_some())
+        // (Mape's Tower: a reset pad too)
+        if (!raised || course.sector.is_some() || course.bay.is_some() || course.tower.is_some())
             && course.vine_bottom(i, tick) > top
         {
             continue;

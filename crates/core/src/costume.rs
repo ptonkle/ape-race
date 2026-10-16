@@ -95,8 +95,6 @@ impl Costume {
             Gear::Explorer => Some(Costume::Explorer),
             Gear::Pirate => Some(Costume::Pirate),
             Gear::Tourist => Some(Costume::Tourist),
-            // unlocked on Mape's Tower once `Gear::on(Map::Tower)` is the
-            // wizard's (TODO(tower integrator), models.rs)
             Gear::Wizard => Some(Costume::Wizard),
         }
     }
