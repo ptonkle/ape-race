@@ -1,6 +1,10 @@
 # Mape's Tower: overnight, 2026-10-15
 
-**State:** building on branch `tower` (worktree `~/slop/ape-race-tower`), not deployed. The live game (main) is untouched. Steps: `notes/tower-progress.md`.
+**State (06:00-ish):** Mape's Tower is **built and checked** on branch `tower` (worktree `~/slop/ape-race-tower`), steps 1–18 done (`notes/tower-progress.md`), **not deployed**. All tests pass; check.sh in all three browsers; the online check passes in all three after a lobby fix.
+
+**To deploy when you say so:** merge `tower` into main, bump to 1.13.0 with patch notes (e.g. "New map: Mape's Tower." / "New costumes: Wizard and Tourist."), quick check, push main.
+
+**Also waiting on main, unpushed:** the Concrete Jungle **Tourist** costume, and a lobby fix (a long name with Proboscis Monkey scrolled the online lobby sideways by 9 px in Firefox and Safari; I'd only checked Chrome). They go out with the tower, or alone if you'd rather.
 
 ## If the session stopped (token limit)
 
