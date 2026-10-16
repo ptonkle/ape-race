@@ -291,12 +291,22 @@ fn build(c: &Course, t: &TowerLayout, sink: &mut Sink) -> Vec<Option<V3>> {
     // the orb's runes, the descent's creatures (one close to another
     // casts both beams)
     let mut creatures: Vec<(V3, V3)> = Vec::new();
+    let mut riders: Vec<(V3, V3)> = Vec::new();
     let mut clouds = Vec::new();
     for (i, h) in t.hangers.iter().enumerate() {
         let a = c.anchor(i, 0);
         let spell = spell_of(t, i);
         match *h {
             Hanger::Dragon { at: round } => {
+                // (a dragon close to another's beams shares its rider)
+                if let Some(&(_, tip)) = riders.iter().find(|(p, _)| !p.sub(a).longer_than(int(10)))
+                {
+                    put("dragons", Some(a), &mut |b| {
+                        m::spell_beam(b, &Affine::IDENTITY, tip, a, spell, tick, i as u32)
+                    });
+                    tips[i] = Some(tip);
+                    continue;
+                }
                 let out = a.sub(round).flat();
                 let yaw = yaw_of(v3(out.z, 0, -out.x));
                 let hide = [m::Hide::Emerald, m::Hide::Crimson, m::Hide::Bronze][i % 3];
@@ -307,6 +317,7 @@ fn build(c: &Course, t: &TowerLayout, sink: &mut Sink) -> Vec<Option<V3>> {
                 put("dragons", Some(a), &mut |b| {
                     tip = m::dragon(b, &f, hide, m::Wings::Glide, spell, tick, i as u32);
                 });
+                riders.push((a, tip));
                 tips[i] = Some(tip);
             }
             Hanger::Cloud { .. } => {
@@ -427,18 +438,19 @@ fn build(c: &Course, t: &TowerLayout, sink: &mut Sink) -> Vec<Option<V3>> {
     let s = &t.summit;
     let f = at(s.wizard, s.wizard_yaw);
     put("summit", Some(s.wizard), &mut |b| {
-        m::mad_wizard(b, &f, tick)
+        m::mad_wizard(b, &f, tick);
+        // (he stands on a floating rune stone, not on the air)
+        m::rune_stone(b, &f, int(5), tick, 7)
     });
     let facing = yaw_of(s.through.neg());
     let (half_h, half_w) = s.tear_half;
     let rift = at(s.tear.sub(v3(0, half_h, 0)), facing);
-    let depth = s.banana.sub(s.tear).dot(s.through) + s.banana_len;
+    // the void a flat sheet just behind the tear (not a deep staircase
+    // seen from the side, TZ3), the banana pressed between them
+    let behind = s.banana.sub(s.tear).dot(s.through);
     put("summit", Some(s.tear), &mut |b| {
-        m::torn_rift(b, &rift, half_w * 2, half_h * 2, ONE, depth, tick)
-    });
-    let f = at(s.banana, facing);
-    put("summit", None, &mut |b| {
-        m::eldritch_banana(b, &f, s.banana_len, tick)
+        m::torn_rift(b, &rift, half_w * 2, half_h * 2, ONE, behind * 2, tick);
+        m::banana_in_rift(b, &rift, half_h * 2, s.banana_len, behind, tick)
     });
 
     // the zipper: the zip down the void, the sub-towers hung topsy-turvy
@@ -527,10 +539,11 @@ mod tests {
         for (i, tip) in tips.iter().enumerate() {
             let tip = tip.unwrap_or_else(|| panic!("vine {i} ({:?}) has no caster", t.hangers[i]));
             // the caster's beam reaches the anchor (a spell beam from a
-            // staff's tip, else the tip is the anchor)
+            // staff's tip, else the tip is the anchor), none longer than
+            // 30 m (TA5: the summit's ran to 54 m)
             let a = c.anchor(i, 0);
             assert!(
-                !tip.sub(a).longer_than(int(60)),
+                !tip.sub(a).longer_than(int(30)),
                 "vine {i} ({:?}): caster {} m from its anchor",
                 t.hangers[i],
                 tip.sub(a).len() / ONE

@@ -208,7 +208,8 @@ pub struct Summit {
     pub tear: V3,
     pub tear_half: (i32, i32),
     pub through: V3,
-    /// the eldritch banana beyond the tear: its middle and length
+    /// the eldritch banana just beyond the tear, seen only through it:
+    /// its middle and length
     pub banana: V3,
     pub banana_len: i32,
 }
