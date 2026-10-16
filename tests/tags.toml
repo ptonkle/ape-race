@@ -195,6 +195,15 @@ tags = ["boundary"]
 "scripts/patch_notes_html.py" = []
 
 # ---------------------------------------------------------------------------
+# A changed file whose diff touches only lines matching these patterns (Python
+# regular expressions over the whole line) takes these tags instead of its
+# [sources] tags. Every deploy bumps VERSION in app.rs; on its own that is a
+# patch-notes change, not a change to the nine features app.rs carries. Any
+# other changed line in the file keeps its [sources] tags.
+[lines]
+"crates/core/src/app.rs" = { patterns = ['^pub const VERSION: &str = "[^"]*";$'], tags = ["notes"] }
+
+# ---------------------------------------------------------------------------
 # Cargo tests -> tags. A key is `<target>:<name prefix>`: `lib:` for the
 # core's own tests by module path, `test:<file>` for an integration test file
 # (crates/core/tests/<file>.rs), optionally with `:<name prefix>`. The

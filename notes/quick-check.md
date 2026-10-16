@@ -7,6 +7,7 @@ The person, 2026-10-15: "give a go at classifying each of the unit tests and the
 - `tests/tags.toml` holds the tags (22, each with a one-line meaning), then four maps:
   `[sources]` globs over repository paths → tags; `[tests]` cargo tests by `lib:<module path prefix>` or `test:<file>[:<name prefix>]` (longest key wins) → tags; `[browser]` the 11 steps of `tests/browser/interactions.py` → tags; `[online]` the two online checks → tags.
 - `scripts/quick-check.sh [base]` (a wrapper for `scripts/tags.py quick`): the base is the commit of the newest passing `check` row in `notes/check-times.md`; changed files are `base..HEAD`, the working tree and untracked files. Prints files → tags, then runs: format, lint (always); the selected cargo tests in one `cargo test --workspace --lib --tests -- --exact <names>` (by name, so merging test files into one binary needs only new `[tests]` keys); release build and import audit (always); the browser check in Chromium with only the selected steps (`BUILDER_STEPS`; `boot` and the closing no-error/no-network checks always run; `page` runs every step); the online steps only on the `online` tag.
+- Line rules: `[lines]` in `tags.toml` gives a file other tags when every changed line of its diff (base to the working tree, or the range) matches one of its patterns. Today one rule: a diff to `app.rs` that only bumps `pub const VERSION` is tagged `notes`, not app.rs's nine feature tags, so a deploy's version bump no longer runs most of the suite. Any other changed line in `app.rs` keeps its normal tags.
 - `ALL_BROWSERS=1` (or `--all-browsers`) adds Firefox and WebKit: for a map merge or a big CSS/JS change. Evidence for Chromium only: in about 660 commits no game bug failed in just one engine (the one Firefox-only failure was the test's hover wobble, fixed in 318a8e4; the one Chromium-only failure was machine load).
 - Fail safe: a changed file no glob matches prints its name and runs everything; foundations (`fx.rs`, `geom.rs`, `api.rs`, `map.rs`, `lib.rs`, the shim, `Cargo.*`, `build.sh`, `check.sh`, `index.html`, `web/vendor/`, `tags.toml`, `tags.py`) are tagged `all`. Docs, notes and briefs run nothing. `boundary` tests (the purity scanner) always run.
 - The guard: `check.sh` step 4/7 runs `scripts/tags.py guard`, which fails on an untagged cargo test, browser step or online step, a stale key, an unknown tag, or a tracked file no glob matches.
@@ -37,6 +38,6 @@ The saving is largest for the common small changes (patch notes, one feature's m
 
 ## Limits
 
-- A test is only as safe as its tags. Tags are per file or name prefix; when unsure the file got the wider tag. `app.rs` carries most feature tags; edits there run much of the suite.
+- A test is only as safe as its tags. Tags are per file or name prefix; when unsure the file got the wider tag. `app.rs` carries most feature tags; edits there run much of the suite (a version bump alone runs only `notes`).
 - Timeouts of 5 s in the browser steps fail under heavy load (SECOND-ORDER QC3); in quiet conditions they pass.
 - The full `check.sh`, three engines, stays the gate before a map merge or a big change.

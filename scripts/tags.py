@@ -13,6 +13,10 @@ quick options:
     --all-browsers    browser and online checks in Chromium, Firefox and
                       WebKit (also ALL_BROWSERS=1); Chromium only otherwise
 
+A file listed in [lines] whose every changed line matches one of its patterns
+takes that rule's tags instead of its [sources] tags (a VERSION bump alone in
+app.rs is `notes`).
+
 The base defaults to the commit of the newest passing `check` row in
 notes/check-times.md, so a quick check only ever skips relative to a full pass.
 """
@@ -154,6 +158,13 @@ def guard():
         for k, tags in cfg[section].items():
             check_names(f"[{section}] {k}", tags)
     check_names("[always]", cfg["always"]["tags"])
+    for path, rule in cfg.get("lines", {}).items():
+        check_names(f"[lines] {path}", rule["tags"])
+        for pat in rule["patterns"]:
+            try:
+                re.compile(pat)
+            except re.error as e:
+                problems.append(f"[lines] {path}: bad pattern {pat!r}: {e}")
 
     ids = cargo_tests()
     used = set()
@@ -215,11 +226,34 @@ def changed_files(base, rng):
     return sorted(files)
 
 
-def plan(cfg, files):
+def changed_lines(base, rng, path):
+    """The added and removed lines of one file's diff (base to the working
+    tree, or the range), without the diff's own headers."""
+    out = sh(["git", "diff", "-U0", "--no-color", rng or base, "--", path])
+    return [ln[1:] for ln in out.splitlines()
+            if ln[:1] in "+-" and not ln.startswith(("+++ ", "--- "))]
+
+
+def line_tags(cfg, base, rng, path):
+    """The [lines] tags of a file whose every changed line matches one of its
+    patterns, or None (its [sources] tags then apply)."""
+    rule = cfg.get("lines", {}).get(path)
+    if not rule:
+        return None
+    lines = changed_lines(base, rng, path)
+    pats = [re.compile(p) for p in rule["patterns"]]
+    if lines and all(any(p.search(ln) for p in pats) for ln in lines):
+        return set(rule["tags"])
+    return None
+
+
+def plan(cfg, files, base=None, rng=None):
     hit = set(cfg["always"]["tags"])
     rows = []
     for f in files:
-        tags = file_tags(cfg, f)
+        tags = line_tags(cfg, base, rng, f)
+        if tags is None:
+            tags = file_tags(cfg, f)
         if tags is None:
             print(f"  {f} matches no glob in tests/tags.toml: running everything")
             tags = {ALL}
@@ -239,7 +273,7 @@ def quick(args):
     base = rest[0] if rest else (None if rng else default_base())
     cfg = load()
     files = changed_files(base, rng)
-    rows, hit = plan(cfg, files)
+    rows, hit = plan(cfg, files, base, rng)
 
     print(f"== quick check: changes {rng or base + '..HEAD + working tree'}")
     for f, tags in rows:
