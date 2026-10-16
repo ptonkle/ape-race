@@ -24,16 +24,18 @@ pub enum Map {
     Sector,
     Ruins,
     Bay,
+    Tower,
 }
 
 impl Map {
-    pub const ALL: [Map; 6] = [
+    pub const ALL: [Map; 7] = [
         Map::Jungle,
         Map::City,
         Map::Ski,
         Map::Sector,
         Map::Ruins,
         Map::Bay,
+        Map::Tower,
     ];
 
     /// The map's key: the course's `name`, the replay library's and the
@@ -46,6 +48,7 @@ impl Map {
             Map::Sector => "sector",
             Map::Ruins => "ruins",
             Map::Bay => "bay",
+            Map::Tower => "tower",
         }
     }
 
@@ -78,6 +81,7 @@ impl Map {
             Map::Sector => crate::sector::sector(),
             Map::Ruins => crate::ruins::ruins(),
             Map::Bay => crate::bay::bay(),
+            Map::Tower => crate::tower::tower(),
         }
     }
 

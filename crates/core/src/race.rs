@@ -419,6 +419,10 @@ impl Race {
             if self.bay_water(i) {
                 continue;
             }
+            // Mape's Tower: the boundary and the reset pads
+            if self.tower_rules(i) {
+                continue;
+            }
             if self.floor_is_lava(i) {
                 self.eat(i);
                 continue;

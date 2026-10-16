@@ -57,6 +57,8 @@ pub mod snow;
 pub mod sound;
 pub mod spacecraft;
 pub mod speedo;
+pub mod tower;
+pub mod towerscape;
 pub mod trial;
 pub mod vehicles;
 pub mod vinesim;

@@ -126,6 +126,7 @@ pub fn look(map: Map) -> Look {
         Map::Sector => crate::sectorscape::look(),
         Map::Ruins => crate::ruinsscape::look(),
         Map::Bay => crate::bayscape::look(),
+        Map::Tower => crate::towerscape::look(),
     }
 }
 
@@ -143,6 +144,8 @@ pub fn look_of(c: &Course) -> Look {
         Map::Ruins => crate::ruinsscape::look_for(c),
         // 3 pm, the sun high and to the left of the course
         Map::Bay => crate::bayscape::look_for(c),
+        // STAND-IN (Mape's Tower's skeleton): a neutral late afternoon
+        Map::Tower => crate::towerscape::look(),
     }
 }
 
@@ -453,6 +456,9 @@ pub(crate) fn chunk_of(c: &Course, p: V3, n: usize) -> usize {
 /// Builds the course's scenery and ground, chunked. The City has its own
 /// (`cityscape.rs`).
 pub fn scenery(c: &Course) -> Scenery {
+    if let Some(t) = &c.tower {
+        return crate::towerscape::scenery(c, t);
+    }
     if let Some(city) = &c.city {
         return crate::cityscape::scenery(c, city);
     }
@@ -1861,6 +1867,9 @@ pub fn catch_up_colour(map: Map, vivid: bool) -> Rgb {
         // Banana Bay Battle: a hot scarlet against its tan hemp ropes and
         // the turquoise sea
         (Map::Bay, false) => crate::bayscape::fleet::CATCH_UP,
+        // STAND-IN (Mape's Tower's skeleton): a hot orange; the art agent
+        // chooses against the spell beams
+        (Map::Tower, false) => rgb(255, 130, 30),
         // the colourblind mode (TRIAGE T33): told from the map's vivid
         // vine by brightness, not hue alone, and kept off the item flowers'
         // violet: a deep red-orange under the bright green vines, a dark
@@ -1873,6 +1882,7 @@ pub fn catch_up_colour(map: Map, vivid: bool) -> Rgb {
         (Map::Sector, true) => rgb(255, 60, 70),
         (Map::Ruins, true) => rgb(200, 0, 120),
         (Map::Bay, true) => crate::bayscape::fleet::CATCH_UP_VIVID,
+        (Map::Tower, true) => rgb(230, 70, 0),
     }
 }
 
@@ -2191,7 +2201,8 @@ pub fn preview(c: &Course) -> Preview {
         Map::Ruins => crate::ruinsscape::preview(c),
         // the pier's planks, the battle fleet out ahead
         Map::Bay => crate::bayscape::lobby::preview(c),
-        Map::Jungle => {
+        // STAND-IN (Mape's Tower's skeleton): the start deck, as the Jungle's
+        Map::Jungle | Map::Tower => {
             let pl = c.platforms.first();
             let feet = pl.map_or(c.point(int(4)), |p| {
                 v3(p.centre.x, p.top, p.centre.z).add(p.fwd.scale(p.half_len / 2))
@@ -2228,6 +2239,10 @@ pub fn flyover_camera(c: &Course, ticks: u32, from: i32) -> Camera {
     if c.bay.is_some() {
         return crate::bayscape::lobby::flyover_camera(c, ticks, from);
     }
+    // up the climb and down the zipper, over the centreline's own height
+    if c.tower.is_some() {
+        return crate::towerscape::flyover_camera(c, ticks, from);
+    }
     let lap = (c.length - int(100)).max(int(1)) as i64;
     let s = ((ticks as i64 * int(6) as i64 / crate::rules::TICKS_PER_SECOND as i64 + from as i64)
         % lap) as i32
@@ -2249,7 +2264,7 @@ pub fn flyover_camera(c: &Course, ticks: u32, from: i32) -> Camera {
         Map::Ski => int(16),
         Map::Sector => int(20),
         Map::Ruins => int(14),
-        Map::Bay => int(14),
+        Map::Bay | Map::Tower => int(14),
     };
     let eye = v3(p.x, c.terrain(p.x, p.z) + lift, p.z);
     // down the Ski Slope's hill, the glide looks down it too

@@ -203,6 +203,10 @@ pub struct Course {
     /// Banana Bay Battle's ships, water, barrels, dock, island and cannon
     /// fire (`bay.rs`); `None` on the other maps
     pub bay: Option<Box<crate::bay::BayLayout>>,
+    /// Mape's Tower's keep, branches, room, clouds, summit, zipper, pads
+    /// and vine casters (`tower.rs`); `None` on the other maps. On this map
+    /// alone `path` and `heading` are 3D (TW1).
+    pub tower: Option<Box<crate::tower::TowerLayout>>,
 }
 
 /// A straight street of a course with sharp corners (the City). The
@@ -473,8 +477,9 @@ impl Course {
     /// Whether a body at `p` (the hands) stands on the jungle floor itself,
     /// not on a platform (Floor is Lava, TRIAGE T37).
     pub fn on_floor(&self, p: V3) -> bool {
-        // Sector Ape has no floor: crossing the boundary is its lava
-        if self.sector.is_some() {
+        // Sector Ape has no floor: crossing the boundary is its lava (and
+        // Mape's Tower's: its boundary, `tower_out`)
+        if self.sector.is_some() || self.tower.is_some() {
             return false;
         }
         let floor = self.floor(p.x, p.z);
@@ -552,6 +557,10 @@ impl Course {
     /// and z. The same answer as looking at them all: `nearest_scan`, the
     /// tests. The centreline is at height 0, so only x and z count.)
     pub fn nearest(&self, p: V3, hint: usize) -> usize {
+        // (Mape's Tower: its centreline climbs, so in 3D)
+        if self.tower.is_some() {
+            return self.nearest_3d(p, hint);
+        }
         let n = self.path.len();
         let lo = hint.saturating_sub(40);
         let hi = (hint + 40).min(n - 1);
@@ -611,6 +620,9 @@ impl Course {
 
     /// The nearest sample by a search of the whole centreline.
     pub fn nearest_anywhere(&self, p: V3) -> usize {
+        if self.tower.is_some() {
+            return self.nearest_anywhere_3d(p);
+        }
         let mut best = 0;
         let mut best_d = i64::MAX;
         for i in 0..self.path.len() {
@@ -626,6 +638,9 @@ impl Course {
 
     /// How far along the course `p` is, and how far right of the centreline.
     pub fn progress(&self, p: V3, i: usize) -> (i32, i32) {
+        if self.tower.is_some() {
+            return self.progress_3d(p, i);
+        }
         let d = p.flat().sub(self.path[i]);
         let along = d.dot(self.heading[i]);
         let side = d.dot(self.right[i]);
@@ -636,8 +651,8 @@ impl Course {
     /// corrected position and velocity, and whether a wall was hit.
     pub fn contain(&self, pos: V3, vel: V3, i: usize) -> (V3, V3, bool) {
         // Sector Ape: no walls and no ceiling, only the boundary (the race
-        // puts an ape that crosses it back on a deck)
-        if self.sector.is_some() {
+        // puts an ape that crosses it back on a deck); Mape's Tower too
+        if self.sector.is_some() || self.tower.is_some() {
             return (pos, vel, false);
         }
         let (s, side) = self.progress(pos, i);
@@ -813,6 +828,7 @@ pub(crate) fn centreline(name: &'static str, legs: &[Leg]) -> Course {
         sector: None,
         ruins: None,
         bay: None,
+        tower: None,
     }
 }
 
@@ -1223,7 +1239,11 @@ mod tests {
 
     #[test]
     fn the_nearest_sample_is_the_one_a_full_scan_finds() {
-        for map in crate::map::Map::ALL {
+        // (Mape's Tower's `nearest` is its own 3D scan, TW1)
+        for map in crate::map::Map::ALL
+            .into_iter()
+            .filter(|&m| m != crate::map::Map::Tower)
+        {
             let c = map.course();
             let mut d = Dice(0x9EA7 + map as u64);
             let n = c.path.len();
@@ -1253,8 +1273,12 @@ mod tests {
 
     #[test]
     fn every_centreline_is_at_height_zero() {
-        // (`nearest` counts on it)
-        for map in crate::map::Map::ALL {
+        // (`nearest` counts on it; Mape's Tower's centreline climbs and
+        // falls by design, and its `nearest` is a 3D search, TW1)
+        for map in crate::map::Map::ALL
+            .into_iter()
+            .filter(|&m| m != crate::map::Map::Tower)
+        {
             assert!(map.course().path.iter().all(|p| p.y == 0), "{map:?}");
         }
     }

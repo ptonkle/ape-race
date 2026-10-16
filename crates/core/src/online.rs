@@ -119,7 +119,9 @@ use crate::snow::Weather;
 /// could not read in a Roster or a Start.
 /// 12: costumes (TRIAGE T89): `costume` in `Hello`, `Pick` and each
 /// roster seat, so every browser draws each player's chosen costume.
-pub const PROTOCOL: u32 = 12;
+/// 13: Mape's Tower (2026-10-15): the map `tower`, which a client of 12
+/// could not read in a Roster or a Start.
+pub const PROTOCOL: u32 = 13;
 /// The most apes in a race, humans and AI together.
 pub const MAX_APES: usize = 4;
 /// The most AI apes the host may add.

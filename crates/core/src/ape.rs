@@ -245,6 +245,10 @@ impl Ape {
                 if course.sector.is_some() {
                     self.sling(vine, course);
                 }
+                // (Mape's Tower: a climb vine's lift)
+                if course.tower.is_some() {
+                    self.climb_lift(vine, course);
+                }
             }
         }
 
