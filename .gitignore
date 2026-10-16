@@ -1,6 +1,6 @@
 /target/
 /dist/
-/.venv/
+/.venv
 __pycache__/
 /mutants.out*/
 /.claude/
