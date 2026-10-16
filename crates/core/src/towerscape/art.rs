@@ -436,15 +436,36 @@ fn build(c: &Course, t: &TowerLayout, sink: &mut Sink) -> Vec<Option<V3>> {
 
     // the summit: the mad wizard tearing reality, the eldritch banana
     let s = &t.summit;
-    let f = at(s.wizard, s.wizard_yaw);
-    put("summit", Some(s.wizard), &mut |b| {
-        m::mad_wizard(b, &f, tick);
-        // (he stands on a floating rune stone, not on the air)
-        m::rune_stone(b, &f, int(5), tick, 7)
-    });
+    // (drawn 2.5 times life beside the giant tear)
+    let f = m::pose(s.wizard, s.wizard_yaw, ONE * 5 / 2);
     let facing = yaw_of(s.through.neg());
     let (half_h, half_w) = s.tear_half;
     let rift = at(s.tear.sub(v3(0, half_h, 0)), facing);
+    // his hands pull the tear's near edge apart, a beam from each
+    let near = if rift.apply(v3(-half_w, half_h, 0)).dist(s.wizard)
+        < rift.apply(v3(half_w, half_h, 0)).dist(s.wizard)
+    {
+        -1
+    } else {
+        1
+    };
+    put("summit", Some(s.wizard), &mut |b| {
+        m::mad_wizard(b, &f, tick);
+        // (he stands on a floating rune stone, not on the air)
+        m::rune_stone(b, &f, int(5), tick, 7);
+        for (i, hand) in m::WIZARD_HANDS.into_iter().enumerate() {
+            let edge = rift.apply(v3(near * (half_w - int(2)), half_h * (2 + i as i32) / 5, 0));
+            m::spell_beam(
+                b,
+                &Affine::IDENTITY,
+                f.apply(hand),
+                edge,
+                Spell::Arcane,
+                tick,
+                i as u32,
+            );
+        }
+    });
     // the void a flat sheet just behind the tear (not a deep staircase
     // seen from the side, TZ3), the banana pressed between them
     let behind = s.banana.sub(s.tear).dot(s.through);

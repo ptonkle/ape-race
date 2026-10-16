@@ -3,7 +3,7 @@
 //!
 //! **The time of day (step 5, 2026-10-15, SECOND-ORDER TS rows):** three
 //! weathers, each its own sky, all changing with the height climbed
-//! (`height_share`: the keep's base 0, its summit 1):
+//! (`height_share`: the keep's base 0, the tear 1; TA8):
 //! - **Clear** (the default): a golden late afternoon, the sun low in the
 //!   west (−x), a periwinkle sky over a honey haze; bluer higher up.
 //! - **Twilight**: purple-indigo dusk at the base, deepening to night with
@@ -183,12 +183,15 @@ fn light_dir(w: Weather, zipper: bool) -> V3 {
     facing(sun_yaw(w), up)
 }
 
-/// How far up the keep a height is: 0 at the base, `ONE` at the summit.
+/// How far up the climb a height is: 0 at the keep's base, `ONE` from
+/// the tear's middle (or the summit deck, if lower) up: the sky reaches
+/// its top colours where the apes fly through the tear (TA8).
 pub fn height_share(t: &TowerLayout, y: i32) -> i32 {
-    if t.keep.height <= 0 {
+    let top = t.summit.tear.y.min(t.summit.deck.y) - t.keep.centre.y;
+    if top <= 0 {
         return 0;
     }
-    fx::div(y - t.keep.centre.y, t.keep.height).clamp(0, ONE)
+    fx::div(y - t.keep.centre.y, top).clamp(0, ONE)
 }
 
 /// The sky for weather `w` a share `h` of the way up (out of the zipper).
@@ -487,6 +490,9 @@ mod tests {
             "twilight darkens up the tower"
         );
         assert!(star_count(height_share(t, high.y)) > 3 * star_count(height_share(t, low.y)));
+        // (the top colours where the apes fly through the tear, TA8)
+        assert_eq!(height_share(t, t.summit.tear.y), ONE);
+        assert!(height_share(t, t.summit.tear.y - int(10)) < ONE);
         let dawn = (
             look_in(t, low, Weather::Dawn),
             look_in(t, high, Weather::Dawn),

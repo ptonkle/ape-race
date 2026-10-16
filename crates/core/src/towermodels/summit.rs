@@ -243,14 +243,35 @@ pub fn rift(b: &mut Batch, f: &Affine, w: i32, h: i32, open: i32, tick: u32) {
 /// so from about this far in front it exactly fills the opening.
 pub const RIFT_VIEW: i32 = int(20);
 
+/// Rows up a tear's edges (`torn_rift`).
+const RIFT_ROWS: i32 = 12;
+
+/// Half a fully open tear's width at edge row `i` of `RIFT_ROWS`: a fat
+/// lozenge, full width over its middle half, torn to points at both ends
+/// (TA8: the apes fly through it high and wide).
+fn rift_half(w: i32, i: i32) -> i32 {
+    mul(w / 2, (2 * sin(HALF * i / RIFT_ROWS)).min(ONE))
+}
+
+/// How far either side of a fully open tear's middle line (`w` across,
+/// `h` tall, its foot at y 0) the opening is clear at height `y`: inside
+/// the edges' inward jags and shiver; 0 outside its height.
+pub fn rift_clear(w: i32, h: i32, y: i32) -> i32 {
+    if y <= 0 || y >= h || h <= 0 {
+        return 0;
+    }
+    let i = (y as i64 * RIFT_ROWS as i64 / h as i64) as i32;
+    (rift_half(w, i).min(rift_half(w, i + 1)) - w / 20 - w / 40).max(0)
+}
+
 /// The tear with its void `depth` behind it (-z): a jagged dark violet
 /// backdrop with faint stars, scaled to fill the opening from `RIFT_VIEW`
 /// in front, so whatever lies between (the banana) is seen only through
 /// the tear.
 pub fn torn_rift(b: &mut Batch, f: &Affine, w: i32, h: i32, open: i32, depth: i32, tick: u32) {
-    let n = 12;
+    let n = RIFT_ROWS;
     let jump = tick / 6;
-    let half = |i: i32| mul(mul(w / 2, sin(HALF * i / n)), open.clamp(0, ONE));
+    let half = |i: i32| mul(rift_half(w, i), open.clamp(0, ONE));
     let edge = |i: i32, s: i32| {
         let y = h * i / n;
         // jags alternate in and out, and shiver a little

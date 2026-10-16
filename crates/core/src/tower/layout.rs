@@ -38,6 +38,8 @@ const SEED: u64 = 0x70E5_0000_0001;
 /// The start deck's top, and so the centreline's height at the start and
 /// at the finish (the zipper ends where the climb began, mirrored).
 pub const START_TOP: i32 = int(16);
+/// How far the tear's middle stands over the line's top (TA8).
+const TEAR_RISE: i32 = int(13);
 
 /// A leg of the climb: metres along the path (3D; even), the turn over it
 /// in degrees (positive to the left), and the metres it rises.
@@ -463,9 +465,17 @@ pub fn tower_seeded(seed: u64) -> Course {
         .iter()
         .map(|b| b.at.y + CROWN_OVER)
         .fold(top - int(6), i32::max);
-    let tear = c.point(half);
+    // the tear: giant (50 m tall, 56 m wide), its middle over the line's
+    // top where the apes fly through it (they cross up to 24 m above the
+    // line and 20 m aside on the summit run, TA8)
+    let tear_half = (int(25), int(28));
+    let tear = c.point(half).add(v3(0, TEAR_RISE, 0));
     let tear_left = right_of(flat(c.heading_at(half - int(2)))).neg();
-    let wizard = tear.add(tear_left.scale(int(7))).sub(v3(0, int(3), 0));
+    // the mad wizard (drawn 2.5 times life) beside its left edge, his
+    // hands about level with its middle
+    let wizard = tear
+        .add(tear_left.scale(tear_half.1 + int(5)))
+        .sub(v3(0, int(8), 0));
     let mut layout = TowerLayout {
         keep: Keep {
             centre: keep_centre,
@@ -489,12 +499,13 @@ pub fn tower_seeded(seed: u64) -> Course {
             deck: v3(keep_centre.x, keep_height, keep_centre.z),
             radius: keep_radius + int(4),
             wizard,
-            wizard_yaw: yaw_of(tear.sub(wizard).flat()),
+            // facing the apes coming up, arms flung along the tear
+            wizard_yaw: yaw_of(v3(-ONE, 0, 0)),
             tear,
-            tear_half: (int(14), int(6)),
+            tear_half,
             through: v3(ONE, 0, 0),
             banana: v3(tear.x + ONE / 2, tear.y, tear.z),
-            banana_len: int(20),
+            banana_len: int(30),
         },
         zipper: Zipper {
             mirror_x,

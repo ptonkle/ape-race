@@ -209,3 +209,79 @@ fn the_tower_medals_follow_its_time_trial() {
         secs(best)
     );
 }
+
+/// Where an AI ape of `level` crosses the mirror plane on layout `k`
+/// (first crossing after the climb's last third), relative to the tear's
+/// middle: (up, across) in m.
+fn tear_crossing(k: u64, level: Difficulty) -> (i32, i32, i32) {
+    use tool_core::ai::Brain;
+    use tool_core::race::{Driver, Entry, Race};
+    let entry = Entry {
+        name: String::new(),
+        kind: Kind::Chimpanzee,
+        driver: Driver::Ai,
+        palette: 0,
+        costume: tool_core::costume::Costume::Own,
+    };
+    let mut race = Race::new(layout(k), &[entry], true, 7);
+    let s = race.course.tower.as_ref().unwrap().summit;
+    let mut brains = vec![Brain::new(level, 0xA9E5 + k)];
+    let side = |x: i32| (x - s.tear.x).signum();
+    let mut was = side(race.racers[0].ape.pos.x);
+    let from = race.course.length / 3;
+    while race.tick < LIMIT && race.racers[0].finish.is_none() {
+        tool_core::replay::drive(&mut race, &mut brains, usize::MAX, Default::default());
+        let p = race.racers[0].ape.pos;
+        let now = side(p.x);
+        if race.racers[0].progress > from && now != was && now != 0 && was != 0 {
+            let (up, across) = (p.y - s.tear.y, p.z - s.tear.z);
+            let (hh, hw) = s.tear_half;
+            let clear = tool_core::towermodels::rift_clear(2 * hw, 2 * hh, up + hh);
+            return (up, across, clear);
+        }
+        if now != 0 {
+            was = now;
+        }
+    }
+    panic!("{} never crosses the tear on layout {k}", level.key());
+}
+
+/// The person's brief: the eldritch banana is on the other side of the
+/// tear, "which you fly through". Every AI level's line passes through
+/// the tear's opening (TA8), over a few layouts.
+#[test]
+fn every_level_flies_through_the_tear() {
+    let s = tower().tower.as_ref().unwrap().summit;
+    let (hh, hw) = s.tear_half;
+    let runs: Vec<_> = Difficulty::ALL
+        .into_iter()
+        .flat_map(|level| (0..16u64).map(move |k| (level, k)))
+        .map(|(level, k)| std::thread::spawn(move || (level, k, tear_crossing(k, level))))
+        .collect();
+    let all: Vec<_> = runs
+        .into_iter()
+        .map(|r| r.join().expect("the race runs"))
+        .collect();
+    let m = |v: i32| v as f64 / ONE as f64;
+    for (level, k, (up, across, clear)) in &all {
+        println!(
+            "{:<10} layout {k:>2}: up {:+.1} m, across {:+.1} m (clear ±{:.1})",
+            level.key(),
+            m(*up),
+            m(*across),
+            m(*clear)
+        );
+    }
+    for (level, k, (up, across, clear)) in all {
+        assert!(
+            across.abs() < clear,
+            "{} on layout {k} crosses {:+.1} m up, {:+.1} m across the tear's middle (clear ±{:.1} m there; tear ±{} by ±{} m)",
+            level.key(),
+            m(up),
+            m(across),
+            m(clear),
+            hh / ONE,
+            hw / ONE
+        );
+    }
+}
