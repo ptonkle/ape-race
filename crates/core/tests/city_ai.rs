@@ -1,11 +1,14 @@
 //! The AI on the City (2026-10-12): every difficulty finishes it, and the
 //! difficulties stay ordered and spaced, as on the Jungle (`tests/ai.rs`).
 
-use tool_core::ai::{time_trial, trial_at, Difficulty, Trial};
+use tool_core::ai::{think, time_trial, trial_at, Brain, Difficulty, Trial};
 use tool_core::city::{city, city_seeded};
+use tool_core::costume::Costume;
 use tool_core::course::Course;
 use tool_core::fx::ONE;
+use tool_core::items::ItemSet;
 use tool_core::map::Map;
+use tool_core::race::{Driver, Entry, Phase, Race};
 use tool_core::rules::{Kind, TICKS_PER_SECOND};
 
 fn secs(ticks: u32) -> f64 {
@@ -119,6 +122,51 @@ fn four_ai_apes_with_items_finish_the_city() {
             r.progress / ONE
         );
     }
+}
+
+/// TRIAGE T90: on the City an AI held past the give-up time lets go even
+/// when every release it finds turns out a dead end. In the race above the
+/// Sloth had whirled on vine after vine (10.3 s on one, no give-ups) and
+/// did not finish once the Hook towed it onto another line.
+#[test]
+fn a_city_ai_overdue_on_a_vine_gives_up_with_releases_queued() {
+    let kinds = [Kind::Gibbon, Kind::Gorilla, Kind::Lemur, Kind::Orangutan];
+    let entries: Vec<Entry> = kinds
+        .iter()
+        .map(|&kind| Entry {
+            name: String::new(),
+            kind,
+            driver: Driver::Ai,
+            palette: 0,
+            costume: Costume::Own,
+        })
+        .collect();
+    let mut race = Race::new(city(), &entries, false, 7);
+    race.items = ItemSet::ALL;
+    let mut brains: Vec<Brain> = Difficulty::ALL
+        .iter()
+        .enumerate()
+        .map(|(i, &d)| Brain::new(d, 0xA9E5 + i as u64))
+        .collect();
+    let (mut held, mut since, mut longest) = (None, 0, 0);
+    while race.clock < LIMIT && race.phase != Phase::Done {
+        let c: Vec<_> = (0..4).map(|i| think(&race, i, &mut brains[i])).collect();
+        race.step(&c);
+        let now = race.racers[0].ape.swinging();
+        if now != held {
+            held = now;
+            since = race.clock;
+        }
+        if held.is_some() {
+            longest = longest.max(race.clock - since);
+        }
+    }
+    assert!(brains[0].give_ups > 0, "the Sloth never gave up on a vine");
+    assert!(
+        longest < 10 * TICKS_PER_SECOND as u32,
+        "the Sloth held one vine {:.2} s",
+        secs(longest)
+    );
 }
 
 fn report(label: &str, trials: &[Trial]) {

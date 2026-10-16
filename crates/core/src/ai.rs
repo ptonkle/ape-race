@@ -1491,6 +1491,13 @@ fn on_vine(a: &Ape, course: &Course, tick: u32, vine: usize, brain: &mut Brain) 
         }
     }
     plan.moments.retain(|m| m.tick >= tick);
+    // held this vine past the give-up time. (City: on some swings every
+    // release found is a dead end once its tick comes, so a release was
+    // always queued and it never gave up; a Sloth whirled 8-10 s on vine
+    // after vine, TRIAGE T90. There, once overdue, it takes any release
+    // that reaches a vine, and gives up even with releases queued.)
+    let overdue = tick - plan.began > give_up(course);
+    let whirl = overdue && course.city.is_some();
     let (steer, coast) = pick(&brain.cands, plan.pick);
     brain.target = Some(steer);
     let mut c = swing_controls(a, course, tick, steer, coast, tune);
@@ -1517,7 +1524,7 @@ fn on_vine(a: &Ape, course: &Course, tick: u32, vine: usize, brain: &mut Brain) 
         if m.tick == tick && covered && m.onward == 0 && m.pos == a.pos && m.vel == a.vel {
             // the best so far: is there a way on from where it lands? If
             // not, count it down and wait for the next best
-            let ok = onward(a, course, tick, m, &brain.cands, tune);
+            let ok = whirl || onward(a, course, tick, m, &brain.cands, tune);
             for x in plan.moments.iter_mut().filter(|x| x.tick == tick) {
                 x.onward = if ok { 1 } else { 2 };
                 if !ok {
@@ -1540,7 +1547,9 @@ fn on_vine(a: &Ape, course: &Course, tick: u32, vine: usize, brain: &mut Brain) 
                 brain.plan = None;
             }
         }
-    } else if tick - plan.began > give_up(course) {
+    }
+    let held = brain.plan.is_some();
+    if held && (whirl || (overdue && best.is_none())) {
         // no way on from here: let go moving forward, and run for it
         let h = course.heading_at(progress(course, a));
         if a.vel.flat().dot(h) > a.vel.len() / 2 && a.vel.y >= 0 {

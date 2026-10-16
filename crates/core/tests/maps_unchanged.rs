@@ -85,19 +85,23 @@ fn the_jungle_with_floor_is_lava_plays_out_as_before_sector_ape() {
     assert_eq!(race_hash(Map::Jungle.course(), true), JUNGLE_LAVA);
 }
 
+/// The City's, retaken 2026-10-16 for TRIAGE T90: an AI held on a City
+/// vine past the give-up time lets go even with releases queued (a
+/// deliberate AI change; the layout fingerprint is unchanged).
 const CITY: (u32, u64, u64) = (
     3_200_548_462,
-    11_378_391_952_088_175_385,
-    16_180_813_438_469_971_061,
+    9_912_722_393_795_212_091,
+    9_685_341_736_122_952_183,
 );
 /// The Ski Slope's, retaken 2026-10-15 for TRIAGE T84 (low vines thinned
 /// to one a station, by each fence or in each fork branch in turn; before
 /// that 2026-10-14 for T74): a deliberate layout change, so a Ski Slope
-/// replay saved before it no longer plays back the same. The City's and
-/// the Jungle's are untouched.
+/// replay saved before it no longer plays back the same. Retaken again
+/// 2026-10-16 with the Jungle's for TRIAGE T90: a caught Hook tows its user
+/// and no longer pulls the hooked ape back (a deliberate item change).
 const SKI: (u32, u64, u64) = (
     3_897_725_592,
-    14_791_180_956_812_480_419,
-    6_735_002_727_411_337_516,
+    16_920_151_890_700_000_989,
+    10_600_682_349_292_222_142,
 );
-const JUNGLE_LAVA: u64 = 17_624_450_600_069_762_721;
+const JUNGLE_LAVA: u64 = 12_155_838_013_011_777_751;
