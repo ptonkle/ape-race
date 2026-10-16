@@ -43,7 +43,7 @@ pub struct Climb(pub i32, pub i32, pub i32);
 
 /// The spirals' radius round the keep's middle (the keep's wall is
 /// `WALL_GAP` inside).
-const RADIUS: i32 = 38;
+const RADIUS: i32 = 55;
 const WALL_GAP: i32 = 14;
 /// The climb: spirals at `RADIUS`, and three branches, each a straight
 /// bridge off the spiral's tangent, 120° round a sub-tower (radius about
@@ -51,21 +51,22 @@ const WALL_GAP: i32 = 14;
 /// (`(RADIUS - r) tan 60°` each way, so it lands on the circle again).
 pub const CLIMB: &[Climb] = &[
     Climb(24, 0, 0),    // 0 run-in
-    Climb(82, 120, 20), // 1 spiral A
-    Climb(40, 0, 0),    // 2 branch 1: bridge out
-    Climb(32, 120, 0),  // 3 round the sub-tower
-    Climb(40, 0, 0),    // 4 bridge back
-    Climb(76, 110, 20), // 5 spiral B
-    Climb(16, 0, 0),    // 6 branch 2: bridge to the room's door
+    Climb(68, 70, 12),  // 1 spiral A
+    Climb(36, 0, 6),    // 2 branch 1: bridge out
+    Climb(32, 90, 0),   // 3 round the sub-tower
+    Climb(36, 0, 6),    // 4 bridge back
+    Climb(68, 70, 12),  // 5 spiral B
+    Climb(12, 0, 0),    // 6 branch 2: bridge to the room's door
     Climb(30, 0, 18),   // 7 up across the trampoline room
-    Climb(32, 120, 0),  // 8 out of its roof, round
-    Climb(40, 0, 0),    // 9 bridge back
-    Climb(82, 120, 22), // 10 spiral C, through the clouds
-    Climb(40, 0, 0),    // 11 branch 3: bridge out
-    Climb(32, 120, 0),  // 12 round the sub-tower
-    Climb(40, 0, 0),    // 13 bridge back
-    Climb(68, 100, 18), // 14 spiral D
-    Climb(24, 0, 0),    // 15 the summit run to the tear
+    Climb(32, 90, 0),   // 8 out of its roof, round
+    Climb(36, 0, 4),    // 9 bridge back
+    Climb(68, 70, 12),  // 10 spiral C, through the clouds
+    Climb(36, 0, 6),    // 11 branch 3: bridge out
+    Climb(32, 90, 0),   // 12 round the sub-tower
+    Climb(36, 0, 6),    // 13 bridge back
+    Climb(58, 60, 10),  // 14 spiral D
+    Climb(40, -90, 0),  // 15 off the keep, out to the summit
+    Climb(30, 0, 0),    // 16 the summit run to the tear
 ];
 /// The spiral legs.
 const SPIRALS: [usize; 4] = [1, 5, 10, 14];
