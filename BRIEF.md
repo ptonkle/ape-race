@@ -113,7 +113,7 @@ The same request, sorted by theme. Every point comes from the request above. Any
 
 ### 13. Shared with Mandible
 
-- The Mandible repo (`~/slop/game1`) may be used as a reference for netcode, menus, the volume slider and other elements that make sense in every game.
+- The Mandible repo (`~/slop/mandible`) may be used as a reference for netcode, menus, the volume slider and other elements that make sense in every game.
 
 ### 14. Later, not in the first version
 

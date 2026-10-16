@@ -4,7 +4,7 @@ Stage 2, written by the agent from `BRIEF.md`. `B2 Require step-by-step justific
 
 The brief approves the plan in advance and puts the game in autonomous mode ("Execute in autonomous mode. Do not bug me"). This plan is written, and the build follows it in this order. The brief says the **feel of the physics** comes first, so the swing is built, tested and tuned before anything else is polished.
 
-Technique references, used for how and not for style: Mandible (`~/slop/game1`, the person's own game) for the online transport, the lobby flow, the volume slider and sound synthesis; sgilson7's Builder games (ribbit-king, iron-vector, MIT) for running WebGL 2 under Builder's rules.
+Technique references, used for how and not for style: Mandible (`~/slop/mandible`, the person's own game) for the online transport, the lobby flow, the volume slider and sound synthesis; sgilson7's Builder games (ribbit-king, iron-vector, MIT) for running WebGL 2 under Builder's rules.
 
 | # | Decision | Reason | Test that shows it holds |
 | --- | --- | --- | --- |
