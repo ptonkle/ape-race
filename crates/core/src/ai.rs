@@ -51,7 +51,8 @@ const DECK: usize = usize::MAX - 1;
 /// found nothing and the ape whirled 7-10 s before it let go. Held this
 /// long, it counts a landing on a deck ahead too (it runs off it at a rope),
 /// at this many metres less than a rope as far along.
-const BAY_DECK_AFTER: u32 = TICKS_PER_SECOND as u32;
+const BAY_DECK_AFTER: [u32; 4] = [S, S, S, 3 * S];
+const S: u32 = TICKS_PER_SECOND as u32;
 const DECK_COST: i32 = int(10);
 /// It grabs a vine only this far below its anchor or more.
 const GOOD_ROPE: i32 = int(5);
@@ -334,7 +335,7 @@ const RUINS_NOISE: [i32; 4] = [int(8), int(4), int(3), 0];
 /// on one layout), so it stays 2 m (BT1).
 const BAY_HESITATE: [u32; 4] = [18, 18, 5, 0];
 const BAY_JITTER: [u32; 4] = [14, 14, 4, 0];
-const BAY_DRIVE: [u32; 4] = [3, 3, 4, DUTY];
+const BAY_DRIVE: [u32; 4] = [2, 3, 4, DUTY];
 const BAY_NOISE: [i32; 4] = [int(6), int(5), int(2), 0];
 /// On Sunset Ruins, how near a low vine over the river must be for a
 /// swimmer to swim for it and catch it, not for the bank (RT10).
@@ -1451,7 +1452,7 @@ fn on_vine(a: &Ape, course: &Course, tick: u32, vine: usize, brain: &mut Brain) 
             tune,
             &mut spent,
             Some(&mut plan.anchors),
-            course.bay.is_some() && plan.sim_tick >= plan.began + BAY_DECK_AFTER,
+            course.bay.is_some() && plan.sim_tick >= plan.began + BAY_DECK_AFTER[brain.difficulty as usize],
         );
         if let Some(hit) = hit.filter(|_| plan.sim_tick >= brain.ready) {
             // a weaker AI misjudges how good a moment is
