@@ -293,12 +293,13 @@ pub fn torn_rift(b: &mut Batch, f: &Affine, w: i32, h: i32, open: i32, depth: i3
             halo_bar(b, f, p, q, int(3), RIFT_EDGE, ONE * 3 / 4);
         }
     }
-    // the void: rows of dark violet, wider than the opening by a jag so
-    // no sky shows between, scaled out with depth
+    // the void: rows of dark violet reaching just under the edges' lip
+    // (so from aside they stay behind the edges: not a staircase, TZ3),
+    // scaled out with depth
     let k = ONE + div(depth, RIFT_VIEW);
     let back = |p: V3| v3(mul(p.x, k), mul(p.y, k), -depth);
     for i in 0..n {
-        let hw = half(i).max(half(i + 1)) + w / 30;
+        let hw = half(i).min(half(i + 1)) + w / 30;
         let mid = back(v3(0, h * (2 * i + 1) / (2 * n), 0));
         put(
             b,
@@ -344,6 +345,19 @@ pub fn torn_rift(b: &mut Batch, f: &Affine, w: i32, h: i32, open: i32, depth: i3
             ONE,
         );
     }
+}
+
+/// The eldritch banana seen through a tear `w` across and `h` tall (in
+/// the tear's frame, as `torn_rift`), `depth` behind it: stood up the
+/// opening on a slant, `len` long and pressed flat (an eighth deep), so it
+/// fills the void from the front and is only a sliver edge-on, hidden by
+/// the void behind it from the back (TA6).
+pub fn banana_in_rift(b: &mut Batch, f: &Affine, h: i32, len: i32, depth: i32, tick: u32) {
+    let g = f
+        .then(&Affine::translate(v3(0, h / 2 - len / 10, -depth)))
+        .then(&Affine::rot_z(deg(-68)))
+        .then(&Affine::scale(v3(ONE, ONE, ONE / 8)));
+    eldritch_banana(b, &g, len, tick);
 }
 
 /// The giant eldritch evil banana, `len` long, its middle at the origin,
@@ -560,7 +574,7 @@ pub fn eldritch_banana(b: &mut Batch, f: &Affine, len: i32, tick: u32) {
 /// The summit together: the keep's top section and crown (apothem 12 m),
 /// the insane wizard on the roof walk tearing the rift open in the air
 /// in front of the keep (+z), bolts from his hands to its edges, and the
-/// eldritch banana far beyond it.
+/// eldritch banana in the void beyond it.
 pub fn summit(b: &mut Batch, f: &Affine, tick: u32) {
     let r = int(12);
     keep_section(
@@ -580,7 +594,7 @@ pub fn summit(b: &mut Batch, f: &Affine, tick: u32) {
     let rf = f
         .then(&Affine::translate(rift_at))
         .then(&Affine::rot_y(HALF));
-    torn_rift(b, &rf, w, h, ONE, int(150), tick);
+    torn_rift(b, &rf, w, h, ONE, int(1), tick);
     for (i, hand) in WIZARD_HANDS.into_iter().enumerate() {
         let s = if i == 0 { -1 } else { 1 };
         let from = wiz.apply(hand);
@@ -595,9 +609,6 @@ pub fn summit(b: &mut Batch, f: &Affine, tick: u32) {
             i as u32,
         );
     }
-    // far beyond, facing back at the keep
-    let beyond = f
-        .then(&Affine::translate(v3(0, int(34), int(150))))
-        .then(&Affine::rot_y(HALF));
-    eldritch_banana(b, &beyond, int(66), tick);
+    // in the tear, beyond it
+    banana_in_rift(b, &rf, h, int(20), ONE / 2, tick);
 }

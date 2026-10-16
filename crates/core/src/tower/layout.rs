@@ -71,6 +71,14 @@ pub const CLIMB: &[Climb] = &[
     Climb(40, -90, 0), // 15 off the keep, out to the summit
     Climb(30, 0, 0),   // 16 the summit run to the tear
 ];
+/// The legs off the keep out to the tear: their beams further than
+/// `SUMMIT_REACH` from the keep's wall are cast by dragons, not by mages
+/// on the crown (TA5: up to 54 m of beam).
+const SUMMIT_RUN: usize = 15;
+const SUMMIT_REACH: i32 = int(24);
+/// The keep's crown stands this far over its highest balcony, so the
+/// summit's balconies are on its wall, not in the air (TA5).
+const CROWN_OVER: i32 = int(8);
 /// The spiral legs.
 const SPIRALS: [usize; 4] = [1, 5, 10, 14];
 /// Each branch's legs: out (the first), round, back.
@@ -328,6 +336,7 @@ pub fn tower_seeded(seed: u64) -> Course {
             .find(|&k| leg_at(k) <= s)
             .unwrap_or(0)
     };
+    let off_keep = |p: V3| p.flat().sub(keep_centre.flat()).len() - keep_radius;
     let clouds = CloudBand {
         bottom: START_TOP + int(56),
         top: START_TOP + int(80),
@@ -372,7 +381,11 @@ pub fn tower_seeded(seed: u64) -> Course {
             let v = beam(bottom, hang, ANCHOR_OVER - BOTTOM_OVER, along);
             let hanger = if v.anchor.y >= clouds.bottom && v.anchor.y <= clouds.top + int(10) {
                 Hanger::Cloud { band: 0 }
-            } else if !branch && lane > 0 && station % 3 == 0 {
+            } else if (!branch && lane > 0 && station % 3 == 0)
+                || (leg >= SUMMIT_RUN && off_keep(v.anchor) > SUMMIT_REACH)
+            {
+                // a dragon outside the spiral; on the summit run, out past
+                // a beam's reach from the keep's crown (TA5), dragons too
                 // a dragon outside the spiral
                 Hanger::Dragon {
                     at: v.anchor.add(r.scale(int(9))).add(v3(0, int(4), 0)),
@@ -444,6 +457,12 @@ pub fn tower_seeded(seed: u64) -> Course {
         });
     }
 
+    // the keep rises to its highest balcony and on (the summit's stand
+    // above the line's top)
+    let keep_height = balconies
+        .iter()
+        .map(|b| b.at.y + CROWN_OVER)
+        .fold(top - int(6), i32::max);
     let tear = c.point(half);
     let tear_left = right_of(flat(c.heading_at(half - int(2)))).neg();
     let wizard = tear.add(tear_left.scale(int(7))).sub(v3(0, int(3), 0));
@@ -451,8 +470,8 @@ pub fn tower_seeded(seed: u64) -> Course {
         keep: Keep {
             centre: keep_centre,
             radius: keep_radius,
-            height: top - int(6),
-            levels: (1..(top / int(12))).map(|k| int(12) * k).collect(),
+            height: keep_height,
+            levels: (1..(keep_height / int(12))).map(|k| int(12) * k).collect(),
         },
         branches: Vec::new(),
         balconies,
@@ -467,15 +486,15 @@ pub fn tower_seeded(seed: u64) -> Course {
         },
         clouds: vec![clouds],
         summit: Summit {
-            deck: v3(keep_centre.x, top - int(6), keep_centre.z),
+            deck: v3(keep_centre.x, keep_height, keep_centre.z),
             radius: keep_radius + int(4),
             wizard,
             wizard_yaw: yaw_of(tear.sub(wizard).flat()),
             tear,
             tear_half: (int(14), int(6)),
             through: v3(ONE, 0, 0),
-            banana: v3(tear.x + int(150), tear.y + int(40), tear.z),
-            banana_len: int(60),
+            banana: v3(tear.x + ONE / 2, tear.y, tear.z),
+            banana_len: int(20),
         },
         zipper: Zipper {
             mirror_x,

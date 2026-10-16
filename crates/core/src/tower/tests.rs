@@ -226,3 +226,41 @@ fn a_summoned_vine_is_placed_along_its_own_coil() {
         placed / ONE
     );
 }
+
+#[test]
+fn the_summit_balconies_stand_on_the_keep_under_its_crown() {
+    // (TA5: they stood at y 123-130 over a keep 102 m tall)
+    let c = tower();
+    let t = c.tower.as_ref().unwrap();
+    for (n, b) in t.balconies.iter().enumerate() {
+        let off = b.at.flat().sub(t.keep.centre.flat()).len() - t.keep.radius;
+        if off.abs() < ONE {
+            assert!(
+                b.at.y + 4 * ONE <= t.keep.centre.y + t.keep.height,
+                "balcony {n} at y {} over a keep {} m tall",
+                b.at.y / ONE,
+                t.keep.height / ONE
+            );
+        }
+    }
+    assert_eq!(t.summit.deck.y, t.keep.centre.y + t.keep.height);
+}
+
+#[test]
+fn the_eldritch_banana_is_in_the_tear_not_beyond_it() {
+    // (TA6: 150 m beyond and 40 m up, seen from all over the climb)
+    let c = tower();
+    let s = c.tower.as_ref().unwrap().summit;
+    let off = s.banana.sub(s.tear);
+    let behind = off.dot(s.through);
+    assert!(
+        behind > 0 && behind <= ONE,
+        "{} m behind the tear",
+        behind / ONE
+    );
+    assert!(!off.sub(s.through.scale(behind)).longer_than(2 * ONE));
+    assert!(
+        s.banana_len <= 2 * s.tear_half.0 * 4 / 5,
+        "longer than the tear"
+    );
+}
