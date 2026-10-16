@@ -167,7 +167,7 @@ impl Difficulty {
     /// release go by (stuck whirling on a vine): it reacts sooner there
     /// (`SKI_HESITATE`), and looks further ahead. Sunset Ruins and Banana
     /// Bay Battle have their own reaction times, arms and misjudging
-    /// (`RUINS_*`, `BAY_*`).
+    /// (`RUINS_*`, `BAY_*`), and so does Mape's Tower (`TOWER_*`).
     fn tuning_on(self, on: On) -> Tuning {
         let On {
             city,
@@ -319,7 +319,11 @@ const SKI_NOISE: [i32; 4] = [int(6), int(4), int(2), 0];
 const SKI_HOP: [i32; 4] = [int(22), int(24), int(26), int(28)];
 
 /// Mape's Tower's handicaps, easiest level first (see
-/// [`Difficulty::tuning_on`]).
+/// [`Difficulty::tuning_on`]). Down the zipper the swings run fast, as on
+/// the Ski Slope, so a level's Jungle reaction let the release go by: the
+/// reactions are the Ski Slope's (the Monkey 113 → 106 s over four
+/// layouts, before the zipper's beams were lengthened; TC5). With the Jungle's arms the Ape was 6.4 s ahead of the Monkey:
+/// its arms are 5 of 8 here.
 const TOWER_HESITATE: [u32; 4] = [6, 3, 1, 0];
 const TOWER_JITTER: [u32; 4] = [6, 3, 1, 0];
 const TOWER_DRIVE: [u32; 4] = [2, 3, 5, DUTY];

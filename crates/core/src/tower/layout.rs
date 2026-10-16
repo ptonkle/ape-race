@@ -1,25 +1,28 @@
 //! Mape's Tower's course: the 3D centreline (a climb of legs, then its
 //! mirror) and its placement (steps 6 and 7, 2026-10-15).
 //!
-//! The climb (`CLIMB`, about 690 m): a level run-in from the start deck,
-//! then four spirals up and round the keep (`RADIUS` from its middle),
-//! broken by three branches out to little sub-towers. Each branch is level
-//! and straight (no dizzying all-spiral): a right turn off the spiral, a
-//! bridge straight out, round the sub-tower to the left, straight back and
-//! a right turn onto the spiral again, landing on the same circle (the
-//! legs were solved so each branch replaces an arc of it). The second
-//! branch goes in by the trampoline room's door, up across the room on
-//! its trampolines and the orb mage's beams, and out through its roof. The
-//! third spiral rises through the cloud band. The last leg is the level
-//! summit run heading +x (yaw 90°) to the tear; then the zipper, the climb
-//! mirrored and run backwards, its beams leaning every way (topsy-turvy).
-//!
+//! The climb (`CLIMB`, 674 m): a level run-in from the start deck, then
+//! four spirals up and round the keep (`RADIUS` from its middle, 70° or
+//! 60° each), broken by three branches out to little sub-towers. Each
+//! branch rises gently and runs straight (no dizzying all-spiral): a bridge
+//! off the spiral's tangent, 90° round the sub-tower to the left and a
+//! bridge back onto the tangent further round, landing on the same circle
+//! (`RADIUS - r` each way). The second branch goes in by the trampoline
+//! room's door, up across the room on its trampolines and the orb mage's
+//! beams, and out through its roof. The third spiral rises through the
+//! cloud band. Off the last spiral the climb turns 90° right, out from the
+//! keep, and runs level heading +x (yaw 90°) to the tear, so the keep and
+//! its sub-towers stay well behind the mirror (TC5: a tangent summit run
+//! put the mirror plane through the keep, and the zipper crossed the
+//! climb). Then the zipper, the climb mirrored and run backwards.
+
 //! Vines: a station every `GAP` m, two beams a station (sparse, so the view
 //! is the tower, not vines): on the spirals two of three lanes 7 m apart,
 //! on the branches the two outer lanes 8 m apart (a choice either side of
 //! the bridge). One beam in five leans in from outside (`LEAN`). Reset pads
 //! a few metres under the centreline every 50 m, each throwing an ape up
-//! and on to the next station (`boost`).
+//! and on to the next station (`boost`). The zipper's beams are the
+//! climb's (the start row's too) mirrored, hung longer (`ZIP_LONGER`).
 //!
 //! Placement draws from `Dice(seed ^ 0x70E5)`.
 
@@ -42,13 +45,13 @@ pub const START_TOP: i32 = int(16);
 pub struct Climb(pub i32, pub i32, pub i32);
 
 /// The spirals' radius round the keep's middle (the keep's wall is
-/// `WALL_GAP` inside).
+/// `WALL_GAP` inside). 38 m kept turning the line under a flying ape (TC4).
 const RADIUS: i32 = 55;
 const WALL_GAP: i32 = 14;
 /// The climb: spirals at `RADIUS`, and three branches, each a straight
-/// bridge off the spiral's tangent, 120° round a sub-tower (radius about
-/// 15 m) and a straight bridge back onto the tangent further round
-/// (`(RADIUS - r) tan 60°` each way, so it lands on the circle again).
+/// bridge off the spiral's tangent, 90° round a sub-tower (radius about
+/// 20 m) and a straight bridge back onto the tangent further round
+/// (`RADIUS - r` each way, so it lands on the circle again).
 pub const CLIMB: &[Climb] = &[
     Climb(24, 0, 0),   // 0 run-in
     Climb(68, 70, 12), // 1 spiral A
@@ -86,9 +89,11 @@ const LEAN: i32 = cm(35);
 /// The zipper's beams lean along the way this much more (alternately):
 /// none for now, as the AI wandered on them (TC rows).
 const TOPSY: i32 = cm(0);
-/// The zipper's beams hang this much lower than the climb's.
+/// The zipper's beams' bottoms hang this much lower than the climb's.
 const ZIP_DROP: i32 = int(4);
-/// and are this much longer: their anchors high over the falling apes.
+/// The zipper's beams are this much longer than the climb's, their anchors
+/// high over the line: a falling ape flies about 20 m over it, so at the
+/// climb's length it caught them by the anchor and whirled (TC5).
 const ZIP_LONGER: i32 = int(22);
 /// Reset pads stand this far under the centreline: under the swings, and
 /// in a jump's reach of the vines.
