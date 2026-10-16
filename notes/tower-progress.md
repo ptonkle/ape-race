@@ -8,7 +8,7 @@ The standard map-build steps (MAPS.md "Build steps"), one row each. Status is on
 | 2 | Skeleton and contract | Done | `Map::Tower`, `TowerLayout` (`tower.rs`), 3D centreline with progress in 3D (TW1), mirrored zipper (TW3), reset pads with boost (TW4), climb-lift hook (TW5), Twilight/Dawn registered (TW7), PROTOCOL 13; stand-in course finished by every AI level (TW10) |
 | 3 | Ape costumes | Done | Wizard and witch mixes for all six kinds; the flame-demon cat (TG rows); wired to Map::Tower when the skeleton lands |
 | 4 | Models | In progress | Climb half done (towermodels.rs: keep, sub-towers, bridges, mages, dragons, beams, trampolines, room, clouds, summit); zipper half and a better banana and tear in progress |
-| 5 | Sky and lighting | Not started |  |
+| 5 | Sky and lighting | Done (sky branch) | Clear golden afternoon, Twilight, Dawn by height; zipper void; cloud band; follows JOJO and colourblind (TS1–TS6); shots in notes/tower-shots/sky/ |
 | 6 | Course layout | Not started |  |
 | 7 | Map rules | Not started |  |
 | 8 | Art placed on the course | Not started |  |

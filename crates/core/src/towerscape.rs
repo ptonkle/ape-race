@@ -124,7 +124,7 @@ const DAWN: [Sky; 2] = [
     Sky {
         sky: rgb(236, 158, 170),
         fog: rgb(252, 196, 150),
-        zenith: rgb(118, 120, 200),
+        zenith: rgb(190, 120, 176),
         light: rgb(255, 186, 126),
         ground: rgb(120, 90, 96),
         rim: [0; 3],
@@ -134,7 +134,7 @@ const DAWN: [Sky; 2] = [
     Sky {
         sky: rgb(252, 204, 186),
         fog: rgb(255, 226, 196),
-        zenith: rgb(140, 168, 232),
+        zenith: rgb(214, 170, 196),
         light: rgb(255, 210, 160),
         ground: rgb(150, 120, 120),
         rim: [0; 3],
@@ -380,12 +380,7 @@ fn streaks(b: &mut Batch, eye: V3, sun_yaw: i32, c: Rgb) {
         let el = deg(pick(i, 22, 2, 12));
         let at = eye.add(facing(a, el).scale(DOME - int(70)));
         let w = int(pick(i, 23, 50, 110));
-        b.push(
-            Mesh::Geo,
-            &placed(at, a + TURN / 4, v3(w, w / 12, w / 5)),
-            c,
-            SKY_GLOW,
-        );
+        b.push(Mesh::Geo, &placed(at, a, v3(w, w / 12, w / 5)), c, SKY_GLOW);
     }
 }
 
@@ -397,8 +392,14 @@ fn cloud_sea(b: &mut Batch, t: &TowerLayout, eye: V3, c: Rgb) {
     let reach = int(320);
     let clear = t.keep.radius + int(50);
     let keep = t.keep.centre.flat();
-    let (x0, x1) = ((eye.x - reach).div_euclid(cell), (eye.x + reach).div_euclid(cell));
-    let (z0, z1) = ((eye.z - reach).div_euclid(cell), (eye.z + reach).div_euclid(cell));
+    let (x0, x1) = (
+        (eye.x - reach).div_euclid(cell),
+        (eye.x + reach).div_euclid(cell),
+    );
+    let (z0, z1) = (
+        (eye.z - reach).div_euclid(cell),
+        (eye.z + reach).div_euclid(cell),
+    );
     for band in &t.clouds {
         for cx in x0..=x1 {
             for cz in z0..=z1 {
@@ -488,15 +489,30 @@ mod tests {
             }
         }
         // twilight darkens to night with stars higher up; dawn brightens
-        let tw = (look_in(t, low, Weather::Twilight), look_in(t, high, Weather::Twilight));
-        assert!(luma(tw.1.sky) < luma(tw.0.sky) / 2, "twilight darkens up the tower");
+        let tw = (
+            look_in(t, low, Weather::Twilight),
+            look_in(t, high, Weather::Twilight),
+        );
+        assert!(
+            luma(tw.1.sky) < luma(tw.0.sky) / 2,
+            "twilight darkens up the tower"
+        );
         assert!(star_count(height_share(t, high.y)) > 3 * star_count(height_share(t, low.y)));
-        let dawn = (look_in(t, low, Weather::Dawn), look_in(t, high, Weather::Dawn));
-        assert!(luma(dawn.1.sky) > luma(dawn.0.sky), "dawn brightens up the tower");
+        let dawn = (
+            look_in(t, low, Weather::Dawn),
+            look_in(t, high, Weather::Dawn),
+        );
+        assert!(
+            luma(dawn.1.sky) > luma(dawn.0.sky),
+            "dawn brightens up the tower"
+        );
         // dawn's sun is low in the east (+x)
         assert!(dawn.0.light_dir.x > ONE * 9 / 10);
         // sky_in (no eye) gives the base's sky
-        assert_eq!(crate::snow::sky_in(Weather::Twilight, look()).sky, TWILIGHT[0].sky);
+        assert_eq!(
+            crate::snow::sky_in(Weather::Twilight, look()).sky,
+            TWILIGHT[0].sky
+        );
     }
 
     #[test]
