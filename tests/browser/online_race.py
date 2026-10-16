@@ -151,6 +151,29 @@ def run_engine(p, engine, origin):
     except Exception:
         renamed = False
     check(renamed, "B's new name reaches A's lobby")
+    # the lobby never scrolls sideways (the person, 2026-10-15), even with
+    # the widest name and the longest ape kind on a seat
+    b.fill("lobby.name", "W" * 16)
+    a.page.wait_for_timeout(1500)
+    for _ in range(12):
+        if "Proboscis" in b.page.inner_text(".menus"):
+            break
+        b.click("lobby.ape.next")
+        b.page.wait_for_timeout(300)
+    a.page.wait_for_timeout(1500)
+    for t in tabs:
+        wide = t.page.evaluate(
+            "() => [...document.querySelectorAll('.menus .panel')]"
+            ".filter(p => p.scrollWidth > p.clientWidth + 1).map(p => [p.className, p.scrollWidth, p.clientWidth])"
+        )
+        check(wide == [], f"{t.name}'s lobby panels have no sideways scroll {wide}")
+        cut = t.page.evaluate(
+            "() => [...document.querySelectorAll('table.cells td')]"
+            ".filter(td => td.textContent.includes('Proboscis') && td.scrollWidth > td.clientWidth + 1).length"
+        )
+        check(cut == 0, f"{t.name}'s lobby shows Proboscis Monkey in full ({cut} cut)")
+    b.fill("lobby.name", "Banana Bob")
+    a.page.wait_for_timeout(1500)
     # TRIAGE T57: the screech button is hidden for now (T44 kept in code)
     for t in tabs:
         n = t.page.locator(by_id("lobby.screech")).count()
