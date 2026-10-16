@@ -440,6 +440,8 @@ fn a_bounce_off_a_parked_car_reaches_a_vine_ahead() {
 #[test]
 fn moving_cars_drive_their_street_the_same_every_time() {
     let c = city();
+    // a second City built the same way, to compare against
+    let again = city();
     let lay = c.city.as_ref().unwrap();
     for (i, car) in lay.cars.iter().enumerate() {
         let Some(d) = car.drive else {
@@ -450,7 +452,7 @@ fn moving_cars_drive_their_street_the_same_every_time() {
         for t in (31..d.period as u32 * 2).step_by(30) {
             let last = c.car_at(i, t - 30).0;
             let (p, _) = c.car_at(i, t);
-            assert_eq!(c.car_at(i, t), city().car_at(i, t));
+            assert_eq!(c.car_at(i, t), again.car_at(i, t));
             assert!(in_corridor(&c, p, int(2)), "car {i} off the street");
             assert_eq!(c.bouncer(car.bouncer, t).top.flat(), p.flat());
             if (t + d.phase as u32) % d.period as u32 > 30 {
