@@ -1,12 +1,27 @@
 //! Mape's Tower's rules, each run only when `Course.tower` is set: the 3D
 //! "along the course" (TW1), the boundary and the reset onto a pad with
-//! its boost, and the climb vines' lift.
+//! its boost (per leg: the tube's and the sling's resets go to the
+//! portal), the climb vines' lift, and the tube's air and pads (TW2-5).
 
 use super::*;
-use crate::ape::{Ape, Mode};
+use crate::ape::{Ape, Controls, Mode};
 use crate::course::{Course, STEP};
+use crate::fx::{mul, ONE};
+use crate::geom::yaw_of;
 use crate::race::{Event, Race};
-use crate::rules::BODY_DROP;
+use crate::rules::{BODY_DROP, DT, MUSHROOM_BOUNCE};
+
+/// The fall's terminal speed in the tube: the void's air is thicker than
+/// open air (where a fall from the tear reached about 50 m/s). Measured
+/// with `TUBE_AIR` so each pad's gap is reachable from the last by a
+/// human-like weave (TW2-5, `MEASUREMENTS.md`).
+pub const TUBE_TERMINAL: i32 = int(38);
+/// How fast a fall faster than `TUBE_TERMINAL` settles back to it: the
+/// share of the excess taken each second.
+pub const TUBE_SETTLE: i32 = ONE * 4;
+/// Air steering in the tube is this many times the kind's (the void
+/// pushes back).
+pub const TUBE_AIR: i32 = ONE * 3;
 
 impl Course {
     /// Mape's Tower's `nearest`: the nearest centreline sample to `p` in
@@ -55,9 +70,13 @@ impl Course {
 
     /// Whether a body at `p` (the hands; `hint` its nearest sample) is out
     /// of Mape's Tower's bounds: too far from the centreline, too far under
-    /// it, or standing on the open ground. Never on another map.
+    /// it, or standing on the open ground. Never on another map, and never
+    /// in the tube (its wall holds; its floor is the tunnel's).
     pub fn tower_out(&self, p: V3, hint: usize) -> bool {
-        if self.tower.is_none() {
+        let Some(t) = self.tower.as_deref() else {
+            return false;
+        };
+        if t.tube.holds(p) {
             return false;
         }
         let q = self.path[hint.min(self.path.len() - 1)];
@@ -68,17 +87,36 @@ impl Course {
             || (feet <= ground + cm(10) && self.support(p) <= ground)
     }
 
-    /// The reset pad for an ape out at `p`: the last pad not ahead of it
-    /// along the course (the first, the start deck, if none).
+    /// The reset pad for an ape out at `p`: by its leg
+    /// (`TowerLayout::reset_pad`).
     pub fn tower_pad(&self, t: &TowerLayout, p: V3, hint: usize) -> Pad {
         let (along, _) = self.progress(p, hint);
-        t.pads
-            .iter()
-            .rev()
-            .find(|pad| pad.at <= along)
-            .or(t.pads.first())
-            .copied()
-            .expect("the tower has a start pad")
+        t.reset_pad(along)
+    }
+}
+
+impl TowerLayout {
+    /// The AI's (and the measurement's) steering down the tube: from the
+    /// moment a pad is passed, aim at the next pad's gap; with no pad left,
+    /// at the sling row (the tunnel's mouth). None outside the tube.
+    pub fn tube_controls(&self, a: &Ape) -> Option<Controls> {
+        if !self.tube.holds(a.pos) {
+            return None;
+        }
+        let aim = match self.tube.next_pad(a.pos) {
+            Some(k) => self.tube.axis.add(self.tube.pads[k].gap),
+            None => self.tube.axis,
+        };
+        let to = v3(aim.x - a.pos.x, 0, aim.z - a.pos.z);
+        let mut c = Controls::default();
+        // (the kind's air steering is a fixed push: steer only while off
+        // the gap by more than a body's width, so the ape settles on it
+        // instead of hunting round it)
+        if to.longer_than(cm(60)) {
+            c.fwd = 1;
+            c.yaw = yaw_of(to);
+        }
+        Some(c)
     }
 }
 
@@ -92,11 +130,53 @@ impl Ape {
             }
         }
     }
+
+    /// Mape's Tower's tube: the steering's strength there (`TUBE_AIR`
+    /// times the kind's), else the kind's.
+    pub(crate) fn air_now(&self, course: &Course) -> i32 {
+        match course.tower.as_deref() {
+            Some(t) if t.tube.holds(self.pos) => mul(self.phys.air, TUBE_AIR),
+            _ => self.phys.air,
+        }
+    }
+
+    /// Mape's Tower's tube: the thick air settles a fall faster than
+    /// `TUBE_TERMINAL` back toward it (after gravity, each flying tick).
+    pub(crate) fn tube_air(&mut self, course: &Course) {
+        let Some(t) = course.tower.as_deref() else {
+            return;
+        };
+        if !t.tube.holds(self.pos) {
+            return;
+        }
+        let excess = -self.vel.y - TUBE_TERMINAL;
+        if excess > 0 {
+            self.vel.y += mul(excess, mul(TUBE_SETTLE, DT)).min(excess);
+        }
+    }
+
+    /// Mape's Tower's tube: a fall onto a pad's covered part bounces up at
+    /// the mushroom's speed (TW2-5). Whether it bounced.
+    pub(crate) fn tube_pads(&mut self, course: &Course, before: V3) -> bool {
+        let Some(t) = course.tower.as_deref() else {
+            return false;
+        };
+        if self.swinging().is_some() || self.vel.y > 0 {
+            return false;
+        }
+        let Some(k) = t.tube.pad_hit(before, self.pos) else {
+            return false;
+        };
+        self.pos.y = self.pos.y.max(t.tube.pads[k].y + BODY_DROP);
+        self.vel.y = MUSHROOM_BOUNCE;
+        self.mode = Mode::Flying;
+        true
+    }
 }
 
 impl Race {
     /// Mape's Tower's boundary for local ape `i` after its step: out of
-    /// bounds, it is put on the last pad behind it and leaves it flying
+    /// bounds, it is put on the pad its leg resets to and leaves it flying
     /// with the pad's boost (`Event::Reset` with the pad's platform), or
     /// with Floor is Lava it is eaten. Returns whether it is now out.
     pub(crate) fn tower_rules(&mut self, i: usize) -> bool {
@@ -121,7 +201,7 @@ impl Race {
         let pad = self.course.tower_pad(t, pos, hint);
         let pl = &self.course.platforms[pad.platform];
         let at = v3(pl.centre.x, pl.top + BODY_DROP, pl.centre.z);
-        let yaw = crate::geom::yaw_of(pl.fwd);
+        let yaw = yaw_of(pl.fwd);
         let a = &mut self.racers[i].ape;
         a.put_on(at, yaw, &self.course);
         if pad.boost != V3::ZERO {

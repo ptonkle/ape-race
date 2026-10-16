@@ -457,7 +457,8 @@ impl Ape {
 
     fn fly(&mut self, wish: V3, course: &Course) {
         // steering in the air: across the motion, or braking, never faster
-        let mut acc = wish.scale(self.phys.air);
+        // (Mape's Tower: stronger in the tube)
+        let mut acc = wish.scale(self.air_now(course));
         let flat = self.vel.flat();
         // (no wish, nothing to take off: `acc` is zero)
         if wish != V3::ZERO && flat.longer_than(ONE) {
@@ -470,6 +471,10 @@ impl Ape {
         self.vel = self.vel.add(acc.scale(DT));
         self.drag(course);
         self.vel.y -= mul(course.gravity(), DT);
+        // (Mape's Tower: the tube's thick air)
+        if course.tower.is_some() {
+            self.tube_air(course);
+        }
         self.pos = self.pos.add(self.vel.scale(DT));
     }
 
@@ -664,8 +669,12 @@ impl Ape {
                 self.happened.push(Happening::Wall);
             }
         }
-        // Mape's Tower: the stonework is solid (TW12)
+        // Mape's Tower: the stonework is solid (TW12), the tube's pads
+        // bounce (TW2-5)
         if let Some(t) = course.tower.as_deref() {
+            if self.tube_pads(course, before) {
+                self.happened.push(Happening::Bounce);
+            }
             if let Some((p, v, wall)) = t.stone_push(self.pos, self.vel) {
                 (self.pos, self.vel) = (p, v);
                 if wall {
