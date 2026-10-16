@@ -664,7 +664,7 @@ impl Ape {
                 self.happened.push(Happening::Wall);
             }
         }
-        // Mape's Tower: the stonework is solid (TW8)
+        // Mape's Tower: the stonework is solid (TW12)
         if let Some(t) = course.tower.as_deref() {
             if let Some((p, v, wall)) = t.stone_push(self.pos, self.vel) {
                 (self.pos, self.vel) = (p, v);

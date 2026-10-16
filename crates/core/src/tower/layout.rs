@@ -90,13 +90,13 @@ const ROOM_LEG: usize = 7;
 
 /// A sub-tower's radius is its turn's less this: the inner lane's beams
 /// hang 5 m in from the line, so 8 m clear of its wall, and a swing
-/// on a bridge toward it clears it too (TW8; it was 6).
+/// on a bridge toward it clears it too (TW12; it was 6).
 const SUB_CLEAR: i32 = int(13);
 /// A sub-tower's top stands this far over its turn (was 12 m: the
-/// balconies, 22 m over the line, were in the air above it, TW8).
+/// balconies, 22 m over the line, were in the air above it, TW12).
 const SUB_OVER: i32 = int(25);
 /// The room's roof hole's radius, the orb mage's beam's length and how far
-/// under the roof its anchor is (TW8).
+/// under the roof its anchor is (TW12).
 const ROOF_HOLE: i32 = int(8);
 const ORB_BEAM: i32 = int(6);
 const ROOF_UNDER: i32 = cm(150);
@@ -304,7 +304,7 @@ pub fn tower_seeded(seed: u64) -> Course {
     let room_to = c.point(leg_at(ROOM_LEG + 1));
     // the room's middle is under where the line crosses its roof's plane
     // (3 m under the line's top across it), so the hole there is the way
-    // out, and the doorway is where the line meets its wall (TW8)
+    // out, and the doorway is where the line meets its wall (TW12)
     let r0 = leg_at(ROOM_LEG);
     let room_len = leg_at(ROOM_LEG + 1) - r0;
     let roof = room_to.y - int(3);
@@ -328,7 +328,7 @@ pub fn tower_seeded(seed: u64) -> Course {
             let (o, r) = turn_centre(&c, legs[1]);
             // (its foot stands over any lower coil passing under it, out
             // of reach of that coil's beams: on a corbel, not the ground,
-            // TW8; the third sub-tower stood in spiral A's way)
+            // TW12; the third sub-tower stood in spiral A's way)
             let own = (leg_at(legs[0]) - int(10), leg_at(legs[2] + 1) + int(10));
             let foot = c.path[..=(half / STEP) as usize]
                 .iter()
@@ -344,7 +344,7 @@ pub fn tower_seeded(seed: u64) -> Course {
                 .unwrap_or(0);
             SubTower {
                 centre: v3(o.x, foot, o.z),
-                // (well inside the inner lane's beams, `r - 8`, TW8)
+                // (well inside the inner lane's beams, `r - 8`, TW12)
                 radius: r - SUB_CLEAR,
                 // (tall enough for its balconies, 22 m over the line)
                 top: o.y + SUB_OVER,
@@ -368,7 +368,7 @@ pub fn tower_seeded(seed: u64) -> Course {
             .expect("the keep");
         let out = p.flat().sub(o.flat()).norm();
         // (its floor's outer edge: it stands out from the wall, its mage
-        // outside the stone, TW8)
+        // outside the stone, TW12)
         let at = o.add(out.scale(r + BALCONY_DEPTH));
         balconies.push(Balcony {
             at: v3(at.x, y, at.z),
@@ -410,11 +410,11 @@ pub fn tower_seeded(seed: u64) -> Course {
         let r = right_of(h);
         let lanes: [i32; 2] = if branch {
             // (the inner lane 5 m in, not 8: its swing on toward the
-            // sub-tower or the keep ran into the wall, TW8)
+            // sub-tower or the keep ran into the wall, TW12)
             [-5, 8]
         } else if leg >= SUMMIT_RUN {
             // (off the keep: no lane on its side, whose swing back ran
-            // into its wall, TW8)
+            // into its wall, TW12)
             [0, 7]
         } else {
             match dice.below(3) {
@@ -429,7 +429,7 @@ pub fn tower_seeded(seed: u64) -> Course {
             let bottom = v3(base.x, base.y + BOTTOM_OVER, base.z);
             // one beam in five leans in from outside (the spell's way)
             // (only an outer lane's: an inner lane's leaned its anchor
-            // into the keep's or a sub-tower's stone, TW8)
+            // into the keep's or a sub-tower's stone, TW12)
             let leaning = lane > 0 && (station * 2 + n) % 5 == 2;
             let hang = if leaning {
                 lean(r.scale(-lane.signum()), LEAN)
@@ -471,7 +471,7 @@ pub fn tower_seeded(seed: u64) -> Course {
 
     // the trampoline room: a trampoline on the bridge's end before its
     // doorway, one inside, one under the roof hole; the orb mage's beam
-    // hung from the roof inside, and a beam down into the hole (TW8)
+    // hung from the roof inside, and a beam down into the hole (TW12)
     let mut trampolines = Vec::new();
     let right_in = right_of(flat(c.heading_at(r0)));
     for (k, under, aside) in [
@@ -506,7 +506,7 @@ pub fn tower_seeded(seed: u64) -> Course {
     let exit = c.point(exit_at);
     c.vines.push(beam(
         // (its bottom over the roof: grabbed from under it, in the hole,
-        // the swing pressed the ape into the roof's edge, TW8)
+        // the swing pressed the ape into the roof's edge, TW12)
         v3(exit.x, roof + EXIT_OVER, exit.z),
         DOWN,
         int(14),

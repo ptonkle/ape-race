@@ -1,4 +1,4 @@
-//! Mape's Tower's stonework is solid (TW8): the keep, the sub-towers and
+//! Mape's Tower's stonework is solid (TW12): the keep, the sub-towers and
 //! their roofs, the trampoline room's shell (its doorway and roof hole
 //! open), the bridges' masonry under their decks and the topsy towers
 //! hanging in the zipper. A body that runs into stone is put back out by

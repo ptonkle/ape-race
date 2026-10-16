@@ -31,7 +31,7 @@
 //! **Rules on this map** (each gated on `Course.tower`, so the other maps
 //! are untouched):
 //!
-//! - *The stone is solid, nothing else is (TW8, `tower/stone.rs`):* the
+//! - *The stone is solid, nothing else is (TW12, `tower/stone.rs`):* the
 //!   keep, the sub-towers and their roofs, the trampoline room's shell
 //!   (its doorway and roof hole open), the bridges' masonry and the topsy
 //!   towers push a body out (`Ape::collide`, `Happening::Wall`); their tops
@@ -116,7 +116,7 @@ pub struct TowerLayout {
     /// where an ape stands behind the menus: the hands' place and the way
     /// it faces
     pub lobby: (V3, i32),
-    /// the solid stonework (TW8: the keep, the sub-towers, the room's
+    /// the solid stonework (TW12: the keep, the sub-towers, the room's
     /// shell, the bridges' masonry, the topsy towers), built from the
     /// fields above (`stone.rs`)
     pub stone: Vec<Solid>,
@@ -299,7 +299,7 @@ impl TowerLayout {
     /// Where sub-tower `s`'s topsy-turvy twin hangs in the zipper (its
     /// foot, it hangs down from there `TOPSY_TILT` off straight): in the
     /// void where the mirrored keep would be, 20 m from the zip, out of
-    /// every swing's way (TW8; hung at the mirrored sub-tower's top the
+    /// every swing's way (TW12; hung at the mirrored sub-tower's top the
     /// zipper's beams hung inside them).
     pub fn topsy_hang(&self, s: &SubTower) -> V3 {
         let m = self.mirror(v3(s.centre.x, s.top, s.centre.z));

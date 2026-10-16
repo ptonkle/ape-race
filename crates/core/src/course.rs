@@ -521,7 +521,7 @@ impl Course {
         let mut top = self.floor(p.x, p.z);
         let feet = p.y - BODY_DROP;
         // (Mape's Tower: a bridge's deck is its drawn slope, `stone_top`,
-        // not its flat platform, TW8)
+        // not its flat platform, TW12)
         let decks = match self.tower.as_deref() {
             Some(t) => t.deck_platforms(),
             None => 0..0,

@@ -154,7 +154,7 @@ pub const BAY: [u32; 4] = [
 /// Mape's Tower's target times in hundredths of a second (2026-10-16, set
 /// as the others' were: King Kong alone as a Time Trial runs finishes in
 /// 61.9–76.4 s by kind, the Lemur best, the Gorilla slowest, with the
-/// item crates (TI1) and the solid stone (TW8); `tests/tower_ai.rs`
+/// item crates (TI1) and the solid stone (TW12); `tests/tower_ai.rs`
 /// `tower_time_trial_report`, SECOND-ORDER TM1). Author just under the
 /// best kind, then the Jungle's steps of 7, 10 and 15 s. Re-measure if the
 /// course changes.

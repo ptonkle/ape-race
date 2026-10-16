@@ -1,4 +1,4 @@
-//! The stone is solid (TW8), and every vine on both halves is placed
+//! The stone is solid (TW12), and every vine on both halves is placed
 //! clear of it: the audit of every beam (its anchor and length, the swing
 //! an ape makes on it, the caster's line to it) and the walls' tests.
 
@@ -118,7 +118,7 @@ fn layout(k: u64) -> Course {
     }
 }
 
-/// The person's report (TW8): "why can you go through like all the
+/// The person's report (TW12): "why can you go through like all the
 /// walls?" Every vine on both halves, over sixteen layouts: its beam, its
 /// swing and its caster's line are clear of the stone.
 #[test]

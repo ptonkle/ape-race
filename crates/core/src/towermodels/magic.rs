@@ -581,7 +581,7 @@ pub fn trampoline_room(
     tick: u32,
     k: u32,
 ) {
-    // (face 0, toward +z, is the doorway: open, TW8)
+    // (face 0, toward +z, is the doorway: open, TW12)
     let faces = if cutaway { 0b0111_1100 } else { 0b1111_1110 };
     section(b, f, r, h, k, Detail::Near, faces);
     let d = 2 * r + cm(40);
@@ -685,7 +685,7 @@ pub fn trampoline_room(
         tick,
     );
     // the roof: a flat slate roof round an opening (radius `hole`) rimmed
-    // in light, as solid as it looks (TW8)
+    // in light, as solid as it looks (TW12)
     let eave = r + cm(80);
     let rise = 0;
     let side = side_of((eave + hole) / 2) + cm(30);

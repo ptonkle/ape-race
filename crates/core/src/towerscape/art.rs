@@ -244,7 +244,7 @@ fn build(c: &Course, t: &TowerLayout, sink: &mut Sink) -> Vec<Option<V3>> {
         }
         if room {
             // the trampoline room's tower: its stone foot up to the room's
-            // floor (the room itself is drawn below, TW8)
+            // floor (the room itself is drawn below, TW12)
             let n = (t.room.centre.y / m::SECTION_H).max(1);
             let sh = t.room.centre.y / n;
             for k in 0..n {
