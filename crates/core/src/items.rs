@@ -346,7 +346,11 @@ pub fn crate_vines(course: &Course) -> Vec<usize> {
             .iter()
             .enumerate()
             .filter(|(i, _)| !out.contains(i))
-            .map(|(i, v)| (v.anchor.flat().sub(spot.flat()).len(), i))
+            // (Mape's Tower in 3D: its coils lie one above another)
+            .map(|(i, v)| match course.tower {
+                Some(_) => (v.anchor.sub(*spot).len(), i),
+                None => (v.anchor.flat().sub(spot.flat()).len(), i),
+            })
             .filter(|(d, _)| *d <= CRATE_VINE_NEAR)
             .min();
         if let Some((_, i)) = best {

@@ -573,6 +573,27 @@ pub fn tower_seeded(seed: u64) -> Course {
     // (no trampolines in the zipper: going down, a bounce only throws an
     // ape back up the way it came)
 
+    // item crates: a row across the course every 240 m, on every beam of
+    // the station nearest each place, never on the start row (the
+    // fallback put one on the first start vine alone: one starter got an
+    // item, TI1)
+    let mut row = 150;
+    while int(row) < c.length - int(60) {
+        let si = int(row);
+        let near = (0..c.vines.len())
+            .filter(|&i| hangers[i] != Hanger::Start && hangers[i] != Hanger::Orb)
+            .min_by_key(|&i| (c.vines[i].at - si).abs());
+        if let Some(n) = near {
+            let at = c.vines[n].at;
+            for i in 0..c.vines.len() {
+                if hangers[i] != Hanger::Start && (c.vines[i].at - at).abs() <= int(4) {
+                    c.crates.push(c.vines[i].anchor);
+                }
+            }
+        }
+        row += 240;
+    }
+
     // the reset pads: the start deck, the room's floor, then one every
     // 50 m each way, each throwing an ape up to the next station's beams
     layout.pads.push(Pad {

@@ -264,3 +264,29 @@ fn the_eldritch_banana_is_in_the_tear_not_beyond_it() {
         "longer than the tear"
     );
 }
+
+#[test]
+fn item_crates_hang_on_whole_stations_and_never_on_the_start_row() {
+    for seed in 0..4 {
+        let c = tower_seeded(seed);
+        let t = c.tower.as_deref().unwrap();
+        let carry = crate::items::crate_vines(&c);
+        assert!(carry.len() >= 8, "seed {seed}: {} crates", carry.len());
+        for &v in &carry {
+            assert_ne!(
+                t.hangers[v],
+                Hanger::Start,
+                "seed {seed}: start vine {v} has a crate"
+            );
+            // every beam of its station carries one too
+            for (i, w) in c.vines.iter().enumerate() {
+                if t.hangers[i] != Hanger::Start && (w.at - c.vines[v].at).abs() <= int(4) {
+                    assert!(
+                        carry.contains(&i),
+                        "seed {seed}: vine {i} beside crate vine {v}"
+                    );
+                }
+            }
+        }
+    }
+}
