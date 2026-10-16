@@ -597,7 +597,7 @@ pub fn summit(b: &mut Batch, f: &Affine, tick: u32) {
     }
     // far beyond, facing back at the keep
     let beyond = f
-        .then(&Affine::translate(v3(0, int(30), int(120))))
+        .then(&Affine::translate(v3(0, int(34), int(150))))
         .then(&Affine::rot_y(HALF));
-    eldritch_banana(b, &beyond, int(80), tick);
+    eldritch_banana(b, &beyond, int(66), tick);
 }

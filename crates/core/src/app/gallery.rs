@@ -279,8 +279,8 @@ impl App {
             ruins::look()
         } else if g.bay.is_some() {
             bay::gallery_look()
-        } else if g.tower.is_some() {
-            tower::gallery_look()
+        } else if let Some(r) = g.tower {
+            tower::gallery_look_of(tower::GALLERY[r])
         } else {
             sc::look()
         };
