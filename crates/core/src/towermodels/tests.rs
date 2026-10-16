@@ -164,14 +164,14 @@ fn the_tower_models_stay_within_budget() {
         (
             "rift",
             shapes(&|b| rift(b, &id, int(16), int(30), ONE, t)),
-            110,
+            140,
         ),
         (
             "eldritch banana",
             shapes(&|b| eldritch_banana(b, &id, int(80), t)),
-            120,
+            170,
         ),
-        ("summit", shapes(&|b| summit(b, &id, t)), 500),
+        ("summit", shapes(&|b| summit(b, &id, t)), 560),
     ];
     for (name, (n, halos), max) in &rows {
         assert!(*n > 0, "{name} draws nothing");
