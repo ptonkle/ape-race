@@ -32,3 +32,4 @@ One row per run of `scripts/timed-checks.sh`, newest last. Seconds per step; `lo
 | 2026-10-15 20:17 | 1.12.3 | baea429 | 48.34 | check | format=1.4 lint=0.2 core=84.5 release=10.3 WebAssembly=0.1 browser=447.0 | 543.5 | pass |
 | 2026-10-15 20:41 | 1.12.4 | 0df1c7d | 33.14 | check | format=1.1 lint=0.2 core=100.0 release=13.6 WebAssembly=0.1 browser=498.5 | 613.7 | pass |
 | 2026-10-15 21:02 | 1.12.5 | 4164986 | 29.91 | quick (chromium; tags all, boundary, camera, costumes, items, maps-bay, menus, notes, online, page, race, render, replay, sound, weather) | format=1.1 lint=4.4 list=0.1 core=86.5 release=16.8 WebAssembly=0.2 browser=344.2 online-transport=7.0 online-race=88.6 | 548.9 | pass |
+| 2026-10-15 21:13 | 1.12.6 | 64f5e9b | 26.06 | quick (chromium; tags ai, all, boundary, maps-bay, notes, page, race, render) | format=0.9 lint=3.3 list=0.1 core=60.3 release=5.9 WebAssembly=0.1 browser=171.7 online-transport=5.1 online-race=49.2 | 296.4 | pass |
