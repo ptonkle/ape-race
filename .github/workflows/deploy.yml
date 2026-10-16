@@ -1,12 +1,12 @@
-name: Check, then deploy to Pages
+name: Build and deploy to Pages
 
-# The check is the same file a person runs locally. A push to main deploys
-# only after it passes; the person asked for this (TRIAGE T85, 2026-10-15),
-# set up like sgilson7/ribbit-king.
+# A push to main builds the game and deploys it. The checks run locally
+# before the push (scripts/timed-checks.sh quick, or check.sh for a map
+# merge), not here: the person, 2026-10-15, "let's check locally instead",
+# so a deploy takes minutes, not a full check on a 4-core runner.
 on:
   push:
     branches: [main]
-  pull_request:
   workflow_dispatch:
 
 permissions:
@@ -19,15 +19,15 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  check:
+  build:
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v5
 
       - name: Rust toolchain
         run: |
-          rustup toolchain install stable --profile minimal --component clippy,rustfmt
+          rustup toolchain install stable --profile minimal
           rustup target add wasm32-unknown-unknown
 
       - uses: Swatinem/rust-cache@v2
@@ -37,37 +37,22 @@ jobs:
         with:
           tool: wasm-bindgen@0.2.127
 
-      - uses: actions/setup-python@v6
-        with:
-          python-version: "3.12"
-
-      # Chromium only in CI, as everyday local deploys (Firefox and WebKit
-      # run locally before a map merge or a big page change).
-      - name: Playwright and Chromium
-        run: |
-          python3 -m venv .venv
-          .venv/bin/pip install --quiet "playwright==1.63.0"
-          .venv/bin/python -m playwright install --with-deps chromium
-
-      - name: ./scripts/check.sh (Chromium)
-        run: BUILDER_ENGINES=chromium ./scripts/check.sh
+      - name: Build (scripts/build.sh)
+        run: ./scripts/build.sh
 
       # What scripts/pages.sh did for the site folder: drop the transport
       # test page and add the patch notes as a plain page.
       - name: Assemble the site
-        if: github.event_name != 'pull_request'
         run: |
           rm -f dist/nettest.html dist/nettest.js
           python3 scripts/patch_notes_html.py dist/patch-notes.html
 
       - uses: actions/upload-pages-artifact@v3
-        if: github.event_name != 'pull_request'
         with:
           path: dist
 
   deploy:
-    if: github.event_name != 'pull_request'
-    needs: check
+    needs: build
     runs-on: ubuntu-latest
     environment:
       name: github-pages

@@ -4,7 +4,7 @@ A 3D vine-swinging race in the browser, on six maps: **Canopy Run** (the jungle,
 
 **Play:** https://ptonkle.github.io/ape-race/
 
-MIT licence ([LICENSE](LICENSE), credits in [LICENSES.md](LICENSES.md)). Every push to `main` runs the checks and deploys to GitHub Pages (`.github/workflows/deploy.yml`).
+MIT licence ([LICENSE](LICENSE), credits in [LICENSES.md](LICENSES.md)). Every push to `main` builds and deploys to GitHub Pages (`.github/workflows/deploy.yml`); the checks run locally before the push (`scripts/timed-checks.sh quick`, or the full `scripts/check.sh` for a map merge).
 
 The design is in [`BRIEF.md`](BRIEF.md) and the build decisions in [`PLAN.md`](PLAN.md). How to make a new map is in [`MAPS.md`](MAPS.md). Future ideas wait in [`TRIAGE.md`](TRIAGE.md).
 
