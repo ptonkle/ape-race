@@ -161,6 +161,36 @@ fn the_selector_lists_unlocked_costumes_and_wears_an_unlocked_one_anywhere() {
 }
 
 #[test]
+fn beating_concrete_jungles_author_time_unlocks_the_tourist() {
+    // the person, 2026-10-15: the City's costume is "all touristy"
+    let mut a = app();
+    start(&mut a, Map::City, false);
+    finish(&mut a, author(Map::City) + 1);
+    assert!(!a.settings.wearable(Costume::Tourist));
+    start(&mut a, Map::City, true);
+    finish(&mut a, author(Map::City));
+    assert!(a.settings.wearable(Costume::Tourist));
+    let rows = a.best_row(a.play.as_ref().unwrap()).to_string();
+    assert!(
+        rows.contains("[\"Costume unlocked\",\"Tourist\"]"),
+        "{rows}"
+    );
+    assert_eq!(Costume::from_key("tourist"), Some(Costume::Tourist));
+    a.act("menu.quit", "");
+    a.act("menu.main", "");
+    a.act("menu.race", "");
+    a.act("setup.costume", "tourist");
+    a.act("setup.map", "jungle");
+    a.act("menu.start", "");
+    let p = a.play.as_ref().unwrap();
+    let at = p.race.racers[0].ape.pos;
+    assert_eq!(
+        scene::racer_pose(&p.race, 0, at, 0).gear,
+        models::Gear::Tourist
+    );
+}
+
+#[test]
 fn recordings_keep_the_costume_and_old_ones_read_as_the_maps_own() {
     let mut a = app();
     a.settings.unlock(Costume::Explorer);

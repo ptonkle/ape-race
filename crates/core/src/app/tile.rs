@@ -15,7 +15,7 @@
 //! colourblind mode, JOJO MODE, the Ski Slope's snow; `snow=blizzard` a
 //! blizzard, `snow=squall` Banana Bay Battle's squall) and `pal` (each racer's palette,
 //! joined by `+` (a space, as a URL may decode it, works too), TRIAGE
-//! T49; classic for the rest) and `gear` (`none`, `ski`, `space`, `explorer` or `pirate`: what
+//! T49; classic for the rest) and `gear` (`none`, `ski`, `space`, `explorer`, `pirate` or `tourist`: what
 //! the racers wear instead of the map's own; `space` previews the Sector
 //! Ape costumes before their map exists), and for Sector Ape's pictures
 //! `door` (ticks since the switch door shut, held at `at`; on Sunset
