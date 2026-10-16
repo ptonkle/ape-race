@@ -48,6 +48,9 @@ CARDS = {
     # alongside the fleet: a navy frigate under its purple flag, pirate
     # ships ahead in line, a hull hit smoking, the flagged barrels
     "bay": "230",
+    # near the flyover's top: the keep's battlements and turrets over the
+    # cloud band, the eldritch banana beyond in the golden haze
+    "tower": "930",
 }
 
 SCALE_TO_WEBP = """async ([w, h, q]) => {
@@ -68,8 +71,8 @@ def map_keys(page, base):
     page.goto(base)
     page.wait_for_selector("body[data-ready='true']", timeout=120000)
     page.click("[id='menu.race']")
-    page.wait_for_selector("[id='setup.map'] .tile", timeout=10000)
-    return page.eval_on_selector_all("[id='setup.map'] .tile", "ts => ts.map(t => t.dataset.value)")
+    page.wait_for_selector("[id='setup.map'] :is(.tile, .card)", timeout=10000)
+    return page.eval_on_selector_all("[id='setup.map'] :is(.tile, .card)", "ts => ts.map(t => t.dataset.value)")
 
 
 def main():

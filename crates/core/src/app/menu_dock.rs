@@ -188,6 +188,7 @@ impl App {
         match (map, self.course_of(map)) {
             (Map::Ruins, Some(c)) => self.ruins_camera(c, focus),
             (Map::Bay, Some(c)) => self.bay_camera(c, focus),
+            (Map::Tower, Some(c)) => self.tower_camera(c, focus),
             _ => self.framed(preview_view(feet, look), focus),
         }
     }
@@ -211,6 +212,26 @@ impl App {
         .max(1);
         let back = crate::bayscape::lobby::LOBBY_BACK.max(fx::mul(BAY_FIT, fx::div(h, open)));
         let cam = move |feet, look| crate::bayscape::lobby::lobby_camera_at(feet, look, back);
+        self.turned(feet, look, mark, focus, &cam)
+    }
+
+    /// Mape's Tower's lobby camera (`towerscape::lobby`), framed beside the
+    /// menus and turned so the keep's edge sits between the docked panels
+    /// and the ape: the wall beside the menus, the ape against the sky.
+    fn tower_camera(&self, c: &Course, focus: V3) -> Camera {
+        let Some(t) = c.tower.as_deref() else {
+            return self.framed(crate::scene::preview(c).camera, focus);
+        };
+        let (feet, look) = crate::towerscape::lobby::lobby_spot(c, t);
+        let mark = crate::towerscape::lobby::landmark(c, t);
+        let h = self.view_h.max(1);
+        let open = match self.dock() {
+            Dock::Side(dock) => self.view_w - dock,
+            _ => self.view_w,
+        }
+        .max(1);
+        let back = crate::towerscape::lobby::LOBBY_BACK.max(fx::mul(BAY_FIT, fx::div(h, open)));
+        let cam = move |feet, look| crate::towerscape::lobby::lobby_camera_at(feet, look, back);
         self.turned(feet, look, mark, focus, &cam)
     }
 
@@ -296,9 +317,11 @@ impl App {
         if let Some(c) = self.course_of(map) {
             // on Banana Bay Battle the start row is not yet rigged: its
             // ropes would hang a few metres in front of the ape (BL2)
-            let keep = |i: usize| match c.bay.as_deref() {
-                Some(bay) => !crate::bayscape::lobby::start_row(c, bay, i),
-                None => true,
+            let keep = |i: usize| match (c.bay.as_deref(), c.tower.as_deref()) {
+                (Some(bay), _) => !crate::bayscape::lobby::start_row(c, bay, i),
+                // Mape's Tower: the start's beams too (TL1)
+                (_, Some(t)) => !crate::towerscape::lobby::hidden_in_lobby(c, t, i),
+                _ => true,
             };
             crate::scene::vines_where(&mut vines, c, self.ticks, vivid, &keep);
         }
@@ -497,6 +520,68 @@ mod tests {
                     let mut b = Batch::new();
                     let pose = models::Pose {
                         gear: models::Gear::on(Map::Bay),
+                        ..models::Pose::standing(feet, yaw, 0)
+                    };
+                    models::draw_in(&mut b, kind, 0, &pose);
+                    let (v, _) = b.finish(crate::render::DYNAMIC_BUFFER);
+                    for i in v.chunks(crate::render::INSTANCE_VALUES) {
+                        let p = v3(i[3], i[7], i[11]);
+                        let (px, py) = cam.screen(aspect, p).unwrap();
+                        let (px, py) = (px / ONE, py / ONE);
+                        assert!(
+                            px > dock * 100 / w && px < 100 && (3..97).contains(&py),
+                            "{name} {w}x{h} {kind:?}: a part at {px}%, {py}%"
+                        );
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn on_mapes_tower_the_keeps_edge_shows_between_the_menus_and_the_ape_on_the_start_deck() {
+        for (w, h) in [(1920, 1080), (1366, 768), (1280, 720)] {
+            for (name, a) in screens_on("tower", w, h) {
+                assert_eq!(a.map(), Map::Tower, "{name}");
+                let c = a.course_of(Map::Tower).unwrap();
+                let t = c.tower.as_deref().unwrap();
+                let cam = a.preview_camera();
+                let aspect = fx::div(w, h);
+                assert!(
+                    cam.fwd.y.abs() < fx::sin(deg(4)),
+                    "{name} {w}x{h}: pitch {}",
+                    cam.fwd.y
+                );
+                // the keep's edge between the menus' edge and the ape
+                let mark = crate::towerscape::lobby::landmark(c, t);
+                let (mx, my) = cam.screen(aspect, mark).unwrap();
+                let (mx, my) = (mx / ONE, my / ONE);
+                let (x, y) = ape_on_screen(&a);
+                let Dock::Side(dock) = a.dock() else { panic!() };
+                let ape_left = x - fx::mul(h, APE_HALF_W) * 100 / w;
+                assert!(
+                    mx > dock * 100 / w + 2 && mx < ape_left - 2,
+                    "{name} {w}x{h}: keep's edge at {mx}%, menus to {}%, ape from {ape_left}%",
+                    dock * 100 / w
+                );
+                assert!((5..=70).contains(&my), "{name} {w}x{h}: edge {my}% down");
+                let open_middle = (dock + (w - dock) / 2) * 100 / w;
+                assert!(
+                    (x - open_middle).abs() <= 2,
+                    "{name} {w}x{h}: ape at {x}%, open part's middle {open_middle}%"
+                );
+                assert!((40..=70).contains(&y), "{name} {w}x{h}: ape at {y}% down");
+                // every kind wholly in the frame and clear of the menus as
+                // it turns
+                let (feet, _) = a.preview_at();
+                let turns = (0..8).map(|k| k * TURN / 8);
+                for (kind, yaw) in crate::rules::Kind::ALL
+                    .into_iter()
+                    .flat_map(|k| turns.clone().map(move |y| (k, y)))
+                {
+                    let mut b = Batch::new();
+                    let pose = models::Pose {
+                        gear: models::Gear::on(Map::Tower),
                         ..models::Pose::standing(feet, yaw, 0)
                     };
                     models::draw_in(&mut b, kind, 0, &pose);
