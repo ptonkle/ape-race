@@ -1523,6 +1523,12 @@ pub fn vine_look_on(map: Map, in_reach: bool, vivid: bool, tick: u32) -> VineLoo
             glow: crate::bayscape::fleet::ROPE_GLOW_VIVID,
             ..look
         },
+        // Mape's Tower: spell beams with a soft glow (their colour is the
+        // caster's spell, `towerscape::beam_vine`)
+        (Map::Tower, false, false) => VineLook {
+            halo: look.width * crate::towermodels::BEAM_HALO,
+            ..look
+        },
         _ => look,
     }
 }
