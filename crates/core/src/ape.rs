@@ -168,8 +168,8 @@ impl Ape {
 
     /// The nearest vine in reach of the hands, if any.
     pub fn vine_in_reach(&self, course: &Course, tick: u32) -> Option<usize> {
-        // (Sector Ape: vines hang every way)
-        if course.sector.is_some() {
+        // (Sector Ape, Mape's Tower: vines hang every way)
+        if course.any_way() {
             return self.reach_any_way(course, tick);
         }
         let mut best = None;

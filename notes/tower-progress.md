@@ -9,8 +9,8 @@ The standard map-build steps (MAPS.md "Build steps"), one row each. Status is on
 | 3 | Ape costumes | Done | Wizard and witch mixes for all six kinds; the flame-demon cat (TG rows); wired to Map::Tower when the skeleton lands |
 | 4 | Models | In progress | Climb half done (towermodels.rs: keep, sub-towers, bridges, mages, dragons, beams, trampolines, room, clouds, summit); zipper half and a better banana and tear in progress |
 | 5 | Sky and lighting | Not started |  |
-| 6 | Course layout | Not started |  |
-| 7 | Map rules | Not started |  |
+| 6 | Course layout | In progress | Real layout in (TC1): 698 m climb, 4 spirals, 3 branches, trampoline room, clouds, mirrored zipper; any-direction beams (TC2) |
+| 7 | Map rules | In progress | Pads aimed at the next station; AI bounds/re-pick (TC3); AI too slow (~140–148 s), ordering test and lift tuning open (TC4) |
 | 8 | Art placed on the course | Not started |  |
 | 9 | Lobby spot and flyover | Not started |  |
 | 10 | AI validation | Not started |  |

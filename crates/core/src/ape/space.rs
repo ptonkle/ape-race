@@ -39,13 +39,26 @@ impl Ape {
     /// The nearest vine in reach of the hands, its vine the segment from its
     /// anchor along the way it hangs.
     pub(super) fn reach_any_way(&self, course: &Course, tick: u32) -> Option<usize> {
-        let s = course.sector.as_deref()?;
+        let Some(s) = course.sector.as_deref() else {
+            // (Mape's Tower: every vine, each cheaply boxed out)
+            return self.reach_among(course, tick, 0..course.vines.len());
+        };
         // only the course's vines hanging near along the course (and every
         // summoned one): the same answer as looking at them all
         let (here, _) = course.progress(self.pos, self.hint);
         let summoned = s.by_at.len()..course.vines.len();
+        self.reach_among(course, tick, s.vines_near(here).chain(summoned))
+    }
+
+    /// `reach_any_way` among the vines `among`.
+    fn reach_among(
+        &self,
+        course: &Course,
+        tick: u32,
+        among: impl Iterator<Item = usize>,
+    ) -> Option<usize> {
         let mut best: Option<(i32, usize)> = None;
-        for i in s.vines_near(here).chain(summoned) {
+        for i in among {
             if let Some((v, ago)) = self.last_vine {
                 if v == i && ago < RELEASE_IGNORE {
                     continue;

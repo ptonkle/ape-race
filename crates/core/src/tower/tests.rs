@@ -69,9 +69,10 @@ fn the_centreline_climbs_to_the_tear_then_falls_its_mirror_as_far() {
         assert!((d.len() - STEP).abs() < cm(1), "step {i}: {}", d.len());
         assert!(d.norm().sub(c.heading[i]).len() < cm(1), "heading {i}");
     }
-    // up to the tear, then down
-    assert!(c.heading[mid / 2].y > 0);
-    assert!(c.heading[mid + mid / 2].y < 0);
+    // up to the tear (level on the branches), then down
+    assert!((0..mid).all(|i| c.heading[i].y >= 0));
+    assert!((mid + 1..n).all(|i| c.heading[i].y <= 0));
+    assert!(c.heading[25].y > 0, "the first spiral climbs");
 }
 
 #[test]
@@ -79,10 +80,11 @@ fn along_the_course_tells_the_coils_apart_by_height() {
     let c = tower();
     let n = c.path.len();
     let mid = n / 2;
-    // on the climb's top coil and the zipper's matching one: a point 3 m
+    // on the climb's top coil (the last spiral, 15 + 11 samples short of
+    // the tear, over the first) and the zipper's matching one: a point 3 m
     // over the centreline, right above a sample of the coil below (the
     // nearest sample in plan), is found on its own coil
-    let k = mid * 3 / 4;
+    let k = mid - 26;
     let under = (0..k - 50)
         .min_by_key(|&j| c.path[j].flat().sub(c.path[k].flat()).len())
         .unwrap();
@@ -120,9 +122,9 @@ fn out_of_bounds_puts_the_ape_on_the_pad_behind_flying_with_its_boost() {
     a.vel = v3(0, -int(10), 0);
     a.mode = Mode::Flying;
     r.step(&[Default::default(); 2]);
-    // the pad at 100 m (not the one at 150 m ahead)
+    // the last pad behind (not the next one ahead)
     let pad = pads.iter().rev().find(|p| p.at <= s).copied().unwrap();
-    assert_eq!(pad.at, int(100));
+    assert!(pad.at > 0 && pads.iter().any(|p| p.at > s));
     assert!(r.events.contains(&Event::Reset {
         who: 0,
         pad: pad.platform

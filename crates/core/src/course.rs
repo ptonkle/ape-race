@@ -376,10 +376,18 @@ impl Course {
     /// every map but Sector Ape, whose bodies each pull their vines their
     /// own way.
     pub fn hang(&self, i: usize) -> V3 {
-        match &self.sector {
-            Some(s) => s.hangs.get(i).copied().unwrap_or(crate::sector::DOWN),
-            None => crate::sector::DOWN,
+        match (&self.sector, &self.tower) {
+            (Some(s), _) => s.hangs.get(i).copied().unwrap_or(crate::sector::DOWN),
+            // (Mape's Tower: the spell sets the beam's way, TW6)
+            (None, Some(t)) => t.hangs.get(i).copied().unwrap_or(crate::sector::DOWN),
+            (None, None) => crate::sector::DOWN,
         }
+    }
+
+    /// Whether vines may hang any way here (Sector Ape, Mape's Tower):
+    /// every other map's arithmetic is straight down.
+    pub fn any_way(&self) -> bool {
+        self.sector.is_some() || self.tower.is_some()
     }
 
     /// A point vine `i`'s anchor is never further than the second value
@@ -411,9 +419,9 @@ impl Course {
     pub fn tip(&self, i: usize, tick: u32) -> V3 {
         let a = self.anchor(i, tick);
         let len = self.vines[i].length;
-        match &self.sector {
-            None => v3(a.x, a.y - len, a.z),
-            Some(_) => a.add(self.hang(i).scale(len)),
+        match self.any_way() {
+            false => v3(a.x, a.y - len, a.z),
+            true => a.add(self.hang(i).scale(len)),
         }
     }
 
@@ -421,9 +429,9 @@ impl Course {
     /// Sector Ape, where a vine hanging up is lowest at its anchor.
     pub fn vine_bottom(&self, i: usize, tick: u32) -> i32 {
         let a = self.anchor(i, tick);
-        match &self.sector {
-            None => a.y - self.vines[i].length,
-            Some(_) => a.y.min(self.tip(i, tick).y),
+        match self.any_way() {
+            false => a.y - self.vines[i].length,
+            true => a.y.min(self.tip(i, tick).y),
         }
     }
 
@@ -432,12 +440,12 @@ impl Course {
     /// anchor's column at `p`'s height, held to the vine.
     pub fn vine_point(&self, i: usize, tick: u32, p: V3) -> V3 {
         let a = self.anchor(i, tick);
-        match &self.sector {
-            None => {
+        match self.any_way() {
+            false => {
                 let bottom = a.y - self.vines[i].length;
                 v3(a.x, p.y.clamp(bottom, a.y), a.z)
             }
-            Some(_) => {
+            true => {
                 let h = self.hang(i);
                 let t = p.sub(a).dot(h).clamp(0, self.vines[i].length);
                 a.add(h.scale(t))
@@ -448,7 +456,7 @@ impl Course {
     /// Whether vine `i` is an odd one (Sector Ape: it does not hang
     /// straight down).
     pub fn odd_vine(&self, i: usize) -> bool {
-        self.sector.is_some() && self.hang(i) != crate::sector::DOWN
+        self.any_way() && self.hang(i) != crate::sector::DOWN
     }
 
     /// The downward pull on an ape: `rules::GRAVITY`, less on Sector Ape.

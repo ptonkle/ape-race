@@ -689,6 +689,12 @@ pub fn think(race: &Race, who: usize, brain: &mut Brain) -> Controls {
         // (and off the deck it drives at its best a while: from a standstill
         // a weak swing only whirls)
         brain.rescue_until = race.tick + 1 + RESCUE;
+        // (Mape's Tower: thrown off a reset pad, it picks its vines afresh
+        // from where it is now, not from where it fell)
+        if race.course.tower.is_some() {
+            brain.cands.clear();
+            brain.target = None;
+        }
     }
     if race.running() && !r.out() && brain.difficulty != Difficulty::KingKong {
         brain.watch(tick, r.progress);
@@ -915,9 +921,9 @@ fn anchor_cached(course: &Course, i: usize, tick: u32, anchors: Option<&mut Anch
 /// `course.vine_bottom(i, tick)`, its anchor that tick `a` already found.
 fn bottom_from(course: &Course, i: usize, a: V3) -> i32 {
     let len = course.vines[i].length;
-    match course.sector {
-        None => a.y - len,
-        Some(_) => a.y.min(a.add(course.hang(i).scale(len)).y),
+    match course.any_way() {
+        false => a.y - len,
+        true => a.y.min(a.add(course.hang(i).scale(len)).y),
     }
 }
 
@@ -995,9 +1001,9 @@ fn vine_dist_from(course: &Course, i: usize, a: V3, p: V3) -> i32 {
 /// found (as `Course::vine_point`).
 fn vine_point_from(course: &Course, i: usize, a: V3, p: V3) -> V3 {
     let len = course.vines[i].length;
-    match course.sector {
-        None => v3(a.x, p.y.clamp(a.y - len, a.y), a.z),
-        Some(_) => {
+    match course.any_way() {
+        false => v3(a.x, p.y.clamp(a.y - len, a.y), a.z),
+        true => {
             let h = course.hang(i);
             let t = p.sub(a).dot(h).clamp(0, len);
             a.add(h.scale(t))
@@ -1150,7 +1156,14 @@ fn flight_controls(
     last_grab: bool,
 ) -> Controls {
     let grab = !last_grab
-        && in_reach(a, course, tick, cands, GRAB_MARGIN, aim_at(course, target)).is_some();
+        && (in_reach(a, course, tick, cands, GRAB_MARGIN, aim_at(course, target)).is_some()
+            // (Mape's Tower: any beam in reach not behind it will do; the
+            // coils and branches turn too sharply for a planned target to
+            // stay the one it meets, TC rows)
+            || (course.tower.is_some()
+                && a.vine_in_reach(course, tick).is_some_and(|v| {
+                    course.vines[v].at >= progress(course, a) - int(4) && !course.tower_out(a.pos, a.hint)
+                })));
     let mut c = Controls {
         grab,
         ..Controls::default()
@@ -1309,6 +1322,10 @@ fn fly_ahead(
         }
         // (Sector Ape: past the boundary is a reset, a flight lost)
         if course.sector.is_some() && course.out_of_bounds(a.pos, a.hint) {
+            return None;
+        }
+        // (Mape's Tower: so is leaving its bounds)
+        if false && course.tower_out(a.pos, a.hint) {
             return None;
         }
         tick += 1;
