@@ -77,11 +77,21 @@ fn the_centreline_climbs_to_the_tear_then_falls_its_mirror_as_far() {
 #[test]
 fn along_the_course_tells_the_coils_apart_by_height() {
     let c = tower();
-    // a point just over the climb's last coil is far along, though a coil
-    // lower down passes under it in plan
-    let mid = c.path.len() / 2;
-    for k in [mid / 2, mid * 3 / 4, mid + mid / 3] {
-        let p = c.path[k].add(v3(0, int(3), 0));
+    let n = c.path.len();
+    let mid = n / 2;
+    // on the climb's top coil and the zipper's matching one: a point 3 m
+    // over the centreline, right above a sample of the coil below (the
+    // nearest sample in plan), is found on its own coil
+    let k = mid * 3 / 4;
+    let under = (0..k - 50)
+        .min_by_key(|&j| c.path[j].flat().sub(c.path[k].flat()).len())
+        .unwrap();
+    assert!(
+        c.path[under].flat().sub(c.path[k].flat()).len() < int(2),
+        "the climb passes under itself in plan"
+    );
+    for (k, j) in [(k, under), (n - 1 - k, n - 1 - under)] {
+        let p = v3(c.path[j].x, c.path[k].y + int(3), c.path[j].z);
         let i = c.nearest_anywhere(p);
         assert!((i as i32 - k as i32).abs() <= 2, "sample {k}: nearest {i}");
         let (s, _) = c.progress(p, i);
@@ -90,13 +100,9 @@ fn along_the_course_tells_the_coils_apart_by_height() {
             "sample {k}: {} m",
             s / ONE
         );
+        // and the windowed search from the ape's last place agrees
+        assert!((c.nearest(p, k) as i32 - k as i32).abs() <= 2);
     }
-    // a coil right under (the helix's coils are 56 m apart): not it
-    let k = mid * 3 / 4;
-    let below = (0..k)
-        .filter(|&j| c.path[j].flat().sub(c.path[k].flat()).len() < int(3))
-        .count();
-    assert!(below > 0, "the climb passes under itself in plan");
 }
 
 #[test]
