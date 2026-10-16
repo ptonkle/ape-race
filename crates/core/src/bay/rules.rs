@@ -5,10 +5,11 @@
 //! `Course.mushrooms`, so neither needs a rule of its own here.
 //!
 //! "The last ship you were over" is worked out from the place, not
-//! remembered: the last ship whose stern is at or behind the place along
-//! the course (the ships lie in course order, bow to stern), else the dock.
-//! An ape over a deck never touches the water, so this is the ship it last
-//! passed; and nothing has to be kept in save points, replays or online.
+//! remembered: the ship whose reset spot (`Ship::reset_spot`) is furthest
+//! along the course without being ahead of the place, else the dock. The
+//! two battle lines overlap (BO), so this may be the enemy ship beside the
+//! one the ape fell from; never one ahead. Nothing has to be kept in save
+//! points, replays or online.
 
 use super::*;
 use crate::ape::Mode;
@@ -39,20 +40,21 @@ impl Course {
     /// dock if no ship is.
     pub fn bay_reset(&self, b: &BayLayout, p: V3, hint: usize) -> (V3, i32, usize) {
         let (along, _) = self.progress(p, self.nearest(p, hint));
-        let mut best = None;
+        // the ship whose reset spot is furthest along without being ahead
+        // of the fall (the two battle lines overlap, so "the last ship
+        // passed" is the one whose spot is last behind)
+        let mut best: Option<(i32, usize)> = None;
         for (k, s) in b.ships.iter().enumerate() {
-            let stern = s.point(-s.length / 2, 0, 0);
-            let (st, _) = self.progress(stern, self.nearest_anywhere(stern));
-            if st <= along {
-                best = Some(k);
+            let Some(spot) = s.reset_spot() else {
+                continue;
+            };
+            let (st, _) = self.progress(spot, self.nearest_anywhere(spot));
+            if st <= along && best.is_none_or(|(a, _)| st > a) {
+                best = Some((st, k));
             }
         }
-        match best.and_then(|k| b.ships.get(k)) {
-            Some(s) if !s.decks.is_empty() && !s.masts.is_empty() => {
-                let a = s.masts[0].along - layout::RESET_AFT;
-                let at = s.point(a, 0, s.deck + BODY_DROP);
-                (at, s.yaw, s.decks[0])
-            }
+        match best.and_then(|(_, k)| b.ships.get(k)) {
+            Some(s) => (s.reset_spot().unwrap_or(s.at), s.yaw, s.decks[0]),
             _ => {
                 let at = self.point(int(4));
                 (

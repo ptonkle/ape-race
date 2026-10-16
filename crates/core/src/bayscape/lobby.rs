@@ -34,13 +34,14 @@ const LOBBY_AIM_UP: i32 = cm(75);
 const LANDMARK_NEAR: i32 = int(30);
 const LANDMARK_FAR: i32 = int(170);
 
-/// The flyover: how far out to the side of the line (the hulls and yard
-/// ends reach about 16 m, BA8), how high over the water (mid-mast), how
-/// far ahead it looks, and its speed (metres a second).
-const FLY_OUT: i32 = int(27);
-const FLY_UP: i32 = int(17);
-const FLY_AHEAD: i32 = int(45);
-const FLY_LOOK_UP: i32 = int(7);
+/// The flyover: how far out to the side of the line (the pirates' line,
+/// its yard ends and turned hulls reach about 50 m; the background battle
+/// keeps 80 m off), how high over the water (mid-mast), how far ahead it
+/// looks, and its speed (metres a second).
+const FLY_OUT: i32 = int(60);
+const FLY_UP: i32 = int(24);
+const FLY_AHEAD: i32 = int(60);
+const FLY_LOOK_UP: i32 = int(12);
 const FLY_SPEED: i32 = 6;
 /// The flyover starts this far down the course (past the start gantry)
 /// and ends this far before the island's beach.
@@ -76,7 +77,9 @@ pub fn start_row(c: &Course, bay: &BayLayout, i: usize) -> bool {
 const LOBBY_FROM_END: i32 = cm(180);
 const LOBBY_ACROSS: i32 = int(3);
 
-/// What the lobby frames between the menus and the ape: the biggest ship
+/// What the lobby frames between the menus and the ape: the biggest navy
+/// ship (the right-hand battle line, which the camera can turn to without
+/// the menus covering the pirate line beside it; was any ship, BO)
 /// out ahead (the nearest of the biggest), at its deck (its masts and flags rise
 /// over it).
 pub fn landmark(bay: &BayLayout) -> V3 {
@@ -84,7 +87,9 @@ pub fn landmark(bay: &BayLayout) -> V3 {
     let ahead = |s: &Ship| s.at.sub(feet).flat().dot(look);
     bay.ships
         .iter()
-        .filter(|s| (LANDMARK_NEAR..=LANDMARK_FAR).contains(&ahead(s)))
+        .filter(|s| {
+            s.side == crate::bay::Side::Navy && (LANDMARK_NEAR..=LANDMARK_FAR).contains(&ahead(s))
+        })
         .max_by_key(|s| (s.length, -ahead(s)))
         .or(bay.ships.first())
         .map_or(feet.add(look.scale(int(80))), |s| {
@@ -149,12 +154,13 @@ pub fn flyover_camera(c: &Course, ticks: u32, from: i32) -> Camera {
     }
 }
 
-/// The centreline and heading averaged over 32 m, so the bends are eased.
+/// The centreline and heading averaged over 64 m, so the bends are eased
+/// (60 m out, a 32 m window let the eye lurch on the bends).
 fn smooth(c: &Course, s: i32) -> (V3, V3) {
     let (mut p, mut h) = (V3::ZERO, V3::ZERO);
     for k in -8..=8 {
-        p = p.add(c.point(s + k * int(2)));
-        h = h.add(c.heading_at(s + k * int(2)));
+        p = p.add(c.point(s + k * int(4)));
+        h = h.add(c.heading_at(s + k * int(4)));
     }
     (p.scale(ONE / 17), h.flat().norm())
 }
@@ -162,7 +168,15 @@ fn smooth(c: &Course, s: i32) -> (V3, V3) {
 /// The flyover's eye at `s`: out to the left of the line (the pirates'
 /// side, lit by the sun), rising and falling a little.
 fn fly_line(c: &Course, s: i32) -> V3 {
-    let (p, h) = smooth(c, s);
+    // the way along from the eased centreline itself, not its averaged
+    // headings (those step where the path's segments meet, and 60 m out a
+    // step shows as a lurch)
+    let p = smooth(c, s).0;
+    let h = smooth(c, s + int(12))
+        .0
+        .sub(smooth(c, s - int(12)).0)
+        .flat()
+        .norm();
     let q = p.sub(right_of(h).scale(FLY_OUT));
     v3(q.x, FLY_UP + mul(sin(s / 120), int(2)), q.z)
 }

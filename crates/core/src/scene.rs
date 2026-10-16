@@ -1436,8 +1436,8 @@ pub fn vine_look_on(map: Map, in_reach: bool, vivid: bool, tick: u32) -> VineLoo
             halo: look.width * crate::ruinsscape::VINE_HALO,
             ..look
         },
-        // Banana Bay Battle's hemp ropes: brown against the turquoise sea
-        // and the blue sky, hardly glowing (BP3)
+        // Banana Bay Battle's hemp ropes: pale against the dark hulls, decks
+        // and masts, the turquoise sea and the blue sky (BO)
         (Map::Bay, false, false) => VineLook {
             colour: crate::bayscape::fleet::ROPE_HEMP,
             glow: crate::bayscape::fleet::ROPE_GLOW,

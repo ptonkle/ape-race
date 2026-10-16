@@ -38,11 +38,22 @@ fn main() {
     for (i, s) in b.ships.iter().enumerate() {
         let (at, _) = c.progress(s.at, c.nearest_anywhere(s.at));
         println!(
-            "{i:>2} {:?} {:?} at {} m, {} m long",
+            "{i:>2} {:?} {:?} at {} m ({}–{} m), {} m long",
             s.kind,
             s.side,
             at / ONE,
+            (at - s.length / 2) / ONE,
+            (at + s.length / 2) / ONE,
             s.length / ONE
         );
     }
+    // the gaps between ropes along the course, over 20 m
+    let mut at: Vec<i32> = c.vines.iter().map(|v| v.at).collect();
+    at.sort();
+    let gaps: Vec<String> = at
+        .windows(2)
+        .filter(|w| w[1] - w[0] > 20 * ONE)
+        .map(|w| format!("{}→{}", w[0] / ONE, w[1] / ONE))
+        .collect();
+    println!("rope gaps over 20 m: {}", gaps.join(", "));
 }

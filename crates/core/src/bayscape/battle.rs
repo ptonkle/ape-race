@@ -19,8 +19,9 @@ use crate::geom::{facing, right_of, v3, yaw_of, Affine, V3};
 use crate::render::Batch;
 
 /// No background hull comes nearer the race line than this (the boundary
-/// barrels are at 20 m, the soft wall pushes apes back from there).
-pub const NEAREST: i32 = int(60);
+/// barrels are at 42 m, the race's two battle lines and their bowsprits
+/// reach about 50 m; the flyover glides at 60 m).
+pub const NEAREST: i32 = int(80);
 /// Nor further than this from it (the fog ends at 380 m).
 pub const FARTHEST: i32 = int(250);
 /// How far apart the battle's groups are along the course, each side.
@@ -159,9 +160,9 @@ pub fn fleet(c: &Course, bay: &BayLayout) -> Vec<Far> {
             // two rows: the near groups and, every other step, the far ones
             let far_row = k.is_multiple_of(2);
             let off = if far_row {
-                int(pick(k, 1, 175, 200))
+                int(pick(k, 1, 195, 220))
             } else {
-                int(pick(k, 2, 110, 135))
+                int(pick(k, 2, 130, 155))
             };
             let along = int(pick(k, 3, -30, 30));
             let mid = c.path[i]
