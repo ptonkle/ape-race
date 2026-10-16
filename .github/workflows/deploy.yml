@@ -1,0 +1,77 @@
+name: Check, then deploy to Pages
+
+# The check is the same file a person runs locally. A push to main deploys
+# only after it passes; the person asked for this (TRIAGE T85, 2026-10-15),
+# set up like sgilson7/ribbit-king.
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Rust toolchain
+        run: |
+          rustup toolchain install stable --profile minimal --component clippy,rustfmt
+          rustup target add wasm32-unknown-unknown
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: wasm-bindgen CLI (pinned, as crates/shim/Cargo.toml)
+        uses: taiki-e/install-action@v2
+        with:
+          tool: wasm-bindgen@0.2.127
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      # Chromium only in CI, as everyday local deploys (Firefox and WebKit
+      # run locally before a map merge or a big page change).
+      - name: Playwright and Chromium
+        run: |
+          python3 -m venv .venv
+          .venv/bin/pip install --quiet "playwright==1.63.0"
+          .venv/bin/python -m playwright install --with-deps chromium
+
+      - name: ./scripts/check.sh (Chromium)
+        run: BUILDER_ENGINES=chromium ./scripts/check.sh
+
+      # What scripts/pages.sh did for the site folder: drop the transport
+      # test page and add the patch notes as a plain page.
+      - name: Assemble the site
+        if: github.event_name != 'pull_request'
+        run: |
+          rm -f dist/nettest.html dist/nettest.js
+          python3 scripts/patch_notes_html.py dist/patch-notes.html
+
+      - uses: actions/upload-pages-artifact@v3
+        if: github.event_name != 'pull_request'
+        with:
+          path: dist
+
+  deploy:
+    if: github.event_name != 'pull_request'
+    needs: check
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

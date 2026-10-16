@@ -2,7 +2,9 @@
 
 A 3D vine-swinging race in the browser, on six maps: **Canopy Run** (the jungle, morning), **Concrete Jungle** (New York at dusk), **Yeti Peak** (a ski slope at noon), **Sector Ape** (open space after Star Fox, lit by a sun far below) and **Sunset Ruins** (a jungle river and an ape temple at sunset) and **Banana Bay Battle** (a pirate battle in a Caribbean bay at 3 pm). Swing from vine to vine, let go at the right moment, and carry your momentum to the finish. Race one to three AI apes, or up to four players online. Played with a mouse and keyboard (desktop only).
 
-Live at https://ptonkle.github.io/ape-race/.
+**Play:** https://ptonkle.github.io/ape-race/
+
+MIT licence ([LICENSE](LICENSE), credits in [LICENSES.md](LICENSES.md)). Every push to `main` runs the checks and deploys to GitHub Pages (`.github/workflows/deploy.yml`).
 
 The design is in [`BRIEF.md`](BRIEF.md) and the build decisions in [`PLAN.md`](PLAN.md). How to make a new map is in [`MAPS.md`](MAPS.md). Future ideas wait in [`TRIAGE.md`](TRIAGE.md).
 
