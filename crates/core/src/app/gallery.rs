@@ -9,7 +9,7 @@
 //! model), `at` (the tick to start at), `hold` (`on`: stay at `at`) and `x`, `y`,
 //! `z` (metres: the camera's target, off the model's middle) and, for
 //! `cat`, `map` (whose big cat: `map=ruins` is the pith-helmeted jaguar,
-//! `map=bay` the navy officer).
+//! `map=bay` the navy officer; `flame=on`: Mape's Tower's flame cat).
 //! E.g. `?gallery=wreck,yaw=40,pitch=12,at=300,hold=on`.
 
 use crate::baymodels as bay;
@@ -70,6 +70,8 @@ pub struct Gallery {
     pub tower: Option<usize>,
     /// `cat`: the map whose big cat it is (`map=ruins`; else Sector Ape's)
     pub map: crate::map::Map,
+    /// `cat`: Mape's Tower's flame cat (`flame=on`), whatever `map` says
+    pub flame: bool,
 }
 
 impl Gallery {
@@ -86,6 +88,7 @@ impl Gallery {
             bay: None,
             tower: None,
             map: crate::map::Map::Sector,
+            flame: false,
         };
         for (i, pair) in spec.split(',').enumerate() {
             if i == 0 {
@@ -105,6 +108,7 @@ impl Gallery {
                 "dist" => g.dist = n.map(int).or(g.dist),
                 "at" => g.at = v.parse().unwrap_or(g.at),
                 "hold" => g.hold = v == "on",
+                "flame" => g.flame = v == "on",
                 "map" => g.map = crate::map::Map::from_key(v).unwrap_or(g.map),
                 "x" => g.aim.x = n.map(int).unwrap_or(g.aim.x),
                 "y" => g.aim.y = n.map(int).unwrap_or(g.aim.y),
@@ -144,6 +148,7 @@ impl Gallery {
             "blackhole" => (V3::ZERO, int(250)),
             "sun" => (V3::ZERO, int(90)),
             "planet" => (V3::ZERO, int(120)),
+            "cat" if self.flame => (v3(0, fx::cm(100), 0), int(2)),
             "cat" => (v3(0, fx::cm(60), 0), int(1)),
             "hulk" => (V3::ZERO, int(110)),
             "deck" => (V3::ZERO, int(30)),
@@ -239,7 +244,12 @@ impl Gallery {
                     head_down: 0,
                     jaw: ONE / 2,
                 };
-                models::jaguar(b, &j, 100, &models::BigCat::on(self.map));
+                let cat = if self.flame {
+                    models::FLAME_CAT
+                } else {
+                    models::BigCat::on(self.map)
+                };
+                models::jaguar(b, &j, 100, &cat);
             }
             // a line of the armada: grunts marching, a brute drifting
             _ => {

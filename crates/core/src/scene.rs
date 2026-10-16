@@ -1564,10 +1564,11 @@ pub fn dynamic(f: &Frame) -> (Batch, Batch) {
                 crate::sectorscape::jaguar_pop(&mut b, &e, c, tick, f.tick);
             }
             if let Some(j) = e.jaguar(c, tick, 0).filter(|_| c.sector.is_none()) {
-                models::jaguar(&mut b, &j, RACE_SCALE, &models::BigCat::on(Map::of(c)));
+                let cat = models::BigCat::on(Map::of(c));
+                models::jaguar(&mut b, &j, RACE_SCALE, &cat);
                 let ground = c.floor(j.feet.x, j.feet.z);
                 let high = (j.feet.y - ground).clamp(0, int(4));
-                let size = (cm(150) - high / 8) * RACE_SCALE / 100;
+                let size = (cm(150) - high / 8) * RACE_SCALE / 100 * cat.size / 100;
                 b.push(
                     Mesh::Cyl,
                     &placed(

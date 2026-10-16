@@ -25,7 +25,9 @@ use crate::mesh::Mesh;
 use crate::render::{rgb, rod, shade, Batch, Camera, Rgb};
 use crate::rules::{Kind, BODY_DROP};
 
+mod flame;
 mod tourist;
+mod wizard;
 
 /// How an ape is posed this frame.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -57,9 +59,10 @@ pub struct Pose {
 /// (`Explorer`, 2026-10-14) a pith helmet, a khaki explorer jacket with a
 /// compass on the chest, a canteen at the hip and tiny round spectacles,
 /// or on Banana Bay Battle (`Pirate`, 2026-10-15) an assortment of pirate
-/// pieces, each kind its own mix (`pirate_kit`), or on the City (`Tourist`,
+/// pieces, each kind its own mix (`pirate_kit`), on the City (`Tourist`,
 /// 2026-10-15) tourist pieces, each kind its own mix and shirt
-/// (`tourist::kit`). Only the drawing changes.
+/// (`tourist::kit`), or on Mape's Tower (`Wizard`, 2026-10-15) wizard and
+/// witch outfits (`wizard::kit`). Only the drawing changes.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub enum Gear {
     #[default]
@@ -69,11 +72,13 @@ pub enum Gear {
     Explorer,
     Pirate,
     Tourist,
+    Wizard,
 }
 
 impl Gear {
     /// The gear named `key` (`none`, `ski`, `space`, `explorer`, `pirate`,
     /// `tourist`; a tile's `gear=`).
+    /// `wizard`; a tile's `gear=`).
     pub fn from_key(key: &str) -> Option<Gear> {
         match key {
             "none" => Some(Gear::None),
@@ -82,6 +87,7 @@ impl Gear {
             "explorer" => Some(Gear::Explorer),
             "pirate" => Some(Gear::Pirate),
             "tourist" => Some(Gear::Tourist),
+            "wizard" => Some(Gear::Wizard),
             _ => None,
         }
     }
@@ -94,6 +100,7 @@ impl Gear {
             crate::map::Map::Ruins => Gear::Explorer,
             crate::map::Map::Bay => Gear::Pirate,
             crate::map::Map::City => Gear::Tourist,
+            // TODO(tower integrator): `crate::map::Map::Tower => Gear::Wizard,` once Map::Tower is on this branch
             _ => Gear::None,
         }
     }
@@ -1211,6 +1218,9 @@ pub fn draw_in(b: &mut Batch, kind: Kind, palette: u8, pose: &Pose) {
     if pose.gear == Gear::Tourist {
         tourist::tourist(&mut rig, kind, &l, &m, &skel);
     }
+    if pose.gear == Gear::Wizard {
+        wizard::wizard(&mut rig, kind, &l, &m, &skel, pose.tick);
+    }
     if pose.stunned {
         stars(&mut rig, &skel.head, m.head, pose.tick);
     }
@@ -1393,7 +1403,11 @@ fn limbs(rig: &mut Rig, kind: Kind, l: &Look, m: &Dims, s: &Skel, gear: Gear) {
     let ff = &s.feet_frame;
     let space = gear == Gear::Space;
     // in a jacket the upper arms are in sleeves
-    let sleeved = space || matches!(gear, Gear::Explorer | Gear::Pirate | Gear::Tourist);
+    let sleeved = space
+        || matches!(
+            gear,
+            Gear::Explorer | Gear::Pirate | Gear::Tourist | Gear::Wizard
+        );
     let kit = pirate_kit(kind);
     let pirate = gear == Gear::Pirate;
     for (i, side) in SIDES.into_iter().enumerate() {
@@ -2842,10 +2856,10 @@ fn disc(rig: &mut Rig, h: &Frame, at: V3, across: i32, thick: i32, c: Rgb) {
 fn head(rig: &mut Rig, kind: Kind, l: &Look, h: &Frame, pose: &Pose) {
     let d = cm(l.head);
     let p = |x: i32, y: i32, z: i32| v3(pct(d, x), pct(d, y), pct(d, z));
-    // (a pirate's tricorn or bandana covers the head too)
+    // (a pirate's tricorn or bandana, a wizard's hat, covers the head too)
     let helmeted = matches!(
         pose.gear,
-        Gear::Ski | Gear::Explorer | Gear::Pirate | Gear::Tourist
+        Gear::Ski | Gear::Explorer | Gear::Pirate | Gear::Tourist | Gear::Wizard
     );
     // the skull, and the bare face on its front
     rig.put(Mesh::Geo, h.shape(V3::ZERO, p(100, 94, 96)), l.fur);
@@ -3135,6 +3149,11 @@ pub struct BigCat {
     /// a navy officer's bicorne, blue coat and gold epaulettes (Banana Bay
     /// Battle's jaguar)
     pub navy: bool,
+    /// a demon of shadow and flame: ember cracks, horns, smoke wings and a
+    /// fire-whip tail (Mape's Tower's cat, `models::flame`)
+    pub flame: bool,
+    /// drawn size, percent of the jaguar's (the flame cat is huge)
+    pub size: i32,
 }
 
 pub const JAGUAR: BigCat = BigCat {
@@ -3147,6 +3166,8 @@ pub const JAGUAR: BigCat = BigCat {
     helmet: false,
     pith: false,
     navy: false,
+    flame: false,
+    size: 100,
 };
 
 /// The jaguar in a classic cartoon bubble space helmet and nothing else,
@@ -3173,6 +3194,22 @@ pub const NAVY_JAGUAR: BigCat = BigCat {
     ..JAGUAR
 };
 
+/// Mape's Tower's big cat (the person, 2026-10-15: "can you make it look
+/// like the balrog somehow?"): a huge cat-shaped demon of shadow and flame,
+/// smoke-black with glowing ember cracks, horns, ragged smoke wings,
+/// burning eyes and a tail like a fire whip (`models::flame`).
+pub const FLAME_CAT: BigCat = BigCat {
+    coat: flame::SMOKE_BLACK,
+    deep: flame::SMOKE_DEEP,
+    cream: flame::SMOKE_BELLY,
+    spot: flame::CINDER,
+    eye: flame::HELL_EYE,
+    tail: 100,
+    flame: true,
+    size: 140,
+    ..JAGUAR
+};
+
 /// Smoky grey-white with charcoal rosettes round grey middles, pale
 /// green-grey eyes and a very thick tail.
 pub const SNOW_LEOPARD: BigCat = BigCat {
@@ -3185,6 +3222,8 @@ pub const SNOW_LEOPARD: BigCat = BigCat {
     helmet: false,
     pith: false,
     navy: false,
+    flame: false,
+    size: 100,
 };
 
 impl BigCat {
@@ -3195,6 +3234,7 @@ impl BigCat {
             crate::map::Map::Sector => SPACE_JAGUAR,
             crate::map::Map::Ruins => RUINS_JAGUAR,
             crate::map::Map::Bay => NAVY_JAGUAR,
+            // TODO(tower integrator): `crate::map::Map::Tower => FLAME_CAT,` once Map::Tower is on this branch
             _ => JAGUAR,
         }
     }
@@ -3231,7 +3271,7 @@ const ROSETTES: [(i32, i32); 22] = [
 /// racers' `scene::RACE_SCALE`, so it reads beside them): the same faceted
 /// low-poly style as the apes, on four legs with a long ringed tail.
 pub fn jaguar(b: &mut Batch, j: &crate::jaguar::Jaguar, scale: i32, cat: &BigCat) {
-    let k = (ONE as i64 * scale.max(1) as i64 / 100) as i32;
+    let k = (ONE as i64 * scale.max(1) as i64 * cat.size as i64 / 10_000) as i32;
     let mut rig = Rig {
         b,
         base: Affine::translate(j.feet).then(&Affine::scale(v3(k, k, k))),
@@ -3258,8 +3298,10 @@ pub fn jaguar(b: &mut Batch, j: &crate::jaguar::Jaguar, scale: i32, cat: &BigCat
         body.shape(p(0, 0, -14), p(34, 82, 26)),
         cat.cream,
     );
-    // the rosettes: dark rings round deeper tawny middles
-    for (along, round) in ROSETTES {
+    // the rosettes: dark rings round deeper tawny middles (the flame cat
+    // has ember cracks instead)
+    let rosettes: &[(i32, i32)] = if cat.flame { &[] } else { &ROSETTES };
+    for &(along, round) in rosettes {
         let a = deg(round);
         let n = body.dir(fx::sin(a), 0, fx::cos(a));
         let at = body.at(mul(fx::sin(a), cm(23)), cm(along), mul(fx::cos(a), cm(25)));
@@ -3272,6 +3314,9 @@ pub fn jaguar(b: &mut Batch, j: &crate::jaguar::Jaguar, scale: i32, cat: &BigCat
     }
     if cat.navy {
         navy_coat(&mut rig, &body);
+    }
+    if cat.flame {
+        flame::body(&mut rig, j, &body);
     }
     jaguar_legs(&mut rig, j, &body, fwd, cat);
     jaguar_head(&mut rig, j, &body, fwd, cat);
@@ -3432,6 +3477,9 @@ fn jaguar_head(rig: &mut Rig, j: &crate::jaguar::Jaguar, body: &Frame, fwd: V3, 
     if cat.navy {
         bicorne(rig, &h);
     }
+    if cat.flame {
+        flame::head(rig, j, &h);
+    }
 }
 
 /// The navy officer's colours: a deep blue coat, a white front, gold
@@ -3563,6 +3611,9 @@ fn bubble_helmet(rig: &mut Rig, h: &Frame, neck: V3) {
 }
 
 fn jaguar_tail(rig: &mut Rig, j: &crate::jaguar::Jaguar, body: &Frame, cat: &BigCat) {
+    if cat.flame {
+        return flame::tail(rig, j, body);
+    }
     let back = body.y.neg();
     let side = body.x;
     let mut at = body.at(0, -cm(60), cm(8));
@@ -3668,6 +3719,8 @@ mod tests {
         pub(super) axes: [V3; 3],
         pub(super) at: V3,
         pub(super) colour: [i32; 3],
+        /// 0 lit, ONE drawn at full colour (`Batch::push`)
+        pub(super) glow: i32,
     }
 
     fn shapes(b: Batch) -> Vec<Shape> {
@@ -3686,6 +3739,7 @@ mod tests {
                     ],
                     at: v3(v[3], v[7], v[11]),
                     colour: [v[12], v[13], v[14]],
+                    glow: v[15],
                 });
             }
         }
@@ -4895,6 +4949,268 @@ mod tests {
             let want = run.hands[i].lerp(full.hands[i], ONE / 2);
             assert!(mid.hands[i].dist(want) < cm(1));
             assert!(mid.hands[i].dist(run.hands[i]) > cm(10));
+        }
+    }
+
+    /// The colours that mark each piece of a kind's wizard kit.
+    fn wizard_colours(kind: Kind) -> Vec<Rgb> {
+        use wizard::*;
+        let k = kit(kind);
+        let mut c = vec![k.hat.colour, k.hat.band];
+        if k.hat.witch {
+            c.push(BUCKLE);
+        }
+        c.extend(k.hat.stars);
+        match k.top {
+            Top::Robe {
+                colour,
+                trim,
+                moons,
+            } => {
+                c.extend([colour, trim]);
+                if moons {
+                    c.push(MOON);
+                }
+            }
+            Top::Cloak { colour, trim } => c.extend([colour, trim]),
+        }
+        c.extend(k.beard.map(|(b, _)| b));
+        if let Some(crystal) = k.staff {
+            c.extend([STAFF_WOOD, crystal, WIZ_STRAP]);
+        }
+        if k.sceptre {
+            c.extend([SCEPTRE_GOLD, ORB]);
+        }
+        if k.wand {
+            c.extend([WAND, WAND_TIP]);
+        }
+        if k.book {
+            c.extend([BOOK, PAGES]);
+        }
+        if k.lantern {
+            c.extend([LANTERN_IRON, LANTERN_FLAME]);
+        }
+        if k.pipe {
+            c.extend([PIPE_WOOD, SMOKE]);
+        }
+        if k.wand || k.sceptre || k.book || k.lantern {
+            c.push(CORD);
+        }
+        c
+    }
+
+    #[test]
+    fn on_mapes_tower_every_kind_wears_its_own_wizard_mix_in_every_pose() {
+        // the person, 2026-10-15: "different wizard and witch outfits, with
+        // scepters and wands and pipes potentially, think gandalf"
+        // (briefs/mapes-tower.md)
+        use wizard::*;
+        assert_eq!(Gear::from_key("wizard"), Some(Gear::Wizard));
+        for map in crate::map::Map::ALL {
+            assert_eq!(
+                Gear::on(map) == Gear::Wizard,
+                map.key() == "tower",
+                "{map:?}"
+            );
+        }
+        // every piece the brief names is worn by some kind
+        let all: Vec<Kit> = Kind::ALL.iter().map(|k| kit(*k)).collect();
+        assert!(all.iter().any(|k| k.hat.witch) && all.iter().any(|k| !k.hat.witch));
+        assert!(all.iter().any(|k| matches!(k.top, Top::Robe { .. })));
+        assert!(all.iter().any(|k| matches!(k.top, Top::Cloak { .. })));
+        assert!(all.iter().any(|k| k.beard.is_some()));
+        assert!(all.iter().any(|k| k.staff.is_some()));
+        assert!(all.iter().any(|k| k.sceptre));
+        assert!(all.iter().any(|k| k.wand));
+        assert!(all.iter().any(|k| k.pipe));
+        // each kind its own mix, so they read apart
+        for (i, a) in Kind::ALL.iter().enumerate() {
+            for b in &Kind::ALL[i + 1..] {
+                assert_ne!(wizard_colours(*a), wizard_colours(*b), "{a:?} {b:?}");
+            }
+        }
+        for kind in Kind::ALL {
+            let l = look(kind);
+            for p in poses() {
+                let pose = Pose {
+                    gear: Gear::Wizard,
+                    ..p
+                };
+                let s = drawn(kind, &pose);
+                let bare = drawn(kind, &p);
+                assert!(
+                    s.len() > bare.len() + 8,
+                    "{kind:?} {} vs {}",
+                    s.len(),
+                    bare.len()
+                );
+                assert!((50..=300).contains(&s.len()), "{kind:?} {} shapes", s.len());
+                let has = |c: Rgb| s.iter().any(|x| x.colour == c);
+                for c in wizard_colours(kind) {
+                    assert!(has(c), "{kind:?} {pose:?}: no {c:?}");
+                }
+                // none of the other maps' gear
+                for c in [JACKET, LENS, KHAKI, PITH, TRICORN, CAPTAIN_RED, SCABBARD] {
+                    assert!(!has(c), "{kind:?}: {c:?}");
+                }
+                for x in &s {
+                    for a in x.axes {
+                        assert!(
+                            a.len() >= ONE / 500 && a.len() <= int(2),
+                            "{kind:?} mesh {} colour {:?} axis {}",
+                            x.mesh,
+                            x.colour,
+                            a.len()
+                        );
+                    }
+                    assert!(x.at.dist(pose.hands) <= int(3));
+                }
+                // upright, the hat (brim and three crown pieces) sits over
+                // the face, its point no more than about a head and a half
+                // up, clear of the camera
+                if pose.rope.is_none() && pose.grounded && !pose.stunned {
+                    let hat = kit(kind).hat.colour;
+                    let face = s.iter().find(|x| x.colour == l.face).unwrap().at.y;
+                    let ys: Vec<i32> = s
+                        .iter()
+                        .filter(|x| x.colour == hat && x.at.y > face)
+                        .map(|x| x.at.y - face)
+                        .collect();
+                    // (the model is drawn at its kind's size)
+                    let d = cm(l.head) * l.size / 100;
+                    assert!(ys.len() >= 4, "{kind:?}: no hat");
+                    let point = *ys.iter().max().unwrap();
+                    assert!(point < d * 8 / 5, "{kind:?}: hat point {point} up");
+                }
+                // swinging, the hands stay free: no piece in the grip
+                if pose.rope.is_some() {
+                    let own: Vec<Rgb> = wizard_colours(kind)
+                        .into_iter()
+                        .filter(|c| *c != l.skin && *c != l.fur && *c != l.limb)
+                        .collect();
+                    for x in s.iter().filter(|x| own.contains(&x.colour)) {
+                        assert!(
+                            x.at.dist(pose.hands) > cm(10),
+                            "{kind:?}: {:?} at the grip ({})",
+                            x.colour,
+                            x.at.dist(pose.hands)
+                        );
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn the_wizard_outfits_cost_about_what_the_explorer_outfit_does() {
+        // SECOND-ORDER TG2: the triangles a wizard adds over the bare ape,
+        // against the explorer outfit's, kind by kind
+        let mut rows = Vec::new();
+        for kind in Kind::ALL {
+            let p = at_rest();
+            let tris = |g: Gear| triangles(&drawn(kind, &Pose { gear: g, ..p }));
+            let bare = tris(Gear::None);
+            rows.push((
+                kind,
+                bare,
+                tris(Gear::Explorer) - bare,
+                tris(Gear::Wizard) - bare,
+            ));
+        }
+        let table: Vec<String> = rows
+            .iter()
+            .map(|(k, b, e, w)| format!("{k:?}: bare {b}, explorer +{e}, wizard +{w}"))
+            .collect();
+        let table = table.join("; ");
+        for (_, _, explorer, wizard) in &rows {
+            assert!(*wizard <= explorer * 3 / 2, "{table}");
+        }
+        let explorer_all: usize = rows.iter().map(|r| r.2).sum();
+        let wizard_all: usize = rows.iter().map(|r| r.3).sum();
+        assert!(wizard_all <= explorer_all * 5 / 4, "{table}");
+    }
+
+    #[test]
+    fn only_mapes_towers_cat_is_a_huge_demon_of_shadow_and_flame() {
+        // the person, 2026-10-15: "can you make it look like the balrog
+        // somehow?" (briefs/mapes-tower.md): smoke-black, ember cracks,
+        // horns, smoke wings, a fire-whip tail, burning eyes
+        use crate::map::Map;
+        use flame::*;
+        for map in Map::ALL {
+            assert_eq!(BigCat::on(map).flame, map.key() == "tower", "{map:?}");
+        }
+        const { assert!(FLAME_CAT.flame && FLAME_CAT.size > 100 && !JAGUAR.flame) };
+        for (head_down, leap) in [(0, 0), (ONE, 0), (0, ONE)] {
+            let j = crate::jaguar::Jaguar {
+                feet: V3::ZERO,
+                yaw: deg(30),
+                gait: deg(50),
+                stride: ONE,
+                leap,
+                head_down,
+                jaw: ONE / 2,
+            };
+            let draw = |cat: &BigCat| {
+                let mut b = Batch::new();
+                jaguar(&mut b, &j, 100, cat);
+                shapes(b)
+            };
+            let demon = draw(&FLAME_CAT);
+            let has = |s: &[Shape], c: Rgb| s.iter().any(|x| x.colour == c);
+            for c in [
+                SMOKE_BLACK,
+                EMBER,
+                FLARE,
+                HORN,
+                HELL_EYE,
+                SMOKE_WING,
+                CINDER,
+            ] {
+                assert!(has(&demon, c), "no {c:?}");
+            }
+            // the fire and the eyes glow; the smoke does not
+            assert!(demon.iter().any(|x| x.colour == HELL_EYE && x.glow == ONE));
+            for x in &demon {
+                if [EMBER, FLARE].contains(&x.colour) {
+                    assert_eq!(x.glow, ONE, "{:?} unlit", x.colour);
+                }
+                if [SMOKE_BLACK, SMOKE_WING].contains(&x.colour) {
+                    assert_eq!(x.glow, 0);
+                }
+            }
+            // no rosettes or tawny coat: the spots are ember cracks
+            assert!(!has(&demon, JAG_SPOT) && !has(&demon, JAG_COAT));
+            for other in [
+                JAGUAR,
+                SPACE_JAGUAR,
+                RUINS_JAGUAR,
+                NAVY_JAGUAR,
+                SNOW_LEOPARD,
+            ] {
+                let s = draw(&other);
+                for c in [EMBER, FLARE, HORN, SMOKE_WING] {
+                    assert!(!has(&s, c), "{other:?} {c:?}");
+                }
+            }
+            // huge: it reaches well past the jaguar
+            let reach = |s: &[Shape]| s.iter().map(|x| x.at.dist(V3::ZERO)).max().unwrap();
+            let plain = draw(&JAGUAR);
+            assert!(
+                reach(&demon) > reach(&plain) * 13 / 10,
+                "{} vs {}",
+                reach(&demon),
+                reach(&plain)
+            );
+            // the horns rise over the burning eyes
+            let eye = demon.iter().find(|x| x.colour == HELL_EYE).unwrap().at;
+            let horn = demon
+                .iter()
+                .filter(|x| x.colour == HORN && x.mesh == Mesh::Spike as u32)
+                .map(|x| x.at.y)
+                .max()
+                .unwrap();
+            assert!(horn > eye.y + cm(10), "horn {horn} eye {}", eye.y);
         }
     }
 }

@@ -32,12 +32,14 @@ pub enum Costume {
     Pirate,
     /// Concrete Jungle's tourist pieces
     Tourist,
+    /// Mape's Tower's wizard and witch outfits
+    Wizard,
 }
 
 impl Costume {
     /// The selector's order: the map's own, none, then the unlockable ones
     /// in the maps' order.
-    pub const ALL: [Costume; 7] = [
+    pub const ALL: [Costume; 8] = [
         Costume::Own,
         Costume::Bare,
         Costume::Ski,
@@ -45,6 +47,7 @@ impl Costume {
         Costume::Explorer,
         Costume::Pirate,
         Costume::Tourist,
+        Costume::Wizard,
     ];
 
     /// The key: the settings' and the messages' word, and `costume.<key>`
@@ -58,6 +61,7 @@ impl Costume {
             Costume::Explorer => "explorer",
             Costume::Pirate => "pirate",
             Costume::Tourist => "tourist",
+            Costume::Wizard => "wizard",
         }
     }
 
@@ -67,6 +71,12 @@ impl Costume {
 
     pub fn is_own(&self) -> bool {
         *self == Costume::Own
+    }
+
+    /// Worn without unlocking: the map's own and none. Every other costume
+    /// is unlocked by its map's Author time (`map`).
+    pub fn free(self) -> bool {
+        matches!(self, Costume::Own | Costume::Bare)
     }
 
     /// The map whose Author time unlocks it (None: always worn freely).
@@ -85,6 +95,9 @@ impl Costume {
             Gear::Explorer => Some(Costume::Explorer),
             Gear::Pirate => Some(Costume::Pirate),
             Gear::Tourist => Some(Costume::Tourist),
+            // unlocked on Mape's Tower once `Gear::on(Map::Tower)` is the
+            // wizard's (TODO(tower integrator), models.rs)
+            Gear::Wizard => Some(Costume::Wizard),
         }
     }
 
@@ -93,10 +106,12 @@ impl Costume {
         match self {
             Costume::Own => Gear::on(map),
             Costume::Bare => Gear::None,
-            c => match c.map() {
-                Some(home) => Gear::on(home),
-                None => Gear::None,
-            },
+            Costume::Ski => Gear::Ski,
+            Costume::Space => Gear::Space,
+            Costume::Explorer => Gear::Explorer,
+            Costume::Pirate => Gear::Pirate,
+            Costume::Tourist => Gear::Tourist,
+            Costume::Wizard => Gear::Wizard,
         }
     }
 
@@ -130,6 +145,33 @@ mod tests {
     }
 
     #[test]
+    fn the_wizard_costume_is_the_wizard_gear_and_comes_from_its_map() {
+        // Mape's Tower (briefs/mapes-tower.md): its costume is "Wizard",
+        // the gear's key round trips, and every map with the wizard gear
+        // unlocks it (the tower, once `Gear::on(Map::Tower)` is wired)
+        assert_eq!(Costume::from_key("wizard"), Some(Costume::Wizard));
+        assert_eq!(Gear::from_key(Costume::Wizard.key()), Some(Gear::Wizard));
+        for map in Map::ALL {
+            assert_eq!(
+                Costume::of_map(map) == Some(Costume::Wizard),
+                Gear::on(map) == Gear::Wizard,
+                "{map:?}"
+            );
+            assert_eq!(Costume::Wizard.gear(map), Gear::Wizard);
+        }
+        assert_eq!(
+            Costume::Wizard.map().map(Gear::on).unwrap_or(Gear::Wizard),
+            Gear::Wizard
+        );
+        // every unlockable costume wears its own home map's gear
+        for c in Costume::ALL {
+            if let Some(home) = c.map() {
+                assert_eq!(c.gear(Map::Jungle), Gear::on(home), "{c:?}");
+            }
+        }
+    }
+
+    #[test]
     fn a_costume_dresses_the_ape_on_every_map() {
         for map in Map::ALL {
             assert_eq!(Costume::Own.gear(map), Gear::on(map));
@@ -139,9 +181,13 @@ mod tests {
             assert_eq!(Costume::Space.gear(map), Gear::Space);
             assert_eq!(Costume::Explorer.gear(map), Gear::Explorer);
             assert_eq!(Costume::Tourist.gear(map), Gear::Tourist);
+            assert_eq!(Costume::Wizard.gear(map), Gear::Wizard);
         }
         for c in Costume::ALL {
             assert_eq!(Costume::from_key(c.key()), Some(c));
+        }
+        for c in Costume::ALL {
+            assert_eq!(c.free(), c.map().is_none() && c != Costume::Wizard, "{c:?}");
         }
         assert_eq!(Costume::Own.map(), None);
         assert_eq!(Costume::Bare.map(), None);
