@@ -203,8 +203,10 @@ fn four_ai_apes_race_the_bay_and_none_passes_through_a_set_sail() {
     println!("water resets: {resets}");
 }
 
-/// Put back on any ship's deck by the water, every level gets off it and
-/// past the next ship's stern within 12 s.
+/// Put back on any ship's deck by the water (its reset spot, aft of the
+/// foremast), every level gets off it and 25 m on along the course within
+/// 12 s (the ships of the two lines overlap, so "the next ship's stern" may
+/// lie behind the spot).
 #[test]
 fn every_level_gets_off_every_deck_back_onto_the_line() {
     let runs: Vec<_> = [Difficulty::Sloth, Difficulty::KingKong]
@@ -227,15 +229,13 @@ fn every_level_gets_off_every_deck_back_onto_the_line() {
                         race.step(&[Default::default()]);
                     }
                     let s = &b.ships[k];
-                    let past = s.point(s.length / 2 + ONE * 2, 0, 0);
-                    let (at, yaw, _) = race.course.bay_reset(&b, past, 0);
-                    race.racers[0].ape.put_on(at, yaw, &race.course);
-                    let n = &b.ships[k + 1];
-                    let stern = n.point(-n.length / 2, 0, 0);
+                    let spot = s.reset_spot().expect("a deck");
+                    race.racers[0].ape.put_on(spot, s.yaw, &race.course);
                     let goal = race
                         .course
-                        .progress(stern, race.course.nearest_anywhere(stern))
-                        .0;
+                        .progress(spot, race.course.nearest_anywhere(spot))
+                        .0
+                        + 25 * ONE;
                     let mut brain = Brain::new(level, 0xA9E5);
                     let end = race.tick + 12 * TICKS_PER_SECOND as u32;
                     while race.tick < end && race.racers[0].progress < goal {
@@ -244,7 +244,7 @@ fn every_level_gets_off_every_deck_back_onto_the_line() {
                     }
                     if race.racers[0].progress < goal {
                         stuck.push(format!(
-                            "{} on ship {k}: at {} m, the next stern at {} m",
+                            "{} on ship {k}: at {} m, the goal at {} m",
                             level.key(),
                             race.racers[0].progress / ONE,
                             goal / ONE

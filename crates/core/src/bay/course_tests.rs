@@ -83,11 +83,45 @@ fn the_line_runs_from_the_dock_through_the_fleet_to_the_island() {
             last = a;
             assert_eq!(c.platforms[s.decks[0]].top, s.deck);
             assert_eq!(c.support(s.point(0, 0, s.deck + BODY_DROP)), s.deck);
-            if let Some(n) = b.ships.get(i + 1) {
-                let bow = along(&c, s.point(s.length / 2, 0, 0));
-                let stern = along(&c, n.point(-n.length / 2, 0, 0));
-                assert!(stern > bow + int(2), "ship {i}'s bow clears the next");
+            // no hull (bowsprit counted, 2 m spare) touches another's
+            for (j, n) in b.ships.iter().enumerate() {
+                if j == i {
+                    continue;
+                }
+                let mut a = -s.length / 2 - int(2);
+                while a <= s.length / 2 + s.bowsprit {
+                    let half = if a > s.length / 2 {
+                        0
+                    } else {
+                        s.beam / 2 + int(2)
+                    };
+                    for x in [-half, 0, half] {
+                        let q = s.point(a, x, 0);
+                        assert!(!n.over(q.x, q.z), "ship {i} touches ship {j}");
+                    }
+                    a += int(2);
+                }
             }
+            // the two battle lines: pirates left, the navy right, inside
+            // the barrels
+            let (_, side) = c.progress(s.at, c.nearest_anywhere(s.at));
+            let sign = if s.side == Side::Pirate { -1 } else { 1 };
+            assert!(side * sign > s.beam / 2, "ship {i} in its line");
+            assert!(side.abs() + s.beam / 2 < c.half_width, "ship {i} inside");
+        }
+        // every ship overlaps an enemy across the channel: broadside to
+        // broadside
+        for (i, s) in b.ships.iter().enumerate() {
+            let span = |s: &Ship| {
+                let a = along(&c, s.point(-s.length / 2, 0, 0));
+                (a, a + s.length)
+            };
+            let (a0, a1) = span(s);
+            let duel = b.ships.iter().any(|n| {
+                let (b0, b1) = span(n);
+                n.side != s.side && a1.min(b1) - a0.max(b0) > int(6)
+            });
+            assert!(duel, "ship {i} lies beside an enemy");
         }
         // the dock is the start, the finish is on the island
         assert_eq!(c.platforms[b.dock.platform].top, DOCK_TOP);
@@ -188,9 +222,26 @@ fn a_fall_into_the_water_puts_you_back_on_the_last_ship_you_passed() {
     let mut r = running(false);
     let n = layout(&r.course).ships.len();
     for k in [0, 1, 7, n - 1] {
-        let s = layout(&r.course).ships[k].clone();
+        let fell = layout(&r.course).ships[k].clone();
         // just past its bow, in the water, falling
-        let p = s.point(s.length / 2 + int(2), 0, cm(40) + BODY_DROP);
+        let p = fell.point(fell.length / 2 + int(2), 0, cm(40) + BODY_DROP);
+        // put back on the ship whose reset spot is last behind the fall:
+        // this one or the enemy beside it, never ahead, never far back
+        let spot_of = |s: &Ship| s.reset_spot().expect("a deck");
+        let fall = along(&r.course, p);
+        let s = layout(&r.course)
+            .ships
+            .iter()
+            .filter(|s| along(&r.course, spot_of(s)) <= fall)
+            .max_by_key(|s| along(&r.course, spot_of(s)))
+            .expect("a ship behind")
+            .clone();
+        let back = fall - along(&r.course, spot_of(&s));
+        assert!(back < int(70), "ship {k}: put {back} back");
+        assert!(
+            s == fell || s.side != fell.side,
+            "ship {k}: put back on it or on the enemy beside it"
+        );
         put(&mut r, p, v3(0, -int(10), 0), Mode::Flying);
         let mut reset = false;
         for _ in 0..30 {
@@ -202,7 +253,7 @@ fn a_fall_into_the_water_puts_you_back_on_the_last_ship_you_passed() {
         }
         assert!(reset, "past ship {k}: in the water");
         let a = &r.racers[0].ape;
-        let spot = s.point(s.masts[0].along - RESET_AFT, 0, s.deck + BODY_DROP);
+        let spot = s.reset_spot().expect("a deck");
         assert_eq!(a.pos, spot, "put back on ship {k}");
         assert_eq!(a.mode, Mode::Grounded);
         assert!(

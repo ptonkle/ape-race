@@ -61,17 +61,20 @@ const HIT_TICKS: u32 = 130;
 const BOUNCE_BODY_R: i32 = cm(130);
 const BOUNCE_SKIN: i32 = cm(180);
 
-/// Banana Bay Battle's hemp ropes: a mid brown, darker than the pale sky
-/// and the bright turquoise sea, so they read as rope, not as light (BP3:
-/// a pale tan with a glow read as light shafts).
-pub const ROPE_HEMP: Rgb = rgb(168, 112, 50);
+/// Banana Bay Battle's swing ropes: pale bleached hemp, so they read
+/// against the dark hulls, the darkened decks and masts, the turquoise sea
+/// and the blue sky alike (BO: the mid brown of BP3 vanished against the
+/// decks and masts, "basically impossible to see"). The ships' own rigging
+/// (shrouds and stays) stays tarred dark, so a rope you can swing on is
+/// the pale one.
+pub const ROPE_HEMP: Rgb = rgb(244, 230, 190);
 /// The colourblind mode's ropes: a light straw, far brighter than the
 /// strong blue catch-up rope.
-pub const ROPE_HEMP_VIVID: Rgb = rgb(232, 196, 120);
-/// How much the ropes glow (only enough to keep their shaded side from
-/// going black), in either mode.
-pub const ROPE_GLOW: i32 = ONE / 16;
-pub const ROPE_GLOW_VIVID: i32 = ONE / 6;
+pub const ROPE_HEMP_VIVID: Rgb = rgb(240, 214, 140);
+/// How much the ropes glow: a little, so the shaded side stays pale
+/// against a dark hull, not so much that they read as shafts of light.
+pub const ROPE_GLOW: i32 = ONE / 3;
+pub const ROPE_GLOW_VIVID: i32 = ONE / 4;
 /// The catch-up rope (TRIAGE T66): a hot scarlet against the tan hemp,
 /// the turquoise sea and the in-reach yellow; in the colourblind mode a
 /// strong blue, far darker than the pale ropes.
