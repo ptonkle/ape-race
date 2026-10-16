@@ -5,9 +5,9 @@ The standard map-build steps (MAPS.md "Build steps"), one row each. Status is on
 | # | Step | Status | Notes |
 | --- | --- | --- | --- |
 | 1 | Brief and answers | Done | `briefs/mapes-tower-v2.md`, drawing `briefs/mapes-tower-v2.png` |
-| 2 | Skeleton and contract | Not started | New `TowerLayout`: two towers, two bridges, the doorway, the interior, the tube, the tunnel; the tube's rules |
+| 2 | Skeleton and contract | In progress (agent, started 2026-10-16) | New `TowerLayout`: two towers, two bridges, the doorway, the interior, the tube, the tunnel; the tube's rules |
 | 3 | Ape costumes | Done (v1) | Unchanged: wizard and witch mixes |
-| 4 | Models | Not started | Tower 1 hollow with a doorway and windows, tower 2, two bridges, the tube's rings and pads, the tunnel mouth and tunnel; reuse mages, dragons, wizard and tear, creatures, zip, banana sea |
+| 4 | Models | In progress (agent, started 2026-10-16) | Tower 1 hollow with a doorway and windows, tower 2, two bridges, the tube's rings and pads, the tunnel mouth and tunnel; reuse mages, dragons, wizard and tear, creatures, zip, banana sea |
 | 5 | Sky and lighting | Done (v1) | Unchanged: Clear, Twilight, Dawn; the void past the portal |
 | 6 | Course layout | Not started | After the contract |
 | 7 | Map rules | Not started | The tube: no vines, bounce pads as obstacles, air control, the bottom row's sling |
