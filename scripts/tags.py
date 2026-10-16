@@ -214,7 +214,7 @@ def default_base():
         cells = [c.strip() for c in row.split("|")]
         # a quick run that hit `all` ran every test and step, so it counts too
         kind = cells[5] if len(cells) > 8 else ""
-        ran_all = kind.startswith("quick") and re.search(r"\btags all\b", kind)
+        ran_all = kind.startswith("quick") and re.search(r"tags [^)]*\ball\b", kind)
         if len(cells) > 8 and (kind.split(" ")[0] == "check" or ran_all) and cells[8] == "pass":
             return cells[3].rstrip("+")
     sys.exit("no passing check row in notes/check-times.md: run the full check")
