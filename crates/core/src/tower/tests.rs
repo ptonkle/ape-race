@@ -290,3 +290,73 @@ fn item_crates_hang_on_whole_stations_and_never_on_the_start_row() {
         }
     }
 }
+
+#[test]
+fn an_ape_that_lands_on_the_rooms_floor_stands_and_can_jump_and_walk() {
+    // TW13 (the person, play-testing: "you can get stuck on the ground
+    // inside the tower since there's seemingly no true floor"): dropped
+    // on the trampoline room's floor, a stone top, the ape rested there
+    // still "flying" (`stone_push`'s step onto a top zeroed its fall
+    // before the landing could ground it): no jump, no walking.
+    use crate::ape::Controls;
+    use crate::rules::{BODY_RADIUS, MUSHROOM_RADIUS, TICKS_PER_SECOND};
+    let c = tower();
+    let room = c.tower.as_deref().unwrap().room.clone();
+    let floor = room.centre.y;
+    // 7 m from the room's middle, under no trampoline
+    let p = v3(room.centre.x - int(7), floor + BODY_DROP + int(1), room.centre.z);
+    assert!(
+        !c.mushrooms.iter().any(|m| {
+            !p.flat()
+                .sub(m.top.flat())
+                .longer_than(MUSHROOM_RADIUS + BODY_RADIUS)
+        }),
+        "the spot is clear of the trampolines"
+    );
+    let mut r = Race::new(c, &entries(1), false, 1);
+    r.phase = Phase::Running;
+    let a = &mut r.racers[0].ape;
+    a.pos = p;
+    a.vel = V3::ZERO;
+    a.mode = Mode::Flying;
+    a.hint = r.course.nearest_anywhere(p);
+    let settle = |r: &mut Race| {
+        for _ in 0..3 * TICKS_PER_SECOND {
+            r.step(&[Controls::default()]);
+            assert!(
+                !r.events.iter().any(|e| matches!(e, Event::Reset { .. })),
+                "the room's floor is in bounds"
+            );
+        }
+    };
+    settle(&mut r);
+    let a = &r.racers[0].ape;
+    assert_eq!(a.mode, Mode::Grounded, "stands on the room's floor");
+    assert_eq!(a.pos.y, floor + BODY_DROP);
+    // a jump off it
+    r.step(&[Controls {
+        jump: true,
+        ..Controls::default()
+    }]);
+    let a = &r.racers[0].ape;
+    assert!(a.vel.y > 0 && a.mode == Mode::Flying, "jumps off the floor");
+    // and lands on it again, standing
+    settle(&mut r);
+    assert_eq!(r.racers[0].ape.mode, Mode::Grounded, "stands after the jump");
+    // walks across it (toward the middle)
+    let before = r.racers[0].ape.pos;
+    for _ in 0..TICKS_PER_SECOND / 2 {
+        r.step(&[Controls {
+            fwd: 1,
+            yaw: crate::geom::yaw_of(v3(ONE, 0, 0)),
+            ..Controls::default()
+        }]);
+    }
+    let a = &r.racers[0].ape;
+    assert!(
+        a.pos.flat().sub(before.flat()).longer_than(int(1)),
+        "walks: {:?} from {:?}",
+        a.pos,
+        before
+    );
+}

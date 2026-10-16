@@ -302,8 +302,12 @@ impl TowerLayout {
                     wall = true;
                 }
                 Out::Onto(top) => {
+                    // (the fall is kept: the landing, `Ape::collide`'s
+                    // support check, stops it and grounds the ape. Zeroed
+                    // here, the ape rested on the top still "flying",
+                    // unable to walk or jump: stuck on the room's floor,
+                    // TW13)
                     pos.y = top + BODY_DROP;
-                    vel.y = vel.y.max(0);
                 }
             }
         }
