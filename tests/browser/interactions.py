@@ -7,7 +7,9 @@ never copied from the game's own output.
 """
 
 import json
+import os
 import pathlib
+import time
 
 STRINGS = json.loads((pathlib.Path(__file__).resolve().parents[2] / "data" / "strings.json").read_text())
 
@@ -38,13 +40,18 @@ def chosen_map(page):
     return page.eval_on_selector_all("[id='setup.map'] .tile.chosen, [id='setup.map'] .card.chosen", "ts => ts.map(t => t.dataset.value)")
 
 
-def run(page, check, engine):
+MAPS = [STRINGS["map." + k] for k in ["jungle", "city", "ski", "sector", "ruins", "bay", "random"]]
+
+
+def step_boot(page, check):
     check(page.title() == STRINGS["title"], "the tab is titled Ape Race")
     check(page.evaluate("document.body.dataset.screen") == "title", "the title screen is up")
     check(STRINGS["title"].upper() in text(page, "#menus").upper(), "the title is drawn")
     check(text(page, "#message") == "", "no error message is shown")
     check(canvas_drawn(page), "the jungle is drawn behind the title (WebGL 2)")
 
+
+def step_settings(page, check):
     # Settings: change the volume, see it shown, come back
     page.click("[id='menu.settings']")
     check(page.evaluate("document.body.dataset.screen") == "settings", "Settings opens")
@@ -53,7 +60,15 @@ def run(page, check, engine):
     page.wait_for_timeout(200)
     check("35%" in text(page, "#menus"), "the volume slider shows 35%")
     page.click("[id='menu.back']")
+    # Settings were saved: reload and look
+    page.reload()
+    page.wait_for_selector("body[data-ready='true']", timeout=20000)
+    page.click("[id='menu.settings']")
+    check("35%" in text(page, "#menus"), "the volume is kept after a reload")
+    page.click("[id='menu.back']")
 
+
+def step_race(page, check):
     # Race setup: pick the gibbon, two opponents; the stats follow the ape
     page.click("[id='menu.race']")
     check(page.evaluate("document.body.dataset.screen") == "setup", "Race opens the setup screen")
@@ -139,14 +154,11 @@ def run(page, check, engine):
     page.click("[id='menu.quit']")
     check(page.evaluate("document.body.dataset.screen") == "title", "Quit returns to the title")
 
-    # Settings were saved: reload and look
-    page.reload()
-    page.wait_for_selector("body[data-ready='true']", timeout=20000)
+
+def step_secret(page, check):
     page.click("[id='menu.settings']")
-    check("35%" in text(page, "#menus"), "the volume is kept after a reload")
     check(STRINGS["settings.speed_colours"] not in text(page, "#menus"), "JOJO MODE (speed colours) is a secret at first")
     page.click("[id='menu.back']")
-
     # The secret (TRIAGE row 26): ten clicks on the title unlock JOJO MODE (the speed colours, T36)
     for _ in range(10):
         page.click("[id='title.click']")
@@ -154,6 +166,8 @@ def run(page, check, engine):
     check(STRINGS["settings.speed_colours"] in text(page, "#menus"), "ten clicks on the title unlock JOJO MODE in Settings")
     page.click("[id='menu.back']")
 
+
+def step_time_trial(page, check):
     # Time Trial (TRIAGE T1, T13): solo, the medal targets, Bronze 1:40.00
     # (105 s, set in trial.rs from the AI's 73–76 s) and the Author hidden
     page.click("[id='menu.trial']")
@@ -181,11 +195,15 @@ def run(page, check, engine):
     page.wait_for_selector("[id='menu.quit']", timeout=5000)
     page.click("[id='menu.quit']")
 
+
+def step_replays_list(page, check):
     # Replays: nothing finished yet, so the list says so
     page.click("[id='menu.replays']")
     check(STRINGS["replays.none"] in text(page, "#menus"), "the Replays list is empty before a finish")
     page.click("[id='menu.back']")
 
+
+def step_whats_new(page, check):
     # What's New: marked New until opened; major versions only until the
     # minor-patches tick; the version in the corner opens it too
     notes = json.loads((pathlib.Path(__file__).resolve().parents[2] / "data" / "patch-notes.json").read_text())
@@ -209,11 +227,13 @@ def run(page, check, engine):
     page.click("[id='notes.minor']")
     page.click("[id='menu.back']")
 
+
+def step_city_map(page, check):
     # The City (2026-10-12): the map grid on Race Setup (TRIAGE T54), the
     # ape preview moves onto the chosen map, and the race runs there
     page.click("[id='menu.race']")
     options = page.eval_on_selector_all("[id='setup.map'] .tile, [id='setup.map'] .card", "ts => ts.map(t => t.innerText.trim())")
-    maps = [STRINGS["map.jungle"], STRINGS["map.city"], STRINGS["map.ski"], STRINGS["map.sector"], STRINGS["map.ruins"], STRINGS["map.bay"], STRINGS["map.random"]]
+    maps = MAPS
     check(options == maps, f"Race Setup offers every map and Random as cards {options}")
     pictures = page.eval_on_selector_all(
         "[id='setup.map'] .tile-hero img, [id='setup.map'] .card img", "is => is.map(i => i.complete && i.naturalWidth > 0)"
@@ -261,6 +281,8 @@ def run(page, check, engine):
     check(chosen_map(page) == ["city"], "the City is kept after a reload")
     page.click("[id='menu.back']")
 
+
+def step_weather(page, check):
     # The Ski Slope's weather (2026-10-13): chosen in Settings, kept after a
     # reload, and shown under the map on the Ski Slope's setup only. The
     # mouse leaves Back's spot first: Settings sits under it on the title
@@ -272,13 +294,15 @@ def run(page, check, engine):
     page.reload()
     page.wait_for_selector("body[data-ready='true']", timeout=20000)
     page.click("[id='menu.race']")
-    check(page.query_selector("[id='setup.weather']") is None, "no Weather on the City's setup")
+    check(page.query_selector("[id='setup.weather']") is None, "no Weather on another map's setup")
     page.click("[id='setup.map.ski']")
     page.wait_for_selector("[id='setup.weather']", timeout=5000)
     check(page.input_value("[id='setup.weather']") == "snowing", "the weather is kept after a reload")
     check(canvas_drawn(page), "the Ski Slope is drawn in the snow behind the setup")
     page.click("[id='menu.back']")
 
+
+def step_setup_layout(page, check):
     # TRIAGE T70, T81: Race Setup fits common desktop windows (the default
     # 1280x720, 1366x768, 1920x1080) with no scrollbar, and Start is in view
     # and takes the click at its middle
@@ -309,7 +333,13 @@ def run(page, check, engine):
     page.click("[id='setup.item.vine']")
     page.wait_for_timeout(200)
     check(page.is_checked("[id='setup.item.vine']"), "and ticks again with one click")
+    page.click("[id='menu.back']")
 
+
+def step_random_map(page, check):
+    page.click("[id='menu.race']")
+    page.click("[id='setup.map.ski']")
+    page.wait_for_timeout(300)
     # TRIAGE T64: Random, the last card; the race runs on a map it picks
     # (never the last one, the Ski Slope) and names it at the start
     page.click("[id='setup.map.random']")
@@ -323,7 +353,7 @@ def run(page, check, engine):
     page.wait_for_function("() => document.getElementById('hud-place').innerText.includes('/')", timeout=10000)
     page.wait_for_function("() => document.getElementById('hud-reward').innerText.trim() !== ''", timeout=10000)
     on = text(page, "#hud-map .v")
-    check(on in maps[:-1] and on != STRINGS["map.ski"], f"the race runs on a map Random picked, not the last ({on})")
+    check(on in MAPS[:-1] and on != STRINGS["map.ski"], f"the race runs on a map Random picked, not the last ({on})")
     told = text(page, "#hud-reward")
     check(told == STRINGS["hud.random_map"] + ": " + on, f"the start names the picked map ({told})")
     page.keyboard.press("Escape")
@@ -332,6 +362,26 @@ def run(page, check, engine):
     page.click("[id='menu.race']")
     check(chosen_map(page) == ["random"], "Random stays chosen after the race")
     page.click("[id='menu.back']")
+
+
+# The steps in order, by name. Each starts and ends on the title screen, so
+# any of them can run alone after `boot`; tests/tags.toml tags each one and
+# scripts/quick-check.sh picks them through BUILDER_STEPS.
+STEPS = [("boot", step_boot), ("settings", step_settings), ("race", step_race), ("secret", step_secret), ("time_trial", step_time_trial), ("replays_list", step_replays_list), ("whats_new", step_whats_new), ("city_map", step_city_map), ("weather", step_weather), ("setup_layout", step_setup_layout), ("random_map", step_random_map)]
+
+
+def run(page, check, engine):
+    """Runs every step, or `boot` and those named in BUILDER_STEPS."""
+    wanted = os.environ.get("BUILDER_STEPS")
+    chosen = None if wanted is None else set(wanted.split()) | {"boot"}
+    for name, step in STEPS:
+        if chosen is not None and name not in chosen:
+            print(f"  (skipped step {name})")
+            continue
+        print(f"  -- step {name}")
+        began = time.monotonic()
+        step(page, check)
+        print(f"  -- step {name} took {time.monotonic() - began:.1f} s")
 
 
 # Whether the menus fit: the column has no scrollbar, no panel scrolls inside,
