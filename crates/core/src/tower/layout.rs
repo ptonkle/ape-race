@@ -89,7 +89,7 @@ const TOPSY: i32 = cm(0);
 /// The zipper's beams hang this much lower than the climb's.
 const ZIP_DROP: i32 = int(4);
 /// and are this much longer: their anchors high over the falling apes.
-const ZIP_LONGER: i32 = int(16);
+const ZIP_LONGER: i32 = int(22);
 /// Reset pads stand this far under the centreline: under the swings, and
 /// in a jump's reach of the vines.
 const PAD_UNDER: i32 = int(5);

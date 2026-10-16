@@ -322,7 +322,7 @@ const SKI_HOP: [i32; 4] = [int(22), int(24), int(26), int(28)];
 /// [`Difficulty::tuning_on`]).
 const TOWER_HESITATE: [u32; 4] = [6, 3, 1, 0];
 const TOWER_JITTER: [u32; 4] = [6, 3, 1, 0];
-const TOWER_DRIVE: [u32; 4] = [2, 3, 4, DUTY];
+const TOWER_DRIVE: [u32; 4] = [2, 3, 5, DUTY];
 const TOWER_NOISE: [i32; 4] = [int(6), int(4), int(2), 0];
 /// Sunset Ruins' handicaps, easiest level first (see
 /// [`Difficulty::tuning_on`]). With the Jungle's, the Monkey was no faster
