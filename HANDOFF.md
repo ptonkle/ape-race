@@ -130,3 +130,5 @@ Group L (lobby, online and setup UI, 2026-10-12): T26 (1–3 AI opponents), T35 
 - `.gitattributes` merges SECOND-ORDER.md as a union, for parallel agents.
 - PLAN.md P4–P6 describe the first grab and pump design; the person replaced it (SECOND-ORDER C3, TRIAGE rows 2, 6, 8–10). TRIAGE.md is the current word on feel.
 - `scripts/shot.py` screenshots the built game (`--hold KeyW,Mouse:1.5`); `examples/swing_time.rs` measures swing length; `cargo test --release -p tool_core --test ai -- --ignored --nocapture` reports AI finish times and speeds.
+
+Mape's Tower steps 9, 13, 14 (2026-10-16, SECOND-ORDER TL1–TL8): lobby on the start deck, flyover a helix round the keep, catch-up crimson, beams in the title and lobby, map card. `BUILDER_ENGINES=chromium ./scripts/check.sh`: BUILDER CHECK PASSED (250.7 s).
