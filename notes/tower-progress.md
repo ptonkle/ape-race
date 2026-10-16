@@ -12,12 +12,12 @@ The standard map-build steps (MAPS.md "Build steps"), one row each. Status is on
 | 6 | Course layout | Done | 674 m climb (race 1,348 m): keep circle 55 m, 4 spirals (540° round), 3 straight branches (90° round sub-towers), trampoline room, clouds, summit turns out from the keep, mirrored zipper with longer beams (TC1, TC5); any-direction beams (TC2) |
 | 7 | Map rules | Done | Pads aimed at the next station; AI bounds/re-pick (TC3); summoned vines placed by their own coil; CLIMB_LIFT stays 3 m/s (the climb is now the faster half) (TC5) |
 | 8 | Art placed on the course | Done | `towerscape/art.rs`, all from the layout (TA1); 3D culling, climb and zipper drawn apart (TA2); 8,691 shapes, 4,896 at most at once (TA3); shots in notes/tower-shots/art/ |
-| 9 | Lobby spot and flyover | Not started |  |
+| 9 | Lobby spot and flyover | Waiting on you | Lobby on the start deck, keep beside the ape (TL1); flyover a helix up round the keep ending over the battlements, looking at the tear (TL2); shots notes/tower-shots/lobby/. The view is plain (TL8): pick start deck or a high bridge |
 | 10 | AI validation | Done | 16 layouts: Sloth 107.2 s, Monkey 92.0, Ape 77.3, King Kong 64.5 (max 137.9 s); ordering test `tower_difficulties_are_ordered_and_spaced` (TC5) |
 | 11 | Medal times | Done | Lemur 58.42 s best (58.4–67.7 by kind): Author 0:58, Gold 1:05, Silver 1:15, Bronze 1:30; test `the_tower_medals_follow_its_time_trial` (TM1) |
 | 12 | Step and frame cost | In progress | Step: worst 4.0 ms, median 111 µs (Ruins 2.7–3.9 ms / 56 µs, Bay 3.3 ms / 67 µs); fix suggested for `nearest_3d` (TM2). Frame (scenery) cost: art agent |
-| 13 | Colourblind and JOJO MODE | Not started |  |
-| 14 | Map card | Not started |  |
+| 13 | Colourblind and JOJO MODE | Done | Catch-up now crimson, apart from every beam (TL3); title and lobby draw beams (TL4); shots blind.png, jojo.png (TL5) |
+| 14 | Map card | Done | `data/maps/tower.webp` from the flyover at 930 m: battlements, cloud band, eldritch banana (TL7); on the Race Setup strip |
 | 15 | Screenshots at 1920×1080 | Not started |  |
 | 16 | Other maps unchanged | Not started |  |
 | 17 | Docs | Not started |  |

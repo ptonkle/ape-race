@@ -539,7 +539,7 @@ mod tests {
     }
 
     #[test]
-    fn on_mapes_tower_the_keeps_edge_shows_between_the_menus_and_the_ape_on_the_bridge() {
+    fn on_mapes_tower_the_keeps_edge_shows_between_the_menus_and_the_ape_on_the_start_deck() {
         for (w, h) in [(1920, 1080), (1366, 768), (1280, 720)] {
             for (name, a) in screens_on("tower", w, h) {
                 assert_eq!(a.map(), Map::Tower, "{name}");

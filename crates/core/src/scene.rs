@@ -2905,7 +2905,10 @@ mod tests {
             Spell::Abyss,
         ] {
             let (beam, _) = crate::towermodels::beam_look(s);
-            assert!(far(c, beam) > ONE / 2, "{c:?} too near the {s:?} beam {beam:?}");
+            assert!(
+                far(c, beam) > ONE / 2,
+                "{c:?} too near the {s:?} beam {beam:?}"
+            );
         }
     }
 

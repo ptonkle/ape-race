@@ -1,9 +1,9 @@
-//! Mape's Tower's menus (step 9): the lobby spot on a high bridge, the
-//! keep's wall beside the ape and the sky, the cloud band and the
-//! sub-towers behind it, and the title's flyover rising round the tower to
-//! the summit and the tear.
+//! Mape's Tower's menus (step 9): the lobby spot on the start deck, the
+//! keep's wall beside the ape and the haze and the beams behind it, and
+//! the title's flyover rising round the tower to the summit and the
+//! tear (TL1, TL2).
 //!
-//! The lobby ape stands on the highest branch bridge under the cloud band,
+//! The lobby ape stands near the start deck's far edge (16 m up),
 //! the camera behind it looking along the keep's wall (the keep on the
 //! left). `app::menu_dock` turns that camera so the keep's edge
 //! ([`landmark`]) sits between the docked menus and the ape, as Sunset
@@ -96,7 +96,6 @@ pub fn hidden_in_lobby(c: &Course, t: &TowerLayout, i: usize) -> bool {
         .is_some_and(|v| !v.anchor.sub(feet).flat().longer_than(LOBBY_CLEAR))
 }
 
-
 /// What the lobby frames between the menus and the ape: the keep's edge
 /// as seen from the ape (where the wall meets the sky ahead), a little
 /// over the feet.
@@ -139,7 +138,7 @@ pub fn lobby_camera(feet: V3, look: V3) -> Camera {
     lobby_camera_at(feet, look, LOBBY_BACK)
 }
 
-/// The menus' preview on Mape's Tower: the ape on the bridge, the camera
+/// The menus' preview on Mape's Tower: the ape on the start deck, the camera
 /// behind it looking along the keep's wall.
 pub fn preview(c: &Course) -> (V3, i32, Camera) {
     let (feet, look) = match c.tower.as_deref() {
@@ -240,15 +239,27 @@ mod tests {
             // the keep on the camera's left
             let k = t.keep.centre;
             let to_keep = v3(k.x, feet.y, k.z).sub(feet);
-            assert!(right_of(look).dot(to_keep) < 0, "seed {seed}: keep on the left");
+            assert!(
+                right_of(look).dot(to_keep) < 0,
+                "seed {seed}: keep on the left"
+            );
             // the landmark is on the keep's wall, ahead of the ape
             let mark = landmark(&c, t);
             let r = v3(mark.x - k.x, 0, mark.z - k.z).len();
-            assert!((r - t.keep.radius).abs() < cm(20), "seed {seed}: mark off the wall");
-            assert!(mark.sub(feet).flat().dot(look) > 0, "seed {seed}: mark behind");
+            assert!(
+                (r - t.keep.radius).abs() < cm(20),
+                "seed {seed}: mark off the wall"
+            );
+            assert!(
+                mark.sub(feet).flat().dot(look) > 0,
+                "seed {seed}: mark behind"
+            );
         }
         let c = Map::Tower.course();
-        assert_eq!(crate::scene::preview(&c).feet, lobby_spot(&c, c.tower.as_deref().unwrap()).0);
+        assert_eq!(
+            crate::scene::preview(&c).feet,
+            lobby_spot(&c, c.tower.as_deref().unwrap()).0
+        );
     }
 
     #[test]
@@ -270,19 +281,34 @@ mod tests {
                 // clear of the keep and every sub-tower by 10 m, on the
                 // climb's side of the mirror
                 let r = v3(e.x - k.x, 0, e.z - k.z).len();
-                assert!(r > t.keep.radius + int(10), "seed {seed} tick {tick}: in the keep");
+                assert!(
+                    r > t.keep.radius + int(10),
+                    "seed {seed} tick {tick}: in the keep"
+                );
                 for b in &t.branches {
                     let s = b.sub.centre;
                     let d = v3(e.x - s.x, 0, e.z - s.z).len();
-                    assert!(d > b.sub.radius + int(10), "seed {seed} tick {tick}: in a sub-tower");
+                    assert!(
+                        d > b.sub.radius + int(10),
+                        "seed {seed} tick {tick}: in a sub-tower"
+                    );
                 }
-                assert!(e.x < t.zipper.mirror_x - int(5), "seed {seed} tick {tick}: in the zipper");
+                assert!(
+                    e.x < t.zipper.mirror_x - int(5),
+                    "seed {seed} tick {tick}: in the zipper"
+                );
             }
             // it ends over the summit, looking at the tear
             let end = flyover_camera(&c, lap - 1, 0);
-            assert!(end.eye.y > k.y + t.keep.height, "seed {seed}: ends over the top");
+            assert!(
+                end.eye.y > k.y + t.keep.height,
+                "seed {seed}: ends over the top"
+            );
             let to_tear = t.summit.tear.sub(end.eye).norm();
-            assert!(end.fwd.dot(to_tear) > ONE * 99 / 100, "seed {seed}: ends on the tear");
+            assert!(
+                end.fwd.dot(to_tear) > ONE * 99 / 100,
+                "seed {seed}: ends on the tear"
+            );
         }
     }
 }
