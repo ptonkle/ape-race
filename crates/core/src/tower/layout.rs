@@ -87,7 +87,9 @@ const LEAN: i32 = cm(35);
 /// none for now, as the AI wandered on them (TC rows).
 const TOPSY: i32 = cm(0);
 /// The zipper's beams hang this much lower than the climb's.
-const ZIP_DROP: i32 = int(6);
+const ZIP_DROP: i32 = int(4);
+/// and are this much longer: their anchors high over the falling apes.
+const ZIP_LONGER: i32 = int(16);
 /// Reset pads stand this far under the centreline: under the swings, and
 /// in a jump's reach of the vines.
 const PAD_UNDER: i32 = int(5);
@@ -525,7 +527,7 @@ pub fn tower_seeded(seed: u64) -> Course {
         let way = flat(c.heading_at(at));
         let tilt = if n % 2 == 0 { TOPSY } else { -TOPSY };
         let hang = mh.add(way.scale(tilt)).norm();
-        let w = beam(bottom, hang, v.length, at);
+        let w = beam(bottom, hang, v.length + ZIP_LONGER, at);
         hangers.push(Hanger::Monster { at: w.anchor });
         c.vines.push(w);
         lifts.push(false);
