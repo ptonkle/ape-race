@@ -9,6 +9,8 @@ A redesign of the live map (`briefs/mapes-tower.md`, v1.13.0–1.13.2). The pers
 > Then the portal world is going to get changed completely, instead of there being any vines, you are instead dropping straight down with the goal of getting to the bottom first. The player needs to use air control to avoid bounce pads on the way down so that they can maintain as much downwards speed as possible. The visuals of the portal world were good but the shape of the mpa is totally chjaning. At the bottom of the fall, there are vines taht are being suspended 10 degrees off of being completely horizontal which you grab at high speed to launch yourself thorugh a horizontal tunnel that goes off of one side. in that tunnel is the finish line. the player should be able to easily get all the way to the finish line without landing.
 >
 > Oh from the first iration of teh map, get rid of teh small bounce room
+>
+> The old portal was a bit flat too. It does not need to be as complex, but take inspiration from the movement of the black hole in Sector Ape
 
 ## The person's answers (2026-10-16)
 
@@ -36,6 +38,7 @@ A redesign of the live map (`briefs/mapes-tower.md`, v1.13.0–1.13.2). The pers
 - [ ] The portal world: a vertical tube, Dropper-style, about 300 m, with 20–30 bounce pads to dodge by air control; no vines; the aim is to keep falling as fast as possible.
 - [ ] At the bottom, a line of vines hung from the top of the horizontal exit tunnel's mouth, about 10° below horizontal; grabbed at speed they sling you along the tunnel to the finish line, which you reach without landing.
 - [ ] The portal world keeps its look (the void colours, the creatures, the zip) in the new shape.
+- [ ] The portal (the tear) is not flat: it moves, taking after Sector Ape's black hole (its turning bands, jets and drawn-in sparkles), without being as complex.
 - [ ] The trampoline room is gone. (The sub-tower branches and the mirrored zipper go with the old course.)
 - [ ] Kept from the first design: the palette, skies and weathers, the wizard and witch costumes, the flame cat, mages and dragons as casters, climb vines' lift, forgiving resets with a boost, solid stone, item crates in rows.
 - [ ] The other maps play exactly the same.

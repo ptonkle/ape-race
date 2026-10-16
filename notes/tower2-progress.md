@@ -32,7 +32,7 @@ The standard map-build steps (MAPS.md "Build steps"), one row each. Status is on
 | Tower 2: 60% of tower 1, climbed outside | Brief | Not started | Not started | Not started | Not started |
 | Two straight bridges, vines hung under them, ~10 s each | Brief | Not started | Not started | Not started | Not started |
 | Start at the foot of tower 1 | Brief | n/a | Not started | Not started | Not started |
-| The portal out of tower 1's top | Brief | Done (v1 tear) | Not started | Not started | Not started |
+| The portal out of tower 1's top, moving like Sector Ape's black hole, simpler | Brief | Not started (v1 tear is flat) | Not started | Not started | Not started |
 | The tube: ~300 m Dropper fall, 20–30 bounce pads to dodge, no vines | Brief | Not started | Not started | Not started | Not started |
 | Air control in the tube tuned so a human can weave | Plan | n/a | Not started | n/a | Not started |
 | The bottom row: near-horizontal vines from the tunnel mouth's top, a sling into the tunnel | Brief | Not started | Not started | Not started | Not started |

@@ -9,7 +9,7 @@ From `briefs/mapes-tower-v2.md`. Sizes are relative to the first design (the kee
 3. **Up the outside of tower 2:** tower 2 is 60% of tower 1, so about 1.2× the old keep. One and a half turns round it on balcony mages' and dragons' beams, with the climb lift as now, from the lower bridge's height to the upper bridge's. The clouds sit round its top.
 4. **Under the upper bridge (about 10 s):** the same as the lower one, mirrored, from tower 2's top back to tower 1, ending at tower 1's doorway about half way up tower 1.
 5. **Inside tower 1:** tower 1 is twice the old keep (about 275 m) and wider: an outer radius 1.25× the keep's, hollow, so the inside is about 90 m across. From the doorway half way up, vines are cast from mages at inner balconies and windows all round the wall and from a few floating conjured anchors in the middle, scattered with no helix: anchors every 15–25 m of height, each within one swing of two or three others, so there is always more than one way up. The course's centreline (what "progress" measures) is a loose zigzag up the middle; the vines do not follow it. Windows let the sky in. The lift on climb vines stays; resets land on ledges inside the wall with an upward boost.
-6. **Out through the portal:** the top of tower 1 is open; the wizard and his tear stand beside the top on its far side, and the last beams throw you out sideways through it, as now.
+6. **Out through the portal:** the top of tower 1 is open; the wizard and his tear stand beside the top on its far side, and the last beams throw you out sideways through it. The tear is no longer a flat lozenge: it turns and breathes like Sector Ape's black hole (`sectorscape`: the turning bands, the pull, the sparkles drawn in), simpler than that one, with the void and the eldritch banana seen through it.
 
 ## The portal world
 
@@ -22,7 +22,7 @@ From `briefs/mapes-tower-v2.md`. Sizes are relative to the first design (the kee
 
 - Kept: climb lift, resets to the last pad with a boost (pads on every leg; in the tube a reset puts you back at the portal), solid stone, the vine audit, crates in rows, wizard gear, the skies, the flame cat.
 - Gone: the trampoline room, the sub-tower branches, the mirrored zipper, trampolines on the climb.
-- New: the tube's air rule (step 8), bounce pads as obstacles, the sling row.
+- New: the tube's air rule (step 8), bounce pads as obstacles, the sling row, the moving portal.
 
 ## Work split
 
