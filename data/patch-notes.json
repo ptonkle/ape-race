@@ -1,5 +1,12 @@
 [
   {
+    "version": "1.13.1",
+    "date": "2026-10-16",
+    "notes": [
+      "Mape's Tower: an ape that lands on a floor inside the tower stands on it and can walk and jump again."
+    ]
+  },
+  {
     "version": "1.13.0",
     "date": "2026-10-16",
     "notes": [
