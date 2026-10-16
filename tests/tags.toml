@@ -1,0 +1,337 @@
+# Test tags (the person, 2026-10-15: "classify each of the unit tests and
+# then each of the sets of changes with the same set of tags and only run
+# tests if the feature change set included at least one change with the same
+# tag").
+#
+# scripts/quick-check.sh reads this file: changed files -> tags (through
+# [sources]), then runs only the tests whose tags meet those (through
+# [tests], [browser] and [online]). scripts/check.sh still runs everything.
+# scripts/tags.py guard (run by check.sh) fails when a test, a browser step, an
+# online step or a tracked file is not classified here.
+#
+# A test carries every tag whose change could break it, not only its topic:
+# a test that races AI apes on the City is ai, physics, race, items and
+# maps-city. When unsure, add the tag: an extra tag only costs time.
+
+[tags]
+all = "foundations (fixed point, vectors, the core's door, the shim, the build): run everything"
+physics = "ape bodies, vines, collisions: ape.rs, vinesim.rs, the rules' numbers"
+ai = "the AI drivers and their difficulty levels"
+race = "a race's flow: countdown, places, finishes, Time Trial, medals, Floor is Lava, hype, the dance"
+items = "item crates, thrown things, summoned vines, boosts"
+menus = "screens, settings, Race Setup, the HUD and speedometer, strings"
+notes = "What's New: the patch notes and their screen"
+camera = "the race camera, focus, spectating, the lobby camera"
+render = "meshes, models, scenery, sky, shaders: what is drawn"
+sound = "the synthesiser and its cues"
+replay = "replays, ghosts, saved runs"
+online = "online play: lobby, protocol, transport"
+costumes = "palettes and unlockable costumes"
+weather = "the Settings weather and each map's weather"
+page = "the web page (web/), its browser checks"
+boundary = "the core's purity scanner, dependency allowlist and CSP (always run: it scans every file)"
+maps-jungle = "the Jungle course (course.rs)"
+maps-city = "the City"
+maps-ski = "the Ski Slope (Yeti Peak)"
+maps-sector = "Sector Ape (space)"
+maps-ruins = "Sunset Ruins"
+maps-bay = "Banana Bay Battle"
+
+# Tags whose tests always run in a quick check.
+[always]
+tags = ["boundary"]
+
+# ---------------------------------------------------------------------------
+# Changed file -> tags. Globs over the repository path (`*` stays within one
+# path segment, `**` crosses them). Every glob that matches adds its tags.
+# A file that matches no glob runs everything; `[]` means run nothing for it.
+[sources]
+# foundations: everything depends on them
+"Cargo.toml" = ["all"]
+"Cargo.lock" = ["all"]
+"crates/core/Cargo.toml" = ["all"]
+"crates/shim/**" = ["all"]
+"crates/core/src/lib.rs" = ["all"]
+"crates/core/src/fx.rs" = ["all"]
+"crates/core/src/geom.rs" = ["all"]
+"crates/core/src/api.rs" = ["all"]
+"crates/core/src/map.rs" = ["all"]
+"scripts/build.sh" = ["all"]
+"scripts/check.sh" = ["all"]
+"scripts/quick-check.sh" = ["all"]
+"scripts/tags.py" = ["all"]
+"scripts/wasm_imports.py" = ["all"]
+"tests/tags.toml" = ["all"]
+"web/vendor/**" = ["all"]
+"web/index.html" = ["all"]
+
+# core modules
+"crates/core/src/ape.rs" = ["physics"]
+"crates/core/src/ape/tests.rs" = ["physics"]
+"crates/core/src/ape/space.rs" = ["physics", "maps-sector"]
+"crates/core/src/ape/ski_tests.rs" = ["physics", "maps-ski"]
+"crates/core/src/vinesim.rs" = ["physics", "render"]
+"crates/core/src/rules.rs" = ["physics", "race"]
+"crates/core/src/ai.rs" = ["ai"]
+"crates/core/src/race.rs" = ["race"]
+"crates/core/src/trial.rs" = ["race"]
+"crates/core/src/hype.rs" = ["race", "sound"]
+"crates/core/src/dance.rs" = ["race", "render"]
+"crates/core/src/jaguar.rs" = ["race", "render"]
+"crates/core/src/items.rs" = ["items"]
+"crates/core/src/items/**" = ["items"]
+"crates/core/src/camera.rs" = ["camera"]
+"crates/core/src/camera/**" = ["camera"]
+"crates/core/src/focus.rs" = ["camera"]
+"crates/core/src/scene.rs" = ["render"]
+"crates/core/src/render.rs" = ["render"]
+"crates/core/src/mesh.rs" = ["render"]
+"crates/core/src/models.rs" = ["render"]
+"crates/core/src/sky.rs" = ["render"]
+"crates/core/src/icon.rs" = ["menus"]
+"crates/core/src/speedo.rs" = ["menus"]
+"crates/core/src/patch_notes.rs" = ["notes"]
+"crates/core/src/sound.rs" = ["sound"]
+"crates/core/src/replay.rs" = ["replay"]
+"crates/core/src/online.rs" = ["online"]
+"crates/core/src/costume.rs" = ["costumes"]
+"crates/core/src/snow.rs" = ["weather", "maps-ski"]
+# the app: the hub of screens. Its own file touches most features but not
+# the bodies, the AI or a map's build
+"crates/core/src/app.rs" = ["menus", "race", "items", "camera", "replay", "costumes", "weather", "sound", "online"]
+"crates/core/src/app/online_play.rs" = ["online"]
+"crates/core/src/app/online_play_tests.rs" = ["online"]
+"crates/core/src/app/menu_dock.rs" = ["menus", "camera"]
+"crates/core/src/app/gallery.rs" = ["menus", "render"]
+"crates/core/src/app/medals.rs" = ["race", "menus"]
+"crates/core/src/app/tile.rs" = ["menus", "render"]
+"crates/core/src/app/costume_tests.rs" = ["costumes"]
+"crates/core/src/app/items_hype_tests.rs" = ["items"]
+"crates/core/src/app/lava_tests.rs" = ["race"]
+"crates/core/src/app/look_tests.rs" = ["costumes"]
+"crates/core/src/app/map_tests.rs" = ["menus"]
+"crates/core/src/app/notes_tests.rs" = ["notes"]
+"crates/core/src/app/setup_tests.rs" = ["menus"]
+"crates/core/src/app/ski_camera_tests.rs" = ["camera"]
+"crates/core/src/app/spectate_tests.rs" = ["camera"]
+"crates/core/src/app/weather_tests.rs" = ["weather"]
+
+# maps
+"crates/core/src/course.rs" = ["maps-jungle"]
+"crates/core/src/city.rs" = ["maps-city"]
+"crates/core/src/city/**" = ["maps-city"]
+"crates/core/src/cityscape.rs" = ["maps-city", "render"]
+"crates/core/src/vehicles.rs" = ["maps-city", "render"]
+"crates/core/src/ski.rs" = ["maps-ski"]
+"crates/core/src/ski/**" = ["maps-ski"]
+"crates/core/src/skiscape.rs" = ["maps-ski", "render"]
+"crates/core/src/sector.rs" = ["maps-sector"]
+"crates/core/src/sector/**" = ["maps-sector"]
+"crates/core/src/sectorscape.rs" = ["maps-sector", "render"]
+"crates/core/src/spacecraft.rs" = ["maps-sector", "render"]
+"crates/core/src/ruins.rs" = ["maps-ruins"]
+"crates/core/src/ruins/**" = ["maps-ruins"]
+"crates/core/src/ruinsmodels.rs" = ["maps-ruins", "render"]
+"crates/core/src/ruinsscape.rs" = ["maps-ruins", "render"]
+"crates/core/src/bay.rs" = ["maps-bay"]
+"crates/core/src/bay/**" = ["maps-bay"]
+"crates/core/src/baymodels.rs" = ["maps-bay", "render"]
+"crates/core/src/bayscape.rs" = ["maps-bay", "render"]
+"crates/core/src/bayscape/**" = ["maps-bay", "render"]
+
+# integration tests: a change to one runs it
+"crates/core/tests/ai.rs" = ["ai", "maps-jungle"]
+"crates/core/tests/bay_ai.rs" = ["ai", "maps-bay"]
+"crates/core/tests/city_ai.rs" = ["ai", "maps-city"]
+"crates/core/tests/ruins_ai.rs" = ["ai", "maps-ruins"]
+"crates/core/tests/sector_ai.rs" = ["ai", "maps-sector"]
+"crates/core/tests/ski_ai.rs" = ["ai", "maps-ski"]
+"crates/core/tests/sector_finish.rs" = ["maps-sector"]
+"crates/core/tests/boundary.rs" = ["boundary"]
+"crates/core/tests/online.rs" = ["online"]
+"crates/core/tests/map_pictures.rs" = ["menus"]
+"crates/core/tests/jungle_unchanged.rs" = ["maps-jungle"]
+"crates/core/tests/sector_unchanged.rs" = ["maps-sector"]
+"crates/core/tests/maps_unchanged.rs" = ["maps-city", "maps-ski", "maps-jungle"]
+# tools: clippy (always run) compiles them; no test runs them
+"crates/core/examples/**" = []
+
+# data
+"data/strings.json" = ["menus"]
+"data/patch-notes.json" = ["notes"]
+"data/maps/**" = ["menus"]
+"data/shaders/**" = ["render"]
+
+# the page
+"web/app.js" = ["page"]
+"web/gl.js" = ["page", "render"]
+"web/style.css" = ["page"]
+"web/online.js" = ["page", "online"]
+"web/online-config.js" = ["page", "online"]
+"web/nettest.html" = ["online"]
+"web/nettest.js" = ["online"]
+"tests/browser/check.py" = ["page"]
+"tests/browser/interactions.py" = ["page"]
+"tests/browser/online.py" = ["online"]
+"tests/browser/online_race.py" = ["online"]
+"scripts/check-online.sh" = ["online"]
+
+# nothing to run: docs, notes, tools that the checks do not use
+"**/*.md" = []
+"notes/**" = []
+"briefs/**" = []
+".claude/**" = []
+".gitignore" = []
+".gitattributes" = []
+"AGENTS.md" = []
+"scripts/timed-checks.sh" = []
+"scripts/mutants.sh" = []
+"scripts/pages.sh" = []
+"scripts/setup.sh" = []
+"scripts/serve.py" = []
+"scripts/shot.py" = []
+"scripts/tiles.py" = []
+"scripts/map_cards.py" = []
+"scripts/patch_notes_html.py" = []
+
+# ---------------------------------------------------------------------------
+# Cargo tests -> tags. A key is `<target>:<name prefix>`: `lib:` for the
+# core's own tests by module path, `test:<file>` for an integration test file
+# (crates/core/tests/<file>.rs), optionally with `:<name prefix>`. The
+# longest matching key wins, so a mixed module can be split by test name.
+[tests]
+"lib:ape::" = ["physics"]
+"lib:ape::ski_tests::" = ["physics", "maps-ski"]
+"lib:api::" = ["page", "menus"]
+"lib:app::tests::" = ["menus", "race"]
+"lib:app::tests::a_best_of_an_older_layout" = ["replay", "race"]
+"lib:app::tests::a_faster_finish_becomes_the_saved_best" = ["race", "replay"]
+"lib:app::tests::a_reset_and_the_door_have_their_own_sounds" = ["sound", "menus"]
+"lib:app::tests::a_summoned_vine_adds_a_chain" = ["items", "physics", "render"]
+"lib:app::tests::a_time_trial_is_solo" = ["race", "items", "menus"]
+"lib:app::tests::finished_runs_are_kept" = ["replay"]
+"lib:app::tests::the_best_time_trial_races_as_a_ghost" = ["replay", "race"]
+"lib:app::tests::the_chosen_ai_difficulty" = ["ai", "menus"]
+"lib:app::tests::the_citys_wire_glows" = ["render", "maps-city", "maps-jungle"]
+"lib:app::tests::the_colourblind_mode" = ["render", "menus"]
+"lib:app::tests::the_frame_carries_its_maps_light" = ["render"]
+"lib:app::tests::the_ski_slopes_minimap" = ["menus", "maps-ski"]
+"lib:app::tests::speed_colours" = ["render", "menus"]
+"lib:app::tests::ten_clicks_on_the_title" = ["render", "menus"]
+"lib:app::tests::watching_the_replay" = ["replay", "camera"]
+"lib:app::tests::when_storage_is_full" = ["replay"]
+"lib:app::costume_tests::" = ["costumes", "menus", "online"]
+"lib:app::gallery::" = ["menus", "render", "camera"]
+"lib:app::items_hype_tests::" = ["items", "race", "sound"]
+"lib:app::lava_tests::" = ["race", "camera", "replay", "menus"]
+"lib:app::look_tests::" = ["costumes", "render", "menus", "replay"]
+"lib:app::map_tests::" = ["menus", "replay", "race"]
+"lib:app::medals::" = ["race", "menus"]
+"lib:app::menu_dock::" = ["menus", "camera", "maps-bay", "maps-ruins", "maps-city", "maps-jungle"]
+"lib:app::notes_tests::" = ["notes", "menus"]
+"lib:app::online_play::" = ["online", "menus", "race"]
+"lib:app::setup_tests::" = ["menus"]
+"lib:app::ski_camera_tests::" = ["camera", "maps-ski"]
+"lib:app::spectate_tests::" = ["camera", "race"]
+"lib:app::tile::" = ["menus", "render", "costumes"]
+"lib:app::weather_tests::" = ["weather", "menus", "render"]
+"lib:bay::" = ["maps-bay"]
+"lib:bay::course_tests::" = ["maps-bay", "physics"]
+"lib:baymodels::" = ["maps-bay", "render"]
+"lib:bayscape::" = ["maps-bay", "render"]
+"lib:camera::" = ["camera"]
+"lib:camera::hulls::" = ["camera", "maps-bay"]
+"lib:city::" = ["maps-city", "physics"]
+"lib:cityscape::" = ["maps-city", "render"]
+"lib:costume::" = ["costumes"]
+"lib:course::" = ["maps-jungle"]
+"lib:dance::" = ["race", "render"]
+"lib:focus::" = ["camera", "race"]
+"lib:fx::" = ["all"]
+"lib:geom::" = ["all"]
+"lib:hype::" = ["race", "sound"]
+"lib:icon::" = ["menus"]
+"lib:items::" = ["items", "physics", "race"]
+"lib:jaguar::" = ["race", "render"]
+"lib:map::" = ["all"]
+"lib:mesh::" = ["render"]
+"lib:models::" = ["render", "costumes"]
+"lib:models::tests::every_kind_dances" = ["render", "race"]
+"lib:models::tests::a_dancer" = ["render", "race"]
+"lib:models::tests::on_skis_a_dancer" = ["render", "race", "maps-ski"]
+"lib:models::tests::slowing_into_the_dance" = ["render", "race"]
+"lib:models::tests::on_the_ski_slope" = ["render", "maps-ski"]
+"lib:models::tests::on_skis" = ["render", "maps-ski"]
+"lib:models::tests::skis_go" = ["render", "maps-ski"]
+"lib:models::tests::in_the_air_the_skis" = ["render", "maps-ski"]
+"lib:models::tests::only_the_space_jaguar" = ["render", "maps-sector"]
+"lib:models::tests::in_space" = ["render", "maps-sector"]
+"lib:models::tests::the_sunglasses" = ["render", "maps-sector"]
+"lib:models::tests::the_metal_arm" = ["render", "maps-sector"]
+"lib:models::tests::only_the_sunset_ruins" = ["render", "maps-ruins"]
+"lib:models::tests::on_sunset_ruins" = ["render", "maps-ruins"]
+"lib:models::tests::on_banana_bay" = ["render", "maps-bay"]
+"lib:models::tests::the_pirate_outfits" = ["render", "maps-bay", "maps-ruins"]
+"lib:models::tests::only_the_banana_bay" = ["render", "maps-bay"]
+"lib:online::" = ["online"]
+"lib:patch_notes::" = ["notes"]
+"lib:race::" = ["race", "physics", "items"]
+"lib:render::" = ["render"]
+"lib:replay::" = ["replay", "race"]
+"lib:ruins::" = ["maps-ruins", "physics"]
+"lib:ruinsmodels::" = ["maps-ruins", "render"]
+"lib:ruinsscape::" = ["maps-ruins", "render"]
+"lib:rules::" = ["physics", "race"]
+"lib:scene::" = ["render", "maps-city", "maps-jungle", "maps-ski"]
+"lib:sector::" = ["maps-sector", "physics"]
+"lib:sectorscape::" = ["maps-sector", "render"]
+"lib:ski::" = ["maps-ski", "physics"]
+"lib:skiscape::" = ["maps-ski", "render"]
+"lib:sky::" = ["render"]
+"lib:snow::" = ["weather", "maps-ski"]
+"lib:sound::" = ["sound"]
+"lib:spacecraft::" = ["maps-sector", "render"]
+"lib:speedo::" = ["menus", "maps-sector"]
+"lib:trial::" = ["race", "ai"]
+"lib:vehicles::" = ["maps-city", "render"]
+"lib:vinesim::" = ["physics", "render"]
+
+# integration tests: whole races, so they carry every concern a race has
+"test:ai" = ["ai", "physics", "race", "items", "maps-jungle"]
+"test:bay_ai" = ["ai", "physics", "race", "items", "maps-bay"]
+"test:city_ai" = ["ai", "physics", "race", "items", "maps-city"]
+"test:ruins_ai" = ["ai", "physics", "race", "items", "maps-ruins"]
+"test:sector_ai" = ["ai", "physics", "race", "items", "maps-sector"]
+"test:ski_ai" = ["ai", "physics", "race", "items", "maps-ski"]
+"test:sector_finish" = ["ai", "physics", "race", "maps-sector"]
+"test:jungle_unchanged" = ["ai", "physics", "race", "items", "maps-jungle"]
+"test:sector_unchanged" = ["ai", "physics", "race", "items", "maps-sector"]
+"test:maps_unchanged" = ["ai", "physics", "race", "items", "maps-city", "maps-ski", "maps-jungle"]
+"test:boundary" = ["boundary"]
+"test:online" = ["online", "race", "costumes"]
+"test:map_pictures" = ["menus"]
+
+# ---------------------------------------------------------------------------
+# Browser check steps (tests/browser/interactions.py STEPS) -> tags. The
+# page load, the boot step and the closing checks (no page error, no
+# off-origin request...) always run when the browser check runs at all.
+# The browser check runs when any tag below (or `page`) is hit; `page` runs
+# every step.
+[browser]
+boot = ["page", "render"]
+settings = ["menus", "sound"]
+race = ["menus", "race", "items", "physics", "ai", "render", "replay", "camera", "maps-jungle"]
+secret = ["menus", "render"]
+time_trial = ["race", "menus", "items", "maps-jungle"]
+replays_list = ["replay", "menus"]
+whats_new = ["notes", "menus"]
+city_map = ["menus", "maps-city", "maps-ski", "maps-jungle", "render"]
+weather = ["weather", "maps-ski", "menus", "render"]
+setup_layout = ["menus", "costumes", "weather"]
+random_map = ["menus", "race", "maps-city", "maps-jungle", "maps-sector", "maps-ruins", "maps-bay"]
+
+# Online check steps (scripts/check-online.sh) -> tags. They run only on
+# these tags (or `all`), never for `page` alone.
+[online]
+transport = ["online"]
+race = ["online"]

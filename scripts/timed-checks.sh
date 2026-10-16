@@ -7,6 +7,12 @@
 #
 #   ./scripts/timed-checks.sh            both checks
 #   ./scripts/timed-checks.sh check      only check.sh
+#   ./scripts/timed-checks.sh quick      only scripts/quick-check.sh (QUICK_BASE=<commit>
+#                                        to diff from another base; ALL_BROWSERS=1)
+#
+# The Check cell names the engines the browser and online checks ran in, and
+# for a quick check the tags it hit. A failing run also adds the names of
+# the failing tests and browser steps to notes/test-failures.md.
 set -uo pipefail
 cd "$(dirname "$0")/.."
 LOG=notes/check-times.md
@@ -25,17 +31,40 @@ commit=$(git rev-parse --short HEAD)
 [ -n "$(git status --porcelain -- crates web data tests scripts)" ] && commit="$commit+"
 status=0
 for which in ${1:-check online}; do
-  script=scripts/check.sh; [ "$which" = online ] && script=scripts/check-online.sh
+  script=scripts/check.sh; args=()
+  [ "$which" = online ] && script=scripts/check-online.sh
+  if [ "$which" = quick ]; then script=scripts/quick-check.sh; [ -n "${QUICK_BASE:-}" ] && args=("$QUICK_BASE"); fi
   load=$(cut -d' ' -f1 /proc/loadavg)
   when=$(date '+%Y-%m-%d %H:%M')
   out=$(mktemp)
-  "$script" 2>&1 | tee "$out"
+  "$script" "${args[@]}" 2>&1 | tee "$out"
   code=${PIPESTATUS[0]}
   times=$(grep '^TIMES' "$out" | tail -n 1 | sed 's/^TIMES //')
   total=$(echo "$times" | grep -o 'total=[0-9.]*' | cut -d= -f2)
   steps=$(echo "$times" | sed 's/ *total=[0-9.]*//')
   if [ "$code" = 0 ]; then result=pass; else result="FAIL (exit $code)"; status=1; steps="${steps:-(stopped early)}"; fi
-  echo "| $when | $version | $commit | $load | $which | $steps | ${total:--} | $result |" >> "$LOG"
+  engines="${BUILDER_ENGINES:-chromium firefox webkit}"; engines="${engines// /+}"
+  kind="$which ($engines)"
+  if [ "$which" = quick ]; then
+    q=$(grep '^QUICK ' "$out" | tail -n 1)
+    kind="quick ($(echo "$q" | grep -o 'engines=[^ ]*' | cut -d= -f2); tags $(echo "$q" | grep -o 'tags=[^ ]*' | cut -d= -f2 | sed 's/,/, /g'))"
+  fi
+  echo "| $when | $version | $commit | $load | $kind | $steps | ${total:--} | $result |" >> "$LOG"
+  if [ "$code" != 0 ]; then
+    FLOG=notes/test-failures.md
+    if [ ! -f "$FLOG" ]; then
+      cat > "$FLOG" <<'HEAD'
+# Test failures
+
+One row per failing run of `scripts/timed-checks.sh`, newest last: the tests and browser steps that failed (from `scripts/tags.py failures`). Passing runs add nothing; notes/check-times.md has every run.
+
+| When | Version | Commit | Check | Failing |
+| --- | --- | --- | --- | --- |
+HEAD
+    fi
+    failing=$(python3 scripts/tags.py failures "$out" | sed 's/|/\\|/g' | paste -sd ';' - | sed 's/;/; /g')
+    echo "| $when | $version | $commit | $kind | ${failing:-(none named)} |" >> "$FLOG"
+  fi
   rm -f "$out"
 done
 echo; tail -n 2 "$LOG"

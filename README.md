@@ -57,12 +57,17 @@ cargo test --workspace      # the core, boundary and online tests
 python3 scripts/serve.py    # http://127.0.0.1:8000/
 ./scripts/check.sh          # everything, before a deploy
 ./scripts/check-online.sh   # WebRTC between tabs (pasted codes, no relay)
+./scripts/quick-check.sh    # only the tests the change needs, Chromium only (see below)
 ./scripts/pages.sh          # assemble the site copy, thumbnail and tiles in ../ptonkle.github.io (TILES=0: no new tiles)
 .venv/bin/python scripts/tiles.py OUT_DIR [--map jungle] [--try SPEC ...]   # the home page's action shots, race-NN.webp
 .venv/bin/python scripts/shot.py out.png [--query lineup] [--click id ...] [--hold KeyW,Space:1.5 ...]
 ```
 
-Needs Rust with the `wasm32-unknown-unknown` target, `wasm-bindgen-cli` 0.2.127, and Python 3.
+**Quick or full.** `scripts/quick-check.sh` tags the files changed since the last passing full check (`tests/tags.toml`) and runs format, lint, the release build and the import audit, then only the cargo tests, browser steps and online steps carrying one of those tags, in Chromium only (`ALL_BROWSERS=1` adds Firefox and WebKit). A file no glob matches, or a foundation (`fx.rs`, `geom.rs`, `api.rs`, the shim, `Cargo.*`, `build.sh`), runs everything. Use it for small changes in a live session; run the full `check.sh` (three engines) before merging a map or a big change, and whenever the quick check is unsure. `scripts/timed-checks.sh quick` logs it in `notes/check-times.md`; `check.sh` fails if a new test, browser step or file has no tags. Results and limits: `notes/quick-check.md`.
+
+./scripts/check-online.sh   # WebRTC between tabs (pasted codes, no relay)
+./scripts/quick-check.sh    # only the tests the change needs, Chromium only (see below)
+, `wasm-bindgen-cli` 0.2.127, and Python 3.
 
 ## Layout
 

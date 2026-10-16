@@ -23,23 +23,26 @@ lap() {
 }
 step() { lap; local n="${1#* }"; TNAME="${n%% *}"; printf '\n\033[1m== %s\033[0m\n' "$*"; }
 
-step "1/6 format (cargo fmt --check)"
+step "1/7 format (cargo fmt --check)"
 cargo fmt --all -- --check
 
-step "2/6 lint (cargo clippy, warnings are errors)"
+step "2/7 lint (cargo clippy, warnings are errors)"
 cargo clippy --workspace --all-targets --quiet -- -D warnings
 
-step "3/6 core and boundary tests (cargo test)"
+step "3/7 core and boundary tests (cargo test)"
 cargo test --workspace --quiet
 
-step "4/6 release WebAssembly build (scripts/build.sh)"
+step "4/7 test tags (scripts/tags.py guard: every test, step and file is classified)"
+"$PY" scripts/tags.py guard
+
+step "5/7 release WebAssembly build (scripts/build.sh)"
 ./scripts/build.sh >/dev/null
 echo "dist/ assembled"
 
-step "5/6 WebAssembly import audit (scripts/wasm_imports.py)"
+step "6/7 WebAssembly import audit (scripts/wasm_imports.py)"
 "$PY" scripts/wasm_imports.py dist
 
-step "6/6 browser check (tests/browser/check.py)"
+step "7/7 browser check (tests/browser/check.py)"
 "$PY" tests/browser/check.py
 
 lap
