@@ -37,3 +37,5 @@ One row per run of `scripts/timed-checks.sh`, newest last. Seconds per step; `lo
 | 2026-10-15 21:49 | 1.12.8 | dd7320c | 12.45 | quick (chromium; tags boundary, notes, online, page) | format=0.5 lint=2.1 list=0.1 core=0.6 release=6.4 WebAssembly=0.1 browser=245.7 online-transport=5.1 online-race=87.1 | 347.6 | pass |
 | 2026-10-16 00:42 | 1.12.8 | 5d6b12c | 10.78 | check (chromium+firefox+webkit) | format=0.6 lint=0.1 core=55.7 test=0.5 release=0.2 WebAssembly=0.1 browser=275.2 | 332.4 | pass |
 | 2026-10-16 00:48 | 1.12.8 | 5d6b12c | 8.43 | online (chromium+firefox+webkit) | (stopped early) | - | FAIL (exit 1) |
+| 2026-10-16 10:18 | 1.12.8 | 135c0d1 | 0.09 | check (chromium+firefox+webkit) | (stopped early) | - | FAIL (exit 101) |
+| 2026-10-16 10:19 | 1.12.8 | 135c0d1 | 4.28 | online (chromium+firefox+webkit) | release=6.2 transport=17.8 a=127.4 | 151.5 | pass |

@@ -5,3 +5,4 @@ One row per failing run of `scripts/timed-checks.sh`, newest last: the tests and
 | When | Version | Commit | Check | Failing |
 | --- | --- | --- | --- | --- |
 | 2026-10-16 00:48 | 1.12.8 | 5d6b12c | online (chromium+firefox+webkit) | browser[firefox]: B's lobby panels have no sideways scroll [['panel setup', 407, 398]]; browser[webkit]: B's lobby panels have no sideways scroll [['panel setup', 407, 398]] |
+| 2026-10-16 10:18 | 1.12.8 | 135c0d1 | check (chromium+firefox+webkit) | cargo:app::notes_tests::minor_patches_hidden_until_ticked_and_remembered; cargo:patch_notes::tests::newest_entry_is_this_version |
