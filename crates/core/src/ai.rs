@@ -42,6 +42,20 @@ const MARGIN: i32 = cm(15);
 const GRAB_MARGIN: i32 = cm(5);
 /// A flight that crosses the finish line "reaches" this.
 const FINISH: usize = usize::MAX;
+/// Banana Bay Battle: a flight that comes down on a deck "reaches" this
+/// (see [`BAY_DECK_AFTER`]).
+const DECK: usize = usize::MAX - 1;
+/// Banana Bay Battle (BT4): with the fleet's two battle lines the next rope
+/// is often across the channel or behind a yard, and nearly every release
+/// from a rope comes down on a deck, so a search that counted only ropes
+/// found nothing and the ape whirled 7-10 s before it let go. Held a rope
+/// this long (by level, easiest first), it counts a landing on a deck too
+/// (it runs off it at a rope), at `DECK_COST` metres less than a rope as
+/// far along. King Kong waits longer: sooner, it took decks a rope would
+/// have beaten (the Gorilla's Time Trial 17 s slower).
+const BAY_DECK_AFTER: [u32; 4] = [SECOND, SECOND, SECOND, 3 * SECOND];
+const SECOND: u32 = TICKS_PER_SECOND as u32;
+const DECK_COST: i32 = int(10);
 /// It grabs a vine only this far below its anchor or more.
 const GOOD_ROPE: i32 = int(5);
 /// A predicted flight is followed for at most this many ticks.
@@ -320,10 +334,13 @@ const RUINS_NOISE: [i32; 4] = [int(8), int(4), int(3), 0];
 /// it was put back on). The Ape then came within 6.6
 /// s of King Kong: it reacts later here (8 ticks, not 4). Its misjudging
 /// is touchy (3 m cost it 4.5 s; none left it whirling on a rope for 50 s
-/// on one layout), so it stays 2 m (BT1).
+/// on one layout), so it stays 2 m (BT1). Once the AI stopped whirling on
+/// ropes (BT5) the Sloth came within 5.4 s of the Monkey: its arms went
+/// back to 2 of 8 from the fleet overhaul's 3 (BO7; it now gets off every
+/// deck with 2). The Ape reacts in 5 ticks here (BO7).
 const BAY_HESITATE: [u32; 4] = [18, 18, 5, 0];
 const BAY_JITTER: [u32; 4] = [14, 14, 4, 0];
-const BAY_DRIVE: [u32; 4] = [3, 3, 4, DUTY];
+const BAY_DRIVE: [u32; 4] = [2, 3, 4, DUTY];
 const BAY_NOISE: [i32; 4] = [int(6), int(5), int(2), 0];
 /// On Sunset Ruins, how near a low vine over the river must be for a
 /// swimmer to swim for it and catch it, not for the bank (RT10).
@@ -1203,6 +1220,7 @@ fn fly_ahead(
     tune: Tuning,
     spent: &mut u32,
     mut anchors: Option<&mut Anchors>,
+    deck: bool,
 ) -> Option<(usize, u32, i32, i32)> {
     let mut far = cands.iter().map(|&i| course.vines[i].at).max().unwrap_or(0) + int(8);
     if course.length - far < int(50) {
@@ -1279,6 +1297,13 @@ fn fly_ahead(
             w.follow(a);
         }
         along = progress(course, a);
+        if deck && a.mode == Mode::Grounded {
+            // (Banana Bay Battle: down on a deck ahead, not in the sea)
+            let raised = course.support(a.pos) > course.terrain(a.pos.x, a.pos.z) + int(3);
+            if raised {
+                return Some((DECK, tick, 0, along));
+            }
+        }
         if a.mode == Mode::Grounded || along > far {
             return None;
         }
@@ -1292,14 +1317,19 @@ fn fly_ahead(
 }
 
 /// How good a landing is, in metres-ish: further along, faster, and sooner.
+/// (A landing on a deck, [`DECK`], carries how far along it is in place of
+/// the rope's length.)
 fn score(course: &Course, now: u32, (v, at_tick, speed, rope): (usize, u32, i32, i32)) -> i64 {
+    let wait = (at_tick - now) as i64 * ONE as i64 / TICKS_PER_SECOND as i64;
+    if v == DECK {
+        return (rope - DECK_COST) as i64 - wait * WAIT_COST;
+    }
     let at = if v == FINISH {
         // the finish beats any vine
         (course.length + int(100)) as i64
     } else {
         course.vines[v].at as i64
     };
-    let wait = (at_tick - now) as i64 * ONE as i64 / TICKS_PER_SECOND as i64;
     // a metre along is worth a metre per second of speed kept toward the
     // vine after, and a second of waiting costs 20 m; a longer rope makes a
     // bigger swing
@@ -1378,6 +1408,7 @@ fn on_vine(a: &Ape, course: &Course, tick: u32, vine: usize, brain: &mut Brain) 
     };
     let mut spent = 0;
     let mut after_steer: Option<(usize, Option<usize>)> = None;
+    let grabbed = brain.grabbed;
     for _ in 0..budget {
         if spent >= cap {
             break;
@@ -1426,6 +1457,8 @@ fn on_vine(a: &Ape, course: &Course, tick: u32, vine: usize, brain: &mut Brain) 
             tune,
             &mut spent,
             Some(&mut plan.anchors),
+            course.bay.is_some()
+                && plan.sim_tick >= plan.began + BAY_DECK_AFTER[brain.difficulty as usize],
         );
         if let Some(hit) = hit.filter(|_| plan.sim_tick >= brain.ready) {
             // a weaker AI misjudges how good a moment is
@@ -1442,6 +1475,16 @@ fn on_vine(a: &Ape, course: &Course, tick: u32, vine: usize, brain: &mut Brain) 
             });
         }
         for _ in 0..MOMENT {
+            // (Banana Bay Battle: the search runs ahead of the swing, so it
+            // drives as the ape will then: in full once it has held the
+            // rope `STRUGGLE` ticks, BT4)
+            let tune = match course.bay {
+                Some(_) if plan.sim_tick.saturating_sub(grabbed) > STRUGGLE => Tuning {
+                    drive: DUTY,
+                    ..tune
+                },
+                _ => tune,
+            };
             let c = swing_controls(&plan.sim, course, plan.sim_tick, steer, coast, tune);
             plan.sim.step(&c, course, plan.sim_tick);
             plan.sim_tick += 1;
@@ -1453,6 +1496,20 @@ fn on_vine(a: &Ape, course: &Course, tick: u32, vine: usize, brain: &mut Brain) 
     let mut c = swing_controls(a, course, tick, steer, coast, tune);
 
     // the best moment still to come; let go if it is now
+    let best = plan.moments.iter().copied().max_by_key(|m| m.score);
+    if course.bay.is_some()
+        && best.is_some_and(|m| m.tick == tick && (m.pos != a.pos || m.vel != a.vel))
+    {
+        // (Banana Bay Battle: the swing went another way than the search
+        // had it (a rescue began, say): the moments ahead are all wrong, and
+        // were passed over one by one while the ape whirled on (BT4). The
+        // search starts this pass again from here.)
+        brain.replans += 1;
+        plan.sim = a.clone();
+        plan.sim_tick = tick;
+        plan.end = tick + HORIZON;
+        plan.moments.clear();
+    }
     let best = plan.moments.iter().copied().max_by_key(|m| m.score);
     if let Some(m) = best {
         let covered = plan.sim_tick >= m.tick + COVER || plan.sim_tick >= plan.end;
@@ -1474,7 +1531,7 @@ fn on_vine(a: &Ape, course: &Course, tick: u32, vine: usize, brain: &mut Brain) 
                 c = flight_controls(a, course, tick, m.target, m.next, &brain.cands, true);
                 brain.target = Some(m.target);
                 brain.next = m.next;
-                brain.expect = Some(m.reach);
+                brain.expect = (m.reach != DECK).then_some(m.reach);
                 brain.left = Some(vine);
                 brain.plan = None;
             } else {
@@ -1502,12 +1559,12 @@ fn on_vine(a: &Ape, course: &Course, tick: u32, vine: usize, brain: &mut Brain) 
 /// copy flies there, grabs it, and swings for a second, trying releases
 /// toward the vine after.
 fn onward(a: &Ape, course: &Course, tick: u32, m: &Moment, cands: &[usize], tune: Tuning) -> bool {
-    if m.reach == FINISH {
+    if m.reach == FINISH || m.reach == DECK {
         return true;
     }
     let mut s = a.clone();
     let Some((_, t, _, _)) = fly_ahead(
-        &mut s, course, tick, m.target, m.next, cands, true, tune, &mut 0, None,
+        &mut s, course, tick, m.target, m.next, cands, true, tune, &mut 0, None, false,
     ) else {
         return false;
     };
@@ -1534,7 +1591,7 @@ fn onward(a: &Ape, course: &Course, tick: u32, m: &Moment, cands: &[usize], tune
         if k % every == 0 {
             let mut f = s.clone();
             if fly_ahead(
-                &mut f, course, t, steer, next, &cands, true, tune, &mut 0, None,
+                &mut f, course, t, steer, next, &cands, true, tune, &mut 0, None, false,
             )
             .is_some()
             {
@@ -1676,6 +1733,7 @@ fn on_ground(a: &Ape, course: &Course, tick: u32, brain: &mut Brain) -> Controls
         tune,
         &mut 0,
         None,
+        false,
     )
     .is_some()
     {
