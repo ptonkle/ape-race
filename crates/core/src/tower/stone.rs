@@ -163,13 +163,19 @@ impl Solid {
                 rise,
                 crown,
             } => {
-                let run = to.sub(from).flat();
-                let len = run.len().max(1);
-                let reach = len / 2 + half + BODY_RADIUS;
-                let mid = from.add(to).scale(ONE / 2);
-                if (p.x - mid.x).abs() > reach || (p.z - mid.z).abs() > reach {
+                // (a box round it first: no square root for a far body)
+                let w = half + BODY_RADIUS;
+                if p.x < from.x.min(to.x) - w
+                    || p.x > from.x.max(to.x) + w
+                    || p.z < from.z.min(to.z) - w
+                    || p.z > from.z.max(to.z) + w
+                    || feet > from.y.max(to.y)
+                    || head < from.y.min(to.y) - rise
+                {
                     return None;
                 }
+                let run = to.sub(from).flat();
+                let len = run.len().max(1);
                 let fwd = run.norm();
                 let rel = p.sub(from).flat();
                 let along = rel.dot(fwd);
@@ -238,13 +244,16 @@ impl Solid {
             }
             Solid::Pillar { .. } => None,
             Solid::Span { from, to, half, .. } => {
-                let run = to.sub(from).flat();
-                let len = run.len().max(1);
-                let mid = from.add(to).scale(ONE / 2);
-                let reach = len / 2 + half;
-                if (p.x - mid.x).abs() > reach || (p.z - mid.z).abs() > reach {
+                if p.x < from.x.min(to.x) - half
+                    || p.x > from.x.max(to.x) + half
+                    || p.z < from.z.min(to.z) - half
+                    || p.z > from.z.max(to.z) + half
+                    || feet < from.y.min(to.y) - STAND
+                {
                     return None;
                 }
+                let run = to.sub(from).flat();
+                let len = run.len().max(1);
                 let fwd = run.norm();
                 let rel = p.sub(from).flat();
                 let along = rel.dot(fwd);
