@@ -1,8 +1,12 @@
 [
   {
-    "version": "1.12.8",
-    "date": "2026-10-15",
+    "version": "1.13.0",
+    "date": "2026-10-16",
     "notes": [
+      "New map: Mape's Tower. Climb a wizard's tower, fly through the tear at the top and fall down the void beyond.",
+      "New costumes: Wizard, for Mape's Tower, and Tourist, for Concrete Jungle.",
+      "The Hook tows you toward the ape ahead for two seconds and no longer pulls it back.",
+      "The minimap is no longer a mirror image.",
       "The online lobby no longer scrolls sideways with a long name."
     ]
   },
