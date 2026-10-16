@@ -20,15 +20,13 @@
 //! bouncy barrel's drum stays within `BOB_MAX` of its bouncer's fixed top)
 //! and the treasure chest.
 
-use crate::bay::{
-    BayLayout, Hanger, Side, BOB_MAX, DOCK_TOP, ISLAND_TOP, VOLLEY_CYCLE, WATER_LEVEL,
-};
+use crate::bay::{BayLayout, Hanger, Side, BOB_MAX, DOCK_TOP, VOLLEY_CYCLE, WATER_LEVEL};
 use crate::baymodels::{self as m, Crew, Pose};
 use crate::course::Course;
 use crate::fx::{self, cm, deg, int, mul, ONE, TURN};
 use crate::geom::{right_of, v3, yaw_of, Affine, V3};
 use crate::mesh::Mesh;
-use crate::render::{placed, rgb, rod, shade, Batch, Rgb};
+use crate::render::{placed, rgb, rod, Batch, Rgb};
 use crate::scene::{self, Scenery};
 
 /// Flags are drawn streaming on ships nearer than this.
@@ -88,12 +86,6 @@ const IRON: Rgb = rgb(40, 40, 44);
 const CLIFF: Rgb = rgb(150, 130, 104);
 const CLIFF_DARK: Rgb = rgb(112, 96, 78);
 const GRASS: Rgb = rgb(84, 150, 58);
-const SAND: Rgb = rgb(218, 190, 132);
-const SAND_WET: Rgb = rgb(176, 150, 104);
-const SHALLOWS: Rgb = rgb(110, 220, 210);
-const TRUNK: Rgb = rgb(132, 100, 70);
-const FROND: Rgb = rgb(70, 160, 60);
-const FROND_DARK: Rgb = rgb(44, 120, 50);
 const FLAG_BLACK: Rgb = rgb(20, 20, 22);
 const BONE: Rgb = rgb(238, 232, 214);
 const LAMP: Rgb = rgb(255, 214, 130);
@@ -169,7 +161,7 @@ pub fn scenery(c: &Course, bay: &BayLayout) -> Scenery {
     let dock_at = bay.dock.from.lerp(bay.dock.to, ONE / 2);
     pier(&mut batches[chunk(dock_at)], bay);
     gantry(&mut batches[chunk(bay.dock.to)], c, bay);
-    island(&mut batches, c, bay, &chunk);
+    super::island::scenery(&mut batches, c, bay, &chunk);
     // the battle round the course, outside the barrels (BQ2)
     super::battle::still(&mut batches, &super::battle::cached(c, bay), &chunk);
     scene::assemble(c, batches, Vec::new(), Vec::new())
@@ -529,230 +521,6 @@ fn gantry(b: &mut Batch, c: &Course, bay: &BayLayout) {
     }
 }
 
-/// The finish island: the walkable beach exactly over the beach platform
-/// (top `ISLAND_TOP`), shoulders and ends sloping under the sea (never
-/// above the platform's top, so nothing looks walkable that isn't), a
-/// ring of wet sand and shallows, rocks, a jungly dune past the beach's
-/// far end, palms along its sides, the three rope palms reaching their
-/// ropes' anchors, and two black flags on posts at the finish line.
-fn island(batches: &mut [Batch], c: &Course, bay: &BayLayout, chunk: &dyn Fn(V3) -> usize) {
-    let Some(beach) = c.platforms.iter().rev().find(|p| p.top == ISLAND_TOP) else {
-        return;
-    };
-    let fwd = beach.fwd.flat().norm();
-    let right = right_of(fwd);
-    let (hl, hw) = (beach.half_len, beach.half_width);
-    let ctr = beach.centre.with_y(0);
-    let at = |along: i32, across: i32, up: i32| {
-        ctr.add(fwd.scale(along))
-            .add(right.scale(across))
-            .with_y(up)
-    };
-    let last = batches.len() - 1;
-    {
-        let b = &mut batches[last];
-        // the beach: a slab whose top is the platform's
-        b.push(
-            Mesh::Bevel,
-            &block(
-                at(0, 0, ISLAND_TOP / 2 - int(1)),
-                fwd,
-                v3(hw * 2, ISLAND_TOP + int(2), hl * 2),
-            ),
-            SAND,
-            0,
-        );
-        // shoulders down into the sea on both sides and at both ends
-        for s in [-1, 1] {
-            b.push(
-                Mesh::Geo,
-                &block(
-                    at(0, s * hw, ISLAND_TOP - cm(190)),
-                    fwd,
-                    v3(int(16), cm(360), hl * 2 + int(10)),
-                ),
-                SAND,
-                0,
-            );
-            b.push(
-                Mesh::Geo,
-                &block(
-                    at(s * hl, 0, ISLAND_TOP - cm(190)),
-                    fwd,
-                    v3(hw * 2 + int(12), cm(360), int(18)),
-                ),
-                SAND,
-                0,
-            );
-        }
-        // wet sand and the pale shallows round it
-        b.push(
-            Mesh::Cube,
-            &block(
-                at(0, 0, cm(20)),
-                fwd,
-                v3(hw * 2 + int(30), cm(70), hl * 2 + int(30)),
-            ),
-            SAND_WET,
-            0,
-        );
-        b.push(
-            Mesh::Cube,
-            &block(
-                at(0, 0, cm(5)),
-                fwd,
-                v3(hw * 2 + int(70), cm(50), hl * 2 + int(70)),
-            ),
-            SHALLOWS,
-            ONE / 10,
-        );
-        // rocks round the shore
-        for k in 0..14u32 {
-            let along = int(pick(k, 20, -(hl / ONE), hl / ONE));
-            let across = (hw + int(pick(k, 21, 6, 16))) * if k % 2 == 0 { 1 } else { -1 };
-            let s = int(pick(k, 22, 2, 5));
-            b.push(
-                Mesh::Rock,
-                &Affine::translate(at(along, across, -cm(60)))
-                    .then(&Affine::rot_y(pick(k, 23, 0, TURN)))
-                    .then(&Affine::scale(v3(s, s * 3 / 4, s))),
-                if k % 3 == 0 { CLIFF_DARK } else { CLIFF },
-                0,
-            );
-        }
-        // the dune past the beach's far end, green on top, palms on it
-        let dune = at(hl + int(40), 0, -int(4));
-        b.push(
-            Mesh::Geo,
-            &block(dune, fwd, v3(int(150), int(26), int(80))),
-            SAND,
-            0,
-        );
-        b.push(
-            Mesh::Blob,
-            &block(
-                dune.add(v3(0, int(10), 0)),
-                fwd,
-                v3(int(110), int(10), int(56)),
-            ),
-            FROND_DARK,
-            0,
-        );
-        for k in 0..8u32 {
-            let p = dune
-                .add(right.scale(int(pick(k, 24, -50, 50))))
-                .add(fwd.scale(int(pick(k, 25, -20, 20))))
-                .with_y(int(6));
-            m::palm(
-                b,
-                &m::pose(p, 0, ONE * 2),
-                V3::ZERO,
-                int(pick(k, 26, 7, 10)),
-                k + 40,
-            );
-        }
-    }
-    // palms along both sides of the beach, out of the lanes
-    for k in 0..16u32 {
-        let along = int(pick(k, 27, -(hl / ONE) + 10, hl / ONE - 10));
-        let across = int(pick(k, 28, 30, 38)) * if k % 2 == 0 { 1 } else { -1 };
-        let foot = at(along, across, ISLAND_TOP);
-        m::palm(
-            &mut batches[chunk(foot)],
-            &m::pose(foot, 0, ONE * 2),
-            V3::ZERO,
-            int(pick(k, 29, 6, 9)),
-            k + 60,
-        );
-    }
-    // the rope palms: a curved trunk from the foot to the rope's anchor
-    for (i, h) in bay.hangers.iter().enumerate() {
-        let Hanger::Shore { foot } = *h else { continue };
-        if foot.y != ISLAND_TOP {
-            continue;
-        }
-        let Some(v) = c.vines.get(i) else { continue };
-        rope_palm(&mut batches[chunk(foot)], foot, v.anchor, i as u32);
-    }
-    // the finish line: two posts with black flags, out past the lanes
-    let n = c.path.len() - 1;
-    let fin = c.path[n];
-    let r = right_of(c.heading[n]);
-    for s in [-1, 1] {
-        let foot = fin
-            .add(r.scale(s * (c.half_width + int(6))))
-            .with_y(ISLAND_TOP);
-        let b = &mut batches[chunk(foot)];
-        let head = foot.add(v3(0, int(14), 0));
-        b.push(Mesh::Hex, &rod(foot, head, cm(40)), PILE, 0);
-        let mid = head.sub(v3(0, int(2), 0)).add(r.scale(-s * int(2)));
-        b.push(
-            Mesh::Cube,
-            &block(mid, r, v3(cm(12), int(3), int(4))),
-            FLAG_BLACK,
-            0,
-        );
-        b.push(
-            Mesh::Ico,
-            &placed(mid.add(v3(0, cm(30), 0)), 0, v3(cm(90), cm(80), cm(90))),
-            BONE,
-            0,
-        );
-    }
-}
-
-/// A tall palm whose trunk curves from `foot` up to the rope's `anchor`
-/// (the rope hangs from under its crown), and a crown of fronds.
-fn rope_palm(b: &mut Batch, foot: V3, anchor: V3, k: u32) {
-    let top = anchor.add(v3(0, cm(60), 0));
-    let lean = top.sub(foot).flat();
-    let n = 7;
-    let mut p = foot;
-    for i in 1..=n {
-        let t = i * ONE / n;
-        // the lean grows with the square of the height: a palm's curve
-        let q = foot
-            .add(lean.scale(mul(t, t)))
-            .with_y(foot.y + mul(top.y - foot.y, t));
-        // thick enough for a 34 m palm (BP4)
-        let w = cm(240) - i * cm(16);
-        b.push(
-            Mesh::Taper,
-            &rod(p, q, w),
-            if i % 2 == 0 { TRUNK } else { shade(TRUNK, 85) },
-            0,
-        );
-        p = q;
-    }
-    for i in 0..11 {
-        let yaw = i * TURN / 11 + pick(k, 30, 0, 3000);
-        let d = v3(fx::sin(yaw), 0, fx::cos(yaw));
-        let mid = top.add(d.scale(int(5))).add(v3(0, cm(120), 0));
-        let tip = top.add(d.scale(int(9))).sub(v3(0, int(3), 0));
-        for (a, z) in [(top, mid), (mid, tip)] {
-            b.push(
-                Mesh::Shard,
-                &rod(a, z, ONE).then(&Affine::scale(v3(int(3), ONE, cm(18)))),
-                if i % 2 == 0 { FROND } else { FROND_DARK },
-                0,
-            );
-        }
-    }
-    for i in 0..3 {
-        let d = v3(fx::sin(i * TURN / 3), 0, fx::cos(i * TURN / 3));
-        b.push(
-            Mesh::Ico,
-            &placed(
-                top.add(d.scale(cm(70))).sub(v3(0, cm(50), 0)),
-                0,
-                v3(cm(60), cm(60), cm(60)),
-            ),
-            PILE,
-            0,
-        );
-    }
-}
-
 // ---------------------------------------------------------------------------
 // What moves, each frame.
 
@@ -1008,49 +776,6 @@ mod tests {
                 );
             }
         }
-    }
-
-    #[test]
-    fn the_island_draws_nothing_over_the_beach_top_off_the_beach() {
-        // nothing that looks walkable where the beach platform isn't
-        let c = Map::Bay.course();
-        let bay = c.bay.as_deref().unwrap();
-        let n = scene::chunk_count(&c);
-        let mut batches: Vec<Batch> = (0..n).map(|_| Batch::new()).collect();
-        let chunk = |p: V3| scene::chunk_of(&c, p, n);
-        island(&mut batches, &c, bay, &chunk);
-        let (v, _) = batches.pop().unwrap().finish(crate::render::DYNAMIC_BUFFER);
-        let beach = c
-            .platforms
-            .iter()
-            .rev()
-            .find(|p| p.top == ISLAND_TOP)
-            .unwrap();
-        let (fwd, right) = (beach.fwd.flat().norm(), right_of(beach.fwd.flat().norm()));
-        let mut top_at_beach = 0;
-        let mut beside = 0;
-        for i in v.chunks(crate::render::INSTANCE_VALUES) {
-            // its top (the up column's half length over its middle)
-            let top = i[7] + v3(i[1], i[5], i[9]).len() / 2;
-            let d = v3(i[3], 0, i[11]).sub(beach.centre.flat());
-            let (along, across) = (d.dot(fwd).abs(), d.dot(right).abs());
-            // the ground: shapes whose middle is under the beach top (not palms)
-            if i[7] < ISLAND_TOP && along <= beach.half_len && across <= beach.half_width + int(20)
-            {
-                assert!(
-                    top <= ISLAND_TOP + cm(1),
-                    "a shape {} cm over the beach's top, {} m from its middle across",
-                    (top - ISLAND_TOP) * 100 / ONE,
-                    across / ONE
-                );
-                beside += 1;
-                if (top - ISLAND_TOP).abs() <= cm(1) && along == 0 && across == 0 {
-                    top_at_beach += 1;
-                }
-            }
-        }
-        assert!(beside > 3, "{beside}");
-        assert_eq!(top_at_beach, 1, "the beach slab's top is the platform's");
     }
 
     #[test]

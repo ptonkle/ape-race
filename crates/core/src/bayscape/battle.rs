@@ -99,7 +99,7 @@ fn clear(c: &Course, bay: &BayLayout, placed: &[Far], at: V3, half: i32) -> bool
             .iter()
             .all(|s| s.at.flat().sub(p).len() >= s.length / 2 + half + int(30))
         && to_segment(p, bay.dock.from, bay.dock.to) >= half + int(80)
-        && bay.island.centre.flat().sub(p).len() >= bay.island.radius + half + int(50)
+        && -bay.island.inland(p.x, p.z) >= half + int(50)
         && placed
             .iter()
             .all(|f| f.ship.at.flat().sub(p).len() >= f.ship.length / 2 + half + int(14))
