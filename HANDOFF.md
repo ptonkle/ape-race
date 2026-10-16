@@ -7,7 +7,7 @@ A fresh session starts from this file, not from memory.
 ## Mape's Tower (2026-10-16, `tower` branch, not deployed)
 
 - The map (key `tower`, TRIAGE T92, brief `briefs/mapes-tower.md`, progress `notes/tower-progress.md`): steps 1–18 done but the lobby view (step 9, waiting on the person); deploy held. The tear is now 50 m tall and 56 m wide, 13 m over the line's top, and every AI level flies through it on 16 layouts (`tower_ai::every_level_flies_through_the_tear`, TA8). AI over 16 layouts: Sloth 107.2 s, Monkey 92.0, Ape 77.3, King Kong 64.5.
-- Final checks: see the next line (filled in by the full run).
+- Final checks (`scripts/timed-checks.sh`, 2026-10-16, load 8–11): fmt, clippy, debug `cargo test --workspace`, tags guard passed; check.sh PASSED in Chromium, Firefox and WebKit (332.4 s); check-online.sh FAILED in Firefox and WebKit only (passed in Chromium): "B's lobby panels have no sideways scroll [['panel setup', 407, 398]]": the guest's setup panel, with a 16-W name and the Proboscis Monkey, is 9 px too wide. Not from this change (no page code touched); likely the tower branch's lobby additions (seventh map card or the Wizard costume). Open: TA10.
 
 ## Test tags and the quick check (2026-10-15, agent branch, not deployed)
 
