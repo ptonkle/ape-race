@@ -1,25 +1,28 @@
 //! Mape's Tower's course: the 3D centreline (a climb of legs, then its
 //! mirror) and its placement (steps 6 and 7, 2026-10-15).
 //!
-//! The climb (`CLIMB`, about 690 m): a level run-in from the start deck,
-//! then four spirals up and round the keep (`RADIUS` from its middle),
-//! broken by three branches out to little sub-towers. Each branch is level
-//! and straight (no dizzying all-spiral): a right turn off the spiral, a
-//! bridge straight out, round the sub-tower to the left, straight back and
-//! a right turn onto the spiral again, landing on the same circle (the
-//! legs were solved so each branch replaces an arc of it). The second
-//! branch goes in by the trampoline room's door, up across the room on
-//! its trampolines and the orb mage's beams, and out through its roof. The
-//! third spiral rises through the cloud band. The last leg is the level
-//! summit run heading +x (yaw 90°) to the tear; then the zipper, the climb
-//! mirrored and run backwards, its beams leaning every way (topsy-turvy).
-//!
+//! The climb (`CLIMB`, 674 m): a level run-in from the start deck, then
+//! four spirals up and round the keep (`RADIUS` from its middle, 70° or
+//! 60° each), broken by three branches out to little sub-towers. Each
+//! branch rises gently and runs straight (no dizzying all-spiral): a bridge
+//! off the spiral's tangent, 90° round the sub-tower to the left and a
+//! bridge back onto the tangent further round, landing on the same circle
+//! (`RADIUS - r` each way). The second branch goes in by the trampoline
+//! room's door, up across the room on its trampolines and the orb mage's
+//! beams, and out through its roof. The third spiral rises through the
+//! cloud band. Off the last spiral the climb turns 90° right, out from the
+//! keep, and runs level heading +x (yaw 90°) to the tear, so the keep and
+//! its sub-towers stay well behind the mirror (TC5: a tangent summit run
+//! put the mirror plane through the keep, and the zipper crossed the
+//! climb). Then the zipper, the climb mirrored and run backwards.
+
 //! Vines: a station every `GAP` m, two beams a station (sparse, so the view
 //! is the tower, not vines): on the spirals two of three lanes 7 m apart,
 //! on the branches the two outer lanes 8 m apart (a choice either side of
 //! the bridge). One beam in five leans in from outside (`LEAN`). Reset pads
 //! a few metres under the centreline every 50 m, each throwing an ape up
-//! and on to the next station (`boost`).
+//! and on to the next station (`boost`). The zipper's beams are the
+//! climb's (the start row's too) mirrored, hung longer (`ZIP_LONGER`).
 //!
 //! Placement draws from `Dice(seed ^ 0x70E5)`.
 
@@ -42,30 +45,31 @@ pub const START_TOP: i32 = int(16);
 pub struct Climb(pub i32, pub i32, pub i32);
 
 /// The spirals' radius round the keep's middle (the keep's wall is
-/// `WALL_GAP` inside).
-const RADIUS: i32 = 38;
+/// `WALL_GAP` inside). 38 m kept turning the line under a flying ape (TC4).
+const RADIUS: i32 = 55;
 const WALL_GAP: i32 = 14;
 /// The climb: spirals at `RADIUS`, and three branches, each a straight
-/// bridge off the spiral's tangent, 120° round a sub-tower (radius about
-/// 15 m) and a straight bridge back onto the tangent further round
-/// (`(RADIUS - r) tan 60°` each way, so it lands on the circle again).
+/// bridge off the spiral's tangent, 90° round a sub-tower (radius about
+/// 20 m) and a straight bridge back onto the tangent further round
+/// (`RADIUS - r` each way, so it lands on the circle again).
 pub const CLIMB: &[Climb] = &[
-    Climb(24, 0, 0),    // 0 run-in
-    Climb(82, 120, 20), // 1 spiral A
-    Climb(40, 0, 0),    // 2 branch 1: bridge out
-    Climb(32, 120, 0),  // 3 round the sub-tower
-    Climb(40, 0, 0),    // 4 bridge back
-    Climb(76, 110, 20), // 5 spiral B
-    Climb(16, 0, 0),    // 6 branch 2: bridge to the room's door
-    Climb(30, 0, 18),   // 7 up across the trampoline room
-    Climb(32, 120, 0),  // 8 out of its roof, round
-    Climb(40, 0, 0),    // 9 bridge back
-    Climb(82, 120, 22), // 10 spiral C, through the clouds
-    Climb(40, 0, 0),    // 11 branch 3: bridge out
-    Climb(32, 120, 0),  // 12 round the sub-tower
-    Climb(40, 0, 0),    // 13 bridge back
-    Climb(68, 100, 18), // 14 spiral D
-    Climb(24, 0, 0),    // 15 the summit run to the tear
+    Climb(24, 0, 0),   // 0 run-in
+    Climb(68, 70, 12), // 1 spiral A
+    Climb(36, 0, 6),   // 2 branch 1: bridge out
+    Climb(32, 90, 0),  // 3 round the sub-tower
+    Climb(36, 0, 6),   // 4 bridge back
+    Climb(68, 70, 12), // 5 spiral B
+    Climb(12, 0, 0),   // 6 branch 2: bridge to the room's door
+    Climb(30, 0, 18),  // 7 up across the trampoline room
+    Climb(32, 90, 0),  // 8 out of its roof, round
+    Climb(36, 0, 4),   // 9 bridge back
+    Climb(68, 70, 12), // 10 spiral C, through the clouds
+    Climb(36, 0, 6),   // 11 branch 3: bridge out
+    Climb(32, 90, 0),  // 12 round the sub-tower
+    Climb(36, 0, 6),   // 13 bridge back
+    Climb(58, 60, 10), // 14 spiral D
+    Climb(40, -90, 0), // 15 off the keep, out to the summit
+    Climb(30, 0, 0),   // 16 the summit run to the tear
 ];
 /// The spiral legs.
 const SPIRALS: [usize; 4] = [1, 5, 10, 14];
@@ -85,6 +89,12 @@ const LEAN: i32 = cm(35);
 /// The zipper's beams lean along the way this much more (alternately):
 /// none for now, as the AI wandered on them (TC rows).
 const TOPSY: i32 = cm(0);
+/// The zipper's beams' bottoms hang this much lower than the climb's.
+const ZIP_DROP: i32 = int(4);
+/// The zipper's beams are this much longer than the climb's, their anchors
+/// high over the line: a falling ape flies about 20 m over it, so at the
+/// climb's length it caught them by the anchor and whirled (TC5).
+const ZIP_LONGER: i32 = int(22);
 /// Reset pads stand this far under the centreline: under the swings, and
 /// in a jump's reach of the vines.
 const PAD_UNDER: i32 = int(5);
@@ -320,11 +330,10 @@ pub fn tower_seeded(seed: u64) -> Course {
     };
     let clouds = CloudBand {
         bottom: START_TOP + int(56),
-        top: START_TOP + int(84),
+        top: START_TOP + int(80),
     };
 
     // the climb's stations
-    let first_climb_vine = c.vines.len();
     let room = (leg_at(ROOM_LEG) - int(8), leg_at(ROOM_LEG + 1) + int(4));
     let mut s = 36;
     let mut station = 0;
@@ -423,7 +432,8 @@ pub fn tower_seeded(seed: u64) -> Course {
     hangers.push(Hanger::Orb);
     lifts.push(true);
     hangs.push(DOWN);
-    let climb_vines = first_climb_vine..c.vines.len();
+    // (the start row too: the zipper's last beams, a swing onto the zone)
+    let climb_vines = 0..c.vines.len();
 
     // a trampoline at each spiral's start, under the line
     for &k in &SPIRALS {
@@ -516,13 +526,15 @@ pub fn tower_seeded(seed: u64) -> Course {
     for (n, i) in climb_vines.enumerate() {
         let v = c.vines[i];
         let h = hangs[i];
-        let bottom = layout.mirror(v.anchor.add(h.scale(v.length)));
+        let bottom = layout
+            .mirror(v.anchor.add(h.scale(v.length)))
+            .sub(v3(0, ZIP_DROP, 0));
         let at = c.length - v.at;
         let mh = v3(-h.x, h.y, h.z);
         let way = flat(c.heading_at(at));
         let tilt = if n % 2 == 0 { TOPSY } else { -TOPSY };
         let hang = mh.add(way.scale(tilt)).norm();
-        let w = beam(bottom, hang, v.length, at);
+        let w = beam(bottom, hang, v.length + ZIP_LONGER, at);
         hangers.push(Hanger::Monster { at: w.anchor });
         c.vines.push(w);
         lifts.push(false);

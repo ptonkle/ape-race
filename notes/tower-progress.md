@@ -9,11 +9,11 @@ The standard map-build steps (MAPS.md "Build steps"), one row each. Status is on
 | 3 | Ape costumes | Done | Wizard and witch mixes for all six kinds; the flame-demon cat (TG rows); wired to Map::Tower |
 | 4 | Models | Done | Climb half (towermodels.rs) and zipper half (zipper.rs, creatures.rs, deep.rs): keep, sub-towers, mages, dragons, beams, trampolines, room, clouds, summit, rift and eldritch banana, the zip, topsy towers, blobs, sea monsters, void platforms, banana sea |
 | 5 | Sky and lighting | Done (sky branch) | Clear golden afternoon, Twilight, Dawn by height; zipper void; cloud band; follows JOJO and colourblind (TS1–TS6); shots in notes/tower-shots/sky/ |
-| 6 | Course layout | In progress | Real layout in (TC1): 698 m climb, 4 spirals, 3 branches, trampoline room, clouds, mirrored zipper; any-direction beams (TC2) |
-| 7 | Map rules | In progress | Pads aimed at the next station; AI bounds/re-pick (TC3); AI too slow (~140–148 s), ordering test and lift tuning open (TC4) |
+| 6 | Course layout | Done | 674 m climb (race 1,348 m): keep circle 55 m, 4 spirals (540° round), 3 straight branches (90° round sub-towers), trampoline room, clouds, summit turns out from the keep, mirrored zipper with longer beams (TC1, TC5); any-direction beams (TC2) |
+| 7 | Map rules | Done | Pads aimed at the next station; AI bounds/re-pick (TC3); summoned vines placed by their own coil; CLIMB_LIFT stays 3 m/s (the climb is now the faster half) (TC5) |
 | 8 | Art placed on the course | Not started |  |
 | 9 | Lobby spot and flyover | Not started |  |
-| 10 | AI validation | Not started |  |
+| 10 | AI validation | Done | 16 layouts: Sloth 107.2 s, Monkey 92.0, Ape 77.3, King Kong 64.5 (max 137.9 s); ordering test `tower_difficulties_are_ordered_and_spaced` (TC5) |
 | 11 | Medal times | Not started |  |
 | 12 | Step and frame cost | Not started |  |
 | 13 | Colourblind and JOJO MODE | Not started |  |

@@ -167,7 +167,7 @@ impl Difficulty {
     /// release go by (stuck whirling on a vine): it reacts sooner there
     /// (`SKI_HESITATE`), and looks further ahead. Sunset Ruins and Banana
     /// Bay Battle have their own reaction times, arms and misjudging
-    /// (`RUINS_*`, `BAY_*`).
+    /// (`RUINS_*`, `BAY_*`), and so does Mape's Tower (`TOWER_*`).
     fn tuning_on(self, on: On) -> Tuning {
         let On {
             city,
@@ -175,8 +175,19 @@ impl Difficulty {
             sector,
             ruins,
             bay,
+            tower,
         } = on;
         let t = self.tuning();
+        if tower {
+            let k = self as usize;
+            return Tuning {
+                hesitate: TOWER_HESITATE[k],
+                jitter: TOWER_JITTER[k],
+                drive: TOWER_DRIVE[k],
+                noise: TOWER_NOISE[k],
+                ..t
+            };
+        }
         if bay {
             let k = self as usize;
             return Tuning {
@@ -307,6 +318,16 @@ const SKI_DRIVE: [u32; 4] = [2, 5, 8, DUTY];
 const SKI_NOISE: [i32; 4] = [int(6), int(4), int(2), 0];
 const SKI_HOP: [i32; 4] = [int(22), int(24), int(26), int(28)];
 
+/// Mape's Tower's handicaps, easiest level first (see
+/// [`Difficulty::tuning_on`]). Down the zipper the swings run fast, as on
+/// the Ski Slope, so a level's Jungle reaction let the release go by: the
+/// reactions are the Ski Slope's (the Monkey 113 → 106 s over four
+/// layouts, before the zipper's beams were lengthened; TC5). With the Jungle's arms the Ape was 6.4 s ahead of the Monkey:
+/// its arms are 5 of 8 here.
+const TOWER_HESITATE: [u32; 4] = [6, 3, 1, 0];
+const TOWER_JITTER: [u32; 4] = [6, 3, 1, 0];
+const TOWER_DRIVE: [u32; 4] = [2, 3, 5, DUTY];
+const TOWER_NOISE: [i32; 4] = [int(6), int(4), int(2), 0];
 /// Sunset Ruins' handicaps, easiest level first (see
 /// [`Difficulty::tuning_on`]). With the Jungle's, the Monkey was no faster
 /// than the Sloth and the Ape barely 6 s behind King Kong: the levels lose
@@ -354,6 +375,7 @@ struct On {
     sector: bool,
     ruins: bool,
     bay: bool,
+    tower: bool,
 }
 
 /// The City's Monkey (see [`Difficulty::tuning_on`]).
@@ -452,6 +474,8 @@ pub struct Brain {
     ruins: bool,
     /// racing on Banana Bay Battle (set by [`think`] each tick)
     bay: bool,
+    /// racing on Mape's Tower (set by [`think`] each tick)
+    tower: bool,
     /// its own dice, for the handicaps
     dice: Dice,
     /// the first tick it may let go of the vine it holds
@@ -587,6 +611,7 @@ impl Brain {
             sector: false,
             ruins: false,
             bay: false,
+            tower: false,
             dice: Dice(seed),
             ready: 0,
             grabbed: 0,
@@ -622,6 +647,7 @@ impl Brain {
             sector: self.sector,
             ruins: self.ruins,
             bay: self.bay,
+            tower: self.tower,
         }
     }
 
@@ -679,6 +705,7 @@ pub fn think(race: &Race, who: usize, brain: &mut Brain) -> Controls {
     brain.sector = race.course.sector.is_some();
     brain.ruins = race.course.ruins.is_some();
     brain.bay = race.course.bay.is_some();
+    brain.tower = race.course.tower.is_some();
     // (Sector Ape: put back on a deck, it is shaken: see `Brain::tune`)
     if race
         .events

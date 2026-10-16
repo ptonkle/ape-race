@@ -1,17 +1,17 @@
-//! The AI on Mape's Tower's stand-in course (the skeleton, 2026-10-15):
-//! every difficulty climbs the tower, falls down the zipper and finishes,
-//! proving the 3D centreline's plumbing (TW1). The course agent replaces
-//! the stand-in and adds the ordering test.
+//! The AI on Mape's Tower: every difficulty climbs the tower, falls down
+//! the zipper and finishes (TW1), and the difficulties stay ordered and
+//! spaced over sixteen layouts, as on the other maps (TC5).
 
 use tool_core::ai::{trial_at, Difficulty};
+use tool_core::course::Course;
 use tool_core::fx::ONE;
 use tool_core::rules::{Kind, TICKS_PER_SECOND};
-use tool_core::tower::tower;
+use tool_core::tower::{tower, tower_seeded};
 
 const LIMIT: u32 = 150 * TICKS_PER_SECOND as u32;
 
 #[test]
-fn every_difficulty_climbs_falls_and_finishes_the_stand_in() {
+fn every_difficulty_climbs_falls_and_finishes() {
     let runs: Vec<_> = Difficulty::ALL
         .into_iter()
         .map(|level| {
@@ -34,6 +34,62 @@ fn every_difficulty_climbs_falls_and_finishes_the_stand_in() {
             "{:<10} {:.1} s",
             level.key(),
             f as f64 / TICKS_PER_SECOND as f64
+        );
+    }
+}
+
+/// Layout `k` of Mape's Tower (0 is the course everyone races; the seeds
+/// are `examples/tower_report.rs`'s).
+fn layout(k: u64) -> Course {
+    if k == 0 {
+        tower()
+    } else {
+        tower_seeded(0x70E5_0000_0001 + k * 7919)
+    }
+}
+
+/// As `bay_difficulties_are_ordered_and_spaced`: over sixteen layouts of
+/// Mape's Tower (one Chimpanzee, Equal Stats), each easier level's mean
+/// finish is at least `GAP` slower than the next harder's, and every race
+/// at every level finishes inside the limit (150 s).
+#[test]
+fn tower_difficulties_are_ordered_and_spaced() {
+    const GAP: f64 = 6.0;
+    let runs: Vec<_> = Difficulty::ALL
+        .into_iter()
+        .map(|level| {
+            std::thread::spawn(move || {
+                (0..16u64)
+                    .map(|k| {
+                        let t = trial_at(layout(k), &[Kind::Chimpanzee], &[level], true, LIMIT);
+                        let f = t[0].finish.unwrap_or_else(|| {
+                            panic!(
+                                "{} finishes tower layout {k} (at {} m)",
+                                level.key(),
+                                t[0].progress / ONE
+                            )
+                        });
+                        f as f64 / TICKS_PER_SECOND as f64
+                    })
+                    .collect::<Vec<f64>>()
+            })
+        })
+        .collect();
+    let mut means = Vec::new();
+    for (level, run) in Difficulty::ALL.into_iter().zip(runs) {
+        let row = run.join().expect("every race finishes");
+        let mean = row.iter().sum::<f64>() / row.len() as f64;
+        println!("{:<10} {row:.1?} mean {mean:.1} s", level.key());
+        means.push(mean);
+    }
+    for (i, w) in means.windows(2).enumerate() {
+        assert!(
+            w[0] >= w[1] + GAP,
+            "{} ({:.1} s) is not {GAP} s slower than {} ({:.1} s)",
+            Difficulty::ALL[i].key(),
+            w[0],
+            Difficulty::ALL[i + 1].key(),
+            w[1]
         );
     }
 }
