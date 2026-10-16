@@ -40,3 +40,4 @@ One row per run of `scripts/timed-checks.sh`, newest last. Seconds per step; `lo
 | 2026-10-16 10:18 | 1.12.8 | 135c0d1 | 0.09 | check (chromium+firefox+webkit) | (stopped early) | - | FAIL (exit 101) |
 | 2026-10-16 10:19 | 1.12.8 | 135c0d1 | 4.28 | online (chromium+firefox+webkit) | release=6.2 transport=17.8 a=127.4 | 151.5 | pass |
 | 2026-10-16 10:22 | 1.13.0 | 4c75df8 | 7.71 | check (chromium+firefox+webkit) | format=0.6 lint=2.2 core=75.2 test=0.5 release=6.9 WebAssembly=0.1 browser=432.6 | 518.1 | pass |
+| 2026-10-16 10:33 | 1.13.1 | 111be45 | 4.48 | quick (chromium; tags boundary, maps-tower, notes) | format=0.6 lint=2.1 list=7.7 core=15.8 release=6.2 WebAssembly=0.1 browser=61.7 | 94.2 | pass |
