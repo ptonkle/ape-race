@@ -282,6 +282,9 @@ impl App {
             look.rim,
             look.far,
         );
+        // nothing is cut in the gallery (SECOND-ORDER BX2)
+        let mut view = view;
+        view.extend(crate::see::values(None));
         let mut b = Batch::new();
         if g.ruins.is_some() {
             ruins::sky(&mut b, cam.eye, ruins::SUN_YAW);

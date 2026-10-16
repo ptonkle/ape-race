@@ -49,6 +49,7 @@ pub mod rules;
 pub mod scene;
 pub mod sector;
 pub mod sectorscape;
+pub mod see;
 pub mod ski;
 pub mod skiscape;
 pub mod sky;

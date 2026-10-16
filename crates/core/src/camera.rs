@@ -69,14 +69,13 @@ pub struct Chase {
     pub hulls: Option<Arc<Hulls>>,
     /// on the bay, the eye before it is kept out of the ships, and how far
     /// the ships move it (eased toward where `Hulls::kept_out` wants it,
-    /// so a lift or a slide out of a yard's band glides, BR1)
+    /// so a rise over a deck glides, BR1, BX1)
     pub free: V3,
     pub shift: V3,
 }
 
 /// How fast the ships' shift of the eye eases toward where they want it
-/// (Q16, a tick).
-/// (Q16, a tick): quickly as a spar or hull comes, slowly as it goes.
+/// (Q16, a tick): quickly as a hull comes, slowly as it goes.
 const SHIFT_IN: i32 = ONE / 6;
 const SHIFT_OUT: i32 = ONE / 24;
 
@@ -239,7 +238,7 @@ impl Chase {
         let eye = match self.hulls.clone() {
             Some(h) => {
                 self.free = eye;
-                let want = h.kept_out(target, eye).sub(eye);
+                let want = h.kept_out(eye).sub(eye);
                 self.shift = if snap {
                     want
                 } else {
@@ -250,7 +249,7 @@ impl Chase {
                     };
                     self.shift.add(want.sub(self.shift).scale(rate))
                 };
-                h.kept_hard(target, eye.add(self.shift))
+                h.kept_hard(eye.add(self.shift))
             }
             None => eye,
         };

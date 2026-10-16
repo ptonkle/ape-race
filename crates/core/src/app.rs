@@ -1645,6 +1645,18 @@ impl App {
             look.rim,
             look.far,
         );
+        // in a race the scenery between the eye and the followed ape is
+        // cut away (SECOND-ORDER BX2)
+        let hole = match (&self.play, self.stage) {
+            (Some(p), Stage::Race) => {
+                let r = &p.race.racers[p.focus.racer];
+                let prev = p.prev.get(p.focus.racer).copied().unwrap_or(r.ape.pos);
+                Some(crate::see::Hole::on(prev.lerp(r.ape.pos, self.alpha)))
+            }
+            _ => None,
+        };
+        let mut view = view;
+        view.extend(crate::see::values(hole));
         let (vines, batch) = match self.stage {
             Stage::Race => match &self.play {
                 Some(p) => {
@@ -2725,7 +2737,7 @@ fn replay_camera(p: &Play, view: replay::View, alpha: i32) -> Camera {
             // on the bay, out of the sea and the ships (BP1)
             match &p.chase.hulls {
                 Some(h) => {
-                    let eye = h.kept_out(at, cam.eye);
+                    let eye = h.kept_out(cam.eye);
                     Camera {
                         eye,
                         fwd: at.sub(eye).norm(),
@@ -3280,7 +3292,7 @@ mod tests {
             let ui: Value = serde_json::from_str(&a.ui()).unwrap();
             assert!(ui["screen"].is_string());
             let (view, _, _) = a.frame();
-            assert_eq!(view.len(), 50);
+            assert_eq!(view.len(), render::VIEW_VALUES);
             let (statics, _, _) = a.static_scene();
             assert!(!statics.is_empty());
         }
@@ -3489,7 +3501,7 @@ mod tests {
         // the cameras all give a view
         for v in ["orbit", "trackside", "chase"] {
             a.act("replay.camera", v);
-            assert_eq!(a.frame().0.len(), 50);
+            assert_eq!(a.frame().0.len(), render::VIEW_VALUES);
         }
         // leaving goes back to the race it came from
         a.act("replay.exit", "");

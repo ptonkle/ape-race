@@ -306,6 +306,10 @@ pub fn view_values(
     v
 }
 
+/// The view values: `view_values`' 50, then the see-through hole's
+/// (`crate::see::values`, SECOND-ORDER BX2).
+pub const VIEW_VALUES: usize = 50 + crate::see::VALUES;
+
 /// Every number the page's renderer needs, as JSON.
 pub fn numbers_json() -> String {
     let b = BYTES_PER_VALUE as u32;
@@ -333,7 +337,7 @@ pub fn numbers_json() -> String {
         },
         "draw_values": DRAW_VALUES,
         "buffers": { "static": STATIC_BUFFER, "dynamic": DYNAMIC_BUFFER },
-        "view": { "matrix": [0, 16], "eye": [16, 19], "fog": [19, 21], "fog_colour": [21, 24], "sky": [24, 27], "trip": 27, "wild_ground": [28, 31], "wild_wood": [31, 34], "wild_leaves": [34, 37], "mute": 37, "light_dir": [38, 41], "light": [41, 44], "ground": [44, 47], "rim": [47, 50] },
+        "view": { "matrix": [0, 16], "eye": [16, 19], "fog": [19, 21], "fog_colour": [21, 24], "sky": [24, 27], "trip": 27, "wild_ground": [28, 31], "wild_wood": [31, 34], "wild_leaves": [34, 37], "mute": 37, "light_dir": [38, 41], "light": [41, 44], "ground": [44, 47], "rim": [47, 50], "see_focus": [50, 54], "see": [54, 58], "see_kinds": [58, 61] },
         "uniforms": [["uLightDir", 3], ["uLight", 3], ["uSky", 3], ["uFog", 3], ["uGround", 3]],
     })
     .to_string()
