@@ -21,7 +21,7 @@ The standard map-build steps (MAPS.md "Build steps"), one row each. Status is on
 | 15 | Screenshots at 1920×1080 | Done | `notes/tower-shots/` (art, zipper, sky, lobby, models, costumes) at 1920×1080; `art/through-tear.png` a chase shot of an ape flying through the tear (TA8) |
 | 16 | Other maps unchanged | Done | Full debug `cargo test --workspace` passes: every other map's tests unchanged; the tower's changes are behind `Course.tower` |
 | 17 | Docs | Done | README (How to play row, Layout row, costume Wizard), MAPS.md "What Mape's Tower taught", TRIAGE T92, HANDOFF |
-| 18 | Full checks | Blocked | check.sh passed in all three engines (332 s); check-online.sh fails in Firefox and WebKit: the guest's lobby setup panel scrolls 9 px sideways (407 vs 398 px; TA10) |
+| 18 | Full checks | Done | check.sh passed in all three engines (332 s); check-online.sh failed on a 9 px lobby overflow in Firefox/WebKit (TA10), fixed on main (smaller seat text) and passed in all three engines |
 | 19 | Deploy | Not started |  |
 
 ## This map's features
