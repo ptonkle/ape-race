@@ -4,6 +4,11 @@ Stage 9, written by the agent. `C5 Consolidate in your own words`.
 
 A fresh session starts from this file, not from memory.
 
+## Mape's Tower (2026-10-16, `tower` branch, not deployed)
+
+- The map (key `tower`, TRIAGE T92, brief `briefs/mapes-tower.md`, progress `notes/tower-progress.md`): steps 1–18 done but the lobby view (step 9, waiting on the person); deploy held. The tear is now 50 m tall and 56 m wide, 13 m over the line's top, and every AI level flies through it on 16 layouts (`tower_ai::every_level_flies_through_the_tear`, TA8). AI over 16 layouts: Sloth 107.2 s, Monkey 92.0, Ape 77.3, King Kong 64.5.
+- Final checks: see the next line (filled in by the full run).
+
 ## Test tags and the quick check (2026-10-15, agent branch, not deployed)
 
 Every cargo test, browser step and online step, and every tracked file, carries tags in `tests/tags.toml`; `scripts/quick-check.sh` runs only the tests whose tags meet the changed files' tags, browser and online in Chromium only (`ALL_BROWSERS=1` for all three). `check.sh` gained step 4/7, the tag guard. `tests/browser/interactions.py` is now 11 self-contained steps (SECOND-ORDER QC2). `timed-checks.sh quick` logs it; failing runs list their failing tests in `notes/test-failures.md`. Proof and limits: `notes/quick-check.md`. `BUILDER_ENGINES=chromium ./scripts/check.sh` at the end (machine shared with other agents' browser checks, load 37–48): steps 1–6 pass (format, lint, 612 cargo tests, the tag guard, release build, import audit); the browser step failed twice on an existing 5 s wait (`menu.resume` after Esc in `race`; `setup.weather` in `weather`) and passed in full once alone (426 s, load ~40), and `settings race` passed 3 of 3 at load 44–48; main's unsplit check passed once at load ~44. Read as load flakes (SECOND-ORDER QC3); rerun `check.sh` when the machine is quiet before merging.
