@@ -1402,6 +1402,7 @@ fn on_vine(a: &Ape, course: &Course, tick: u32, vine: usize, brain: &mut Brain) 
     };
     let mut spent = 0;
     let mut after_steer: Option<(usize, Option<usize>)> = None;
+    let grabbed = brain.grabbed;
     for _ in 0..budget {
         if spent >= cap {
             break;
@@ -1467,6 +1468,16 @@ fn on_vine(a: &Ape, course: &Course, tick: u32, vine: usize, brain: &mut Brain) 
             });
         }
         for _ in 0..MOMENT {
+            // (Banana Bay Battle: the search runs ahead of the swing, so it
+            // drives as the ape will then: in full once it has held the
+            // rope `STRUGGLE` ticks, BT4)
+            let tune = match course.bay {
+                Some(_) if plan.sim_tick.saturating_sub(grabbed) > STRUGGLE => Tuning {
+                    drive: DUTY,
+                    ..tune
+                },
+                _ => tune,
+            };
             let c = swing_controls(&plan.sim, course, plan.sim_tick, steer, coast, tune);
             plan.sim.step(&c, course, plan.sim_tick);
             plan.sim_tick += 1;
@@ -1478,6 +1489,18 @@ fn on_vine(a: &Ape, course: &Course, tick: u32, vine: usize, brain: &mut Brain) 
     let mut c = swing_controls(a, course, tick, steer, coast, tune);
 
     // the best moment still to come; let go if it is now
+    let best = plan.moments.iter().copied().max_by_key(|m| m.score);
+    if course.bay.is_some() && best.is_some_and(|m| m.tick == tick && (m.pos != a.pos || m.vel != a.vel)) {
+        // (Banana Bay Battle: the swing went another way than the search
+        // had it (a rescue began, say): the moments ahead are all wrong, and
+        // were passed over one by one while the ape whirled on (BT4). The
+        // search starts this pass again from here.)
+        brain.replans += 1;
+        plan.sim = a.clone();
+        plan.sim_tick = tick;
+        plan.end = tick + HORIZON;
+        plan.moments.clear();
+    }
     let best = plan.moments.iter().copied().max_by_key(|m| m.score);
     if let Some(m) = best {
         let covered = plan.sim_tick >= m.tick + COVER || plan.sim_tick >= plan.end;
