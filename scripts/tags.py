@@ -326,7 +326,7 @@ def failures(path):
         m = re.match(r"  -- step (\w+)", line)
         if m:
             step = m.group(1)
-        m = re.match(r"test (\S+) \.\.\. FAILED", line)
+        m = re.match(r"test (\S+) \.\.\. FAILED", line) or re.match(r"---- (\S+) stdout ----", line)
         if m:
             out.append(f"cargo:{m.group(1)}")
         if line.startswith("  FAIL "):

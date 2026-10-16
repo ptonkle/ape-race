@@ -4,6 +4,10 @@ Stage 9, written by the agent. `C5 Consolidate in your own words`.
 
 A fresh session starts from this file, not from memory.
 
+## Test tags and the quick check (2026-10-15, agent branch, not deployed)
+
+Every cargo test, browser step and online step, and every tracked file, carries tags in `tests/tags.toml`; `scripts/quick-check.sh` runs only the tests whose tags meet the changed files' tags, browser and online in Chromium only (`ALL_BROWSERS=1` for all three). `check.sh` gained step 4/7, the tag guard. `tests/browser/interactions.py` is now 11 self-contained steps (SECOND-ORDER QC2). `timed-checks.sh quick` logs it; failing runs list their failing tests in `notes/test-failures.md`. Proof and limits: `notes/quick-check.md`. RESULT_PLACEHOLDER
+
 ## Unlockable costumes (TRIAGE T89, 2026-10-15, agent branch, not deployed)
 
 - Beat a map's Author time in any mode (a race against AIs, a Time Trial, any items, online) and its costume unlocks: Yeti Peak's ski gear, Sector Ape's flight jacket, Sunset Ruins' explorer, Banana Bay Battle's pirate. Wear it on any ape on any map: the Costume select beside Colours on Race Setup and in the lobby (Map's own, the default; None; the four, locked ones greyed with "Beat <map>'s Author time"). Old Author bests unlock on load.
