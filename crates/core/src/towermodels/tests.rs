@@ -3,7 +3,9 @@
 //! 6–7k drawn at once).
 
 use super::*;
-use crate::fx::int;
+use crate::fx::{cm, int, TURN};
+use crate::mesh::Mesh;
+use crate::render::Rgb;
 
 /// Shapes and halos `draw` pushes.
 fn shapes(draw: &dyn Fn(&mut Batch)) -> (usize, usize) {
@@ -222,6 +224,147 @@ fn the_tower_models_stay_within_budget() {
             shapes(&|b| banana_sea(b, &id, int(400), t)),
             420,
         ),
+        // the second design (TM2)
+        (
+            "hollow section 12 m near, a door and a window, a ledge",
+            shapes(&|b| {
+                let mut cuts = [Cut::Wall; 8];
+                cuts[0] = Cut::Door;
+                cuts[4] = Cut::Window;
+                hollow_section(
+                    b,
+                    &id,
+                    TOWER1_OUT,
+                    TOWER1_IN,
+                    SECTION_H,
+                    1,
+                    cuts,
+                    Ledge::Walk,
+                    Detail::Near,
+                )
+            }),
+            150,
+        ),
+        (
+            "hollow section 12 m far",
+            shapes(&|b| {
+                hollow_section(
+                    b,
+                    &id,
+                    TOWER1_OUT,
+                    TOWER1_IN,
+                    SECTION_H,
+                    1,
+                    [Cut::Wall; 8],
+                    Ledge::Walk,
+                    Detail::Far,
+                )
+            }),
+            30,
+        ),
+        (
+            "hollow top (4 turrets)",
+            shapes(&|b| hollow_top(b, &id, TOWER1_OUT, TOWER1_IN, 4, 1)),
+            170,
+        ),
+        (
+            "tower 1 whole, 274 m",
+            shapes(&|b| {
+                tower1(
+                    b,
+                    &id,
+                    TOWER1_OUT,
+                    TOWER1_IN,
+                    TOWER1_HEIGHT,
+                    TOWER1_HEIGHT / 2,
+                    2,
+                    1,
+                )
+            }),
+            3_000,
+        ),
+        (
+            "tower 2 whole, 164 m, 8 balconies, 6 clouds",
+            shapes(&|b| {
+                tower2(
+                    b,
+                    &id,
+                    TOWER2_RADIUS,
+                    TOWER2_HEIGHT,
+                    8,
+                    TURN * 3 / 2,
+                    0,
+                    6,
+                    1,
+                );
+            }),
+            1_800,
+        ),
+        (
+            "long bridge 250 m",
+            shapes(&|b| long_bridge(b, &id, V3::ZERO, v3(BRIDGE_LENGTH, 0, 0), BRIDGE_WIDTH, 1)),
+            200,
+        ),
+        (
+            "bridge hangers 250 m",
+            shapes(&|b| {
+                bridge_hangers(
+                    b,
+                    &id,
+                    V3::ZERO,
+                    v3(BRIDGE_LENGTH, 0, 0),
+                    BRIDGE_WIDTH,
+                    HANGER_SPACING,
+                    1,
+                );
+            }),
+            70,
+        ),
+        (
+            "tube 300 m, 10 portholes",
+            shapes(&|b| {
+                let holes: Vec<Porthole> = (0..10)
+                    .map(|i| Porthole {
+                        depth: int(20 + 27 * i),
+                        bearing: deg(70 * i),
+                    })
+                    .collect();
+                tube(b, &id, TUBE_RADIUS, TUBE_LENGTH, &holes, 1);
+            }),
+            1_100,
+        ),
+        (
+            "void pad, half",
+            shapes(&|b| void_pad(b, &id, TUBE_RADIUS, PadShape::Half, 0, 0, t, 1)),
+            60,
+        ),
+        (
+            "void pad, ring",
+            shapes(&|b| void_pad(b, &id, TUBE_RADIUS, PadShape::Ring, 0, ONE / 2, t, 2)),
+            60,
+        ),
+        (
+            "void pad, quarters",
+            shapes(&|b| void_pad(b, &id, TUBE_RADIUS, PadShape::Quarters, deg(30), 0, t, 3)),
+            60,
+        ),
+        (
+            "tunnel mouth",
+            shapes(&|b| {
+                tunnel_mouth(b, &id, TUBE_RADIUS, t, 1);
+            }),
+            60,
+        ),
+        (
+            "tunnel 250 m",
+            shapes(&|b| tunnel(b, &id, TUBE_RADIUS, TUNNEL_LENGTH, 1)),
+            600,
+        ),
+        (
+            "portal 56 by 50 m",
+            shapes(&|b| portal(b, &id, TEAR_W, TEAR_H, ONE, int(1), t)),
+            260,
+        ),
     ];
     for (name, (n, halos), max) in &rows {
         assert!(*n > 0, "{name} draws nothing");
@@ -316,4 +459,262 @@ fn the_deep_spells_are_not_the_climbs() {
     }
     // the five climbing spells still come round in turn
     assert_eq!(Spell::nth(5), Spell::Arcane);
+}
+
+// ---------------------------------------------------------------------------
+// The second design's models (TM2).
+
+/// Each shape in a batch: its mesh, matrix, colour and glow.
+fn all_shapes(own: Batch) -> Vec<(Mesh, Affine, Rgb, i32)> {
+    let (values, draws) = own.finish(crate::render::DYNAMIC_BUFFER);
+    let mut out = Vec::new();
+    for d in draws.chunks(crate::render::DRAW_VALUES) {
+        let mesh = Mesh::ALL[d[1] as usize];
+        let first = d[2] as usize / crate::render::BYTES_PER_VALUE;
+        for i in values[first..first + d[3] as usize * crate::render::INSTANCE_VALUES]
+            .chunks(crate::render::INSTANCE_VALUES)
+        {
+            let a = Affine {
+                c0: v3(i[0], i[4], i[8]),
+                c1: v3(i[1], i[5], i[9]),
+                c2: v3(i[2], i[6], i[10]),
+                t: v3(i[3], i[7], i[11]),
+            };
+            out.push((mesh, a, [i[12], i[13], i[14]], i[15]));
+        }
+    }
+    out
+}
+
+/// The horizontal distance of `p` from the y axis.
+fn off_axis(p: V3) -> i32 {
+    v3(p.x, 0, p.z).len()
+}
+
+#[test]
+fn tower_1_is_hollow_inside_and_open_at_the_top() {
+    let mut b = Batch::new();
+    let mut cuts = [Cut::Wall; 8];
+    cuts[2] = Cut::Window;
+    hollow_section(
+        &mut b,
+        &Affine::IDENTITY,
+        TOWER1_OUT,
+        TOWER1_IN,
+        SECTION_H,
+        1,
+        cuts,
+        Ledge::Walk,
+        Detail::Near,
+    );
+    hollow_top(
+        &mut b,
+        &Affine::translate(v3(0, SECTION_H, 0)),
+        TOWER1_OUT,
+        TOWER1_IN,
+        4,
+        1,
+    );
+    let inner = TOWER1_IN - LEDGE_DEPTH - int(1);
+    for (mesh, a, _, _) in all_shapes(b) {
+        assert!(
+            off_axis(a.t) >= inner,
+            "{mesh:?} at {:?} is {} m from the axis, inside the wall's {} m",
+            a.t,
+            off_axis(a.t) / ONE,
+            inner / ONE
+        );
+    }
+    // the inside is about 90 m across, the outside 1.25 keeps
+    assert!(2 * TOWER1_IN >= int(88) && 2 * TOWER1_IN <= int(92));
+    assert_eq!(TOWER1_OUT, int(51) + ONE / 4);
+}
+
+/// Whether any shape's middle lies in the box `lo..hi` (both corners).
+fn any_in(shapes: &[(Mesh, Affine, Rgb, i32)], lo: V3, hi: V3) -> bool {
+    shapes.iter().any(|(_, a, _, _)| {
+        let p = a.t;
+        p.x > lo.x && p.x < hi.x && p.y > lo.y && p.y < hi.y && p.z > lo.z && p.z < hi.z
+    })
+}
+
+#[test]
+fn tower_1s_doorway_and_windows_are_open_through_the_wall() {
+    let section = |cut: Cut| {
+        let mut b = Batch::new();
+        let mut cuts = [Cut::Wall; 8];
+        cuts[0] = cut;
+        hollow_section(
+            &mut b,
+            &Affine::IDENTITY,
+            TOWER1_OUT,
+            TOWER1_IN,
+            SECTION_H,
+            1,
+            cuts,
+            Ledge::None,
+            Detail::Near,
+        );
+        all_shapes(b)
+    };
+    let (z0, z1) = (TOWER1_IN - int(1), TOWER1_OUT + int(1));
+    // the doorway: nothing in the opening from the floor to under the lintel
+    let door = section(Cut::Door);
+    assert!(
+        !any_in(
+            &door,
+            v3(-DOOR_W / 2 + int(1), int(1), z0),
+            v3(DOOR_W / 2 - int(1), SECTION_H - int(3), z1)
+        ),
+        "the doorway is blocked"
+    );
+    // the window: nothing in its opening either
+    let window = section(Cut::Window);
+    let (lo, hi) = (SECTION_H / 2 - WINDOW_H / 2, SECTION_H / 2 + WINDOW_H / 2);
+    assert!(
+        !any_in(
+            &window,
+            v3(-WINDOW_W / 2 + int(1), lo + int(1), z0),
+            v3(WINDOW_W / 2 - int(1), hi - int(1), z1)
+        ),
+        "the window is blocked"
+    );
+    // a plain wall fills that same space
+    let wall = section(Cut::Wall);
+    assert!(any_in(
+        &wall,
+        v3(-WINDOW_W / 2 + int(1), lo + int(1), z0),
+        v3(WINDOW_W / 2 - int(1), hi - int(1), z1)
+    ));
+}
+
+#[test]
+fn the_bridge_hangers_hang_one_every_22_m_under_the_deck() {
+    let (a, z) = (
+        v3(int(100), int(55), int(10)),
+        v3(int(350), int(55), int(10)),
+    );
+    let hooks = hanger_points(a, z, HANGER_SPACING);
+    assert_eq!(hooks.len(), 11, "{hooks:?}");
+    for (i, h) in hooks.iter().enumerate() {
+        assert_eq!(h.y, int(55) - HANGER_DROP, "hook {i} is not under the deck");
+        if i > 0 {
+            let gap = h.dist(hooks[i - 1]);
+            assert!(
+                (gap - HANGER_SPACING).abs() < cm(5),
+                "hook {i}: {} m from the last",
+                gap / ONE
+            );
+        }
+    }
+    // drawn, the hangers return the same points
+    let mut b = Batch::new();
+    let drawn = bridge_hangers(
+        &mut b,
+        &Affine::IDENTITY,
+        a,
+        z,
+        BRIDGE_WIDTH,
+        HANGER_SPACING,
+        1,
+    );
+    assert_eq!(drawn, hooks);
+    assert!(b.count() >= 5 * hooks.len());
+}
+
+#[test]
+fn the_pads_each_cover_part_of_the_width() {
+    let r = TUBE_RADIUS;
+    // the half covers +x, not -x
+    assert!(pad_covers(PadShape::Half, r, r / 2, 0));
+    assert!(!pad_covers(PadShape::Half, r, -r / 2, 0));
+    // the ring covers the rim, not the hole
+    assert!(pad_covers(PadShape::Ring, r, r * 3 / 4, 0));
+    assert!(!pad_covers(PadShape::Ring, r, 0, 0));
+    assert!(!pad_covers(PadShape::Ring, r, r / 4, 0));
+    // the quarters cover +x+z and -x-z, not the other two
+    assert!(pad_covers(PadShape::Quarters, r, r / 2, r / 2));
+    assert!(pad_covers(PadShape::Quarters, r, -r / 2, -r / 2));
+    assert!(!pad_covers(PadShape::Quarters, r, r / 2, -r / 2));
+    // nothing outside the tube
+    for s in PadShape::ALL {
+        assert!(!pad_covers(s, r, r + int(1), 0));
+    }
+    // drawn, each pad's film stays inside the tube and its rim glows
+    for s in PadShape::ALL {
+        let mut b = Batch::new();
+        void_pad(&mut b, &Affine::IDENTITY, r, s, 0, 0, 30, 1);
+        let shapes = all_shapes(b);
+        assert!(
+            shapes
+                .iter()
+                .all(|(_, a, _, _)| off_axis(a.t) <= r + int(1)),
+            "{s:?}"
+        );
+        assert!(
+            shapes.iter().any(|(_, _, _, glow)| *glow >= ONE),
+            "{s:?} has no glowing rim"
+        );
+    }
+}
+
+#[test]
+fn the_portal_turns_and_breathes_and_shut_draws_nothing() {
+    let draw = |tick: u32, open: i32| {
+        let mut b = Batch::new();
+        portal(
+            &mut b,
+            &Affine::IDENTITY,
+            TEAR_W,
+            TEAR_H,
+            open,
+            int(1),
+            tick,
+        );
+        b
+    };
+    // the bands' streaks (the shards 20 cm deep) have turned after 20
+    // ticks: their bearings round the middle differ (breathing alone would
+    // only move them in and out)
+    let bearings = |tick: u32| -> Vec<i32> {
+        all_shapes(draw(tick, ONE))
+            .into_iter()
+            .filter(|(m, a, _, _)| *m == Mesh::Shard && a.c2.z == cm(20))
+            .map(|(_, a, _, _)| crate::fx::atan2(a.t.x, a.t.y - TEAR_H / 2))
+            .collect()
+    };
+    let (s0, s20) = (bearings(0), bearings(20));
+    assert!(s0.len() >= 60, "{} streaks", s0.len());
+    assert_ne!(s0, s20, "the bands do not turn");
+    assert_eq!(draw(0, 0).count(), 0);
+    assert!(draw(0, ONE).count() > 150);
+    // the opening is clear through its middle, within the tear's size class
+    let mid = portal_clear(TEAR_W, TEAR_H, TEAR_H / 2);
+    assert!(mid > TEAR_W / 3 && mid < TEAR_W / 2, "{}", mid / ONE);
+    assert_eq!(portal_clear(TEAR_W, TEAR_H, 0), 0);
+    assert_eq!(portal_clear(TEAR_W, TEAR_H, TEAR_H), 0);
+    assert!(portal_clear(TEAR_W, TEAR_H, TEAR_H / 10) < mid);
+}
+
+#[test]
+fn the_tunnel_runs_level_from_its_mouth_under_the_anchor_bar() {
+    let r = TUBE_RADIUS;
+    let mut b = Batch::new();
+    tunnel(&mut b, &Affine::IDENTITY, r, TUNNEL_LENGTH, 1);
+    for (mesh, a, _, _) in all_shapes(b) {
+        let p = a.t;
+        assert!(
+            p.z >= -int(1)
+                && p.z <= TUNNEL_LENGTH + int(1)
+                && p.y.abs() <= r + int(2)
+                && p.x.abs() <= r + int(2),
+            "{mesh:?} at {p:?} is outside the tunnel"
+        );
+    }
+    let mut b = Batch::new();
+    let (a, z) = tunnel_mouth(&mut b, &Affine::IDENTITY, r, 7, 1);
+    assert!(
+        a.y > r / 2 && a.y == z.y && a.x < 0 && z.x > 0 && a.z == 0,
+        "{a:?} {z:?}"
+    );
 }

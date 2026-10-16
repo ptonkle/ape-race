@@ -23,7 +23,7 @@
 //! the trampoline room; `summit.rs` the insane wizard, the tear and the
 //! eldritch banana.
 
-use crate::fx::{deg, int, mul, sin, ONE};
+use crate::fx::{deg, int, mul, sin, ONE, TURN};
 use crate::geom::{facing, v3, Affine, V3};
 use crate::mesh::Mesh;
 use crate::render::{rgb, rod, Batch, Rgb};
@@ -37,7 +37,10 @@ mod deep;
 mod folk;
 mod keep;
 mod magic;
+mod portal;
 mod summit;
+mod towers;
+mod tube;
 mod zipper;
 
 pub use creatures::*;
@@ -45,7 +48,10 @@ pub use deep::*;
 pub use folk::*;
 pub use keep::*;
 pub use magic::*;
+pub use portal::*;
 pub use summit::*;
+pub use towers::*;
+pub use tube::*;
 pub use zipper::*;
 
 // ---------------------------------------------------------------------------
@@ -86,7 +92,10 @@ pub fn gallery_look_of(key: &str) -> Look {
 }
 
 /// The descent's gallery keys, shown in the zipper space's light.
-pub const ZIPPER_KEYS: [&str; 8] = [
+pub const ZIPPER_KEYS: [&str; 11] = [
+    "tube",
+    "voidpads",
+    "tunnelmouth",
     "zip",
     "topsy",
     "debris",
@@ -263,7 +272,17 @@ pub(crate) fn pulse(tick: u32, secs: i32, k: u32, lo: i32) -> i32 {
 // ---------------------------------------------------------------------------
 // The gallery (`?gallery=<key>`).
 
-pub const GALLERY: [&str; 28] = [
+pub const GALLERY: [&str; 38] = [
+    "tower1",
+    "hollowsection",
+    "hollowtop",
+    "tower2",
+    "longbridge",
+    "towers",
+    "portal",
+    "tube",
+    "voidpads",
+    "tunnelmouth",
     "keep",
     "keepsection",
     "turret",
@@ -297,6 +316,16 @@ pub const GALLERY: [&str; 28] = [
 /// The middle and rough radius of a gallery model, metres.
 pub fn framing(key: &str) -> (V3, i32) {
     match key {
+        "tower1" => (v3(0, int(137), 0), int(200)),
+        "hollowsection" => (v3(0, int(12), 0), int(70)),
+        "hollowtop" => (v3(0, int(4), 0), int(70)),
+        "tower2" => (v3(0, int(82), 0), int(120)),
+        "longbridge" => (v3(0, -int(2), 0), int(140)),
+        "towers" => (v3(int(170), int(120), 0), int(360)),
+        "portal" => (v3(0, int(25), 0), int(36)),
+        "tube" => (v3(0, -int(60), 0), int(80)),
+        "voidpads" => (v3(0, 0, 0), int(60)),
+        "tunnelmouth" => (v3(0, 0, int(20)), int(40)),
         "keep" => (v3(0, int(56), 0), int(84)),
         "keepsection" => (v3(0, int(6), 0), int(14)),
         "turret" => (v3(0, int(9), 0), int(9)),
@@ -332,6 +361,136 @@ pub fn framing(key: &str) -> (V3, i32) {
 pub fn gallery(b: &mut Batch, key: &str, f: &Affine, tick: u32) {
     let at = |x: i32, y: i32, z: i32| f.then(&Affine::translate(v3(x, y, z)));
     match key {
+        "tower1" => tower1(
+            b,
+            f,
+            TOWER1_OUT,
+            TOWER1_IN,
+            TOWER1_HEIGHT,
+            TOWER1_HEIGHT / 2,
+            2,
+            7,
+        ),
+        "hollowsection" => {
+            // two sections, a window and the doorway, a ledge on the upper
+            let mut cuts = [Cut::Wall; 8];
+            cuts[0] = Cut::Door;
+            cuts[3] = Cut::Window;
+            hollow_section(
+                b,
+                f,
+                TOWER1_OUT,
+                TOWER1_IN,
+                SECTION_H,
+                1,
+                cuts,
+                Ledge::None,
+                Detail::Near,
+            );
+            let mut cuts = [Cut::Wall; 8];
+            cuts[1] = Cut::Window;
+            cuts[5] = Cut::Window;
+            hollow_section(
+                b,
+                &at(0, SECTION_H, 0),
+                TOWER1_OUT,
+                TOWER1_IN,
+                SECTION_H,
+                2,
+                cuts,
+                Ledge::Walk,
+                Detail::Near,
+            );
+            let g = inner_balcony(
+                b,
+                &at(0, SECTION_H, 0),
+                TOWER1_IN,
+                deg(90),
+                int(6),
+                int(5),
+                1,
+            );
+            mage(b, &g, Spell::Frost, MagePose::Cast, tick, 1);
+        }
+        "hollowtop" => hollow_top(b, f, TOWER1_OUT, TOWER1_IN, 4, 1),
+        "tower2" => {
+            let frames = tower2(b, f, TOWER2_RADIUS, TOWER2_HEIGHT, 8, TURN * 3 / 2, 0, 6, 3);
+            for (i, g) in frames.iter().enumerate() {
+                mage(b, g, Spell::nth(i as u32), MagePose::Cast, tick, i as u32);
+            }
+        }
+        "longbridge" => {
+            let (a, z) = (v3(-int(125), 0, 0), v3(int(125), 0, 0));
+            long_bridge(b, f, a, z, BRIDGE_WIDTH, 1);
+            bridge_hangers(b, f, a, z, BRIDGE_WIDTH, HANGER_SPACING, 1);
+        }
+        "towers" => towers_scene(b, f, tick),
+        "portal" => {
+            portal(b, f, TEAR_W, TEAR_H, ONE, int(1), tick);
+            banana_in_rift(b, f, TEAR_H, int(30), ONE / 2, tick);
+        }
+        "tube" => {
+            let holes = [
+                Porthole {
+                    depth: int(30),
+                    bearing: deg(60),
+                },
+                Porthole {
+                    depth: int(70),
+                    bearing: deg(200),
+                },
+                Porthole {
+                    depth: int(110),
+                    bearing: deg(320),
+                },
+            ];
+            let frames = tube(b, f, TUBE_RADIUS, int(130), &holes, 1);
+            for (i, g) in frames.iter().enumerate() {
+                if i % 2 == 0 {
+                    blob(b, g, int(3), Spell::Brine, tick, i as u32);
+                } else {
+                    sea_monster(b, g, Spell::Abyss, tick, i as u32);
+                }
+            }
+            zip(
+                b,
+                &at(0, -int(5), -(TUBE_RADIUS - int(2))),
+                int(120),
+                int(2),
+                ONE / 3,
+                tick,
+            );
+            for i in 0..5u32 {
+                void_pad(
+                    b,
+                    &at(0, -int(20) - int(22) * i as i32, 0),
+                    TUBE_RADIUS,
+                    PadShape::nth(i),
+                    deg(50) * i as i32,
+                    0,
+                    tick,
+                    i,
+                );
+            }
+        }
+        "voidpads" => {
+            for (i, s) in PadShape::ALL.into_iter().enumerate() {
+                void_pad(
+                    b,
+                    &at(int(i as i32 * 40 - 40), 0, 0),
+                    TUBE_RADIUS,
+                    s,
+                    0,
+                    wave(tick, 2, i as i32 * 9_000).max(0),
+                    tick,
+                    i as u32,
+                );
+            }
+        }
+        "tunnelmouth" => {
+            tunnel_mouth(b, f, TUBE_RADIUS, tick, 1);
+            tunnel(b, f, TUBE_RADIUS, int(60), 1);
+        }
         "keep" => keep(b, f, int(10), 8, 7),
         "keepsection" => keep_section(b, f, int(10), int(12), 3, Detail::Near),
         "turret" => turret(b, f, int(3), int(12), 2),
@@ -532,6 +691,54 @@ pub fn gallery(b: &mut Batch, key: &str, f: &Affine, tick: u32) {
             );
         }
     }
+}
+
+/// The second design's two towers and their bridges together, at the
+/// sizes of the plan: tower 1 hollow at the origin with its doorway
+/// facing tower 2, tower 2 a bridge's length along +x, the lower bridge a
+/// third of the way up tower 2 and the upper at its top, hangers under
+/// both, the portal beside tower 1's top on its far side with the mad
+/// wizard before it. About 5,400 shapes: for the gallery only.
+fn towers_scene(b: &mut Batch, f: &Affine, tick: u32) {
+    let at = |x: i32, y: i32, z: i32| f.then(&Affine::translate(v3(x, y, z)));
+    let gap = BRIDGE_LENGTH + TOWER1_OUT + TOWER2_RADIUS;
+    // the doorway faces +x (face 2)
+    tower1(
+        b,
+        f,
+        TOWER1_OUT,
+        TOWER1_IN,
+        TOWER1_HEIGHT,
+        TOWER1_HEIGHT / 2,
+        2,
+        7,
+    );
+    let frames = tower2(
+        b,
+        &at(gap, 0, 0),
+        TOWER2_RADIUS,
+        TOWER2_HEIGHT,
+        8,
+        TURN * 3 / 2,
+        0,
+        6,
+        3,
+    );
+    for (i, g) in frames.iter().enumerate() {
+        mage(b, g, Spell::nth(i as u32), MagePose::Cast, tick, i as u32);
+    }
+    for (y, k) in [(TOWER2_HEIGHT / 3, 1), (TOWER2_HEIGHT - int(8), 2)] {
+        let (a, z) = (v3(TOWER1_OUT, y, 0), v3(gap - TOWER2_RADIUS, y, 0));
+        long_bridge(b, f, a, z, BRIDGE_WIDTH, k);
+        bridge_hangers(b, f, a, z, BRIDGE_WIDTH, HANGER_SPACING, k);
+    }
+    // the portal beside the top on the far side, facing the tower
+    let top = tower1_top(TOWER1_HEIGHT);
+    let pf = at(-TOWER1_OUT - int(30), top - int(10), 0).then(&Affine::rot_y(deg(90)));
+    portal(b, &pf, TEAR_W, TEAR_H, ONE, int(1), tick);
+    banana_in_rift(b, &pf, TEAR_H, int(30), ONE / 2, tick);
+    let wiz = at(-TOWER1_OUT - int(8), top, int(12)).then(&Affine::rot_y(deg(-90)));
+    mad_wizard(b, &wiz, tick);
 }
 
 /// A stretch of the climb, to see the pieces together: a keep section
