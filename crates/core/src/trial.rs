@@ -134,12 +134,14 @@ pub const RUINS: [u32; 4] = [
 /// `bay_time_trial_report`. Author just under the best kind, then the
 /// Jungle's steps of 7, 10 and 15 s. First 0:35 (BT2); re-measured for
 /// the fleet overhaul (2026-10-15, two battle lines of bigger ships: 50.8–
-/// 58.0 s by kind, the Gorilla best, the Lemur slowest; SECOND-ORDER BO).
+/// 58.0 s by kind, the Gorilla best, the Lemur slowest; SECOND-ORDER BO);
+/// again once the AI stopped whirling on ropes (BT5: 53.4–60.0 s, the
+/// Proboscis best, the Gibbon slowest).
 /// Re-measure if the course's length changes.
-pub const BAY_AUTHOR: u32 = 5_050;
-pub const BAY_GOLD: u32 = 5_750;
-pub const BAY_SILVER: u32 = 6_750;
-pub const BAY_BRONZE: u32 = 8_250;
+pub const BAY_AUTHOR: u32 = 5_300;
+pub const BAY_GOLD: u32 = 6_000;
+pub const BAY_SILVER: u32 = 7_000;
+pub const BAY_BRONZE: u32 = 8_500;
 
 /// Banana Bay Battle's target times, in race ticks, slowest first.
 pub const BAY: [u32; 4] = [

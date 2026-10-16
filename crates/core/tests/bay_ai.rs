@@ -261,3 +261,62 @@ fn every_level_gets_off_every_deck_back_onto_the_line() {
         .collect();
     assert!(stuck.is_empty(), "stuck on a deck: {stuck:?}");
 }
+
+/// No AI whirls on one rope for long (BT4): on the layouts where each level
+/// held a rope longest before the fix (7-10 s: Sloth and Monkey on layout
+/// 2, the Ape on 6, King Kong on 13), every level, alone as in `trial_at`,
+/// lets go of every rope within `WHIRL` (`examples/bay_whirl.rs` measures
+/// all sixteen).
+#[test]
+fn no_ai_whirls_on_a_bay_rope() {
+    const WHIRL: f64 = 6.0;
+    let runs: Vec<_> = Difficulty::ALL
+        .into_iter()
+        .map(|level| {
+            std::thread::spawn(move || {
+                let mut worst = (0u32, 0u64, 0usize);
+                for k in [2u64, 6, 13] {
+                    let entries = [Entry {
+                        name: String::new(),
+                        kind: Kind::Chimpanzee,
+                        driver: Driver::Ai,
+                        palette: 0,
+                        costume: tool_core::costume::Costume::Own,
+                    }];
+                    let mut race = Race::new(layout(k), &entries, true, 7);
+                    let mut brain = Brain::new(level, 0xA9E5);
+                    let mut held: Option<(usize, u32)> = None;
+                    while race.clock < LIMIT && race.phase != Phase::Done {
+                        let c = think(&race, 0, &mut brain);
+                        race.step(&[c]);
+                        let now = race.racers[0].ape.swinging();
+                        match (held, now) {
+                            (Some((v, _)), Some(n)) if v == n => {}
+                            _ => held = now.map(|n| (n, race.clock)),
+                        }
+                        if let Some((v, from)) = held {
+                            if race.clock - from > worst.0 {
+                                worst = (race.clock - from, k, v);
+                            }
+                        }
+                    }
+                }
+                (level, worst)
+            })
+        })
+        .collect();
+    for r in runs {
+        let (level, (ticks, k, v)) = r.join().expect("every level runs");
+        println!(
+            "{:<10} longest hold {:.1} s (layout {k}, rope {v})",
+            level.key(),
+            secs(ticks)
+        );
+        assert!(
+            secs(ticks) <= WHIRL,
+            "{} held rope {v} on layout {k} for {:.1} s (over {WHIRL} s)",
+            level.key(),
+            secs(ticks)
+        );
+    }
+}

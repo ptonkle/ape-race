@@ -69,10 +69,7 @@ fn main() {
         .into_iter()
         .map(|level| {
             std::thread::spawn(move || {
-                (
-                    level,
-                    (0..seeds).map(|k| run(level, k)).collect::<Vec<_>>(),
-                )
+                (level, (0..seeds).map(|k| run(level, k)).collect::<Vec<_>>())
             })
         })
         .collect();

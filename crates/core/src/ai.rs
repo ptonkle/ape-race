@@ -42,17 +42,19 @@ const MARGIN: i32 = cm(15);
 const GRAB_MARGIN: i32 = cm(5);
 /// A flight that crosses the finish line "reaches" this.
 const FINISH: usize = usize::MAX;
-/// Banana Bay Battle: a flight that comes down on a deck ahead "reaches"
-/// this (see [`BAY_DECK_AFTER`]).
+/// Banana Bay Battle: a flight that comes down on a deck "reaches" this
+/// (see [`BAY_DECK_AFTER`]).
 const DECK: usize = usize::MAX - 1;
 /// Banana Bay Battle (BT4): with the fleet's two battle lines the next rope
 /// is often across the channel or behind a yard, and nearly every release
 /// from a rope comes down on a deck, so a search that counted only ropes
-/// found nothing and the ape whirled 7-10 s before it let go. Held this
-/// long, it counts a landing on a deck ahead too (it runs off it at a rope),
-/// at this many metres less than a rope as far along.
-const BAY_DECK_AFTER: [u32; 4] = [S, S, S, 3 * S];
-const S: u32 = TICKS_PER_SECOND as u32;
+/// found nothing and the ape whirled 7-10 s before it let go. Held a rope
+/// this long (by level, easiest first), it counts a landing on a deck too
+/// (it runs off it at a rope), at `DECK_COST` metres less than a rope as
+/// far along. King Kong waits longer: sooner, it took decks a rope would
+/// have beaten (the Gorilla's Time Trial 17 s slower).
+const BAY_DECK_AFTER: [u32; 4] = [SECOND, SECOND, SECOND, 3 * SECOND];
+const SECOND: u32 = TICKS_PER_SECOND as u32;
 const DECK_COST: i32 = int(10);
 /// It grabs a vine only this far below its anchor or more.
 const GOOD_ROPE: i32 = int(5);
@@ -332,7 +334,10 @@ const RUINS_NOISE: [i32; 4] = [int(8), int(4), int(3), 0];
 /// it was put back on). The Ape then came within 6.6
 /// s of King Kong: it reacts later here (8 ticks, not 4). Its misjudging
 /// is touchy (3 m cost it 4.5 s; none left it whirling on a rope for 50 s
-/// on one layout), so it stays 2 m (BT1).
+/// on one layout), so it stays 2 m (BT1). Once the AI stopped whirling on
+/// ropes (BT5) the Sloth came within 5.4 s of the Monkey: its arms went
+/// back to 2 of 8 from the fleet overhaul's 3 (BO7; it now gets off every
+/// deck with 2). The Ape reacts in 5 ticks here (BO7).
 const BAY_HESITATE: [u32; 4] = [18, 18, 5, 0];
 const BAY_JITTER: [u32; 4] = [14, 14, 4, 0];
 const BAY_DRIVE: [u32; 4] = [2, 3, 4, DUTY];
@@ -1452,7 +1457,8 @@ fn on_vine(a: &Ape, course: &Course, tick: u32, vine: usize, brain: &mut Brain) 
             tune,
             &mut spent,
             Some(&mut plan.anchors),
-            course.bay.is_some() && plan.sim_tick >= plan.began + BAY_DECK_AFTER[brain.difficulty as usize],
+            course.bay.is_some()
+                && plan.sim_tick >= plan.began + BAY_DECK_AFTER[brain.difficulty as usize],
         );
         if let Some(hit) = hit.filter(|_| plan.sim_tick >= brain.ready) {
             // a weaker AI misjudges how good a moment is
@@ -1491,7 +1497,9 @@ fn on_vine(a: &Ape, course: &Course, tick: u32, vine: usize, brain: &mut Brain) 
 
     // the best moment still to come; let go if it is now
     let best = plan.moments.iter().copied().max_by_key(|m| m.score);
-    if course.bay.is_some() && best.is_some_and(|m| m.tick == tick && (m.pos != a.pos || m.vel != a.vel)) {
+    if course.bay.is_some()
+        && best.is_some_and(|m| m.tick == tick && (m.pos != a.pos || m.vel != a.vel))
+    {
         // (Banana Bay Battle: the swing went another way than the search
         // had it (a rescue began, say): the moments ahead are all wrong, and
         // were passed over one by one while the ape whirled on (BT4). The
