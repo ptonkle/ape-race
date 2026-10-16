@@ -32,15 +32,21 @@ use crate::scene::Look;
 pub use crate::ruinsmodels::pose;
 pub(crate) use crate::ruinsmodels::{pick, wave};
 
+mod creatures;
+mod deep;
 mod folk;
 mod keep;
 mod magic;
 mod summit;
+mod zipper;
 
+pub use creatures::*;
+pub use deep::*;
 pub use folk::*;
 pub use keep::*;
 pub use magic::*;
 pub use summit::*;
+pub use zipper::*;
 
 // ---------------------------------------------------------------------------
 // The gallery's light (step 5 owns the map's).
@@ -68,6 +74,28 @@ pub fn gallery_look() -> Look {
         far: crate::render::FAR,
     }
 }
+
+/// The gallery's light for model `key`: the zipper space's for the
+/// descent's models, twilight for the rest.
+pub fn gallery_look_of(key: &str) -> Look {
+    if ZIPPER_KEYS.contains(&key) {
+        zipper_look()
+    } else {
+        gallery_look()
+    }
+}
+
+/// The descent's gallery keys, shown in the zipper space's light.
+pub const ZIPPER_KEYS: [&str; 8] = [
+    "zip",
+    "topsy",
+    "debris",
+    "blob",
+    "seamonster",
+    "voidplatforms",
+    "bananasea",
+    "zipper",
+];
 
 // ---------------------------------------------------------------------------
 // The palette.
@@ -106,6 +134,10 @@ pub enum Spell {
     Verdant,
     /// pink
     Charm,
+    /// sea-green (the descent's creatures)
+    Brine,
+    /// deep violet (the descent's creatures)
+    Abyss,
 }
 
 impl Spell {
@@ -125,6 +157,8 @@ impl Spell {
             Spell::Fire => rgb(255, 140, 44),
             Spell::Verdant => rgb(96, 244, 128),
             Spell::Charm => rgb(255, 118, 196),
+            Spell::Brine => rgb(70, 255, 190),
+            Spell::Abyss => rgb(150, 96, 255),
         }
     }
 
@@ -136,8 +170,13 @@ impl Spell {
             Spell::Fire => rgb(150, 44, 30),
             Spell::Verdant => rgb(34, 100, 58),
             Spell::Charm => rgb(132, 40, 96),
+            Spell::Brine => rgb(20, 90, 80),
+            Spell::Abyss => rgb(60, 24, 100),
         }
     }
+
+    /// The descent's two spells, the sea monsters' and blobs' vines.
+    pub const DEEP: [Spell; 2] = [Spell::Brine, Spell::Abyss];
 
     /// Spell `k` of the five, round and round.
     pub fn nth(k: u32) -> Spell {
@@ -224,7 +263,7 @@ pub(crate) fn pulse(tick: u32, secs: i32, k: u32, lo: i32) -> i32 {
 // ---------------------------------------------------------------------------
 // The gallery (`?gallery=<key>`).
 
-pub const GALLERY: [&str; 20] = [
+pub const GALLERY: [&str; 28] = [
     "keep",
     "keepsection",
     "turret",
@@ -245,6 +284,14 @@ pub const GALLERY: [&str; 20] = [
     "summit",
     "climb",
     "towerall",
+    "zip",
+    "topsy",
+    "debris",
+    "blob",
+    "seamonster",
+    "voidplatforms",
+    "bananasea",
+    "zipper",
 ];
 
 /// The middle and rough radius of a gallery model, metres.
@@ -269,6 +316,14 @@ pub fn framing(key: &str) -> (V3, i32) {
         "eldritch" => (v3(0, 0, 0), int(48)),
         "summit" => (v3(0, int(20), -int(30)), int(70)),
         "climb" => (v3(0, int(30), 0), int(48)),
+        "zip" => (v3(0, 0, 0), int(36)),
+        "topsy" => (v3(0, 0, 0), int(34)),
+        "debris" => (v3(0, 0, 0), int(18)),
+        "blob" => (v3(0, int(5), 0), int(12)),
+        "seamonster" => (v3(0, int(4), 0), int(7)),
+        "voidplatforms" => (v3(0, 0, 0), int(14)),
+        "bananasea" => (v3(0, int(3), 0), int(40)),
+        "zipper" => (v3(0, 0, 0), int(60)),
         _ => (v3(0, int(70), 0), int(110)),
     }
 }
@@ -410,6 +465,39 @@ pub fn gallery(b: &mut Batch, key: &str, f: &Affine, tick: u32) {
         "eldritch" => eldritch_banana(b, f, int(60), tick),
         "summit" => summit(b, f, tick),
         "climb" => climb_scene(b, f, tick),
+        "zip" => zip(b, &at(0, int(30), 0), int(60), int(2), ONE * 2 / 5, tick),
+        "topsy" => {
+            topsy_keep(b, &at(-int(14), int(20), 0), int(8), 2, deg(15), 1);
+            topsy(b, &at(int(14), int(16), 0), deg(30), -deg(25), |b, g| {
+                turret(b, g, int(3), int(14), 2);
+            });
+            topsy(b, &at(0, -int(12), int(4)), 0, deg(20), |b, g| {
+                arch_bridge(b, g, v3(-int(10), 0, 0), v3(int(10), 0, 0), int(4), 3);
+            });
+        }
+        "debris" => debris(b, f, int(14), tick, 1),
+        "blob" => {
+            for i in 0..3u32 {
+                let x = int(i as i32 * 6 - 6);
+                let size = int(2) + dm(5) * i as i32;
+                let spell = Spell::DEEP[(i % 2) as usize];
+                let tip = blob(b, &at(x, 0, 0), size, spell, tick, i);
+                let end = tip.add(v3(int(3) - int(3) * i as i32, int(8), -int(4)));
+                sea_beam(b, &Affine::IDENTITY, tip, end, spell, tick, i);
+            }
+        }
+        "seamonster" => {
+            let tip = sea_monster(b, f, Spell::Brine, tick, 1);
+            let end = f.apply(MONSTER_STAFF_TIP.add(v3(int(6), int(7), -int(4))));
+            sea_beam(b, &Affine::IDENTITY, tip, end, Spell::Brine, tick, 1);
+        }
+        "voidplatforms" => {
+            wreck_plank(b, &at(-int(9), int(2), 0), int(8), int(4), 1);
+            coral_shelf(b, &at(0, -int(1), int(2)), int(3), 2);
+            bubble_disc(b, &at(int(9), int(1), 0), int(3), tick, 3);
+        }
+        "bananasea" => banana_sea(b, f, int(400), tick),
+        "zipper" => zipper_scene(b, f, tick),
         _ => {
             keep(b, f, int(14), 10, 7);
             sub_tower(b, &at(int(44), 0, int(10)), int(6), int(56), 3);
@@ -516,6 +604,43 @@ fn climb_scene(b: &mut Batch, f: &Affine, tick: u32) {
         tick,
         3,
     );
+}
+
+/// A stretch of the descent, to see the pieces together: the zip down
+/// the middle, an upside-down keep and sub-tower tilted beside it, a
+/// blob on a bubble disc and a sea monster on a wreck plank casting their
+/// beams at the zip, a coral shelf below and debris all round.
+fn zipper_scene(b: &mut Batch, f: &Affine, tick: u32) {
+    let at = |x: i32, y: i32, z: i32| f.then(&Affine::translate(v3(x, y, z)));
+    zip(b, &at(0, int(50), -int(6)), int(100), int(3), ONE / 2, tick);
+    topsy_keep(b, &at(-int(34), int(44), -int(10)), int(10), 3, deg(18), 2);
+    topsy(
+        b,
+        &at(int(32), int(36), -int(16)),
+        deg(40),
+        -deg(28),
+        |b, g| {
+            sub_tower(b, g, int(5), int(34), 3);
+        },
+    );
+    bubble_disc(b, &at(-int(14), int(10), int(10)), int(3), tick, 1);
+    let tip = blob(
+        b,
+        &at(-int(14), int(10), int(10)),
+        int(3),
+        Spell::Brine,
+        tick,
+        1,
+    );
+    let end = f.apply(v3(-int(4), int(24), -int(4)));
+    sea_beam(b, &Affine::IDENTITY, tip, end, Spell::Brine, tick, 1);
+    wreck_plank(b, &at(int(14), -int(8), int(8)), int(9), int(4), 2);
+    let mf = at(int(14), -int(8), int(8)).then(&Affine::rot_y(-deg(40)));
+    let tip = sea_monster(b, &mf, Spell::Abyss, tick, 2);
+    let end = f.apply(v3(int(4), int(6), -int(4)));
+    sea_beam(b, &Affine::IDENTITY, tip, end, Spell::Abyss, tick, 2);
+    coral_shelf(b, &at(-int(6), -int(30), int(12)), int(4), 3);
+    debris(b, f, int(48), tick, 4);
 }
 
 #[cfg(test)]

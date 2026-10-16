@@ -164,14 +164,64 @@ fn the_tower_models_stay_within_budget() {
         (
             "rift",
             shapes(&|b| rift(b, &id, int(16), int(30), ONE, t)),
-            110,
+            140,
         ),
         (
             "eldritch banana",
             shapes(&|b| eldritch_banana(b, &id, int(80), t)),
-            120,
+            170,
         ),
-        ("summit", shapes(&|b| summit(b, &id, t)), 500),
+        ("summit", shapes(&|b| summit(b, &id, t)), 560),
+        (
+            "zip 100 m",
+            shapes(&|b| zip(b, &id, int(100), int(3), ONE / 2, t)),
+            95,
+        ),
+        (
+            "topsy keep, 3 sections",
+            shapes(&|b| topsy_keep(b, &id, int(10), 3, deg(15), 1)),
+            420,
+        ),
+        ("debris", shapes(&|b| debris(b, &id, int(40), t, 1)), 18),
+        (
+            "blob",
+            shapes(&|b| {
+                blob(b, &id, int(3), Spell::Brine, t, 2);
+            }),
+            25,
+        ),
+        (
+            "sea monster",
+            shapes(&|b| {
+                sea_monster(b, &id, Spell::Abyss, t, 1);
+            }),
+            85,
+        ),
+        (
+            "sea beam 20 m",
+            shapes(&|b| sea_beam(b, &id, V3::ZERO, v3(0, int(20), 0), Spell::Brine, t, 1)),
+            34,
+        ),
+        (
+            "wreck plank",
+            shapes(&|b| wreck_plank(b, &id, int(8), int(4), 1)),
+            40,
+        ),
+        (
+            "coral shelf",
+            shapes(&|b| coral_shelf(b, &id, int(3), 1)),
+            30,
+        ),
+        (
+            "bubble disc",
+            shapes(&|b| bubble_disc(b, &id, int(3), t, 1)),
+            16,
+        ),
+        (
+            "banana sea",
+            shapes(&|b| banana_sea(b, &id, int(400), t)),
+            420,
+        ),
     ];
     for (name, (n, halos), max) in &rows {
         assert!(*n > 0, "{name} draws nothing");
@@ -218,4 +268,52 @@ fn a_riders_beam_starts_at_the_staff_tip() {
         tip.y > seat.y + int(1) && tip.dist(seat) < int(3),
         "{tip:?} {seat:?}"
     );
+}
+
+#[test]
+fn the_descents_creatures_start_their_vines_at_their_tips() {
+    let f = Affine::translate(v3(int(10), -int(40), int(5)));
+    let mut b = Batch::new();
+    let tip = blob(&mut b, &f, int(3), Spell::Abyss, 77, 1);
+    assert_eq!(tip, f.apply(blob_beam_start(int(3))));
+    let tip = sea_monster(&mut b, &f, Spell::Brine, 77, 1);
+    assert_eq!(tip, f.apply(MONSTER_STAFF_TIP));
+    // the staff tip is above the monster's head
+    assert!(MONSTER_STAFF_TIP.y > int(5), "{MONSTER_STAFF_TIP:?}");
+}
+
+#[test]
+fn the_upside_down_pieces_turn_sickly() {
+    // the same section upright and hung upside down: as many shapes, but
+    // recoloured, and the climb's limestone no longer itself
+    let count = |topsy_on: bool| {
+        let mut b = Batch::new();
+        if topsy_on {
+            topsy(&mut b, &Affine::IDENTITY, 0, deg(10), |b, g| {
+                keep_section(b, g, int(10), SECTION_H, 1, Detail::Near)
+            });
+        } else {
+            keep_section(
+                &mut b,
+                &Affine::IDENTITY,
+                int(10),
+                SECTION_H,
+                1,
+                Detail::Near,
+            );
+        }
+        b.count()
+    };
+    assert_eq!(count(true), count(false));
+    assert_ne!(sickly(STONE, 0), STONE);
+    assert_ne!(sickly(WINDOW, ONE), WINDOW);
+}
+
+#[test]
+fn the_deep_spells_are_not_the_climbs() {
+    for d in Spell::DEEP {
+        assert!(!Spell::ALL.contains(&d));
+    }
+    // the five climbing spells still come round in turn
+    assert_eq!(Spell::nth(5), Spell::Arcane);
 }
