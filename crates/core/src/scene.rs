@@ -330,12 +330,35 @@ pub struct Chunk {
     /// is drawn as soon as any of it is nearer than the reach, and none
     /// pops in where the fog would show it.
     pub bounds: Option<[i32; 4]>,
+    /// the heights its shapes span (least, most); None counts the flat
+    /// distance only. Mape's Tower sets it (`bound_heights`): its course
+    /// climbs, so a chunk far above or below the eye is far off.
+    pub heights: Option<[i32; 2]>,
+    /// drawn only from one side of a plane `x` (true: only for an eye past
+    /// it, false: only for one not past it); None from anywhere. Mape's
+    /// Tower's climb and zipper share their space but are two places.
+    pub side: Option<(i32, bool)>,
 }
 
 impl Chunk {
     /// How near (flat) `eye` any of the chunk can be: to its box when it
     /// has one, else to its centre.
     pub fn nearest(&self, eye: V3) -> i32 {
+        if let Some((x, past)) = self.side {
+            if (eye.x > x) != past {
+                return i32::MAX;
+            }
+        }
+        if let Some([lo, hi]) = self.heights {
+            let flat = Chunk {
+                heights: None,
+                side: None,
+                ..self.clone()
+            }
+            .nearest(eye);
+            let dy = (lo - eye.y).max(eye.y - hi).max(0);
+            return v3(flat, dy, 0).len();
+        }
         match self.bounds {
             Some([x0, z0, x1, z1]) => {
                 let dx = (x0 - eye.x).max(eye.x - x1).max(0);
@@ -360,7 +383,12 @@ impl Scenery {
             DRAW_DISTANCE
         };
         for ch in &self.chunks {
-            if ch.centre.flat().sub(eye.flat()).len() <= reach {
+            let d = if ch.heights.is_some() || ch.side.is_some() {
+                ch.nearest(eye)
+            } else {
+                ch.centre.flat().sub(eye.flat()).len()
+            };
+            if d <= reach {
                 out.extend_from_slice(&ch.draws);
             }
         }
@@ -435,6 +463,33 @@ impl Scenery {
         }
     }
 
+    /// Sets each chunk's `heights`: the least and most height of its
+    /// shapes (their middle give or take their largest half-size).
+    pub fn bound_heights(&mut self) {
+        use crate::render::{BYTES_PER_VALUE, DRAW_VALUES, INSTANCE_VALUES};
+        for ch in &mut self.chunks {
+            let mut h = [i32::MAX, i32::MIN];
+            for d in ch.draws.chunks(DRAW_VALUES) {
+                if d[1] == crate::mesh::Mesh::Terrain as u32 {
+                    continue;
+                }
+                let from = d[2] as usize / BYTES_PER_VALUE;
+                let n = d[3] as usize;
+                for s in self.values[from..from + n * INSTANCE_VALUES].chunks(INSTANCE_VALUES) {
+                    let half = (0..3)
+                        .map(|k| v3(s[k], s[4 + k], s[8 + k]).len())
+                        .max()
+                        .unwrap_or(0)
+                        / 2;
+                    h = [h[0].min(s[7] - half), h[1].max(s[7] + half)];
+                }
+            }
+            if h[0] <= h[1] {
+                ch.heights = Some(h);
+            }
+        }
+    }
+
     /// A scenery of one chunk that is always drawn.
     pub fn single(b: Batch) -> Scenery {
         let mut values = Vec::new();
@@ -446,6 +501,8 @@ impl Scenery {
                 centre: V3::ZERO,
                 draws,
                 bounds: None,
+                heights: None,
+                side: None,
             }],
             reach: 0,
         }
@@ -570,6 +627,8 @@ pub(crate) fn assemble(
             centre,
             draws,
             bounds: None,
+            heights: None,
+            side: None,
         });
     }
     Scenery {
@@ -1464,6 +1523,12 @@ pub fn vine_look_on(map: Map, in_reach: bool, vivid: bool, tick: u32) -> VineLoo
             glow: crate::bayscape::fleet::ROPE_GLOW_VIVID,
             ..look
         },
+        // Mape's Tower: spell beams with a soft glow (their colour is the
+        // caster's spell, `towerscape::beam_vine`)
+        (Map::Tower, false, false) => VineLook {
+            halo: look.width * crate::towermodels::BEAM_HALO,
+            ..look
+        },
         _ => look,
     }
 }
@@ -1501,16 +1566,32 @@ pub fn dynamic(f: &Frame) -> (Batch, Batch) {
     } else {
         int(230)
     };
+    // Mape's Tower: the climb and the zipper share their space; the eye
+    // sees the beams of the half it is in (by the course, not the plane)
+    let deep = c
+        .tower
+        .as_ref()
+        .map(|_| c.nearest_anywhere(eye) > c.path.len() / 2);
     for i in 0..c.vines.len() {
         let a = c.anchor(i, tick);
         if a.flat().sub(eye.flat()).len() > near {
             continue;
+        }
+        if let (Some(deep), Some(t)) = (deep, &c.tower) {
+            if deep != matches!(t.hangers.get(i), Some(crate::tower::Hanger::Monster { .. })) {
+                continue;
+            }
         }
         // Sunset Ruins: a pit's vines are drawn up while its trapdoor is shut
         if c.ruins.as_ref().is_some_and(|r| r.vine_up(i, tick)) {
             continue;
         }
         let look = vine_look_on(map, Some(i) == reach, f.vivid, f.tick);
+        // Mape's Tower: each vine is a spell beam in its caster's colour
+        let look = match &c.tower {
+            Some(t) if Some(i) != reach && !f.vivid => crate::towerscape::beam_vine(t, i, look),
+            _ => look,
+        };
         let look = catch_up_look(race, f.local, i, Some(i) == reach, look, map, f.vivid);
         let t = f.tick + i as u32 * 37;
         match f.chains.get(i) {

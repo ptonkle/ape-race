@@ -402,6 +402,8 @@ fn assemble(
                 centre: centre(j / BANDS),
                 draws,
                 bounds: None,
+                heights: None,
+                side: None,
             });
         }
     }
@@ -419,6 +421,8 @@ fn assemble(
                     crate::render::GROUND,
                 ],
                 bounds: None,
+                heights: None,
+                side: None,
             });
         }
     }
