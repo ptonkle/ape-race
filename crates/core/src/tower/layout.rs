@@ -86,6 +86,8 @@ const LEAN: i32 = cm(35);
 /// The zipper's beams lean along the way this much more (alternately):
 /// none for now, as the AI wandered on them (TC rows).
 const TOPSY: i32 = cm(0);
+/// The zipper's beams hang this much lower than the climb's.
+const ZIP_DROP: i32 = int(6);
 /// Reset pads stand this far under the centreline: under the swings, and
 /// in a jump's reach of the vines.
 const PAD_UNDER: i32 = int(5);
@@ -325,7 +327,6 @@ pub fn tower_seeded(seed: u64) -> Course {
     };
 
     // the climb's stations
-    let first_climb_vine = c.vines.len();
     let room = (leg_at(ROOM_LEG) - int(8), leg_at(ROOM_LEG + 1) + int(4));
     let mut s = 36;
     let mut station = 0;
@@ -424,7 +425,8 @@ pub fn tower_seeded(seed: u64) -> Course {
     hangers.push(Hanger::Orb);
     lifts.push(true);
     hangs.push(DOWN);
-    let climb_vines = first_climb_vine..c.vines.len();
+    // (the start row too: the zipper's last beams, a swing onto the zone)
+    let climb_vines = 0..c.vines.len();
 
     // a trampoline at each spiral's start, under the line
     for &k in &SPIRALS {
@@ -517,7 +519,7 @@ pub fn tower_seeded(seed: u64) -> Course {
     for (n, i) in climb_vines.enumerate() {
         let v = c.vines[i];
         let h = hangs[i];
-        let bottom = layout.mirror(v.anchor.add(h.scale(v.length)));
+        let bottom = layout.mirror(v.anchor.add(h.scale(v.length))).sub(v3(0, ZIP_DROP, 0));
         let at = c.length - v.at;
         let mh = v3(-h.x, h.y, h.z);
         let way = flat(c.heading_at(at));
