@@ -150,6 +150,12 @@ fn hull(kind: ShipKind) -> Hull {
     }
 }
 
+/// The hull length of a course ship of `kind` (stern to stem): what the
+/// background battle scales its ships to.
+pub fn ship_length(kind: ShipKind) -> i32 {
+    int(hull(kind).0)
+}
+
 /// The masts of each kind, fore first (every mast carries ropes now the
 /// ships are big). On each mast the swing ropes hang from the lowest yard
 /// at least `SWING_YARD` over the deck, the low rope from the yard below
