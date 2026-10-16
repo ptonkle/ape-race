@@ -765,6 +765,223 @@ pub fn voice_level(key: &str) -> Option<u8> {
     }
 }
 
+// ---- ape calls: each kind's own call (TRIAGE T58) ----
+//
+// The gorilla: two chesty grunts, a roar that opens up and falls away, then
+// a chest beat. Same formant voice as the hype calls, with the vowels'
+// formants lower (a bigger chest), a deep pitch and a heavy growl. The
+// chest beat is a run of hollow thuds (a sine thump and a slap of noise).
+//
+// A call is one clip. Heard from another ape it is the same clip played
+// through a loudness that follows the distance and a pitch that bends with
+// the closing speed (`pass_by` renders that for the journal; in the game
+// the page plays the clip with the gain and rate the core hands it). No
+// left/right placement.
+
+/// Gorilla vowels: the hype vowels scaled down for a big chest.
+const GUH: Vowel = Vowel(500, 900, 1900);
+const GAH: Vowel = Vowel(620, 1050, 2100);
+
+/// The gorilla's call, as syllables (the voice) and thuds (the chest).
+fn gorilla_parts() -> (Vec<Syllable>, Vec<Note>) {
+    use Env::*;
+    use Wave::*;
+    let voice = vec![
+        Syllable {
+            growl: 40,
+            ..syl(0, 150, (100, 85), GUH, GUH, 70)
+        },
+        Syllable {
+            growl: 40,
+            ..syl(220, 150, (105, 88), GUH, GUH, 80)
+        },
+        Syllable {
+            growl: 50,
+            ..syl(450, 170, (115, 160), GUH, GAH, 100)
+        },
+        Syllable {
+            growl: 55,
+            ..syl(600, 380, (160, 85), GAH, GUH, 100)
+        },
+    ];
+    let mut chest = Vec::new();
+    for k in 0..5u32 {
+        let at = 1030 + k * 90;
+        let hz = if k % 2 == 0 { (175, 70) } else { (155, 65) };
+        chest.push(n(hz, at, 70, 85, Sine, Perc));
+        chest.push(n((0, 0), at, 35, 35, Noise(90), Perc));
+    }
+    (voice, chest)
+}
+
+/// The gorilla's call as a Q16 mix with a peak of ONE.
+fn gorilla_mix() -> Vec<i64> {
+    let (voice, chest) = gorilla_parts();
+    let end_v = voice.iter().map(|s| s.at_ms + s.ms).max().unwrap_or(0);
+    let end_c = chest.iter().map(|n| n.at_ms + n.ms).max().unwrap_or(0);
+    let mut mix = vec![0i64; ms_to_samples(end_v.max(end_c) + 15)];
+    let mut dice = Dice(0x6042_1114);
+    for s in &voice {
+        let start = ms_to_samples(s.at_ms);
+        for (i, v) in syllable(s, &mut dice).into_iter().enumerate() {
+            if let Some(m) = mix.get_mut(start + i) {
+                *m += v * s.loud as i64 / 100;
+            }
+        }
+    }
+    for note in &chest {
+        let start = ms_to_samples(note.at_ms);
+        let count = ms_to_samples(note.ms);
+        for (i, v) in wave(note, count, &mut dice).into_iter().enumerate() {
+            if let Some(m) = mix.get_mut(start + i) {
+                *m += v * envelope(note.contour, i, count) / 1024 * note.loud as i64 / 100;
+            }
+        }
+    }
+    normalise(&mut mix);
+    mix
+}
+
+/// The peak of an ape's call heard up close, percent of full scale: far
+/// under the hype calls, which were found too loud (the person, T58).
+const CALL_LOUD: i64 = 40;
+
+/// The gorilla's call as 16-bit samples at `volume` percent.
+pub fn gorilla_samples(volume: u8) -> Vec<i16> {
+    let mut mix = gorilla_mix();
+    for m in mix.iter_mut() {
+        *m = *m * CALL_LOUD / 100;
+    }
+    to_pcm(&mix, volume)
+}
+
+/// The gorilla's call as a complete WAV file.
+pub fn gorilla(volume: u8) -> Vec<u8> {
+    wav_file(&gorilla_samples(volume))
+}
+
+// A pass: the caller swings past the listener on a straight line, closest
+// `PASS_NEAR` away, at `PASS_SPEED`, nearest `PASS_MID` percent of the way
+// through the call. Loudness falls with distance (1 / (1 + (d / PASS_REF)²))
+// and the pitch bends with the Doppler shift at a cartoon speed of sound,
+// so the bend is heard.
+
+/// The passer's speed, m/s (a fast swing).
+const PASS_SPEED: i64 = 18;
+/// How close it comes, metres.
+const PASS_NEAR: i64 = 3;
+/// The distance at which the loudness has halved, metres.
+const PASS_REF: i64 = 4;
+/// Where in the call the passer is nearest, percent.
+const PASS_MID: i64 = 50;
+/// The speed of sound for the Doppler bend, m/s (real air: 340; lower
+/// bends the pitch more).
+const PASS_SOUND: i64 = 220;
+
+/// The loudness (Q16, ONE up close) and the playback rate (Q16, ONE as
+/// recorded) of a call heard from a passer `x` cm along its track from
+/// its nearest point, moving at `PASS_SPEED`.
+fn pass_at(x: i64) -> (i64, i64) {
+    let d = fx::isqrt((x * x + PASS_NEAR * PASS_NEAR * 10_000) as u128) as i64;
+    // speed toward the listener, cm/s (positive while approaching)
+    let toward = -x * PASS_SPEED * 100 / d.max(1);
+    let c = PASS_SOUND * 100;
+    let rate = (c << 16) / (c - toward).max(1);
+    let r2 = PASS_REF * PASS_REF * 10_000;
+    let gain = ONE as i64 * r2 / (r2 + d * d);
+    (gain, rate)
+}
+
+/// `mix` as heard while its caller passes: the one clip, pitch bent and
+/// loudness falling off with the distance, normalised to a peak of ONE.
+fn pass_by(mix: &[i64]) -> Vec<i64> {
+    let len = mix.len() as i64;
+    if len < 2 {
+        return mix.to_vec();
+    }
+    let rate = SAMPLE_RATE as i64;
+    let mid = len * PASS_MID / 100;
+    let mut out = Vec::with_capacity(mix.len());
+    // the read position in 1/2^16 samples
+    let mut pos: i64 = 0;
+    let mut k: i64 = 0;
+    while pos < (len - 1) << 16 {
+        let x = (k - mid) * PASS_SPEED * 100 / rate;
+        let (gain, step) = pass_at(x);
+        let i = (pos >> 16) as usize;
+        let frac = pos & 0xFFFF;
+        let a = mix[i];
+        let b = mix[(i + 1).min(mix.len() - 1)];
+        let v = a + (b - a) * frac / 65_536;
+        out.push(v * gain / ONE as i64);
+        pos += step;
+        k += 1;
+    }
+    normalise(&mut out);
+    out
+}
+
+/// The gorilla's call as heard while it swings past, as 16-bit samples.
+pub fn gorilla_pass_samples(volume: u8) -> Vec<i16> {
+    let mut mix = pass_by(&gorilla_mix());
+    for m in mix.iter_mut() {
+        *m = *m * CALL_LOUD / 100;
+    }
+    to_pcm(&mix, volume)
+}
+
+/// The gorilla's call heard swinging past, as a complete WAV file.
+pub fn gorilla_pass(volume: u8) -> Vec<u8> {
+    wav_file(&gorilla_pass_samples(volume))
+}
+
+#[cfg(test)]
+mod call_tests {
+    use super::*;
+
+    fn peak(pcm: &[i16]) -> i32 {
+        pcm.iter().map(|v| (*v as i32).abs()).max().unwrap_or(0)
+    }
+
+    fn tenth_peak(pcm: &[i16], k: usize) -> i32 {
+        let n = pcm.len() / 10;
+        peak(&pcm[k * n..(k + 1) * n])
+    }
+
+    #[test]
+    fn the_gorilla_calls_for_about_a_second_and_a_half_and_quietly() {
+        let pcm = gorilla_samples(100);
+        let secs = pcm.len() as f64 / SAMPLE_RATE as f64;
+        assert!(
+            (1.2..1.8).contains(&secs),
+            "the gorilla's call lasts {secs:.2} s"
+        );
+        let loud = peak(&pcm) as i64;
+        let hype = peak(&voice_samples(3, 100)) as i64;
+        assert!(
+            loud * 2 < hype,
+            "the gorilla's call peaks at {loud}, the hype call at {hype}: it should be far quieter"
+        );
+    }
+
+    #[test]
+    fn the_passing_gorilla_swells_in_from_afar_with_its_pitch_bent() {
+        let pcm = gorilla_pass_samples(100);
+        let first = tenth_peak(&pcm, 0);
+        let loudest = (0..10).map(|k| tenth_peak(&pcm, k)).max().unwrap();
+        assert!(
+            first * 3 < loudest,
+            "the passing call opens at {first} and peaks at {loudest}: it should swell in from afar"
+        );
+        let (_, coming) = pass_at(-1_200);
+        let (_, going) = pass_at(1_200);
+        assert!(
+            coming > ONE as i64 && going < ONE as i64,
+            "the pitch should bend up coming ({coming}) and down going ({going})"
+        );
+    }
+}
+
 #[cfg(test)]
 mod voice_tests {
     use super::*;
