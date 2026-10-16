@@ -70,6 +70,7 @@ pub use layout::{
 
 #[cfg(test)]
 mod course_tests;
+pub mod island;
 mod layout;
 mod rules;
 #[cfg(test)]
@@ -353,8 +354,18 @@ pub struct Dock {
 pub struct Island {
     /// the middle of the island at the beach's top (`centre.y`)
     pub centre: V3,
-    /// the beach's radius at the waterline
+    /// how far the beach the course measures from (where it starts, just
+    /// past the last ship) is in front of `centre`; the shoreline is
+    /// `island::TIP` further
     pub radius: i32,
+    /// the way the island runs (the course's heading at the finish), flat
+    pub fwd: V3,
+    /// the shoreline's reach past the centre along `fwd`, and to each side
+    pub back: i32,
+    pub wide: i32,
+    /// the lobes and coves round the shore: (waves round, amplitude (ONE =
+    /// the oval's radius), phase); see `island`
+    pub lobes: [(i32, i32, i32); 4],
     /// the chest's place (the middle of its base) and the way it faces
     pub chest: V3,
     pub chest_yaw: i32,
