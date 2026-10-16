@@ -50,23 +50,23 @@ const WALL_GAP: i32 = 14;
 /// 15 m) and a straight bridge back onto the tangent further round
 /// (`(RADIUS - r) tan 60°` each way, so it lands on the circle again).
 pub const CLIMB: &[Climb] = &[
-    Climb(24, 0, 0),    // 0 run-in
-    Climb(68, 70, 12),  // 1 spiral A
-    Climb(36, 0, 6),    // 2 branch 1: bridge out
-    Climb(32, 90, 0),   // 3 round the sub-tower
-    Climb(36, 0, 6),    // 4 bridge back
-    Climb(68, 70, 12),  // 5 spiral B
-    Climb(12, 0, 0),    // 6 branch 2: bridge to the room's door
-    Climb(30, 0, 18),   // 7 up across the trampoline room
-    Climb(32, 90, 0),   // 8 out of its roof, round
-    Climb(36, 0, 4),    // 9 bridge back
-    Climb(68, 70, 12),  // 10 spiral C, through the clouds
-    Climb(36, 0, 6),    // 11 branch 3: bridge out
-    Climb(32, 90, 0),   // 12 round the sub-tower
-    Climb(36, 0, 6),    // 13 bridge back
-    Climb(58, 60, 10),  // 14 spiral D
-    Climb(40, -90, 0),  // 15 off the keep, out to the summit
-    Climb(30, 0, 0),    // 16 the summit run to the tear
+    Climb(24, 0, 0),   // 0 run-in
+    Climb(68, 70, 12), // 1 spiral A
+    Climb(36, 0, 6),   // 2 branch 1: bridge out
+    Climb(32, 90, 0),  // 3 round the sub-tower
+    Climb(36, 0, 6),   // 4 bridge back
+    Climb(68, 70, 12), // 5 spiral B
+    Climb(12, 0, 0),   // 6 branch 2: bridge to the room's door
+    Climb(30, 0, 18),  // 7 up across the trampoline room
+    Climb(32, 90, 0),  // 8 out of its roof, round
+    Climb(36, 0, 4),   // 9 bridge back
+    Climb(68, 70, 12), // 10 spiral C, through the clouds
+    Climb(36, 0, 6),   // 11 branch 3: bridge out
+    Climb(32, 90, 0),  // 12 round the sub-tower
+    Climb(36, 0, 6),   // 13 bridge back
+    Climb(58, 60, 10), // 14 spiral D
+    Climb(40, -90, 0), // 15 off the keep, out to the summit
+    Climb(30, 0, 0),   // 16 the summit run to the tear
 ];
 /// The spiral legs.
 const SPIRALS: [usize; 4] = [1, 5, 10, 14];
@@ -521,7 +521,9 @@ pub fn tower_seeded(seed: u64) -> Course {
     for (n, i) in climb_vines.enumerate() {
         let v = c.vines[i];
         let h = hangs[i];
-        let bottom = layout.mirror(v.anchor.add(h.scale(v.length))).sub(v3(0, ZIP_DROP, 0));
+        let bottom = layout
+            .mirror(v.anchor.add(h.scale(v.length)))
+            .sub(v3(0, ZIP_DROP, 0));
         let at = c.length - v.at;
         let mh = v3(-h.x, h.y, h.z);
         let way = flat(c.heading_at(at));

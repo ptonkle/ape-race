@@ -192,3 +192,30 @@ fn the_path_is_three_d_only_here() {
     }
     let _ = V3::ZERO;
 }
+
+/// A vine summoned high over the first spiral is placed along the course
+/// by its own coil, not the coil above (TC5: from its anchor, the nearest
+/// sample was on spiral C, 400 m on, and the AI swung on it looking for
+/// vines up there).
+#[test]
+fn a_summoned_vine_is_placed_along_its_own_coil() {
+    use crate::race::Summon;
+    let mut r = Race::new(tower(), &entries(1), true, 7);
+    let at = 100 * ONE;
+    let p = r.course.point(at);
+    let slot = r.summon_slot(0, 0);
+    r.place_vine(Summon {
+        slot,
+        by: 0,
+        serial: 0,
+        anchor: p.add(v3(0, 36 * ONE, 0)),
+        length: 34 * ONE,
+        life: crate::rules::SUMMON_LIFE,
+    });
+    let placed = r.course.vines[slot].at;
+    assert!(
+        (placed - at).abs() < 20 * ONE,
+        "placed at {} m",
+        placed / ONE
+    );
+}

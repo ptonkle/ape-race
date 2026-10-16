@@ -43,6 +43,9 @@ fn main() {
             .collect();
         let mean = row.iter().sum::<f64>() / row.len() as f64;
         let max = row.iter().cloned().fold(0.0, f64::max);
-        println!("{:<10} mean {mean:6.1} max {max:6.1} {row:.0?}", level.key());
+        println!(
+            "{:<10} mean {mean:6.1} max {max:6.1} {row:.0?}",
+            level.key()
+        );
     }
 }
