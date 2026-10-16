@@ -17,6 +17,7 @@ Given by the person on 2026-10-15. Their words are kept exactly below; the answe
 - **Spells are scenery only**: mages, dragons and monsters fire spells; the vines are spell beams; nothing knocks or slows an ape.
 - **Deploy: hold until the person says so.** Build on main, shots on the design journal as it goes.
 - **Climbing vines' upward boost: tuned until climbing feels as easy as a flat map** (measure a Monkey's climb).
+- **Overnight (2026-10-15, 23:00):** "yep run it over night". Make every call, record it in SECOND-ORDER, questions go in `notes/tower-morning.md`; still hold the deploy.
 
 ## Requirements, as a checklist
 
