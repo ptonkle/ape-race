@@ -29,3 +29,4 @@ One row per run of `scripts/timed-checks.sh`, newest last. Seconds per step; `lo
 | 2026-10-15 18:53 | 1.12.0 | 318a8e4 | 12.07 | online | release=0.2 transport=16.8 a=74.9 | 91.9 | pass |
 | 2026-10-15 19:15 | 1.12.2 | 6198266 | 8.73 | check | format=0.5 lint=4.8 core=67.8 release=0.2 WebAssembly=0.1 browser=240.5 | 313.9 | pass |
 | 2026-10-15 19:20 | 1.12.2 | 6198266 | 11.39 | online | release=0.3 transport=17.0 a=82.7 | 100.0 | pass |
+| 2026-10-15 20:17 | 1.12.3 | baea429 | 48.34 | check | format=1.4 lint=0.2 core=84.5 release=10.3 WebAssembly=0.1 browser=447.0 | 543.5 | pass |
