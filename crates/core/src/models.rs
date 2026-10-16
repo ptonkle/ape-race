@@ -25,6 +25,8 @@ use crate::mesh::Mesh;
 use crate::render::{rgb, rod, shade, Batch, Camera, Rgb};
 use crate::rules::{Kind, BODY_DROP};
 
+mod tourist;
+
 /// How an ape is posed this frame.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Pose {
@@ -55,7 +57,9 @@ pub struct Pose {
 /// (`Explorer`, 2026-10-14) a pith helmet, a khaki explorer jacket with a
 /// compass on the chest, a canteen at the hip and tiny round spectacles,
 /// or on Banana Bay Battle (`Pirate`, 2026-10-15) an assortment of pirate
-/// pieces, each kind its own mix (`pirate_kit`). Only the drawing changes.
+/// pieces, each kind its own mix (`pirate_kit`), or on the City (`Tourist`,
+/// 2026-10-15) tourist pieces, each kind its own mix and shirt
+/// (`tourist::kit`). Only the drawing changes.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub enum Gear {
     #[default]
@@ -64,11 +68,12 @@ pub enum Gear {
     Space,
     Explorer,
     Pirate,
+    Tourist,
 }
 
 impl Gear {
-    /// The gear named `key` (`none`, `ski`, `space`, `explorer`, `pirate`;
-    /// a tile's `gear=`).
+    /// The gear named `key` (`none`, `ski`, `space`, `explorer`, `pirate`,
+    /// `tourist`; a tile's `gear=`).
     pub fn from_key(key: &str) -> Option<Gear> {
         match key {
             "none" => Some(Gear::None),
@@ -76,6 +81,7 @@ impl Gear {
             "space" => Some(Gear::Space),
             "explorer" => Some(Gear::Explorer),
             "pirate" => Some(Gear::Pirate),
+            "tourist" => Some(Gear::Tourist),
             _ => None,
         }
     }
@@ -87,6 +93,7 @@ impl Gear {
             crate::map::Map::Sector => Gear::Space,
             crate::map::Map::Ruins => Gear::Explorer,
             crate::map::Map::Bay => Gear::Pirate,
+            crate::map::Map::City => Gear::Tourist,
             _ => Gear::None,
         }
     }
@@ -1201,6 +1208,9 @@ pub fn draw_in(b: &mut Batch, kind: Kind, palette: u8, pose: &Pose) {
     if pose.gear == Gear::Pirate {
         pirate(&mut rig, kind, &l, &m, &skel);
     }
+    if pose.gear == Gear::Tourist {
+        tourist::tourist(&mut rig, kind, &l, &m, &skel);
+    }
     if pose.stunned {
         stars(&mut rig, &skel.head, m.head, pose.tick);
     }
@@ -1383,7 +1393,7 @@ fn limbs(rig: &mut Rig, kind: Kind, l: &Look, m: &Dims, s: &Skel, gear: Gear) {
     let ff = &s.feet_frame;
     let space = gear == Gear::Space;
     // in a jacket the upper arms are in sleeves
-    let sleeved = space || matches!(gear, Gear::Explorer | Gear::Pirate);
+    let sleeved = space || matches!(gear, Gear::Explorer | Gear::Pirate | Gear::Tourist);
     let kit = pirate_kit(kind);
     let pirate = gear == Gear::Pirate;
     for (i, side) in SIDES.into_iter().enumerate() {
@@ -2833,7 +2843,10 @@ fn head(rig: &mut Rig, kind: Kind, l: &Look, h: &Frame, pose: &Pose) {
     let d = cm(l.head);
     let p = |x: i32, y: i32, z: i32| v3(pct(d, x), pct(d, y), pct(d, z));
     // (a pirate's tricorn or bandana covers the head too)
-    let helmeted = matches!(pose.gear, Gear::Ski | Gear::Explorer | Gear::Pirate);
+    let helmeted = matches!(
+        pose.gear,
+        Gear::Ski | Gear::Explorer | Gear::Pirate | Gear::Tourist
+    );
     // the skull, and the bare face on its front
     rig.put(Mesh::Geo, h.shape(V3::ZERO, p(100, 94, 96)), l.fur);
     let face_size = match kind {
@@ -3650,11 +3663,11 @@ mod tests {
     use crate::render::{DYNAMIC_BUFFER, INSTANCE_VALUES};
 
     /// One drawn shape: its mesh, three axes, translation and colour.
-    struct Shape {
-        mesh: u32,
-        axes: [V3; 3],
-        at: V3,
-        colour: [i32; 3],
+    pub(super) struct Shape {
+        pub(super) mesh: u32,
+        pub(super) axes: [V3; 3],
+        pub(super) at: V3,
+        pub(super) colour: [i32; 3],
     }
 
     fn shapes(b: Batch) -> Vec<Shape> {
@@ -3679,19 +3692,19 @@ mod tests {
         out
     }
 
-    fn drawn(kind: Kind, pose: &Pose) -> Vec<Shape> {
+    pub(super) fn drawn(kind: Kind, pose: &Pose) -> Vec<Shape> {
         let mut b = Batch::new();
         draw(&mut b, kind, pose);
         shapes(b)
     }
 
-    fn at_rest() -> Pose {
+    pub(super) fn at_rest() -> Pose {
         Pose::standing(v3(int(10), int(2), int(-30)), deg(40), 75)
     }
 
     /// A spread of poses: standing, running, swinging, flying, falling,
     /// stunned on the ground and stunned in the air.
-    fn poses() -> Vec<Pose> {
+    pub(super) fn poses() -> Vec<Pose> {
         let rest = at_rest();
         let run = Pose {
             vel: v3(int(5), 0, int(3)),
@@ -4291,7 +4304,7 @@ mod tests {
         }
         assert_eq!(Gear::on(crate::map::Map::Ski), Gear::Ski);
         assert_eq!(Gear::on(crate::map::Map::Jungle), Gear::None);
-        assert_eq!(Gear::on(crate::map::Map::City), Gear::None);
+        assert_eq!(Gear::on(crate::map::Map::City), Gear::Tourist);
         // the Sector Ape costume, on its map only
         for map in crate::map::Map::ALL {
             assert_eq!(
@@ -4383,7 +4396,7 @@ mod tests {
     }
 
     /// Triangles drawn for these shapes.
-    fn triangles(s: &[Shape]) -> usize {
+    pub(super) fn triangles(s: &[Shape]) -> usize {
         s.iter()
             .map(|x| {
                 let m = Mesh::ALL.iter().find(|m| **m as u32 == x.mesh).unwrap();

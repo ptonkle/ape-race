@@ -30,18 +30,21 @@ pub enum Costume {
     Explorer,
     /// Banana Bay Battle's pirate pieces
     Pirate,
+    /// Concrete Jungle's tourist pieces
+    Tourist,
 }
 
 impl Costume {
     /// The selector's order: the map's own, none, then the unlockable ones
     /// in the maps' order.
-    pub const ALL: [Costume; 6] = [
+    pub const ALL: [Costume; 7] = [
         Costume::Own,
         Costume::Bare,
         Costume::Ski,
         Costume::Space,
         Costume::Explorer,
         Costume::Pirate,
+        Costume::Tourist,
     ];
 
     /// The key: the settings' and the messages' word, and `costume.<key>`
@@ -54,6 +57,7 @@ impl Costume {
             Costume::Space => "space",
             Costume::Explorer => "explorer",
             Costume::Pirate => "pirate",
+            Costume::Tourist => "tourist",
         }
     }
 
@@ -80,6 +84,7 @@ impl Costume {
             Gear::Space => Some(Costume::Space),
             Gear::Explorer => Some(Costume::Explorer),
             Gear::Pirate => Some(Costume::Pirate),
+            Gear::Tourist => Some(Costume::Tourist),
         }
     }
 
@@ -121,7 +126,7 @@ mod tests {
         assert_eq!(Costume::of_map(Map::Ruins), Some(Costume::Explorer));
         assert_eq!(Costume::of_map(Map::Bay), Some(Costume::Pirate));
         assert_eq!(Costume::of_map(Map::Jungle), None);
-        assert_eq!(Costume::of_map(Map::City), None);
+        assert_eq!(Costume::of_map(Map::City), Some(Costume::Tourist));
     }
 
     #[test]
@@ -133,6 +138,7 @@ mod tests {
             assert_eq!(Costume::Ski.gear(map), Gear::Ski);
             assert_eq!(Costume::Space.gear(map), Gear::Space);
             assert_eq!(Costume::Explorer.gear(map), Gear::Explorer);
+            assert_eq!(Costume::Tourist.gear(map), Gear::Tourist);
         }
         for c in Costume::ALL {
             assert_eq!(Costume::from_key(c.key()), Some(c));
@@ -140,5 +146,6 @@ mod tests {
         assert_eq!(Costume::Own.map(), None);
         assert_eq!(Costume::Bare.map(), None);
         assert_eq!(Costume::Pirate.map(), Some(Map::Bay));
+        assert_eq!(Costume::Tourist.map(), Some(Map::City));
     }
 }
