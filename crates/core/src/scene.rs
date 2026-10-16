@@ -144,7 +144,7 @@ pub fn look_of(c: &Course) -> Look {
         Map::Ruins => crate::ruinsscape::look_for(c),
         // 3 pm, the sun high and to the left of the course
         Map::Bay => crate::bayscape::look_for(c),
-        // STAND-IN (Mape's Tower's skeleton): a neutral late afternoon
+        // a golden late afternoon (the frame takes `look_in`: by height)
         Map::Tower => crate::towerscape::look(),
     }
 }
@@ -156,6 +156,16 @@ pub fn look_at(c: &Course, eye: V3) -> Look {
     match &c.ruins {
         Some(r) => crate::ruinsscape::look_at(c, r, eye),
         None => look_of(c),
+    }
+}
+
+/// The look for an eye at `eye` on a course in weather `w`: `look_at` in
+/// the weather (`snow::sky_in`), except on Mape's Tower, whose sky follows
+/// the height climbed and the zipper (`towerscape::look_in`).
+pub fn look_in(c: &Course, eye: V3, w: crate::snow::Weather) -> Look {
+    match &c.tower {
+        Some(t) => crate::towerscape::look_in(t, eye, w),
+        None => crate::snow::sky_in(w, look_at(c, eye)),
     }
 }
 

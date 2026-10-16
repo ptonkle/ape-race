@@ -1605,17 +1605,17 @@ impl App {
         };
         let vivid = self.settings.colourblind;
         // each map has its own sky, fog and light (the City at dusk)
+        // the Ski Slope's snow greys the sky and closes the fog in (a
+        // blizzard whitens it and closes it right in); Mape's Tower's sky
+        // follows the height and the zipper too
+        let weather = self.weather_shown();
         let look = match (&self.play, self.stage) {
-            (Some(p), Stage::Race) => scene::look_at(&p.race.course, cam.eye),
+            (Some(p), Stage::Race) => scene::look_in(&p.race.course, cam.eye, weather),
             _ => self
                 .course_of(self.shown_map())
-                .map(|c| scene::look_at(c, cam.eye))
-                .unwrap_or_else(|| scene::look(self.shown_map())),
+                .map(|c| scene::look_in(c, cam.eye, weather))
+                .unwrap_or_else(|| crate::snow::sky_in(weather, scene::look(self.shown_map()))),
         };
-        // the Ski Slope's snow greys the sky and closes the fog in (a
-        // blizzard whitens it and closes it right in)
-        let weather = self.weather_shown();
-        let look = crate::snow::sky_in(weather, look);
         // a squall's lightning lights the whole sky
         let look = if weather == crate::snow::Weather::Squall {
             crate::bayscape::flashed(look, self.ticks)
@@ -1707,6 +1707,15 @@ impl App {
                     let mut own = Batch::new();
                     crate::bayscape::dynamic(&mut own, c, bay, &cam, tick, self.ticks, weather);
                     // following JOJO MODE and the colourblind mode (BP5)
+                    crate::bayscape::follow(
+                        &mut own, colours.0, look.sky, world.0, world.1[0], vivid,
+                    );
+                    batch.append(own);
+                }
+                // Mape's Tower's sky: its dome, stars, sun and cloud sea
+                if let Some(t) = &c.tower {
+                    let mut own = Batch::new();
+                    crate::towerscape::dynamic(&mut own, t, cam.eye, self.ticks, weather);
                     crate::bayscape::follow(
                         &mut own, colours.0, look.sky, world.0, world.1[0], vivid,
                     );
