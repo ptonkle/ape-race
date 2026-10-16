@@ -1,20 +1,24 @@
-//! Banana Bay Battle's course (2026-10-15): the first real layout.
+//! Banana Bay Battle's course (2026-10-15): the layout.
 //!
 //! - **The dock** (0 m): a tall wooden pier 54 m out from the shore, 12 m
 //!   over the water; the start row's seven ropes hang from a gantry across its
 //!   end (`Hanger::Shore`, the gantry's two posts).
-//! - **The fleet** (from about 25 m): `SHIPS` still ships in one line
-//!   through the bay, bow to stern along the course, pirates a little left
-//!   of the line and the navy a little right, alternating, so each pair
-//!   duels broadside to broadside. Two big ships (galleons, frigates), then
-//!   two small ones (brigs, sloops) that fill the gap, and so on. The swing stations
-//!   are the masts: every mast that carries ropes hangs two or three from
-//!   its swing yard across the course (lanes 9 m apart, never on the mast
-//!   itself), every 12–28 m along; one low rope per ship over its deck, 3 m
-//!   above it, for a grounded ape to jump to. A galleon's or frigate's
-//!   mainmast carries none. Sails: none is set (the ships lie at anchor):
-//!   every one is furled, torn or shot away, since an ape flies as high as
-//!   the royals.
+//! - **The fleet** (from about 25 m; the overhaul of 2026-10-15, BO):
+//!   `SHIPS` still ships, about 1.35× their first size (a galleon 70 m), in
+//!   two battle lines facing each other across a channel: pirates left of
+//!   the line, the navy right, alternating, each turned 5–10° off the line.
+//!   They pair off, pirate and navy, side by side at least `BESIDE` along
+//!   (broadside to broadside, so their cannon fire crosses the channel);
+//!   in its own line each ship keeps `SAME_SIDE_GAP` clear of the bowsprit
+//!   ahead. Two big ships (galleons, frigates), then two small ones (brigs,
+//!   sloops), and so on. Every mast carries ropes: four from its swing yard
+//!   (one each side of the mast, one halfway out toward the channel, one
+//!   at the yardarm over the channel), plus one low rope per ship from the
+//!   foremast's swing yard to 3 m over the deck. The two lines' masts
+//!   interleave, so a row of ropes comes every 12–29 m along, alternately
+//!   on each side. Sails: none is set (the ships lie at anchor): every one
+//!   is furled, torn or shot away, since an ape flies as high as the
+//!   royals.
 //! - **The island** (the finish): its beach starts just past the last
 //!   ship's bow; a row of palms over the beach, then the finish, then the
 //!   treasure chest on past it.
@@ -51,9 +55,40 @@ const START_ROPE: i32 = int(29);
 /// The island's beach top over the water.
 pub const ISLAND_TOP: i32 = int(2);
 
-/// How far left (pirates, −) or right (navy, +) of the line a ship's keel
-/// lies.
-pub const SHIP_OFFSET: i32 = int(5);
+/// The open water between a ship's inner side and the course's middle:
+/// pirates lie left of the line (−), the navy right (+), their keels
+/// `beam / 2 + SHIP_OFFSET` out, so the two battle lines face each other
+/// across a channel about twice this wide.
+pub const SHIP_OFFSET: i32 = int(11);
+
+/// Half the course's width: the two battle lines, their yardarms and the
+/// ropes on them fit inside it; the boundary barrels float on it.
+pub const HALF_WIDTH: i32 = int(42);
+
+/// The least water between a ship's stern and the bow (bowsprit counted)
+/// of the ship ahead of it in the same line.
+const SAME_SIDE_GAP: i32 = int(6);
+
+/// The longest gap along the course between one row of ropes and the next.
+const HOP_MOST: i32 = int(26);
+
+/// How far each ship lies side by side with the enemy before it, at least.
+const BESIDE: i32 = int(12);
+
+/// Half the width of the island's flat lanes platform (the course's half
+/// width before the fleet overhaul widened it to `HALF_WIDTH`: the island
+/// is no wider, BO).
+const ISLAND_LANES: i32 = int(20);
+
+/// How many passes push the ships into place. The rules pull against each
+/// other (a pair side by side, the bowsprit ahead, the longest hop), so the
+/// passes stop short of a fixed point: three settle every layout tried
+/// within a few metres; more creep the fleet forward off the dock.
+const RELAX: usize = 3;
+
+/// From one ship's foremast to the next ship's aftmost mast, across the
+/// channel (metres, least and most).
+const HALF_HOP: (i32, i32) = (11, 15);
 
 /// A bouncy barrel's top over the still water, and its radius.
 pub const BARREL_TOP: i32 = cm(130);
@@ -88,6 +123,8 @@ struct Plan {
     side: Side,
     /// the hull's middle, metres along (fixed point)
     mid: i32,
+    /// its keel's turn off the course's heading (`TURN` units)
+    turn: i32,
 }
 
 /// A mast's place along the ship, its height over the deck, its yards
@@ -106,23 +143,24 @@ type Hull = (i32, i32, i32, &'static [(i32, i32, i32)], i32);
 /// deck) and bowsprit of each kind, in metres.
 fn hull(kind: ShipKind) -> Hull {
     match kind {
-        ShipKind::Galleon => (52, 14, 7, &[(-26, -12, 3), (16, 26, 2)], 14),
-        ShipKind::Frigate => (44, 12, 6, &[(-22, -10, 2)], 12),
-        ShipKind::Brig => (32, 9, 5, &[], 9),
-        ShipKind::Sloop => (26, 8, 4, &[], 10),
+        ShipKind::Galleon => (70, 19, 9, &[(-35, -16, 4), (22, 35, 3)], 15),
+        ShipKind::Frigate => (60, 16, 8, &[(-30, -14, 3)], 13),
+        ShipKind::Brig => (44, 12, 7, &[], 10),
+        ShipKind::Sloop => (35, 11, 5, &[], 10),
     }
 }
 
-/// The masts of each kind, fore first. On each roped mast the swing ropes
-/// hang from the second-highest yard of four (the highest of three), the
-/// low rope from the yard below that.
+/// The masts of each kind, fore first (every mast carries ropes now the
+/// ships are big). On each mast the swing ropes hang from the lowest yard
+/// at least `SWING_YARD` over the deck, the low rope from the yard below
+/// that (or the same yard on a sloop).
 fn masts(kind: ShipKind) -> Vec<MastSpec> {
-    const G_TALL: &[(i32, i32)] = &[(14, 14), (26, 15), (38, 16), (47, 9)];
-    const G_MIZ: &[(i32, i32)] = &[(14, 10), (25, 14), (36, 16)];
-    const F_TALL: &[(i32, i32)] = &[(13, 12), (24, 14), (36, 16), (44, 8)];
-    const F_MIZ: &[(i32, i32)] = &[(13, 9), (24, 13), (35, 16)];
-    const B_TALL: &[(i32, i32)] = &[(12, 10), (23, 13), (36, 16), (43, 7)];
-    const S_TALL: &[(i32, i32)] = &[(25, 10), (37, 11)];
+    const G_TALL: &[(i32, i32)] = &[(19, 19), (35, 21), (51, 22), (63, 12)];
+    const G_MIZ: &[(i32, i32)] = &[(19, 14), (34, 19), (49, 21)];
+    const F_TALL: &[(i32, i32)] = &[(18, 16), (33, 19), (48, 21), (59, 11)];
+    const F_MIZ: &[(i32, i32)] = &[(18, 12), (32, 17), (47, 20)];
+    const B_TALL: &[(i32, i32)] = &[(16, 13), (31, 17), (48, 20), (58, 9)];
+    const S_TALL: &[(i32, i32)] = &[(31, 15), (46, 15)];
     let m = |along, height, yards, ropes| MastSpec {
         along: int(along),
         height: int(height),
@@ -131,30 +169,32 @@ fn masts(kind: ShipKind) -> Vec<MastSpec> {
     };
     match kind {
         ShipKind::Galleon => vec![
-            m(17, 52, G_TALL, true),
-            m(0, 55, G_TALL, false),
-            m(-17, 42, G_MIZ, true),
+            m(23, 70, G_TALL, true),
+            m(0, 74, G_TALL, true),
+            m(-23, 57, G_MIZ, true),
         ],
         ShipKind::Frigate => vec![
-            m(15, 48, F_TALL, true),
-            m(1, 51, F_TALL, false),
-            m(-14, 40, F_MIZ, true),
+            m(20, 65, F_TALL, true),
+            m(1, 69, F_TALL, true),
+            m(-19, 54, F_MIZ, true),
         ],
-        ShipKind::Brig => vec![m(9, 46, B_TALL, true), m(-6, 47, B_TALL, true)],
-        ShipKind::Sloop => vec![m(2, 44, S_TALL, true)],
+        ShipKind::Brig => vec![m(12, 62, B_TALL, true), m(-9, 63, B_TALL, true)],
+        ShipKind::Sloop => vec![m(3, 59, S_TALL, true)],
     }
 }
 
-/// The yard a roped mast's swing ropes hang from, and its low rope's.
-fn swing_yard(yards: &[(i32, i32)]) -> (usize, usize) {
-    let n = yards.len();
-    if n >= 4 {
-        (n - 2, n - 3)
-    } else if n == 3 {
-        (2, 1)
-    } else {
-        (n - 1, 0)
-    }
+/// The swing ropes hang from the lowest yard at least this high over the
+/// deck, so their bottoms sit about as high over the water as before the
+/// ships grew.
+const SWING_YARD: i32 = int(28);
+
+/// The yard a mast's ropes hang from (the low rope's too: from a lower
+/// yard it was too short to swing up to the next row).
+fn swing_yard(yards: &[(i32, i32)]) -> usize {
+    yards
+        .iter()
+        .position(|&(h, _)| int(h) >= SWING_YARD)
+        .unwrap_or(yards.len() - 1)
 }
 
 /// The aft-most and fore-most roped masts' places along the ship.
@@ -205,31 +245,94 @@ fn kinds(dice: &mut Dice) -> Vec<ShipKind> {
 pub fn bay_seeded(seed: u64) -> Course {
     let mut dice = Dice(seed ^ 0xBA7_5EA);
 
-    // the line, along the course (1-D): each ship's first roped mast a
-    // station's hop past the last one's, its stern at least 3 m past the
-    // last bow
+    // two battle lines, along the course (1-D): pirates left, the navy
+    // right, alternating. A first guess puts each ship's aftmost mast half
+    // a hop past the last ship's foremast, across the channel; then the
+    // places are pushed forward until (1) in its own line each ship's
+    // stern keeps `SAME_SIDE_GAP` clear of the bowsprit ahead, (2) the
+    // ships pair off, pirate and navy, side by side for at least `BESIDE`
+    // (broadside to broadside), and (3) no gap between rows of ropes is
+    // longer than `HOP_MOST`.
     let kinds = kinds(&mut dice);
-    let mut plans = Vec::new();
-    let mut last_station = int(9);
-    let mut last_bow = DOCK_END + int(6);
+    let len = |k: ShipKind| int(hull(k).0);
+    let sprit = |k: ShipKind| int(hull(k).4);
+    let mut plans: Vec<Plan> = Vec::new();
     for (k, &kind) in kinds.iter().enumerate() {
-        let (len, ..) = hull(kind);
-        let (lo, hi) = roped_span(kind);
-        let hop = if k == 0 {
-            int(25)
-        } else {
-            int(dice.range(23, 28))
+        let (lo, _) = roped_span(kind);
+        let first = match plans.last() {
+            None => int(34),
+            Some(prev) => {
+                let (_, phi) = roped_span(prev.kind);
+                prev.mid + phi + int(dice.range(HALF_HOP.0, HALF_HOP.1))
+            }
         };
-        let first = (last_station + hop).max(last_bow + int(3) + int(len) / 2 + lo);
-        let mid = first - lo;
+        // each ship turned a little off the line (5–10°, either way), so
+        // the lines read as ships fighting, not a convoy
+        let turn = TURN / 360 * dice.range(5, 10) * if dice.below(2) == 0 { -1 } else { 1 };
         plans.push(Plan {
             kind,
             side: if k % 2 == 0 { Side::Pirate } else { Side::Navy },
-            mid,
+            mid: first - lo,
+            turn,
         });
-        last_station = mid + hi;
-        last_bow = mid + int(len) / 2;
     }
+    for pass in 0..=RELAX {
+        // the last pass keeps the hard rules only (order, the line, the
+        // pairs); it never breaks one it has already met
+        let last = pass == RELAX;
+        let mut moved = false;
+        let mut push = |plans: &mut Vec<Plan>, k: usize, least: i32| {
+            if plans[k].mid < least {
+                plans[k].mid = least;
+                moved = true;
+            }
+        };
+        for k in 1..plans.len() {
+            let (kind, prev) = (plans[k].kind, plans[k - 1].kind);
+            // in course order
+            let least = plans[k - 1].mid + int(1);
+            push(&mut plans, k, least);
+            // (1) its own line
+            if k >= 2 {
+                let ahead = plans[k - 2].kind;
+                let least = plans[k - 2].mid
+                    + len(ahead) / 2
+                    + sprit(ahead)
+                    + SAME_SIDE_GAP
+                    + len(kind) / 2;
+                push(&mut plans, k, least);
+            }
+            // (2) the pair side by side
+            if k % 2 == 1 && k > 1 {
+                let least = plans[k].mid - len(kind) / 2 + BESIDE - len(prev) / 2;
+                push(&mut plans, k - 1, least);
+            }
+            // (3) no long gap: bring the ship before forward
+            let first = plans[k].mid + roped_span(kind).0;
+            let most = plans[..k]
+                .iter()
+                .map(|p| p.mid + roped_span(p.kind).1)
+                .max()
+                .unwrap_or(first);
+            if first - most > HOP_MOST && k > 1 && !last {
+                let least = first - HOP_MOST - roped_span(prev).1;
+                push(&mut plans, k - 1, least);
+            }
+        }
+        if !moved {
+            break;
+        }
+    }
+    let last_bow = plans
+        .iter()
+        .map(|p| p.mid + len(p.kind) / 2)
+        .max()
+        .unwrap_or(DOCK_END);
+    let last_station = plans
+        .iter()
+        .map(|p| p.mid + roped_span(p.kind).1)
+        .max()
+        .unwrap_or(int(9));
     // the island: its beach from 4 m past the last bow; a row of palms
     // over it a hop past the last station, the finish 22 m on
     let beach = last_bow + int(4);
@@ -241,13 +344,14 @@ pub fn bay_seeded(seed: u64) -> Course {
     legs.push(Leg((length / ONE - used).max(40), 0));
     let mut c = centreline("bay", &legs);
     c.terrain = Terrain::Flat(WATER_LEVEL);
+    c.half_width = HALF_WIDTH;
     let length = c.length;
 
     let mut put = Placing {
         vines: Vec::new(),
         hangers: Vec::new(),
     };
-    let mut stations: Vec<Vec<usize>> = Vec::new();
+    let mut stations: Vec<(i32, Vec<usize>)> = Vec::new();
 
     // the dock, the start platform; the starters stand across its end
     let fwd = c.heading_at(0);
@@ -299,7 +403,7 @@ pub fn bay_seeded(seed: u64) -> Course {
         };
         let mid = c
             .point(p.mid)
-            .add(right_of(h).scale(side_sign * SHIP_OFFSET));
+            .add(right_of(h).scale(side_sign * (beam / 2 + SHIP_OFFSET)));
         let specs = masts(p.kind);
         let mut ship_masts = Vec::new();
         for spec in &specs {
@@ -350,7 +454,7 @@ pub fn bay_seeded(seed: u64) -> Course {
                         side,
                         up: deck - down,
                     });
-                    a += int(4);
+                    a += int(5);
                 }
             }
         }
@@ -358,7 +462,7 @@ pub fn bay_seeded(seed: u64) -> Course {
             kind: p.kind,
             side: p.side,
             at: v3(mid.x, WATER_LEVEL, mid.z),
-            yaw: yaw_of(h),
+            yaw: yaw_of(h) + p.turn,
             length: len,
             beam,
             deck,
@@ -394,33 +498,26 @@ pub fn bay_seeded(seed: u64) -> Course {
         }
         let ship = Ship { decks, ..ship };
 
-        // the ropes: a station at each roped mast, lanes 9 m apart across
-        // the course; the low rope from the foremast over the deck
+        // the ropes: a station at each roped mast, four ropes across its
+        // swing yard (one each side of the mast, one at each yardarm);
+        // the low rope from the foremast over the deck
         for (m, spec) in specs.iter().enumerate() {
             if !spec.ropes {
                 continue;
             }
-            let (sy, ly) = swing_yard(spec.yards);
+            let sy = swing_yard(spec.yards);
             let yard = ship.masts[m].yards[sy];
-            let at = p.mid + spec.along;
-            let skip = if dice.below(4) == 0 {
-                3
-            } else {
-                2 * dice.below(2) as i32
-            };
             let mut here = Vec::new();
-            for lane in 0..3 {
-                if lane == skip {
-                    continue;
-                }
-                let course_off = int((lane - 1) * 9 + dice.range(-1, 1));
-                let mut out = course_off - side_sign * SHIP_OFFSET;
-                if out.abs() < OFF_MAST {
-                    out = if out < 0 { -OFF_MAST } else { OFF_MAST };
-                }
-                if out.abs() > yard.half_span - cm(50) {
-                    continue;
-                }
+            // across the ship from its outer side to the channel: one
+            // each side of the mast, one halfway out, one at the yardarm
+            // over the channel (none at the outer yardarm: an ape out
+            // there is far off the line)
+            let c_in = -side_sign;
+            let inner = OFF_MAST + int(2) + cm(dice.range(-50, 50));
+            let arm = yard.half_span - int(2) - cm(dice.range(0, 100));
+            let half = (inner + arm) / 2;
+            let channel = if m == 0 { inner + int(3) } else { inner };
+            for out in [-inner, channel, half, arm].map(|o| o * c_in) {
                 let hanger = Hanger::Yard {
                     ship: k,
                     mast: m,
@@ -428,27 +525,33 @@ pub fn bay_seeded(seed: u64) -> Course {
                     out,
                 };
                 let anchor = ship.point(spec.along, out, deck + yard.height);
-                // bottoms 10–22 m over the water, as the Jungle's over its
-                // floor, and never lower than 6 m over the deck
+                // bottoms 15–22 m over the water, and never lower than 6 m
+                // over the deck
                 let longest = yard.height - int(6);
                 let length = int(dice.range(23, 31)).min(longest);
+                let at = c.progress(anchor, c.nearest_anywhere(anchor)).0;
                 here.push(put.push(anchor, length, at, hanger));
             }
-            stations.push(here);
+            let at = put.vines[here[0]].at;
+            stations.push((at, here));
             if m == 0 {
+                let at = c
+                    .progress(ship.point(spec.along, 0, 0), c.nearest_anywhere(ship.at))
+                    .0;
                 // the low rope: 3 m over the deck, toward the course's
                 // middle, 3 m off the mast
-                let low = ship.masts[m].yards[ly];
+                // (from the swing yard: a rope from the low yard would be
+                // too short to swing up to the next row; KK whirled on one)
                 let out = -side_sign * OFF_MAST;
-                let anchor = ship.point(spec.along, out, deck + low.height);
+                let anchor = ship.point(spec.along, out, deck + yard.height);
                 put.push(
                     anchor,
-                    low.height - int(3),
+                    yard.height - int(3),
                     at,
                     Hanger::Yard {
                         ship: k,
                         mast: m,
-                        yard: ly,
+                        yard: sy,
                         out,
                     },
                 );
@@ -456,8 +559,8 @@ pub fn bay_seeded(seed: u64) -> Course {
         }
 
         // a bouncy barrel on its open side, toward the course's middle
-        let edge = -side_sign * (beam / 2 - SHIP_OFFSET);
-        let lateral = edge - side_sign * (BARREL_RADIUS + int(2));
+        // (in the channel, off its inner side)
+        let lateral = side_sign * (SHIP_OFFSET - BARREL_RADIUS - int(2));
         let along = p.mid + int(dice.range(-8, 8));
         let bp = c
             .point(along)
@@ -557,7 +660,7 @@ pub fn bay_seeded(seed: u64) -> Course {
     // platform under the lanes is only the camera's floor there.
     let island = island::build(&c, beach, &mut Dice(seed ^ 0x15_1A4D));
     c.platforms
-        .push(island::lanes_platform(&island, c.half_width));
+        .push(island::lanes_platform(&island, ISLAND_LANES));
     let mut here = Vec::new();
     {
         let r = right_of(c.heading_at(palms_at));
@@ -577,8 +680,17 @@ pub fn bay_seeded(seed: u64) -> Course {
             ));
         }
     }
-    stations.push(here);
+    stations.push((palms_at, here));
     c.vines = put.vines;
+    // the two lines' stations interleave: in course order, and every
+    // other one counted, as many arcs as one line of stations gave
+    stations.sort_by_key(|s| s.0);
+    let stations: Vec<Vec<usize>> = stations
+        .into_iter()
+        .enumerate()
+        .filter(|(i, _)| i % 2 == 0)
+        .map(|(_, s)| s.1)
+        .collect();
     banana_arcs(&mut c, &stations);
 
     // item crates: rows of three across the course, every 240 m

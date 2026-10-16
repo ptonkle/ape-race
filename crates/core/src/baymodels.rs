@@ -81,11 +81,13 @@ const CANVAS_GLOW: i32 = ONE * 11 / 20;
 /// A furled roll's folds, a little darker.
 const ROLL_GLOW: i32 = ONE * 2 / 5;
 
-const DECK: Rgb = rgb(184, 142, 92);
-const DECK_DARK: Rgb = rgb(140, 104, 66);
+/// Decks and masts darkened (BO) so the pale swing ropes stand out
+/// against them (were (184,142,92), (140,104,66), (122,86,52)).
+const DECK: Rgb = rgb(132, 98, 64);
+const DECK_DARK: Rgb = rgb(100, 72, 46);
 const BELOW: Rgb = rgb(70, 50, 36);
-const MAST: Rgb = rgb(122, 86, 52);
-const RIGGING: Rgb = rgb(62, 50, 38);
+const MAST: Rgb = rgb(82, 56, 36);
+const RIGGING: Rgb = rgb(40, 32, 26);
 const IRON: Rgb = rgb(36, 36, 40);
 const PORT: Rgb = rgb(22, 16, 14);
 const WINDOW: Rgb = rgb(255, 214, 130);
@@ -662,6 +664,13 @@ fn castles(b: &mut Batch, f: &Affine, s: &Ship, p: &Paint) {
                 );
             }
             if lower == s.deck {
+                // the stairs: a wedge whose tall end stands against the
+                // bulkhead (the mesh's tall end is at −z), sloping down to
+                // the main deck away from it. A raised deck aft of its
+                // bulkhead (`dir` +1, the quarterdeck) leaves the wedge as
+                // it is; one forward of it (the forecastle) turns it round.
+                // (It was the other way round: the steps rose away from
+                // the deck they led to, BO.)
                 for side in [-1, 1] {
                     let x = side * hw * 70 / 100;
                     let h = r.2 - lower;
@@ -670,7 +679,7 @@ fn castles(b: &mut Batch, f: &Affine, s: &Ship, p: &Paint) {
                         f,
                         Mesh::Wedge,
                         v3(x, lower + h / 2, z + dir * h * 6 / 10),
-                        &Affine::rot_y(if dir < 0 { 0 } else { TURN / 2 }),
+                        &Affine::rot_y(if dir > 0 { 0 } else { TURN / 2 }),
                         v3(dm(12), h, h * 12 / 10),
                         DECK_DARK,
                         0,

@@ -321,9 +321,9 @@ const RUINS_NOISE: [i32; 4] = [int(8), int(4), int(3), 0];
 /// s of King Kong: it reacts later here (8 ticks, not 4). Its misjudging
 /// is touchy (3 m cost it 4.5 s; none left it whirling on a rope for 50 s
 /// on one layout), so it stays 2 m (BT1).
-const BAY_HESITATE: [u32; 4] = [18, 18, 8, 0];
+const BAY_HESITATE: [u32; 4] = [18, 18, 5, 0];
 const BAY_JITTER: [u32; 4] = [14, 14, 4, 0];
-const BAY_DRIVE: [u32; 4] = [2, 3, 4, DUTY];
+const BAY_DRIVE: [u32; 4] = [3, 3, 4, DUTY];
 const BAY_NOISE: [i32; 4] = [int(6), int(5), int(2), 0];
 /// On Sunset Ruins, how near a low vine over the river must be for a
 /// swimmer to swim for it and catch it, not for the bank (RT10).

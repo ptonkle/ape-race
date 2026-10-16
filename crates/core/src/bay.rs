@@ -430,6 +430,26 @@ impl Ship {
             .add(v3(0, up, 0))
     }
 
+    /// Where the water reset puts an ape back on this ship (its hands):
+    /// on the main deck `RESET_AFT` aft of the foremast (its low rope
+    /// ahead), on the side toward the channel between the battle lines
+    /// (pirates lie left of the line, the navy right), where the ropes
+    /// that lead on hang. `None` for a ship with no deck or mast.
+    pub fn reset_spot(&self) -> Option<V3> {
+        if self.decks.is_empty() || self.masts.is_empty() {
+            return None;
+        }
+        let inward = match self.side {
+            Side::Pirate => 1,
+            Side::Navy => -1,
+        };
+        Some(self.point(
+            self.masts[0].along - RESET_AFT,
+            inward * (self.beam / 2 - RESET_IN),
+            self.deck + crate::rules::BODY_DROP,
+        ))
+    }
+
     /// The top of mast `m`.
     pub fn mast_top(&self, m: usize) -> V3 {
         let mast = &self.masts[m];
@@ -514,6 +534,9 @@ impl BayLayout {
         Some(line.add(v3(0, fx::mul(ARC, lift), 0)))
     }
 }
+
+/// How far in from the channel-side rail the water reset puts an ape.
+pub const RESET_IN: i32 = int(3);
 
 /// How high a cannonball's arc rises above the straight line from port to
 /// target, at its middle.
