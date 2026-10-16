@@ -238,7 +238,33 @@ fn build(c: &Course, t: &TowerLayout, sink: &mut Sink) -> Vec<Option<V3>> {
             )
         });
         let s = br.sub;
-        if fresh(&mut subs, s.centre, int(2)) {
+        let room = s.centre.flat() == t.room.centre.flat();
+        if !fresh(&mut subs, s.centre, int(2)) {
+            continue;
+        }
+        if room {
+            // the trampoline room's tower: its stone foot up to the room's
+            // floor (the room itself is drawn below, TW8)
+            let n = (t.room.centre.y / m::SECTION_H).max(1);
+            let sh = t.room.centre.y / n;
+            for k in 0..n {
+                let f = at(v3(s.centre.x, k * sh, s.centre.z), i as i32 * 9_000);
+                put(
+                    "sub-towers",
+                    Some(v3(s.centre.x, k * sh + sh / 2, s.centre.z)),
+                    &mut |b| {
+                        m::keep_section(
+                            b,
+                            &f,
+                            s.radius,
+                            sh,
+                            (i + k as usize) as u32,
+                            m::Detail::Near,
+                        )
+                    },
+                );
+            }
+        } else {
             let f = at(s.centre, i as i32 * 9_000);
             put(
                 "sub-towers",
@@ -397,7 +423,7 @@ fn build(c: &Course, t: &TowerLayout, sink: &mut Sink) -> Vec<Option<V3>> {
     let r = &t.room;
     let f = at(r.centre, yaw_of(r.door.sub(r.centre).flat()));
     put("room", Some(r.orb.0), &mut |b| {
-        m::trampoline_room(b, &f, r.radius, r.height, false, tick, 3)
+        m::trampoline_room(b, &f, r.radius, r.height, r.roof_exit.1, false, tick, 3)
     });
 
     // conjured platforms under the reset pads: frost, runes and crystal on
@@ -482,18 +508,20 @@ fn build(c: &Course, t: &TowerLayout, sink: &mut Sink) -> Vec<Option<V3>> {
         m::zip(b, &f, len, int(8), ONE * 3 / 5, tick)
     });
     for (i, s) in subs.iter().enumerate() {
-        let top = t
+        let sub = t
             .branches
             .iter()
             .find(|br| br.sub.centre == *s)
-            .map_or(int(40), |br| br.sub.top);
-        let hang = t.mirror(v3(s.x, top, s.z));
+            .map(|br| br.sub)
+            .expect("a branch's sub-tower");
+        let top = sub.top;
+        let hang = t.topsy_hang(&sub);
         let f = at(hang, i as i32 * 11_000);
         let n = ((top - s.y) / m::SECTION_H).clamp(1, 2) as u32;
         put(
             "topsy towers",
             Some(hang.sub(v3(0, int(12), 0))),
-            &mut |b| m::topsy_keep(b, &f, int(8), n, ONE / 10, i as u32),
+            &mut |b| m::topsy_keep(b, &f, int(8), n, crate::tower::TOPSY_TILT, i as u32),
         );
         let f = at(hang.sub(v3(0, int(30), 0)), 0);
         put(

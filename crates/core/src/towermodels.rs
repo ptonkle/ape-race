@@ -448,7 +448,7 @@ pub fn gallery(b: &mut Batch, key: &str, f: &Affine, tick: u32) {
                 tick,
             );
         }
-        "trampolineroom" => trampoline_room(b, f, int(14), int(22), true, tick, 1),
+        "trampolineroom" => trampoline_room(b, f, int(14), int(22), int(5), true, tick, 1),
         "clouds" => {
             cloud(b, &at(-int(10), 0, 0), int(22), int(7), 1);
             cloud(b, &at(int(12), int(4), -int(6)), int(16), int(5), 2);
