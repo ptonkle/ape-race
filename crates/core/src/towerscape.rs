@@ -27,9 +27,12 @@ use crate::fx::{self, cm, deg, int, mul, ONE, TURN};
 use crate::geom::{facing, v3, V3};
 use crate::mesh::Mesh;
 use crate::render::{mix, placed, rgb, Batch, Rgb};
-use crate::scene::{Look, Scenery};
+use crate::scene::Look;
 use crate::snow::Weather;
 use crate::tower::TowerLayout;
+
+mod art;
+pub use art::{beam_vine, cast_by, parts, scenery, spell_of, REACH};
 
 /// Shown full colour and unfogged, as the sky is (`scene.frag`).
 pub const SKY_GLOW: i32 = ONE * 2;
@@ -429,11 +432,6 @@ fn cloud_sea(b: &mut Batch, t: &TowerLayout, eye: V3, c: Rgb) {
             }
         }
     }
-}
-
-/// Mape's Tower's scenery. STAND-IN: the Jungle's.
-pub fn scenery(c: &Course, _t: &TowerLayout) -> Scenery {
-    crate::scene::jungle_scenery(c)
 }
 
 /// The title's flyover on Mape's Tower: a slow glide along the centreline

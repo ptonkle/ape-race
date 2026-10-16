@@ -63,6 +63,11 @@ fn main() {
         println!("  per frame at most: {} shapes, {} glows", most.0, most.1);
     }
     bay_cost();
+    let tower = tool_core::map::Map::Tower.course();
+    report("tower", &tower);
+    for (part, n) in tool_core::towerscape::parts(&tower) {
+        println!("  {part}: {n}");
+    }
     let ruins = tool_core::map::Map::Ruins.course();
     report("ruins", &ruins);
     // Sunset Ruins draws its moving parts each frame (sky, foam, turtles,
