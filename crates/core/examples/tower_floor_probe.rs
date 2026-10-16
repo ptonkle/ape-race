@@ -99,7 +99,11 @@ fn main() {
                         }
                         spots.push((
                             format!("stone {n} drum top {:.0} m", m(top)),
-                            v3(centre.x + int(dx), top + BODY_DROP + ONE, centre.z + int(dz)),
+                            v3(
+                                centre.x + int(dx),
+                                top + BODY_DROP + ONE,
+                                centre.z + int(dz),
+                            ),
                         ));
                     }
                 }
@@ -170,7 +174,11 @@ fn main() {
         for dz in (-40..=40).step_by(10) {
             spots.push((
                 "banana zone".into(),
-                v3(bz.centre.x + int(dx), bz.centre.y + BODY_DROP + int(2), bz.centre.z + int(dz)),
+                v3(
+                    bz.centre.x + int(dx),
+                    bz.centre.y + BODY_DROP + int(2),
+                    bz.centre.z + int(dz),
+                ),
             ));
         }
     }

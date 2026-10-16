@@ -304,7 +304,11 @@ fn an_ape_that_lands_on_the_rooms_floor_stands_and_can_jump_and_walk() {
     let room = c.tower.as_deref().unwrap().room.clone();
     let floor = room.centre.y;
     // 7 m from the room's middle, under no trampoline
-    let p = v3(room.centre.x - int(7), floor + BODY_DROP + int(1), room.centre.z);
+    let p = v3(
+        room.centre.x - int(7),
+        floor + BODY_DROP + int(1),
+        room.centre.z,
+    );
     assert!(
         !c.mushrooms.iter().any(|m| {
             !p.flat()
@@ -342,7 +346,11 @@ fn an_ape_that_lands_on_the_rooms_floor_stands_and_can_jump_and_walk() {
     assert!(a.vel.y > 0 && a.mode == Mode::Flying, "jumps off the floor");
     // and lands on it again, standing
     settle(&mut r);
-    assert_eq!(r.racers[0].ape.mode, Mode::Grounded, "stands after the jump");
+    assert_eq!(
+        r.racers[0].ape.mode,
+        Mode::Grounded,
+        "stands after the jump"
+    );
     // walks across it (toward the middle)
     let before = r.racers[0].ape.pos;
     for _ in 0..TICKS_PER_SECOND / 2 {
