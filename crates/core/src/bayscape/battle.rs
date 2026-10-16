@@ -1,12 +1,13 @@
 //! Banana Bay Battle's background battle (BQ2): the race runs through the
 //! middle of a fight. Pairs of pirate and navy ships lie broadside to
-//! broadside 60–250 m either side of the race line, outside the boundary
-//! barrels (20 m), some with every sail set, some burning or listing,
+//! broadside 80–250 m either side of the race line, outside the boundary
+//! barrels (42 m), some with every sail set, some burning or listing,
 //! trading broadsides. Scenery only: none of it is in the contract
 //! (`BayLayout`), so no physics, camera or AI sees it; it is placed from
 //! the course alone, the same on every run.
 //!
-//! **Still (chunked):** each ship in low detail (`baymodels::ship_far`).
+//! **Still (chunked):** each ship in low detail (`baymodels::ship_far`),
+//! grown to the size of the course's own ships of its kind (BO9).
 //! **Each frame, near the eye:** the broadsides (a flash and two puffs at
 //! each of three muzzles, the ball, the hit or splash), the fires and their
 //! smoke columns, and a foam collar where each hull meets the sea.
@@ -205,10 +206,10 @@ pub fn fleet(c: &Course, bay: &BayLayout) -> Vec<Far> {
                 let at = at
                     .add(right.scale(side * push))
                     .add(facing(yaw, 0).scale(int(pick(kk, 10, -6, 6))));
-                (
-                    kk,
-                    m::typical(kind, team, at, yaw + deg(pick(kk, 11, -6, 6))),
-                )
+                let s = m::typical(kind, team, at, yaw + deg(pick(kk, 11, -6, 6)));
+                // as big as the course's own ships of its kind (BO9)
+                let f = fx::div(crate::bay::ship_length(kind), s.length);
+                (kk, m::scaled(s, f))
             };
             let n = if lone { 1 } else { 2 };
             let fits = |out: &[Far], s: &Ship| clear(c, bay, out, s.at, s.length / 2 + s.bowsprit);
@@ -414,6 +415,13 @@ mod tests {
         let mut sides = [0, 0];
         for (k, f) in ships.iter().enumerate() {
             let s = &f.ship;
+            // BO9: as big as the course's own ships of its kind
+            assert!(
+                (s.length - crate::bay::ship_length(s.kind)).abs() < int(1),
+                "ship {k}: a {:?} {} m long",
+                s.kind,
+                s.length / ONE
+            );
             let reach = s.length / 2 + s.bowsprit;
             let line = c
                 .path

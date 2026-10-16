@@ -3155,6 +3155,32 @@ fn foam_ring(b: &mut Batch, f: &Affine, rx: i32, rz: i32, pale: i32, k: u32, n: 
     }
 }
 
+/// Ship `s` grown by `f` (Q16) about its waterline middle: every length,
+/// height and offset along it, its place and heading kept.
+pub fn scaled(mut s: Ship, f: i32) -> Ship {
+    let g = |v: i32| mul(v, f);
+    s.length = g(s.length);
+    s.beam = g(s.beam);
+    s.deck = g(s.deck);
+    s.bowsprit = g(s.bowsprit);
+    for r in &mut s.raised {
+        *r = (g(r.0), g(r.1), g(r.2));
+    }
+    for m in &mut s.masts {
+        m.along = g(m.along);
+        m.height = g(m.height);
+        for y in &mut m.yards {
+            y.height = g(y.height);
+            y.half_span = g(y.half_span);
+        }
+    }
+    for p in &mut s.ports {
+        p.along = g(p.along);
+        p.up = g(p.up);
+    }
+    s
+}
+
 /// Sets the sails of `s` as listed, mast by mast (fore first), each
 /// mast's yards lowest first, then its gaff; entries past the list stay.
 pub fn with_sails(mut s: Ship, sails: &[Sail]) -> Ship {
