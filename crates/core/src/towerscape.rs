@@ -450,3 +450,89 @@ pub fn flyover_camera(c: &Course, ticks: u32, from: i32) -> crate::render::Camer
         fov: crate::fx::deg(70),
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::map::Map;
+
+    fn luma(c: Rgb) -> i32 {
+        (c[0] * 30 + c[1] * 59 + c[2] * 11) / 100
+    }
+
+    /// An eye a share `h` of the way up the keep, outside it on the
+    /// climb's side of the mirror plane.
+    fn eye_at(t: &TowerLayout, h: i32) -> V3 {
+        let k = t.keep.centre;
+        v3(
+            k.x - t.keep.radius - int(20),
+            k.y + mul(t.keep.height, h),
+            k.z,
+        )
+    }
+
+    #[test]
+    fn each_weather_has_its_own_sky_and_it_changes_with_the_climb() {
+        let c = Map::Tower.course();
+        let t = c.tower.as_ref().unwrap();
+        // away from the cloud band, low and high
+        let (low, high) = (eye_at(t, 0), eye_at(t, ONE));
+        assert_eq!(in_cloud(t, low.y), 0);
+        assert_eq!(in_cloud(t, high.y), 0);
+        let ws = [Weather::Clear, Weather::Twilight, Weather::Dawn];
+        let looks: Vec<Look> = ws.iter().map(|&w| look_in(t, low, w)).collect();
+        for i in 0..3 {
+            for j in i + 1..3 {
+                assert_ne!(looks[i].sky, looks[j].sky, "{:?} vs {:?}", ws[i], ws[j]);
+                assert_ne!(looks[i].light_dir, looks[j].light_dir);
+            }
+        }
+        // twilight darkens to night with stars higher up; dawn brightens
+        let tw = (look_in(t, low, Weather::Twilight), look_in(t, high, Weather::Twilight));
+        assert!(luma(tw.1.sky) < luma(tw.0.sky) / 2, "twilight darkens up the tower");
+        assert!(star_count(height_share(t, high.y)) > 3 * star_count(height_share(t, low.y)));
+        let dawn = (look_in(t, low, Weather::Dawn), look_in(t, high, Weather::Dawn));
+        assert!(luma(dawn.1.sky) > luma(dawn.0.sky), "dawn brightens up the tower");
+        // dawn's sun is low in the east (+x)
+        assert!(dawn.0.light_dir.x > ONE * 9 / 10);
+        // sky_in (no eye) gives the base's sky
+        assert_eq!(crate::snow::sky_in(Weather::Twilight, look()).sky, TWILIGHT[0].sky);
+    }
+
+    #[test]
+    fn the_zipper_has_its_own_void_whatever_the_weather() {
+        let c = Map::Tower.course();
+        let t = c.tower.as_ref().unwrap();
+        let out = eye_at(t, ONE / 2);
+        let inside = v3(t.zipper.mirror_x + int(30), out.y, out.z);
+        assert!(t.in_zipper(inside) && !t.in_zipper(out));
+        for w in [Weather::Clear, Weather::Twilight, Weather::Dawn] {
+            let l = look_in(t, inside, w);
+            assert_eq!((l.sky, l.fog, l.rim), (ZIPPER.sky, ZIPPER.fog, ZIPPER.rim));
+            assert_ne!(look_in(t, out, w).sky, ZIPPER.sky);
+            // the void draws its dome and motes, no sun, stars or clouds
+            let mut b = Batch::new();
+            dynamic(&mut b, t, inside, 0, w);
+            let n = std::cell::Cell::new(0);
+            b.restyle(|c, g| {
+                n.set(n.get() + 1);
+                (c, g)
+            });
+            assert_eq!(n.get(), 161, "{w:?}");
+        }
+    }
+
+    #[test]
+    fn inside_the_cloud_band_the_fog_closes_in() {
+        let c = Map::Tower.course();
+        let t = c.tower.as_ref().unwrap();
+        let band = t.clouds[0];
+        let mut eye = eye_at(t, 0);
+        eye.y = (band.bottom + band.top) / 2;
+        let l = look_in(t, eye, Weather::Clear);
+        assert_eq!(in_cloud(t, eye.y), ONE);
+        assert!(l.fog_range.1 <= int(110));
+        eye.y = band.top + int(10);
+        assert!(look_in(t, eye, Weather::Clear).fog_range.1 > int(300));
+    }
+}
