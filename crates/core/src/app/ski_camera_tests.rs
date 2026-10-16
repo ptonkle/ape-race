@@ -63,29 +63,38 @@ fn eye_went_into_a_tree(run: &[(V3, V3)], crowns: &[Crown]) -> Vec<usize> {
     bad
 }
 
+/// SW9: the eye ended up inside a conifer by the fence. Checked on one
+/// race (dice `seed`, chase camera on ape `focus`), with and without the
+/// trees; one test per race so the test harness runs them side by side.
+fn camera_keeps_out_of_the_conifers_smoothly(seed: u64, focus: usize) {
+    let (run, crowns) = ski_race(seed, focus, true);
+    let bad = eye_went_into_a_tree(&run, &crowns);
+    assert!(
+        bad.is_empty(),
+        "seed {seed}: the eye went into a tree at ticks {bad:?}"
+    );
+    // smooth: as the camera was (its worst change in step a tick is
+    // 14 cm) but for a few quick moves in front of a tree that came
+    // too fast to glide ahead of
+    let (old, _) = ski_race(seed, focus, false);
+    let jolts = |r: &[(V3, V3)]| {
+        r.windows(3)
+            .filter(|w| w[2].1.sub(w[1].1).sub(w[1].1.sub(w[0].1)).len() > ONE * 3 / 10)
+            .count()
+    };
+    assert_eq!(jolts(&old), 0);
+    let n = jolts(&run);
+    assert!(n <= 20, "seed {seed}: {n} jolts over 30 cm");
+    // and before, it did go in
+    assert!(!eye_went_into_a_tree(&old, &crowns).is_empty());
+}
+
 #[test]
-fn on_the_ski_slope_the_chase_camera_keeps_out_of_the_conifers_smoothly() {
-    // SW9: the eye ended up inside a conifer by the fence
-    for (seed, focus) in [(1, 0), (2, 3)] {
-        let (run, crowns) = ski_race(seed, focus, true);
-        let bad = eye_went_into_a_tree(&run, &crowns);
-        assert!(
-            bad.is_empty(),
-            "seed {seed}: the eye went into a tree at ticks {bad:?}"
-        );
-        // smooth: as the camera was (its worst change in step a tick is
-        // 14 cm) but for a few quick moves in front of a tree that came
-        // too fast to glide ahead of
-        let (old, _) = ski_race(seed, focus, false);
-        let jolts = |r: &[(V3, V3)]| {
-            r.windows(3)
-                .filter(|w| w[2].1.sub(w[1].1).sub(w[1].1.sub(w[0].1)).len() > ONE * 3 / 10)
-                .count()
-        };
-        assert_eq!(jolts(&old), 0);
-        let n = jolts(&run);
-        assert!(n <= 20, "seed {seed}: {n} jolts over 30 cm");
-        // and before, it did go in
-        assert!(!eye_went_into_a_tree(&old, &crowns).is_empty());
-    }
+fn on_the_ski_slope_the_chase_camera_keeps_out_of_the_conifers_smoothly_seed_1() {
+    camera_keeps_out_of_the_conifers_smoothly(1, 0);
+}
+
+#[test]
+fn on_the_ski_slope_the_chase_camera_keeps_out_of_the_conifers_smoothly_seed_2() {
+    camera_keeps_out_of_the_conifers_smoothly(2, 3);
 }
