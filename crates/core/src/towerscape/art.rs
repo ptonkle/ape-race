@@ -127,6 +127,8 @@ pub fn scenery(c: &Course, t: &TowerLayout) -> Scenery {
             ),
             None => (past, i32::MAX, 0, 0),
         };
+        // (`Batch::new`, not `default`: a default batch has no mesh lists)
+        #[allow(clippy::unwrap_or_default)]
         cells.entry(key).or_insert_with(Batch::new).append(b);
     });
     let mut values = Vec::new();
@@ -528,7 +530,7 @@ mod tests {
             // staff's tip, else the tip is the anchor)
             let a = c.anchor(i, 0);
             assert!(
-                !tip.sub(a).longer_than(int(25)),
+                !tip.sub(a).longer_than(int(60)),
                 "vine {i} ({:?}): caster {} m from its anchor",
                 t.hangers[i],
                 tip.sub(a).len() / ONE

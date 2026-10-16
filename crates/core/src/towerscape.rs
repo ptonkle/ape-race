@@ -32,7 +32,7 @@ use crate::snow::Weather;
 use crate::tower::TowerLayout;
 
 mod art;
-pub use art::{beam_vine, cast_by, parts, scenery, spell_of, REACH};
+pub use art::{beam_vine, cast_by, casters, parts, scenery, spell_of, worst_drawn, REACH};
 
 /// Shown full colour and unfogged, as the sky is (`scene.frag`).
 pub const SKY_GLOW: i32 = ONE * 2;
