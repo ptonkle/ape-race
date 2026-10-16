@@ -72,4 +72,6 @@ fn a_jungle_race_plays_out_exactly_as_before_the_city() {
 
 const JUNGLE_FINGERPRINT: u32 = 3_788_111_273;
 const JUNGLE_MUSHROOMS: usize = 22;
-const JUNGLE_RACE: u64 = 17_164_823_795_411_335_664;
+/// (retaken 2026-10-16 for TRIAGE T90: a caught Hook tows its user and no
+/// longer pulls the hooked ape back, a deliberate item change)
+const JUNGLE_RACE: u64 = 2_769_119_832_941_132_963;
