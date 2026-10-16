@@ -189,7 +189,7 @@ impl Settings {
         // costumes (TRIAGE T89): only real, unlockable ones; an Author time
         // beaten before costumes existed unlocks its map's too
         s.costumes
-            .retain(|k| Costume::from_key(k).is_some_and(|c| c.map().is_some()));
+            .retain(|k| Costume::from_key(k).is_some_and(|c| !c.free()));
         for map in Map::ALL {
             for trial in [false, true] {
                 if let Some(c) = s.best(map, trial).and_then(|t| Costume::earned(map, t)) {
@@ -206,7 +206,7 @@ impl Settings {
     /// Whether this player may wear `c` (TRIAGE T89): the map's own and
     /// none always, the others once unlocked.
     pub fn wearable(&self, c: Costume) -> bool {
-        c.map().is_none() || self.costumes.contains(c.key())
+        c.free() || self.costumes.contains(c.key())
     }
 
     /// Unlocks `c`; true when it was locked before.
