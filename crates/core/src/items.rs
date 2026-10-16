@@ -239,6 +239,18 @@ impl ItemSet {
         ItemSet(self.0 & ItemSet::ALL.0)
     }
 
+    /// The items a player can switch on: the Speed Boost and the Vine. The
+    /// Banana, Stick and Hook stay off (the person, 2026-10-15: "we never
+    /// turn them on anyway"); their code is kept.
+    pub const OFFERED: [Item; 2] = [Item::Boost, Item::Vine];
+
+    /// This set with every item that isn't offered taken out.
+    pub fn offered(self) -> ItemSet {
+        ItemSet::OFFERED
+            .into_iter()
+            .fold(ItemSet::NONE, |set, i| set.with(i, self.has(i)))
+    }
+
     /// No item at all: crates give nothing and are not drawn.
     pub fn is_empty(self) -> bool {
         self.clean().0 == 0

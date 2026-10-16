@@ -79,11 +79,12 @@ def run(page, check, engine):
     page.click("[id='setup.equal']")
     # TRIAGE T42: a checkbox per item, all ticked at first; one unticks
     boxes = page.evaluate("() => [...document.querySelectorAll('.checks input')].map(b => b.checked)")
-    check(boxes == [True] * 5, f"five item checkboxes, all ticked {boxes}")
-    page.click("[id='setup.item.banana']")
+    # only the Speed Boost and the Vine are offered (2026-10-15)
+    check(boxes == [True] * 2, f"two item checkboxes, both ticked {boxes}")
+    page.click("[id='setup.item.vine']")
     page.wait_for_timeout(100)
-    check(not page.is_checked("[id='setup.item.banana']"), "the Banana box unticks")
-    page.click("[id='setup.item.banana']")
+    check(not page.is_checked("[id='setup.item.vine']"), "the Vine box unticks")
+    page.click("[id='setup.item.vine']")
     page.wait_for_timeout(100)
     page.select_option("[id='setup.opponents']", "2")
     check(canvas_drawn(page), "the chosen ape is drawn on the setup screen")
@@ -299,15 +300,15 @@ def run(page, check, engine):
     # TRIAGE T65: a change to the menus keeps every element that is still
     # there (a rebuilt element under the mouse loses the click, and a
     # rebuilt select closes while open): mark some, change a setting, look
-    page.evaluate(MARK, ["setup.ai_level", "setup.item.banana", "setup.ape.next", "menu.start"])
-    page.click("[id='setup.item.banana']")
+    page.evaluate(MARK, ["setup.ai_level", "setup.item.vine", "setup.ape.next", "menu.start"])
+    page.click("[id='setup.item.vine']")
     page.wait_for_timeout(200)
-    check(not page.is_checked("[id='setup.item.banana']"), "the Banana box unticks")
-    kept = page.evaluate(MARKED, ["setup.ai_level", "setup.item.banana", "setup.ape.next", "menu.start"])
+    check(not page.is_checked("[id='setup.item.vine']"), "the Vine box unticks")
+    kept = page.evaluate(MARKED, ["setup.ai_level", "setup.item.vine", "setup.ape.next", "menu.start"])
     check(all(kept), f"the menus' elements are kept, not rebuilt, when a setting changes {kept}")
-    page.click("[id='setup.item.banana']")
+    page.click("[id='setup.item.vine']")
     page.wait_for_timeout(200)
-    check(page.is_checked("[id='setup.item.banana']"), "and ticks again with one click")
+    check(page.is_checked("[id='setup.item.vine']"), "and ticks again with one click")
 
     # TRIAGE T64: Random, the last card; the race runs on a map it picks
     # (never the last one, the Ski Slope) and names it at the start

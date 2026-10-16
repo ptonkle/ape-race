@@ -72,6 +72,20 @@ pub(super) fn preview_spot(map: Map, course: Option<&Course>) -> (V3, V3) {
     }
 }
 
+/// The docked panels stacked in one column, their heights (the page's
+/// measures, CSS pixels separated by spaces) added up with the gaps
+/// between them; 0 for anything unreadable.
+pub(super) fn stacked_height(measures: &str) -> i32 {
+    let heights: Option<Vec<i32>> = measures
+        .split_whitespace()
+        .map(|h| h.parse::<i32>().ok().filter(|h| (0..10_000).contains(h)))
+        .collect();
+    match heights {
+        Some(hs) if !hs.is_empty() => hs.iter().sum::<i32>() + GAP * (hs.len() as i32 - 1),
+        _ => 0,
+    }
+}
+
 /// Moves the map cards out of the docked panels into a strip of their own
 /// above the ape (TRIAGE T82): every map's picture and name in one row.
 fn strip_out(v: &mut Value) {
@@ -124,7 +138,11 @@ impl App {
         let one = PANEL_W + 2 * GAP;
         let two = 2 * PANEL_W + 3 * GAP;
         let panels = self.panel_count();
-        if w > h && w >= two + PANEL_W && panels >= 2 {
+        // two panels stack in one column when they fit the height (the
+        // map cards left the panels for the strip, TRIAGE T82), else they
+        // stand side by side
+        let stacked = self.menus_h > 0 && self.menus_h + 2 * GAP <= h;
+        if w > h && w >= two + PANEL_W && panels >= 2 && !stacked {
             Dock::Side(two)
         } else if w > h && w >= one + OPEN_MIN {
             Dock::Side(one)
@@ -532,6 +550,23 @@ mod tests {
         assert_eq!(a.dock(), Dock::Side(PANEL_W + 2 * GAP));
         let a = app_at(Screen::Setup, 1920, 1080);
         assert_eq!(a.dock(), Dock::Side(PANEL_W + 2 * GAP));
+    }
+
+    #[test]
+    fn the_lobbys_two_panels_stack_in_one_column_when_they_fit_the_height() {
+        let mut a = app_at(Screen::Online, 1906, 916);
+        a.act("online.host", "");
+        assert_eq!(a.screen, Screen::Lobby);
+        let two = 2 * PANEL_W + 3 * GAP;
+        let one = PANEL_W + 2 * GAP;
+        assert_eq!(a.dock(), Dock::Side(two), "unmeasured: side by side");
+        // 380 + 24 + 440 = 844, and 24 above and below: fits 916
+        a.act("dock.menus_h", "380 440");
+        assert_eq!(a.dock(), Dock::Side(one), "fits 916: one column");
+        a.act("dock.menus_h", "400 460");
+        assert_eq!(a.dock(), Dock::Side(two), "884 + gaps is too tall");
+        a.act("dock.menus_h", "junk");
+        assert_eq!(a.dock(), Dock::Side(two), "unreadable: side by side");
     }
 
     #[test]

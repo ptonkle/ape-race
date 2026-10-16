@@ -341,7 +341,11 @@ function cells(item) {
   table.append(head);
   item.rows.forEach((r) => {
     const tr = make("tr", r[r.length - 1] === true ? "me" : "");
-    r.slice(0, -1).forEach((c) => tr.append(make("td", "", c)));
+    r.slice(0, -1).forEach((c) => {
+      const td = make("td", "", c);
+      td.title = c;
+      tr.append(td);
+    });
     table.append(tr);
   });
   return table;
@@ -469,6 +473,18 @@ document.addEventListener("keydown", (e) => {
   }
 }, true);
 
+// the docked panels' natural heights, for the core to choose between
+// stacking them and standing them side by side
+let menusH = "";
+function measureMenus() {
+  const panels = [...el("menus").querySelectorAll(":scope > .panel:not(.strip)")];
+  if (!panels[1]) return;
+  const h = panels.map((p) => p.scrollHeight).join(" ");
+  if (h === menusH) return;
+  menusH = h;
+  send("dock.menus_h", h);
+}
+
 function drawMenus() {
   if (openSelect) {
     if (openSelect.isConnected) return;
@@ -481,6 +497,7 @@ function drawMenus() {
   const focused = kept && kept.id;
   const caret = focused ? kept.selectionStart : null;
   patchChildren(el("menus"), buildMenus());
+  measureMenus();
   // an element that had to be replaced gets the focus back (and a text
   // field its caret); a map card too, so the arrow keys go on from it
   const again = focused && el(focused);

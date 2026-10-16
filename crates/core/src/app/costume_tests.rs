@@ -96,7 +96,7 @@ fn author_times_beaten_before_costumes_unlock_them_and_nonsense_is_dropped() {
 }
 
 #[test]
-fn the_selector_shows_locked_costumes_and_wears_an_unlocked_one_anywhere() {
+fn the_selector_lists_unlocked_costumes_and_wears_an_unlocked_one_anywhere() {
     let mut a = app();
     a.act("menu.race", "");
     let ui = ui_of(&mut a);
@@ -107,13 +107,9 @@ fn the_selector_shows_locked_costumes_and_wears_an_unlocked_one_anywhere() {
         .iter()
         .map(|o| o["value"].as_str().unwrap())
         .collect();
-    assert_eq!(keys, ["own", "none", "ski", "space", "explorer", "pirate"]);
-    let locked: Vec<bool> = options.iter().map(|o| o["disabled"] == true).collect();
-    assert_eq!(locked, [false, false, true, true, true, true]);
-    assert_eq!(
-        options[5]["text"],
-        "Pirate (Beat Banana Bay Battle's Author time)"
-    );
+    // locked costumes are not listed (the person, 2026-10-15)
+    assert_eq!(keys, ["own", "none"]);
+    assert_eq!(options[0]["text"], "Default");
     // a locked one is refused
     a.act("setup.costume", "pirate");
     assert_eq!(a.settings.costume, Costume::Own);
@@ -126,7 +122,10 @@ fn the_selector_shows_locked_costumes_and_wears_an_unlocked_one_anywhere() {
     let ui = ui_of(&mut a);
     let select = item(&ui, "setup.costume").unwrap();
     assert_eq!(select["value"], "pirate");
-    assert_eq!(select["options"][5]["disabled"], Value::Null);
+    assert_eq!(
+        select["options"][2]["value"], "pirate",
+        "listed once unlocked"
+    );
     a.act("setup.map", "jungle");
     a.act("menu.start", "");
     let p = a.play.as_ref().unwrap();
