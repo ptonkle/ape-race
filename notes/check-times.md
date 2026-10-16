@@ -27,3 +27,11 @@ One row per run of `scripts/timed-checks.sh`, newest last. Seconds per step; `lo
 | 2026-10-15 18:41 | 1.12.0 | 2b0e996 | 13.14 | online | release=0.2 transport=16.7 a=77.4 | 94.4 | pass |
 | 2026-10-15 18:48 | 1.12.0 | 318a8e4 | 8.65 | check | format=0.5 lint=1.5 core=60.5 release=0.2 WebAssembly=0.1 browser=220.3 | 283.2 | pass |
 | 2026-10-15 18:53 | 1.12.0 | 318a8e4 | 12.07 | online | release=0.2 transport=16.8 a=74.9 | 91.9 | pass |
+| 2026-10-15 19:15 | 1.12.2 | 6198266 | 8.73 | check | format=0.5 lint=4.8 core=67.8 release=0.2 WebAssembly=0.1 browser=240.5 | 313.9 | pass |
+| 2026-10-15 19:20 | 1.12.2 | 6198266 | 11.39 | online | release=0.3 transport=17.0 a=82.7 | 100.0 | pass |
+| 2026-10-15 20:17 | 1.12.3 | baea429 | 48.34 | check | format=1.4 lint=0.2 core=84.5 release=10.3 WebAssembly=0.1 browser=447.0 | 543.5 | pass |
+| 2026-10-15 20:41 | 1.12.4 | 0df1c7d | 33.14 | check | format=1.1 lint=0.2 core=100.0 release=13.6 WebAssembly=0.1 browser=498.5 | 613.7 | pass |
+| 2026-10-15 21:02 | 1.12.5 | 4164986 | 29.91 | quick (chromium; tags all, boundary, camera, costumes, items, maps-bay, menus, notes, online, page, race, render, replay, sound, weather) | format=1.1 lint=4.4 list=0.1 core=86.5 release=16.8 WebAssembly=0.2 browser=344.2 online-transport=7.0 online-race=88.6 | 548.9 | pass |
+| 2026-10-15 21:13 | 1.12.6 | 64f5e9b | 26.06 | quick (chromium; tags ai, all, boundary, maps-bay, notes, page, race, render) | format=0.9 lint=3.3 list=0.1 core=60.3 release=5.9 WebAssembly=0.1 browser=171.7 online-transport=5.1 online-race=49.2 | 296.4 | pass |
+| 2026-10-15 21:19 | 1.12.7 | 155614c | 10.36 | quick (chromium; tags all, boundary, camera, costumes, items, menus, notes, online, page, race, render, replay, sound, weather) | format=0.5 lint=3.9 list=0.1 core=47.4 release=5.9 WebAssembly=0.1 browser=211.3 online-transport=5.0 online-race=66.4 | 340.6 | pass |
+| 2026-10-15 21:49 | 1.12.8 | dd7320c | 12.45 | quick (chromium; tags boundary, notes, online, page) | format=0.5 lint=2.1 list=0.1 core=0.6 release=6.4 WebAssembly=0.1 browser=245.7 online-transport=5.1 online-race=87.1 | 347.6 | pass |

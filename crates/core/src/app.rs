@@ -156,7 +156,7 @@ impl Default for Settings {
             best: None,
             trial_best: None,
             ghost: true,
-            items: crate::items::ItemSet::ALL,
+            items: crate::items::ItemSet::ALL.offered(),
             colourblind: false,
             map: Map::default(),
             random_map: false,
@@ -180,7 +180,7 @@ impl Settings {
         // a race has one to three AI opponents (TRIAGE T26: Time Trial is
         // the solo run); a saved 0 reads as 1
         s.ai_count = s.ai_count.clamp(1, 3);
-        s.items = s.items.clean();
+        s.items = s.items.clean().offered();
         // Speed Colours is a secret until unlocked (TRIAGE row 26), even for
         // settings saved while it was on by default
         s.speed_colours &= s.colours_unlocked;
@@ -382,7 +382,7 @@ pub struct Play {
 /// Slope, 1.4 the map grid and kept best replays, 1.5 auras and palettes,
 /// 1.6 finish dances),
 /// patch (fixes only).
-pub const VERSION: &str = "1.12.0";
+pub const VERSION: &str = "1.12.8";
 
 pub struct App {
     strings: BTreeMap<String, String>,
@@ -418,6 +418,10 @@ pub struct App {
     scene_version: u32,
     view_w: i32,
     view_h: i32,
+    /// the docked panels' heights added up with the gaps between them, in
+    /// CSS pixels, from the page's measures (0 until it has): two lobby
+    /// panels stack in one column when this fits the height
+    menus_h: i32,
     /// each map's course and scenery (in `Map::ALL` order), built when
     /// first needed and kept
     courses: [Option<Course>; MAPS],
@@ -481,6 +485,7 @@ impl App {
             scene_version: 1,
             view_w: 1280,
             view_h: 720,
+            menus_h: 0,
             courses: Default::default(),
             worlds: Default::default(),
             shown: Shown::World(map),
@@ -1048,6 +1053,10 @@ impl App {
         }
         if id.starts_with("flag.") {
             self.online_flag(id, value);
+            return;
+        }
+        if id == "dock.menus_h" {
+            self.menus_h = menu_dock::stacked_height(value);
             return;
         }
         self.sounds.push(Cue::Click.key().to_string());
@@ -1861,24 +1870,13 @@ impl App {
     }
 
     /// The costume to wear (TRIAGE T89), as a select with id `id`: the
-    /// map's own, none, and each map's costume, a locked one shown greyed
-    /// with how to unlock it.
+    /// default (the map's own), none, and each costume unlocked so far;
+    /// locked ones are not listed (the person, 2026-10-15).
     pub(crate) fn costume_select(&self, id: &str) -> Value {
         let options: Vec<Value> = Costume::ALL
             .into_iter()
-            .map(|c| {
-                let name = self.t(&format!("costume.{}", c.key()));
-                match c.map() {
-                    Some(map) if !self.settings.wearable(c) => {
-                        let hint = self
-                            .t("costume.locked")
-                            .replace("{map}", &self.map_name(map));
-                        json!({ "value": c.key(), "text": format!("{name} ({hint})"),
-                                "disabled": true })
-                    }
-                    _ => json!({ "value": c.key(), "text": name }),
-                }
-            })
+            .filter(|c| self.settings.wearable(*c))
+            .map(|c| json!({ "value": c.key(), "text": self.t(&format!("costume.{}", c.key())) }))
             .collect();
         json!({ "type": "select", "id": id, "label": self.t("setup.costume"),
           "value": self.settings.costume.key(), "options": options })
@@ -1971,7 +1969,7 @@ impl App {
     /// when crates may give it, and a note when none is. Online, the host's
     /// go out with the start.
     pub(crate) fn item_toggles(&self) -> Vec<Value> {
-        let options: Vec<Value> = crate::race::Item::ALL
+        let options: Vec<Value> = crate::items::ItemSet::OFFERED
             .iter()
             .map(|item| {
                 json!({ "id": format!("setup.item.{}", item.key()),
@@ -1999,7 +1997,10 @@ impl App {
     /// An item checkbox changed (`setup.item.<key>`).
     pub(crate) fn tick_item(&mut self, id: &str, value: &str) {
         let key = id.trim_start_matches("setup.item.");
-        if let Some(item) = crate::race::Item::ALL.into_iter().find(|i| i.key() == key) {
+        if let Some(item) = crate::items::ItemSet::OFFERED
+            .into_iter()
+            .find(|i| i.key() == key)
+        {
             self.settings.items = self.settings.items.with(item, value == "on");
             self.save = true;
         }

@@ -200,6 +200,7 @@ function select(item) {
 // read-only grid (a joiner's lobby) shows the pick and presses nothing.
 // The arrow keys move between cards; Enter or Space presses one.
 function tiles(item) {
+  if (item.strip) return strip(item);
   // the chosen map large, the others as name buttons under it (the person,
   // 2026-10-13: the three small cards were too small to see)
   const wrap = make("div", "tiles-field");
@@ -239,6 +240,40 @@ function tiles(item) {
   grid.append(row);
   wrap.append(grid);
   return wrap;
+}
+
+// every map as a card, its picture and name, in one row above the ape
+// (TRIAGE T82); the chosen one ringed in banana yellow
+function strip(item) {
+  const row = make("div", item.read_only ? "tiles strip read-only" : "tiles strip");
+  row.id = item.id;
+  row.dataset.value = item.value;
+  row.setAttribute("role", "radiogroup");
+  row.setAttribute("aria-label", item.label);
+  item.options.forEach((o) => {
+    const b = make("button", o.chosen ? "card chosen" : "card");
+    b.type = "button";
+    b.id = o.id;
+    b.dataset.value = o.value;
+    b.disabled = item.read_only === true;
+    b.setAttribute("role", "radio");
+    b.setAttribute("aria-checked", o.chosen ? "true" : "false");
+    const img = make("img");
+    img.src = o.picture;
+    img.alt = "";
+    img.draggable = false;
+    b.append(img, make("span", "card-name", o.text));
+    on(o.id, "click", () => send(item.id, o.value));
+    on(o.id, "keydown", (t, e) => {
+      const to = { ArrowRight: t.nextElementSibling, ArrowLeft: t.previousElementSibling }[e.key];
+      if (to) {
+        e.preventDefault();
+        to.focus();
+      }
+    });
+    row.append(b);
+  });
+  return row;
 }
 
 function slider(item) {
@@ -306,7 +341,11 @@ function cells(item) {
   table.append(head);
   item.rows.forEach((r) => {
     const tr = make("tr", r[r.length - 1] === true ? "me" : "");
-    r.slice(0, -1).forEach((c) => tr.append(make("td", "", c)));
+    r.slice(0, -1).forEach((c) => {
+      const td = make("td", "", c);
+      td.title = c;
+      tr.append(td);
+    });
     table.append(tr);
   });
   return table;
@@ -434,6 +473,18 @@ document.addEventListener("keydown", (e) => {
   }
 }, true);
 
+// the docked panels' natural heights, for the core to choose between
+// stacking them and standing them side by side
+let menusH = "";
+function measureMenus() {
+  const panels = [...el("menus").querySelectorAll(":scope > .panel:not(.strip)")];
+  if (!panels[1]) return;
+  const h = panels.map((p) => p.scrollHeight).join(" ");
+  if (h === menusH) return;
+  menusH = h;
+  send("dock.menus_h", h);
+}
+
 function drawMenus() {
   if (openSelect) {
     if (openSelect.isConnected) return;
@@ -446,6 +497,7 @@ function drawMenus() {
   const focused = kept && kept.id;
   const caret = focused ? kept.selectionStart : null;
   patchChildren(el("menus"), buildMenus());
+  measureMenus();
   // an element that had to be replaced gets the focus back (and a text
   // field its caret); a map card too, so the arrow keys go on from it
   const again = focused && el(focused);

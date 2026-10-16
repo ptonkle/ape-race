@@ -40,16 +40,18 @@ fn unticked_items_stay_out_of_the_race_and_the_choice_is_kept() {
     assert_eq!(a.screen, Screen::Setup);
     let ui = ui_of(&mut a);
     let boxes = checks(&ui);
-    assert_eq!(boxes.len(), Item::ALL.len(), "{boxes:?}");
+    // only the Speed Boost and the Vine are offered (the person, 2026-10-15)
+    let ids: Vec<&str> = boxes.iter().map(|(id, _)| id.as_str()).collect();
+    assert_eq!(ids, ["setup.item.boost", "setup.item.vine"]);
     assert!(boxes.iter().all(|(_, on)| *on));
-    a.act("setup.item.banana", "off");
-    a.act("setup.item.hook", "off");
+    a.act("setup.item.vine", "off");
+    a.act("setup.item.banana", "on");
     let ui = ui_of(&mut a);
     let saved = ui["save"].as_str().expect("settings saved");
     let kept = Settings::parse(saved);
-    assert!(!kept.items.has(Item::Banana) && !kept.items.has(Item::Hook));
-    assert!(kept.items.has(Item::Stick) && kept.items.has(Item::Vine));
-    assert_eq!(checks(&ui).iter().filter(|(_, on)| !on).count(), 2);
+    assert!(!kept.items.has(Item::Vine) && !kept.items.has(Item::Banana));
+    assert!(kept.items.has(Item::Boost));
+    assert_eq!(checks(&ui).iter().filter(|(_, on)| !on).count(), 1);
     a.act("menu.start", "");
     let p = a.play.as_ref().unwrap();
     assert_eq!(p.race.items, kept.items);
@@ -86,10 +88,17 @@ fn a_time_trial_shows_no_item_boxes_and_keeps_boost_only() {
 
 #[test]
 fn stored_settings_with_stray_bits_are_cleaned() {
+    // stray bits and the items no longer offered (Banana, Stick, Hook)
+    // are taken out
     let s = Settings::parse(r#"{"items": 255}"#);
-    assert_eq!(s.items, ItemSet::ALL);
+    assert_eq!(s.items, ItemSet::ALL.offered());
+    assert!(s.items.has(Item::Boost) && s.items.has(Item::Vine) && !s.items.has(Item::Banana));
     let s = Settings::parse(r#"{"volume": 40}"#);
-    assert_eq!(s.items, ItemSet::ALL, "older settings allow every item");
+    assert_eq!(
+        s.items,
+        ItemSet::ALL.offered(),
+        "older settings allow every offered item"
+    );
 }
 
 #[test]

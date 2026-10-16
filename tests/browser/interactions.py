@@ -37,7 +37,7 @@ def canvas_drawn(page):
 
 def chosen_map(page):
     """The keys of the map cards marked chosen on the setup's grid."""
-    return page.eval_on_selector_all("[id='setup.map'] .tile.chosen", "ts => ts.map(t => t.dataset.value)")
+    return page.eval_on_selector_all("[id='setup.map'] .tile.chosen, [id='setup.map'] .card.chosen", "ts => ts.map(t => t.dataset.value)")
 
 
 MAPS = [STRINGS["map." + k] for k in ["jungle", "city", "ski", "sector", "ruins", "bay", "random"]]
@@ -94,11 +94,12 @@ def step_race(page, check):
     page.click("[id='setup.equal']")
     # TRIAGE T42: a checkbox per item, all ticked at first; one unticks
     boxes = page.evaluate("() => [...document.querySelectorAll('.checks input')].map(b => b.checked)")
-    check(boxes == [True] * 5, f"five item checkboxes, all ticked {boxes}")
-    page.click("[id='setup.item.banana']")
+    # only the Speed Boost and the Vine are offered (2026-10-15)
+    check(boxes == [True] * 2, f"two item checkboxes, both ticked {boxes}")
+    page.click("[id='setup.item.vine']")
     page.wait_for_timeout(100)
-    check(not page.is_checked("[id='setup.item.banana']"), "the Banana box unticks")
-    page.click("[id='setup.item.banana']")
+    check(not page.is_checked("[id='setup.item.vine']"), "the Vine box unticks")
+    page.click("[id='setup.item.vine']")
     page.wait_for_timeout(100)
     page.select_option("[id='setup.opponents']", "2")
     check(canvas_drawn(page), "the chosen ape is drawn on the setup screen")
@@ -231,13 +232,15 @@ def step_city_map(page, check):
     # The City (2026-10-12): the map grid on Race Setup (TRIAGE T54), the
     # ape preview moves onto the chosen map, and the race runs there
     page.click("[id='menu.race']")
-    options = page.eval_on_selector_all("[id='setup.map'] .tile", "ts => ts.map(t => t.innerText.trim())")
+    options = page.eval_on_selector_all("[id='setup.map'] .tile, [id='setup.map'] .card", "ts => ts.map(t => t.innerText.trim())")
     maps = MAPS
     check(options == maps, f"Race Setup offers every map and Random as cards {options}")
     pictures = page.eval_on_selector_all(
-        "[id='setup.map'] .tile-hero img", "is => is.map(i => i.complete && i.naturalWidth > 0)"
+        "[id='setup.map'] .tile-hero img, [id='setup.map'] .card img", "is => is.map(i => i.complete && i.naturalWidth > 0)"
     )
-    check(pictures == [True], f"the chosen map shows its picture large {pictures}")
+    # docked beside the ape, every card shows its picture (TRIAGE T82);
+    # otherwise the chosen map's picture shows large
+    check(pictures and all(pictures), f"the map pictures load {pictures}")
     check(chosen_map(page) == ["jungle"], "the Jungle's card is marked at first")
     page.click("[id='setup.map.city']")
     page.wait_for_timeout(300)
@@ -321,15 +324,15 @@ def step_setup_layout(page, check):
     # TRIAGE T65: a change to the menus keeps every element that is still
     # there (a rebuilt element under the mouse loses the click, and a
     # rebuilt select closes while open): mark some, change a setting, look
-    page.evaluate(MARK, ["setup.ai_level", "setup.item.banana", "setup.ape.next", "menu.start"])
-    page.click("[id='setup.item.banana']")
+    page.evaluate(MARK, ["setup.ai_level", "setup.item.vine", "setup.ape.next", "menu.start"])
+    page.click("[id='setup.item.vine']")
     page.wait_for_timeout(200)
-    check(not page.is_checked("[id='setup.item.banana']"), "the Banana box unticks")
-    kept = page.evaluate(MARKED, ["setup.ai_level", "setup.item.banana", "setup.ape.next", "menu.start"])
+    check(not page.is_checked("[id='setup.item.vine']"), "the Vine box unticks")
+    kept = page.evaluate(MARKED, ["setup.ai_level", "setup.item.vine", "setup.ape.next", "menu.start"])
     check(all(kept), f"the menus' elements are kept, not rebuilt, when a setting changes {kept}")
-    page.click("[id='setup.item.banana']")
+    page.click("[id='setup.item.vine']")
     page.wait_for_timeout(200)
-    check(page.is_checked("[id='setup.item.banana']"), "and ticks again with one click")
+    check(page.is_checked("[id='setup.item.vine']"), "and ticks again with one click")
     page.click("[id='menu.back']")
 
 
@@ -343,9 +346,9 @@ def step_random_map(page, check):
     page.wait_for_timeout(300)
     check(chosen_map(page) == ["random"], "Random is chosen by its card")
     hero = page.eval_on_selector(
-        "[id='setup.map'] .tile-hero", "f => [f.innerText.trim(), f.querySelector('img').complete && f.querySelector('img').naturalWidth > 0]"
+        "[id='setup.map'] .tile-hero, [id='setup.map'] .card.chosen", "f => [f.innerText.trim(), f.querySelector('img').complete && f.querySelector('img').naturalWidth > 0]"
     )
-    check(hero == [STRINGS["map.random"], True], f"Random shows its own picture large {hero}")
+    check(hero == [STRINGS["map.random"], True], f"Random shows its own picture {hero}")
     page.click("[id='menu.start']")
     page.wait_for_function("() => document.getElementById('hud-place').innerText.includes('/')", timeout=10000)
     page.wait_for_function("() => document.getElementById('hud-reward').innerText.trim() !== ''", timeout=10000)
