@@ -1959,9 +1959,9 @@ pub fn catch_up_colour(map: Map, vivid: bool) -> Rgb {
         // Banana Bay Battle: a hot scarlet against its tan hemp ropes and
         // the turquoise sea
         (Map::Bay, false) => crate::bayscape::fleet::CATCH_UP,
-        // STAND-IN (Mape's Tower's skeleton): a hot orange; the art agent
-        // chooses against the spell beams
-        (Map::Tower, false) => rgb(255, 130, 30),
+        // Mape's Tower: a deep crimson, apart from every spell beam (the
+        // stand-in's hot orange was the fire beam's colour, TL3)
+        (Map::Tower, false) => rgb(230, 20, 30),
         // the colourblind mode (TRIAGE T33): told from the map's vivid
         // vine by brightness, not hue alone, and kept off the item flowers'
         // violet: a deep red-orange under the bright green vines, a dark
@@ -2293,8 +2293,9 @@ pub fn preview(c: &Course) -> Preview {
         Map::Ruins => crate::ruinsscape::preview(c),
         // the pier's planks, the battle fleet out ahead
         Map::Bay => crate::bayscape::lobby::preview(c),
-        // STAND-IN (Mape's Tower's skeleton): the start deck, as the Jungle's
-        Map::Jungle | Map::Tower => {
+        // a high bridge, the keep's wall beside the ape, the sky beyond
+        Map::Tower => crate::towerscape::lobby::preview(c),
+        Map::Jungle => {
             let pl = c.platforms.first();
             let feet = pl.map_or(c.point(int(4)), |p| {
                 v3(p.centre.x, p.top, p.centre.z).add(p.fwd.scale(p.half_len / 2))
@@ -2436,6 +2437,12 @@ pub fn vines_where(
         }
         let a = c.anchor(i, tick);
         let t = tick + i as u32 * 37;
+        // Mape's Tower: spell beams in their casters' colours, as in a race
+        // (the title and the menus drew them the shared green, TL4)
+        let look = match &c.tower {
+            Some(tw) if !vivid => crate::towerscape::beam_vine(tw, i, look),
+            _ => look,
+        };
         vine_along(
             b,
             a,
@@ -2879,6 +2886,27 @@ mod tests {
         let mut all: Vec<Rgb> = Map::ALL.map(|m| catch_up_colour(m, false)).to_vec();
         all.dedup();
         assert_eq!(all.len(), Map::ALL.len());
+    }
+
+    #[test]
+    fn on_the_tower_the_catch_up_colour_stands_apart_from_every_spell_beam() {
+        // TL3: each beam is drawn in its caster's spell's colour, so the
+        // catch-up colour must be far from all of them too
+        use crate::towermodels::Spell;
+        let far = |a: Rgb, b: Rgb| (0..3).map(|k| (a[k] - b[k]).abs()).sum::<i32>();
+        let c = catch_up_colour(Map::Tower, false);
+        for s in [
+            Spell::Arcane,
+            Spell::Frost,
+            Spell::Fire,
+            Spell::Verdant,
+            Spell::Charm,
+            Spell::Brine,
+            Spell::Abyss,
+        ] {
+            let (beam, _) = crate::towermodels::beam_look(s);
+            assert!(far(c, beam) > ONE / 2, "{c:?} too near the {s:?} beam {beam:?}");
+        }
     }
 
     #[test]

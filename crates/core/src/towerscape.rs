@@ -32,6 +32,7 @@ use crate::snow::Weather;
 use crate::tower::TowerLayout;
 
 mod art;
+pub mod lobby;
 pub use art::{beam_vine, cast_by, casters, parts, scenery, spell_of, worst_drawn, REACH};
 
 /// Shown full colour and unfogged, as the sky is (`scene.frag`).
@@ -434,29 +435,10 @@ fn cloud_sea(b: &mut Batch, t: &TowerLayout, eye: V3, c: Rgb) {
     }
 }
 
-/// The title's flyover on Mape's Tower: a slow glide along the centreline
-/// (up the climb, down the zipper), 14 m over it, looking 30 m on.
+/// The title's flyover on Mape's Tower: up round the keep to the tear
+/// (`lobby::flyover_camera`).
 pub fn flyover_camera(c: &Course, ticks: u32, from: i32) -> crate::render::Camera {
-    let lap = (c.length - int(100)).max(int(1)) as i64;
-    let s = ((ticks as i64 * int(6) as i64 / crate::rules::TICKS_PER_SECOND as i64 + from as i64)
-        % lap) as i32
-        + int(40);
-    // (the centreline averaged over 40 m round each place: the branches'
-    // turns and the room's climb are kinks a glide must not feel)
-    let smooth = |at: i32| {
-        let mut sum = V3::ZERO;
-        for k in -10..=10 {
-            sum = sum.add(c.point(at + k * int(2)));
-        }
-        v3(sum.x / 21, sum.y / 21, sum.z / 21)
-    };
-    let eye = smooth(s).add(v3(0, int(14), 0));
-    let look = smooth(s + int(30)).add(v3(0, int(11), 0));
-    crate::render::Camera {
-        eye,
-        fwd: look.sub(eye).norm(),
-        fov: crate::fx::deg(70),
-    }
+    lobby::flyover_camera(c, ticks, from)
 }
 
 #[cfg(test)]
