@@ -22,6 +22,6 @@ Nothing live is affected. To resume in a new session:
 5. **No trampolines in the zipper**: a bounce threw apes back up the way they came. The zipper has platforms and pads to break the fall instead. (TC1)
 6. **The mages, dragons and creatures stand still** (drawn at tick 0). Making them move is a polish item. (TA)
 7. **The step costs 4 ms at worst** (the Bay 3.3, the Ruins 3.9): fine in a frame; a known speed-up is noted in TM2.
-8. **The lobby view is plain** (TL8): the ape stands on the start deck 16 m up, keep on the left, but a level camera there sees no clouds, dragons or turrets, and the grey deck fills the lower third. A high bridge would look better, but its drawn stonework sits above the walkable deck, so the camera ended up inside stone (TL1). Fix the bridge and move the lobby up, or keep it?
-9. **On every map, the map-card strip covers the ape in the 1280×720 online lobby** (the lobby agent noticed). That's on the live game too; a quick fix on main once you've seen it.
+8. **Answered 2026-10-16: keep the start deck.** ~~The lobby view is plain~~ (TL8): the ape stands on the start deck 16 m up, keep on the left, but a level camera there sees no clouds, dragons or turrets, and the grey deck fills the lower third. A high bridge would look better, but its drawn stonework sits above the walkable deck, so the camera ended up inside stone (TL1). Fix the bridge and move the lobby up, or keep it?
+9. **Answered 2026-10-16: not a concern (no 720p screens).** ~~On every map, the map-card strip covers the ape in the 1280×720 online lobby** (the lobby agent noticed). That's on the live game too; a quick fix on main once you've seen it.~~
 
