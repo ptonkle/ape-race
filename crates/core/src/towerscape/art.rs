@@ -29,8 +29,7 @@ pub const REACH: i32 = int(90);
 pub fn spell_of(t: &TowerLayout, i: usize) -> Spell {
     match t.hangers.get(i) {
         Some(Hanger::Mage { balcony }) => Spell::nth(*balcony as u32),
-        Some(Hanger::Orb) => Spell::Arcane,
-        Some(Hanger::Monster { .. }) => Spell::DEEP[i % 2],
+        Some(Hanger::Sling) => Spell::DEEP[i % 2],
         Some(Hanger::Cloud { band }) => Spell::nth(*band as u32 + i as u32 * 2),
         _ => Spell::nth(i as u32),
     }
@@ -98,12 +97,11 @@ const CELL: (i32, i32) = (int(40), int(15));
 
 /// The parts that belong to the zipper space: drawn only from past the
 /// mirror plane (the climb's only from before it), as the sky is.
-const ZIPPER_PARTS: [&str; 7] = [
+const ZIPPER_PARTS: [&str; 6] = [
     "sea monsters",
     "blobs",
     "void platforms",
     "zip",
-    "topsy towers",
     "banana sea",
     "zipper trampolines",
 ];
@@ -139,7 +137,7 @@ pub fn scenery(c: &Course, t: &TowerLayout) -> Scenery {
         let always = x == i32::MAX;
         chunks.push(scene::Chunk {
             centre: if always {
-                t.keep.centre
+                t.towers[0].centre
             } else {
                 v3(
                     x * CELL.0 + CELL.0 / 2,
@@ -150,7 +148,7 @@ pub fn scenery(c: &Course, t: &TowerLayout) -> Scenery {
             draws,
             bounds: always.then_some([-far, -far, far, far]),
             heights: always.then_some([-far, far]),
-            side: Some((t.zipper.mirror_x, past)),
+            side: Some((t.portal.tear.x, past)),
         });
     }
     let mut s = Scenery {
@@ -195,37 +193,31 @@ fn build(c: &Course, t: &TowerLayout, sink: &mut Sink) -> Vec<Option<V3>> {
     };
     let tick = 0;
 
-    // the keep: its foot, sections stacked to its height, the crown
-    let k = &t.keep;
-    let base = at(k.centre, 0);
-    put("keep", Some(k.centre.add(v3(0, int(4), 0))), &mut |b| {
-        m::keep_base(b, &base, k.radius, int(5), 1)
-    });
-    let sections = (k.height / m::SECTION_H).max(1);
-    let sh = k.height / sections;
-    for s in 0..sections {
-        let y = k.centre.y + s * sh;
-        let f = at(v3(k.centre.x, y, k.centre.z), 0);
-        put(
-            "keep",
-            Some(v3(k.centre.x, y + sh / 2, k.centre.z)),
-            &mut |b| m::keep_section(b, &f, k.radius, sh, s as u32, m::Detail::Near),
-        );
-        put("keep far", None, &mut |b| {
-            m::keep_section(b, &f, k.radius - cm(40), sh, s as u32, m::Detail::Far)
+    // STAND-IN (TW2-7, the art agent redoes this from `towermodels::towers`):
+    // both towers as the old keep's sections stacked to their heights
+    // (tower 1 is hollow and open-topped in the contract, drawn solid
+    // here), the bridges as the old arch bridges
+    for (n, k) in t.towers.iter().enumerate() {
+        let base = at(k.centre, 0);
+        put("keep", Some(k.centre.add(v3(0, int(4), 0))), &mut |b| {
+            m::keep_base(b, &base, k.radius, int(5), n as u32 + 1)
         });
+        let sections = (k.height / m::SECTION_H).max(1);
+        let sh = k.height / sections;
+        for s in 0..sections {
+            let y = k.centre.y + s * sh;
+            let f = at(v3(k.centre.x, y, k.centre.z), 0);
+            put(
+                "keep",
+                Some(v3(k.centre.x, y + sh / 2, k.centre.z)),
+                &mut |b| m::keep_section(b, &f, k.radius, sh, s as u32, m::Detail::Near),
+            );
+            put("keep far", None, &mut |b| {
+                m::keep_section(b, &f, k.radius - cm(40), sh, s as u32, m::Detail::Far)
+            });
+        }
     }
-    let crown = at(
-        v3(k.centre.x, t.summit.deck.y - m::CROWN_FLOOR, k.centre.z),
-        0,
-    );
-    put("keep", Some(t.summit.deck), &mut |b| {
-        m::keep_crown(b, &crown, k.radius, 4, 2)
-    });
-
-    // the branches: arch bridges out to the sub-towers
-    let mut subs = Vec::new();
-    for (i, br) in t.branches.iter().enumerate() {
+    for (i, br) in t.bridges.iter().enumerate() {
         let mid = br.from.add(br.to).scale(ONE / 2);
         put("bridges", Some(mid), &mut |b| {
             m::arch_bridge(
@@ -237,41 +229,6 @@ fn build(c: &Course, t: &TowerLayout, sink: &mut Sink) -> Vec<Option<V3>> {
                 i as u32,
             )
         });
-        let s = br.sub;
-        let room = s.centre.flat() == t.room.centre.flat();
-        if !fresh(&mut subs, s.centre, int(2)) {
-            continue;
-        }
-        if room {
-            // the trampoline room's tower: its stone foot up to the room's
-            // floor (the room itself is drawn below, TW12)
-            let n = (t.room.centre.y / m::SECTION_H).max(1);
-            let sh = t.room.centre.y / n;
-            for k in 0..n {
-                let f = at(v3(s.centre.x, k * sh, s.centre.z), i as i32 * 9_000);
-                put(
-                    "sub-towers",
-                    Some(v3(s.centre.x, k * sh + sh / 2, s.centre.z)),
-                    &mut |b| {
-                        m::keep_section(
-                            b,
-                            &f,
-                            s.radius,
-                            sh,
-                            (i + k as usize) as u32,
-                            m::Detail::Near,
-                        )
-                    },
-                );
-            }
-        } else {
-            let f = at(s.centre, i as i32 * 9_000);
-            put(
-                "sub-towers",
-                Some(v3(s.centre.x, mid.y, s.centre.z)),
-                &mut |b| m::sub_tower(b, &f, s.radius, s.top - s.centre.y, i as u32),
-            );
-        }
     }
 
     // the balconies, each with its mage casting toward its beams' anchors
@@ -316,7 +273,6 @@ fn build(c: &Course, t: &TowerLayout, sink: &mut Sink) -> Vec<Option<V3>> {
     // the casters away from balconies: dragons, clouds, the start's and
     // the orb's runes, the descent's creatures (one close to another
     // casts both beams)
-    let mut creatures: Vec<(V3, V3)> = Vec::new();
     let mut riders: Vec<(V3, V3)> = Vec::new();
     let mut clouds = Vec::new();
     for (i, h) in t.hangers.iter().enumerate() {
@@ -359,44 +315,15 @@ fn build(c: &Course, t: &TowerLayout, sink: &mut Sink) -> Vec<Option<V3>> {
                 });
                 tips[i] = Some(a);
             }
-            Hanger::Start | Hanger::Orb => {
+            Hanger::Start
+            | Hanger::Bridge { .. }
+            | Hanger::Window { .. }
+            | Hanger::Floating { .. }
+            | Hanger::Sling => {
                 put("anchors", Some(a), &mut |b| {
                     m::spell_anchor(b, &Affine::IDENTITY, a, spell, tick, i as u32)
                 });
                 tips[i] = Some(a);
-            }
-            Hanger::Monster { at: round } => {
-                if let Some(&(_, tip)) = creatures
-                    .iter()
-                    .find(|(p, _)| !p.sub(a).longer_than(int(5)))
-                {
-                    put("blobs", Some(a), &mut |b| {
-                        m::sea_beam(b, &Affine::IDENTITY, tip, a, spell, tick, i as u32)
-                    });
-                    tips[i] = Some(tip);
-                    continue;
-                }
-                let face = t.zipper.axis.sub(round).flat();
-                let yaw = yaw_of(if face.longer_than(cm(10)) {
-                    face
-                } else {
-                    V3::UP
-                });
-                let mut tip = a;
-                if i % 6 == 0 {
-                    let f = tipped(yaw, a, |b, f| m::sea_monster(b, f, spell, tick, i as u32));
-                    put("sea monsters", Some(a), &mut |b| {
-                        tip = m::sea_monster(b, &f, spell, tick, i as u32);
-                    });
-                } else {
-                    let size = int(3);
-                    let f = tipped(yaw, a, |b, f| m::blob(b, f, size, spell, tick, i as u32));
-                    put("blobs", Some(a), &mut |b| {
-                        tip = m::blob(b, &f, size, spell, tick, i as u32);
-                    });
-                }
-                creatures.push((a, tip));
-                tips[i] = Some(tip);
             }
             Hanger::Mage { .. } => {}
         }
@@ -419,13 +346,6 @@ fn build(c: &Course, t: &TowerLayout, sink: &mut Sink) -> Vec<Option<V3>> {
         });
     }
 
-    // the trampoline room, the orb mage in the middle
-    let r = &t.room;
-    let f = at(r.centre, yaw_of(r.door.sub(r.centre).flat()));
-    put("room", Some(r.orb.0), &mut |b| {
-        m::trampoline_room(b, &f, r.radius, r.height, r.roof_exit.1, false, tick, 3)
-    });
-
     // conjured platforms under the reset pads: frost, runes and crystal on
     // the climb; wreck planks, coral and bubbles in the zipper
     let mut placed = Vec::new();
@@ -442,7 +362,7 @@ fn build(c: &Course, t: &TowerLayout, sink: &mut Sink) -> Vec<Option<V3>> {
             put("pads", Some(top), &mut |b| {
                 m::rune_stone(b, &f, hw.max(hl) * 2, tick, k)
             });
-        } else if t.in_zipper(top) || pd.at > crate::tower::split(c.length) {
+        } else if t.in_void(top) {
             put("void platforms", Some(top), &mut |b| match i % 3 {
                 0 => m::wreck_plank(b, &f, hw * 2, hl * 2, k),
                 1 => m::coral_shelf(b, &f, hw.max(hl), k),
@@ -461,7 +381,7 @@ fn build(c: &Course, t: &TowerLayout, sink: &mut Sink) -> Vec<Option<V3>> {
     }
 
     // the summit: the mad wizard tearing reality, the eldritch banana
-    let s = &t.summit;
+    let s = &t.portal;
     // (drawn 2.5 times life beside the giant tear)
     let f = m::pose(s.wizard, s.wizard_yaw, ONE * 5 / 2);
     let facing = yaw_of(s.through.neg());
@@ -500,36 +420,14 @@ fn build(c: &Course, t: &TowerLayout, sink: &mut Sink) -> Vec<Option<V3>> {
         m::banana_in_rift(b, &rift, half_h * 2, s.banana_len, behind, tick)
     });
 
-    // the zipper: the zip down the void, the sub-towers hung topsy-turvy
-    let z = &t.zipper;
+    // the zip down the void beside the tube (STAND-IN: the tube's rings
+    // and pads and the tunnel are the art agent's, from `towermodels::tube`)
+    let z = &t.tube;
     let len = z.top - z.bottom;
-    let f = at(v3(z.axis.x, z.top, z.axis.z), facing);
+    let f = at(v3(z.axis.x + z.radius + int(6), z.top, z.axis.z), facing);
     put("zip", None, &mut |b| {
         m::zip(b, &f, len, int(8), ONE * 3 / 5, tick)
     });
-    for (i, s) in subs.iter().enumerate() {
-        let sub = t
-            .branches
-            .iter()
-            .find(|br| br.sub.centre == *s)
-            .map(|br| br.sub)
-            .expect("a branch's sub-tower");
-        let top = sub.top;
-        let hang = t.topsy_hang(&sub);
-        let f = at(hang, i as i32 * 11_000);
-        let n = ((top - s.y) / m::SECTION_H).clamp(1, 2) as u32;
-        put(
-            "topsy towers",
-            Some(hang.sub(v3(0, int(12), 0))),
-            &mut |b| m::topsy_keep(b, &f, int(8), n, crate::tower::TOPSY_TILT, i as u32),
-        );
-        let f = at(hang.sub(v3(0, int(30), 0)), 0);
-        put(
-            "topsy towers",
-            Some(hang.sub(v3(0, int(30), 0))),
-            &mut |b| m::debris(b, &f, int(12), tick, i as u32),
-        );
-    }
 
     // the banana sea at the bottom, where the apes dance
     let bz = &t.banana_zone;

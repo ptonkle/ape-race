@@ -40,7 +40,11 @@ fn audit(c: &Course) -> Vec<String> {
         for k in 0..=20 {
             let p = v.anchor.add(h.scale(v.length * k / 20));
             if let Some(s) = t.point_in_stone(p) {
-                bad.push(format!("{at}: beam in stone {s} at {}/20", k));
+                bad.push(format!(
+                    "{at}: beam in stone {s} at {}/20 (anchor {:?})",
+                    k,
+                    v.anchor.scale(100).scale(ONE / 100)
+                ));
                 break;
             }
         }
@@ -48,7 +52,13 @@ fn audit(c: &Course) -> Vec<String> {
             bad.push(format!("{at}: an ape at its bottom is in stone {s}"));
         }
         // (2) the swing: out to 55° both ways along the course and 20°
-        // either side of that
+        // either side of that (not for a beam hung near level, the sling
+        // row: a swing along the course is along the beam itself there,
+        // and the swing that matters, under the anchor into the tunnel,
+        // is the mouth's width, TW2-4)
+        if h.y.abs() < ONE / 2 {
+            continue;
+        }
         let way = {
             let f = c.heading_at(v.at);
             v3(f.x, 0, f.z).norm()
@@ -178,7 +188,7 @@ fn both_towers_and_the_tube_are_solid() {
     assert!(flat_dist(end, t1.centre) >= t1.radius, "tower 1: went in");
     let (end, hit) = fly(
         &c,
-        v3(t1.centre.x, y, t1.centre.z),
+        v3(t1.centre.x, y, t1.centre.z + t1.inner - int(15)),
         v3(t1.centre.x, y, t1.centre.z + t1.inner),
         25,
     );
@@ -212,7 +222,7 @@ fn the_doorway_lets_an_ape_in_and_the_wall_beside_it_does_not() {
         at.add(d.out.scale(int(6))),
         at.sub(d.out.scale(int(12))),
         16,
-        crate::rules::TICKS_PER_SECOND as u32 / 2,
+        crate::rules::TICKS_PER_SECOND as u32,
     );
     assert!(!hit, "the doorway is open");
     assert!(

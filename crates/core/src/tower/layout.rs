@@ -59,7 +59,7 @@ pub const LEGS: &[(Leg, Climb)] = &[
     (Leg::Tower2, Climb(390, 360, 100)),     // 3 round tower 2
     (Leg::Tower2, Climb(50, -90, 8)),        // 4 the corner off it
     (Leg::UpperBridge, Climb(250, 0, 4)),    // 5 under the upper bridge
-    (Leg::Inside, Climb(50, 0, 6)),          // 6 to and through the doorway
+    (Leg::Inside, Climb(100, 0, 6)),         // 6 on to and through the doorway
     (Leg::Inside, Climb(50, -90, 8)),        // 7 the corner onto the coil
     (Leg::Inside, Climb(472, -1080, 150)),   // 8 the coil up the hollow
     (Leg::Portal, Climb(50, 90, 10)),        // 9 the corner out over the rim
@@ -76,10 +76,10 @@ const BEND: usize = 12;
 /// The start faces −x (toward tower 2).
 const START_YAW: i32 = -TURN / 4;
 
-/// Tower 2's radius (1.17× the old keep's) and how far outside its wall
+/// Tower 2's radius (the old keep's, `towermodels::TOWER2_RADIUS`) and how far outside its wall
 /// the spiral runs (the old keep's gap).
-const R2: i32 = int(48);
-const WALL_GAP: i32 = int(14);
+const R2: i32 = crate::towermodels::TOWER2_RADIUS;
+
 /// Tower 1's outer radius (1.25× the old keep's) and its wall's
 /// thickness; the coil's radius inside it.
 const R1: i32 = int(51);
@@ -92,9 +92,11 @@ const CROWN_OVER: i32 = int(3);
 /// its underside).
 const BRIDGE_HALF: i32 = int(8);
 const BRIDGE_THICK: i32 = int(3);
+/// The beams' anchors hang this far under a deck's underside.
+const DECK_CLEAR: i32 = int(2);
 /// The doorway's half width and height.
-const DOOR_HALF: i32 = int(8);
-const DOOR_HEIGHT: i32 = int(14);
+const DOOR_HALF: i32 = int(10);
+const DOOR_HEIGHT: i32 = int(22);
 
 /// A balcony's depth out from its wall.
 const BALCONY_DEPTH: i32 = int(3);
@@ -106,12 +108,18 @@ const GAP: i32 = 22;
 const ANCHOR_OVER: i32 = int(26);
 const BOTTOM_OVER: i32 = int(2);
 /// Inside tower 1: a ring of beams every this many metres of height, this
-/// many round, their length; a wall beam leans in this much (sideways per
-/// metre down).
-pub const LAYER_RISE: i32 = int(10);
-const LAYER_BEAMS: usize = 4;
-const INSIDE_BEAM: i32 = int(24);
-const LEAN_IN: i32 = cm(70);
+/// many round, their length. A beam cast from a window or an inner
+/// balcony is anchored out in the hollow, `CAST_IN` from the axis (the
+/// caster's spell reaches to it), so a swing on it stays clear of the
+/// wall (the audit); a floating one within `FLOAT_IN` of the axis.
+pub const LAYER_RISE: i32 = int(7);
+const LAYER_BEAMS: usize = 8;
+/// The rings go on this far over the rim, so the last swings inside reach
+/// the portal's beams over the top.
+const RINGS_OVER_RIM: i32 = int(20);
+const INSIDE_BEAM: i32 = int(22);
+const CAST_IN: (i32, i32) = (14, 22);
+const FLOAT_IN: i32 = 10;
 /// Reset pads stand this far under the centreline: under the swings, and
 /// in a jump's reach of the vines.
 const PAD_UNDER: i32 = int(5);
@@ -135,7 +143,7 @@ const PADS_OVER_SLING: i32 = int(24);
 /// its half width, its length past the mouth, the sling row's dip under
 /// level, its beams' length and lanes.
 const MOUTH_HEIGHT: i32 = int(30);
-const TUNNEL_HALF: i32 = int(14);
+const TUNNEL_HALF: i32 = int(16);
 const TUNNEL_LEN: i32 = int(250);
 const SLING_DIP: i32 = deg(10);
 const SLING_LEN: i32 = int(24);
@@ -209,9 +217,11 @@ fn flat(h: V3) -> V3 {
 fn turn_centre(c: &Course, k: usize) -> (V3, i32) {
     let leg = LEGS[k].1;
     let at = leg_at(k);
-    let run = fx::sqrt(mul(int(leg.0), int(leg.0)) - mul(int(leg.2), int(leg.2)));
-    // (plan radius: the run over the turn in radians)
-    let r = (run as i64 * 360 * 10_000 / (62_832 * leg.1.abs() as i64)) as i32;
+    // (the run in plan, in metres: in fixed point the squares of these
+    // legs overflow, TW2-3; then the plan radius, the run over the turn in
+    // radians)
+    let run = ((leg.0 as i64).pow(2) - (leg.2 as i64).pow(2)).isqrt();
+    let r = (run * 3_600_000 * ONE as i64 / (62_832 * leg.1.abs() as i64)) as i32;
     let left = right_of(flat(c.heading_at(at))).neg();
     let side = if leg.1 > 0 { left } else { left.neg() };
     (c.point(at).add(side.scale(r)), r)
@@ -228,11 +238,6 @@ fn beam(bottom: V3, hang: V3, length: i32, at: i32) -> Vine {
     }
 }
 
-/// `DOWN` leaning `by` along `side` (per metre down), unit.
-fn lean(side: V3, by: i32) -> V3 {
-    DOWN.add(side.scale(by)).norm()
-}
-
 /// The pad `k` of `n` down the tube: its gap's offset from the axis (a
 /// sine weave across z) and its shape (a ring round the gap, a slab open
 /// past it, or quarters where the weave crosses the middle).
@@ -244,7 +249,7 @@ fn tube_pad(k: usize, y: i32) -> TubePad {
     let shape = match k % 3 {
         0 => PadShape::Ring { at: gap, hole: HOLE },
         1 if off.abs() > HOLE => PadShape::Slab {
-            open: across.scale(off.signum()),
+            open: across.scale(ONE * off.signum()),
             edge: off.abs() - HOLE,
         },
         1 => PadShape::Ring { at: gap, hole: HOLE },
@@ -305,12 +310,13 @@ pub fn tower_seeded(seed: u64) -> Course {
     c.start_yaw = START_YAW;
     // the start row, as the Jungle's: just past the deck's edge, to a
     // metre over it
+    // (hung from the lower bridge's underside: TW2-4)
     for k in -2..=2 {
         let at = int(15);
         let base = c.point(at).add(right.scale(int(3) * k));
         c.vines.push(Vine {
-            anchor: v3(base.x, START_TOP + int(30), base.z),
-            length: int(29),
+            anchor: v3(base.x, START_TOP + ANCHOR_OVER, base.z),
+            length: ANCHOR_OVER - int(1),
             slide: None,
             at,
         });
@@ -349,29 +355,34 @@ pub fn tower_seeded(seed: u64) -> Course {
 
     // the bridges: from tower 1's wall to tower 2's and back, their decks
     // over the line (the beams hang from the underside)
-    let wall_point = |s_from: i32, s_to: i32, centre: V3, r: i32, forward: bool| -> V3 {
-        // the first (or last) point of the line between the alongs that
-        // is outside the wall
-        let mut s = if forward { s_from } else { s_to };
-        let step = if forward { ONE } else { -ONE };
-        while s >= s_from
-            && s <= s_to
-            && !c.point(s).flat().sub(centre.flat()).longer_than(r)
-        {
-            s += step;
+    // (where a level ray from `p` along `dir` meets a tower's wall, at
+    // `p`'s height; `p` itself if it never does)
+    let wall_hit = |p: V3, dir: V3, centre: V3, r: i32| -> V3 {
+        let to = centre.flat().sub(p.flat());
+        let along = to.dot(dir);
+        let perp = to.sub(dir.scale(along));
+        if perp.longer_than(r) || along <= 0 {
+            return p;
         }
-        c.point(s.clamp(s_from, s_to))
+        let in_by = fx::sqrt(mul(r, r) - perp.dot(perp));
+        p.add(dir.scale(along - in_by))
     };
-    let deck_over = ANCHOR_OVER + BRIDGE_THICK;
-    let lower_from = c.point(int(4));
-    let lower_to = wall_point(leg_at(1), leg_at(SPIRAL), t2_centre, t2_radius, true);
-    let upper_from = wall_point(leg_at(5), door_at, t2_centre, t2_radius, false);
+    // (the deck's underside a body's clearance over the anchors)
+    let deck_over = ANCHOR_OVER + BRIDGE_THICK + DECK_CLEAR;
+    let lower_dir = flat(c.heading_at(leg_at(1)));
+    let lower_from = wall_hit(c.point(int(4)), lower_dir.neg(), t1_centre, R1);
+    let lower_to = wall_hit(c.point(leg_at(1)), lower_dir, t2_centre, t2_radius);
+    let upper_dir = flat(c.heading_at(leg_at(5)));
+    let upper_from = wall_hit(door_p, upper_dir.neg(), t2_centre, t2_radius);
     let mut bridges = Vec::new();
-    for (from, to) in [(lower_from, lower_to), (upper_from, door_p)] {
-        let (from, to) = (
-            v3(from.x, from.y + deck_over, from.z),
-            v3(to.x, to.y + deck_over, to.z),
-        );
+    let lower_end = c.point(leg_at(2));
+    for (from, to, high) in [
+        (lower_from, lower_to, lower_end.y),
+        (upper_from, door_p, door_p.y),
+    ] {
+        // (level, over the higher end of the line under it)
+        let deck = from.y.max(to.y).max(high) + deck_over;
+        let (from, to) = (v3(from.x, deck, from.z), v3(to.x, deck, to.z));
         let mid = from.add(to).scale(ONE / 2);
         c.platforms.push(Platform {
             centre: mid,
@@ -436,7 +447,8 @@ pub fn tower_seeded(seed: u64) -> Course {
     // the stations under the bridges and round tower 2
     let mut s = 36;
     let mut station = 0;
-    while int(s) < door_at - int(10) {
+    // (the last station a swing short of the doorway's wall)
+    while int(s) < door_at - int(24) {
         let at0 = int(s);
         s += GAP;
         station += 1;
@@ -453,16 +465,33 @@ pub fn tower_seeded(seed: u64) -> Course {
             let along = at0 + int(dice.range(-2, 2));
             let base = c.point(along).add(r.scale(int(lane)));
             let bottom = v3(base.x, base.y + BOTTOM_OVER, base.z);
-            let v = beam(bottom, DOWN, ANCHOR_OVER - BOTTOM_OVER, along);
-            let under_bridge = matches!(tag, Leg::LowerBridge | Leg::UpperBridge | Leg::Start)
+            let mut v = beam(bottom, DOWN, ANCHOR_OVER - BOTTOM_OVER, along);
+            // (a beam whose anchor would be in a deck hangs from the
+            // deck's underside instead: the bridges run on over the
+            // spiral's first and last stations, TW2-4)
+            let in_deck = bridges.iter().position(|b| {
+                let run = b.to.sub(b.from).flat();
+                let fwd = run.norm();
+                let rel = v.anchor.sub(b.from).flat();
+                let along = rel.dot(fwd);
+                along > -int(2)
+                    && along < run.len() + int(2)
+                    && rel.dot(right_of(fwd)).abs() < b.half_width + int(2)
+                    && v.anchor.y > b.from.y.min(b.to.y) - b.thick - int(2)
+                    && v.anchor.y < b.from.y.max(b.to.y) + int(12)
+            });
+            if let Some(n) = in_deck {
+                let b = &bridges[n];
+                let under = b.from.y.min(b.to.y) - b.thick - DECK_CLEAR;
+                v.length -= v.anchor.y - under;
+                v.anchor.y = under;
+            }
+            let under_bridge = in_deck.is_some()
+                || matches!(tag, Leg::LowerBridge | Leg::UpperBridge | Leg::Start)
                 || (tag == Leg::Inside && along < door_at);
             let hanger = if under_bridge {
                 Hanger::Bridge {
-                    bridge: if tag == Leg::LowerBridge || tag == Leg::Start {
-                        0
-                    } else {
-                        1
-                    },
+                    bridge: in_deck.unwrap_or(if along < leg_at(SPIRAL) { 0 } else { 1 }),
                 }
             } else if v.anchor.y >= clouds.bottom && v.anchor.y <= clouds.top + int(10) {
                 Hanger::Cloud { band: 0 }
@@ -491,24 +520,41 @@ pub fn tower_seeded(seed: u64) -> Course {
     let mut windows: Vec<Window> = Vec::new();
     let inner = R1 - WALL_THICK;
     let rim = t1_centre.y + H1;
-    let mut y = doorway.at.y + int(6);
+    // (two entry beams just inside the doorway, over the line as the
+    // bridge's, so the climb inside can be started from the swing in)
+    for k in [1, 2] {
+        let at = door_at + int(10) * k;
+        let r = right_of(flat(c.heading_at(at)));
+        for lane in [-4, 4] {
+            let base = c.point(at).add(r.scale(int(lane)));
+            let bottom = v3(base.x, base.y + BOTTOM_OVER, base.z);
+            let v = beam(bottom, DOWN, ANCHOR_OVER - BOTTOM_OVER, at);
+            hangers.push(Hanger::Floating { at: v.anchor });
+            c.vines.push(v);
+            lifts.push(true);
+            hangs.push(DOWN);
+        }
+    }
+    // the rings: the first's anchors a beam's length over the entry line
+    let mut y = doorway.at.y + PAD_UNDER + ANCHOR_OVER;
     let mut ring = 0u32;
-    while y < rim - int(4) {
+    while y < rim + RINGS_OVER_RIM {
         let base_yaw = dice.range(0, TURN);
         for n in 0..LAYER_BEAMS {
             let yaw = base_yaw + (TURN / LAYER_BEAMS as i32) * n as i32 + dice.range(-TURN / 24, TURN / 24);
             let out = facing(yaw, 0);
             let floating = (ring as usize + n) % 4 == 3;
             let (anchor, hang, hanger) = if floating {
-                let rad = int(dice.range(4, 16));
+                let rad = int(dice.range(0, FLOAT_IN));
                 let a = t1_centre.add(out.scale(rad)).add(v3(0, y, 0));
                 (a, DOWN, Hanger::Floating { at: a })
             } else {
-                let a = t1_centre.add(out.scale(inner - int(1))).add(v3(0, y, 0));
-                let hang = lean(out.neg(), LEAN_IN);
+                let wall = t1_centre.add(out.scale(inner - int(1))).add(v3(0, y, 0));
+                let rad = int(dice.range(CAST_IN.0, CAST_IN.1));
+                let a = t1_centre.add(out.scale(rad)).add(v3(0, y, 0));
                 let hanger = if n % 2 == 0 {
                     windows.push(Window {
-                        at: v3(a.x, a.y - int(2), a.z),
+                        at: v3(wall.x, wall.y - int(2), wall.z),
                         into: out.neg(),
                         half_width: cm(150),
                         height: int(4),
@@ -518,14 +564,16 @@ pub fn tower_seeded(seed: u64) -> Course {
                     }
                 } else {
                     Hanger::Mage {
-                        balcony: balcony_for(a, a.y - int(4), 0, true),
+                        balcony: balcony_for(wall, wall.y - int(4), 0, true),
                     }
                 };
-                (a, hang, hanger)
+                (a, DOWN, hanger)
             };
             let bottom = anchor.add(hang.scale(INSIDE_BEAM));
-            let hint = c.nearest_anywhere(bottom);
-            let (at, _) = c.progress(bottom, hint);
+            // (in 3D: `Course.tower` is not set until the layout is done,
+            // so the course's own search would be in plan)
+            let hint = c.nearest_anywhere_3d(bottom);
+            let (at, _) = c.progress_3d(bottom, hint);
             c.vines.push(Vine {
                 anchor,
                 length: INSIDE_BEAM,
@@ -706,7 +754,14 @@ pub fn tower_seeded(seed: u64) -> Course {
     // item crates: a row across the course every 240 m, on every beam of
     // the station nearest each place, never on the start row or the
     // sling (TI1)
-    let carries = |h: Hanger| h != Hanger::Start && h != Hanger::Sling;
+    // (not the sling, not the start row, and not the scattered beams
+    // inside tower 1: a row is a station's beams, and theirs cluster)
+    let carries = |h: Hanger| {
+        matches!(
+            h,
+            Hanger::Bridge { .. } | Hanger::Dragon { .. } | Hanger::Cloud { .. }
+        ) || matches!(h, Hanger::Mage { balcony } if !layout.balconies[balcony].inside)
+    };
     let mut row = 150;
     while int(row) < c.length - int(60) {
         let si = int(row);
@@ -733,11 +788,17 @@ pub fn tower_seeded(seed: u64) -> Course {
         at: 0,
         boost: V3::ZERO,
     });
-    let next_bottom = |c: &Course, at: i32| -> V3 {
+    // (the nearest beam's bottom ahead of the pad along the course and
+    // not under it, by distance: by `at` alone a ledge inside tower 1
+    // aimed at a beam 100 m up and threw an ape 70 m/s, TW2-6)
+    let next_bottom = |c: &Course, at: i32, from: V3| -> V3 {
         (0..c.vines.len())
-            .filter(|&i| c.vines[i].at >= at + int(4) && carries(hangers[i]))
-            .min_by_key(|&i| c.vines[i].at)
+            .filter(|&i| {
+                c.vines[i].at >= at + int(4) && hangers[i] != Hanger::Start && hangers[i] != Hanger::Sling
+            })
             .map(|i| c.vines[i].anchor.add(hangs[i].scale(c.vines[i].length)))
+            .filter(|b| b.y >= from.y - int(2))
+            .min_by_key(|b| b.sub(from).len())
             .unwrap_or_else(|| c.point(at + int(20)))
     };
     let pad_at = |c: &mut Course, at: i32, centre: V3, fwd: V3, half_len: i32, half_width: i32| -> Pad {
@@ -749,7 +810,7 @@ pub fn tower_seeded(seed: u64) -> Course {
             half_width,
             top,
         });
-        let to = next_bottom(c, at);
+        let to = next_bottom(c, at, v3(centre.x, top + BODY_DROP, centre.z));
         Pad {
             platform: c.platforms.len() - 1,
             at,
@@ -761,18 +822,24 @@ pub fn tower_seeded(seed: u64) -> Course {
         let at = int(s) - PAD_BEFORE;
         s += 2 * GAP;
         let p = c.point(at);
+        let fwd = flat(c.heading_at(at));
+        let pad = pad_at(&mut c, at, v3(p.x, p.y - PAD_UNDER, p.z), fwd, int(4), int(5));
+        layout.pads.push(pad);
+    }
+    // inside: a ledge just inside the doorway, then one on the inner wall
+    // every 40 m of height at the coil's angle there, facing the middle
+    {
+        let sill = doorway.at.sub(doorway.out.scale(WALL_THICK + int(3)));
         let pad = pad_at(
             &mut c,
-            at,
-            v3(p.x, p.y - PAD_UNDER, p.z),
-            flat(c.heading_at(at)),
-            int(4),
+            door_at + int(2),
+            v3(sill.x, doorway.at.y, sill.z),
+            doorway.out.neg(),
+            int(3),
             int(5),
         );
         layout.pads.push(pad);
     }
-    // inside: a ledge on the inner wall every 40 m of height, at the
-    // coil's angle there, facing the middle
     let coil_from = leg_at(COIL);
     let mut s = coil_from + int(20);
     while s < leg_at(COIL + 1) - int(20) {

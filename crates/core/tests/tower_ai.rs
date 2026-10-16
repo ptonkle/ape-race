@@ -224,7 +224,7 @@ fn tear_crossing(k: u64, level: Difficulty) -> (i32, i32, i32) {
         costume: tool_core::costume::Costume::Own,
     };
     let mut race = Race::new(layout(k), &[entry], true, 7);
-    let s = race.course.tower.as_ref().unwrap().summit;
+    let s = race.course.tower.as_ref().unwrap().portal;
     let mut brains = vec![Brain::new(level, 0xA9E5 + k)];
     let side = |x: i32| (x - s.tear.x).signum();
     let mut was = side(race.racers[0].ape.pos.x);
@@ -236,7 +236,7 @@ fn tear_crossing(k: u64, level: Difficulty) -> (i32, i32, i32) {
         if race.racers[0].progress > from && now != was && now != 0 && was != 0 {
             let (up, across) = (p.y - s.tear.y, p.z - s.tear.z);
             let (hh, hw) = s.tear_half;
-            let clear = tool_core::towermodels::rift_clear(2 * hw, 2 * hh, up + hh);
+            let clear = tool_core::towermodels::portal_clear(2 * hw, 2 * hh, up + hh);
             return (up, across, clear);
         }
         if now != 0 {
@@ -251,7 +251,7 @@ fn tear_crossing(k: u64, level: Difficulty) -> (i32, i32, i32) {
 /// the tear's opening (TA8), over a few layouts.
 #[test]
 fn every_level_flies_through_the_tear() {
-    let s = tower().tower.as_ref().unwrap().summit;
+    let s = tower().tower.as_ref().unwrap().portal;
     let (hh, hw) = s.tear_half;
     let runs: Vec<_> = Difficulty::ALL
         .into_iter()

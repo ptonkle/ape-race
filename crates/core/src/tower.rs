@@ -465,6 +465,15 @@ impl TowerLayout {
             .map_or(length, |l| l.from)
     }
 
+    /// Whether a body with its hands at `p` is inside tower 1's hollow
+    /// (under its rim).
+    pub fn inside_tower_1(&self, p: V3) -> bool {
+        let t1 = &self.towers[0];
+        p.y < t1.top()
+            && p.y >= t1.centre.y
+            && !v3(p.x - t1.centre.x, 0, p.z - t1.centre.z).longer_than(t1.inner)
+    }
+
     /// Whether a point is in the void (past the portal's plane).
     pub fn in_void(&self, p: V3) -> bool {
         p.sub(self.portal.tear).dot(self.portal.through) > 0

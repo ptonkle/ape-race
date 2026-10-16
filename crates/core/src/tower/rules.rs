@@ -18,10 +18,12 @@ use crate::rules::{BODY_DROP, DT, MUSHROOM_BOUNCE};
 pub const TUBE_TERMINAL: i32 = int(38);
 /// How fast a fall faster than `TUBE_TERMINAL` settles back to it: the
 /// share of the excess taken each second.
-pub const TUBE_SETTLE: i32 = ONE * 4;
+pub const TUBE_SETTLE: i32 = ONE * 8;
 /// Air steering in the tube is this many times the kind's (the void
 /// pushes back).
 pub const TUBE_AIR: i32 = ONE * 3;
+/// The weave aims this many seconds of its sideways speed short of the gap.
+const TUBE_LEAD: i32 = ONE * 3 / 10;
 
 impl Course {
     /// Mape's Tower's `nearest`: the nearest centreline sample to `p` in
@@ -79,12 +81,17 @@ impl Course {
         if t.tube.holds(p) {
             return false;
         }
-        let q = self.path[hint.min(self.path.len() - 1)];
         let feet = p.y - BODY_DROP;
         let ground = self.terrain(p.x, p.z);
-        p.sub(q).longer_than(OUT_FAR)
-            || p.y < q.y - OUT_BELOW
-            || (feet <= ground + cm(10) && self.support(p) <= ground)
+        let on_ground = feet <= ground + cm(10) && self.support(p) <= ground;
+        // (inside tower 1's hollow the coil is only what progress
+        // measures, and a missed swing falls far past it: only the floor
+        // is out there, TW2-6)
+        if t.inside_tower_1(p) {
+            return on_ground;
+        }
+        let q = self.path[hint.min(self.path.len() - 1)];
+        p.sub(q).longer_than(OUT_FAR) || p.y < q.y - OUT_BELOW || on_ground
     }
 
     /// The reset pad for an ape out at `p`: by its leg
@@ -107,7 +114,9 @@ impl TowerLayout {
             Some(k) => self.tube.axis.add(self.tube.pads[k].gap),
             None => self.tube.axis,
         };
-        let to = v3(aim.x - a.pos.x, 0, aim.z - a.pos.z);
+        // (aim short by the sideways speed's lead, as a player does, so
+        // the ape settles on the gap instead of swinging past it)
+        let to = v3(aim.x - a.pos.x, 0, aim.z - a.pos.z).sub(a.vel.flat().scale(TUBE_LEAD));
         let mut c = Controls::default();
         // (the kind's air steering is a fixed push: steer only while off
         // the gap by more than a body's width, so the ape settles on it
@@ -129,6 +138,14 @@ impl Ape {
                 self.vel.y += CLIMB_LIFT;
             }
         }
+    }
+
+    /// Whether the ape is in Mape's Tower's tube.
+    pub(crate) fn in_tube(&self, course: &Course) -> bool {
+        course
+            .tower
+            .as_deref()
+            .is_some_and(|t| t.tube.holds(self.pos))
     }
 
     /// Mape's Tower's tube: the steering's strength there (`TUBE_AIR`

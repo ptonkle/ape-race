@@ -368,13 +368,14 @@ pub(super) fn stonework(t: &TowerLayout) -> Vec<Solid> {
         if br.deck.is_none() {
             continue;
         }
-        let len = br.to.sub(br.from).flat().len();
+        // (a long flat deck on piers (drawing), not the old short arch:
+        // the race runs under it)
         out.push(Solid::Span {
             from: br.from,
             to: br.to,
             half: (br.half_width).max(cm(150)),
-            rise: (len / 3).max(crate::fx::int(3)) + cm(40),
-            crown: cm(160),
+            rise: br.thick + cm(40),
+            crown: br.thick,
         });
     }
     // the tube's wall: its bottom ring open on the tunnel's side (the
@@ -397,8 +398,13 @@ pub(super) fn stonework(t: &TowerLayout) -> Vec<Solid> {
         inner: tube.radius,
         outer: tube.radius + tube.wall,
         bottom: mouth_top,
-        top: tube.top + crate::fx::int(2),
+        // (open at the top: the race comes in over the rim)
+        top: tube.top - TUBE_RIM,
         gap: Gap::None,
     });
     out
 }
+
+/// The tube's wall stops this far under its top: the race comes in over
+/// the rim.
+pub const TUBE_RIM: i32 = crate::fx::int(10);

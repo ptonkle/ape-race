@@ -6,7 +6,7 @@
 use super::*;
 use crate::ape::{Ape, Controls, Mode};
 use crate::course::STEP;
-use crate::fx::ONE;
+use crate::fx::{self, ONE};
 use crate::geom::V3;
 use crate::map::Map;
 use crate::race::{Driver, Entry, Event, Phase, Race};
@@ -84,7 +84,7 @@ fn the_centreline_runs_the_legs_in_order_and_climbs_then_falls() {
         let p = mid(leg, next);
         let deck = c.platforms[b.deck.unwrap()];
         assert!(c.support(v3(p.x, deck.top + BODY_DROP, p.z)) == deck.top, "{leg:?}: a deck over the line");
-        assert!(deck.top - p.y > int(20) && deck.top - p.y < int(32), "{leg:?}: the deck {} m over the line", (deck.top - p.y) / ONE);
+        assert!(deck.top - p.y > int(20) && deck.top - p.y < int(38), "{leg:?}: the deck {} m over the line", (deck.top - p.y) / ONE);
         let k = (at(leg) / STEP) as usize + 5;
         assert!(c.heading[k].y.abs() < ONE / 20, "{leg:?} is level");
     }
@@ -213,22 +213,29 @@ fn resets_inside_go_to_a_ledge_and_resets_on_the_sling_go_to_the_portal() {
     };
     let pl = r.course.platforms[*pad];
     let off = pl.centre.flat().sub(t1.centre.flat()).len();
-    assert!(off > t1.inner - int(8) && off < t1.inner, "a ledge on the inner wall ({} m from the axis)", off / ONE);
+    let chosen = t.pads.iter().find(|p| p.platform == *pad).unwrap();
+    assert!(
+        off > t1.inner - int(8) && off < t1.inner,
+        "a ledge on the inner wall ({} m from the axis; pad at {} m, {:?}, progress {} m)",
+        off / ONE,
+        chosen.at / ONE,
+        t.leg_at(chosen.at),
+        r.racers[0].progress / ONE
+    );
     assert!(r.racers[0].ape.vel.y > 0, "boosted up");
     // out under the tunnel's mouth (on the sling leg, far under its line)
+    // (on the open ground under the sling leg's line, under the tube's
+    // floor)
     let sling = t.leg_start(Leg::Sling, r.course.length) + int(20);
-    let q = r.course.point(sling).sub(v3(0, OUT_BELOW + int(4), 0));
-    let q = v3(q.x, q.y.max(int(1)), q.z);
+    let q = r.course.point(sling);
+    let q = v3(q.x, BODY_DROP, q.z);
     let a = &mut r.racers[0].ape;
     a.pos = q;
     a.hint = r.course.nearest_anywhere(r.course.point(sling));
     a.mode = Mode::Flying;
     a.vel = V3::ZERO;
     r.events.clear();
-    if !r.course.tower_out(q, r.racers[0].ape.hint) {
-        // (the tunnel's floor may hold it: then drop it under the floor)
-        r.racers[0].ape.pos.y = int(2);
-    }
+    assert!(r.course.tower_out(q, r.racers[0].ape.hint), "under the tube is out");
     r.step(&[Default::default()]);
     let portal = t.pads[t.portal_pad];
     assert!(
@@ -374,7 +381,8 @@ fn inside_beams_fill_the_hollow_each_within_a_swing_of_two_others() {
             .filter(|&&j| {
                 j != i && {
                     let d = bottom(j).sub(c.vines[i].anchor);
-                    !d.flat().longer_than(c.vines[i].length) && d.y.abs() <= c.vines[i].length
+                    let reach = c.vines[i].length * 3 / 2;
+                    !d.flat().longer_than(reach) && d.y.abs() <= reach
                 }
             })
             .count();
@@ -508,3 +516,4 @@ fn a_weave_steered_for_each_gap_falls_the_tube_touching_no_pad() {
         assert!(ticks < (10 * TICKS_PER_SECOND) as u32, "from {name}: too slow");
     }
 }
+

@@ -33,25 +33,25 @@ fn main() {
             ch.heights.map(|b| b.map(f))
         );
     }
-    println!(
-        "len {} path {} keep {} r {} h {} levels {}",
-        f(c.length),
-        c.path.len(),
-        p(t.keep.centre),
-        f(t.keep.radius),
-        f(t.keep.height),
-        t.keep.levels.len()
-    );
-    for b in &t.branches {
+    for (n, k) in t.towers.iter().enumerate() {
         println!(
-            "branch {} -> {} hw {} deck {:?} sub {} r {} top {}",
+            "len {} path {} tower {n} {} r {} in {} h {} levels {}",
+            f(c.length),
+            c.path.len(),
+            p(k.centre),
+            f(k.radius),
+            f(k.inner),
+            f(k.height),
+            k.levels.len()
+        );
+    }
+    for b in &t.bridges {
+        println!(
+            "bridge {} -> {} hw {} deck {:?}",
             p(b.from),
             p(b.to),
             f(b.half_width),
-            b.deck,
-            p(b.sub.centre),
-            f(b.sub.radius),
-            f(b.sub.top)
+            b.deck
         );
     }
     for b in &t.balconies {
@@ -65,27 +65,12 @@ fn main() {
             b.deck
         );
     }
-    let r = &t.room;
-    println!(
-        "room {} r {} h {} door {} exit {} {} tramps {:?} orb {} {}",
-        p(r.centre),
-        f(r.radius),
-        f(r.height),
-        p(r.door),
-        p(r.roof_exit.0),
-        f(r.roof_exit.1),
-        r.trampolines,
-        p(r.orb.0),
-        f(r.orb.1)
-    );
     for b in &t.clouds {
         println!("cloud band {} {}", f(b.bottom), f(b.top));
     }
-    let s = &t.summit;
+    let s = &t.portal;
     println!(
-        "summit deck {} r {} wiz {} yaw {} tear {} half {} {} through {} banana {} len {}",
-        p(s.deck),
-        f(s.radius),
+        "portal wiz {} yaw {} tear {} half {} {} through {} banana {} len {}",
         p(s.wizard),
         s.wizard_yaw,
         p(s.tear),
@@ -95,13 +80,14 @@ fn main() {
         p(s.banana),
         f(s.banana_len)
     );
-    let z = &t.zipper;
+    let z = &t.tube;
     println!(
-        "zipper mx {} axis {} top {} bottom {}",
-        f(z.mirror_x),
+        "tube axis {} top {} bottom {} r {} pads {}",
         p(z.axis),
         f(z.top),
-        f(z.bottom)
+        f(z.bottom),
+        f(z.radius),
+        z.pads.len()
     );
     let bz = &t.banana_zone;
     println!(

@@ -460,8 +460,10 @@ impl Ape {
         // (Mape's Tower: stronger in the tube)
         let mut acc = wish.scale(self.air_now(course));
         let flat = self.vel.flat();
-        // (no wish, nothing to take off: `acc` is zero)
-        if wish != V3::ZERO && flat.longer_than(ONE) {
+        // (no wish, nothing to take off: `acc` is zero; in Mape's Tower's
+        // tube the whole push applies, since a straight fall has no motion
+        // across to steer: the weave for the gaps builds sideways speed)
+        if wish != V3::ZERO && flat.longer_than(ONE) && !self.in_tube(course) {
             let dir = flat.norm();
             let along = acc.dot(dir);
             if along > 0 {
