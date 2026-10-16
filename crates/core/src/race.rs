@@ -663,8 +663,15 @@ impl Race {
         self.let_go_of(s.slot);
         self.summons.retain(|o| o.slot != s.slot);
         self.forget_used(s.slot);
-        let hint = self.course.nearest_anywhere(s.anchor);
-        let (at, _) = self.course.progress(s.anchor, hint);
+        // (Mape's Tower: along the course from the vine's bottom, by the
+        // summoner's hands: from the anchor, high over its coil, the nearest
+        // sample was often on the coil above, 400 m further on)
+        let from = match self.course.tower {
+            Some(_) => s.anchor.sub(v3(0, s.length, 0)),
+            None => s.anchor,
+        };
+        let hint = self.course.nearest_anywhere(from);
+        let (at, _) = self.course.progress(from, hint);
         self.course.vines[s.slot] = Vine {
             anchor: s.anchor,
             length: s.length,
