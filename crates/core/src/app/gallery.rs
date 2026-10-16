@@ -19,6 +19,7 @@ use crate::models;
 use crate::render::{self, Batch, Camera};
 use crate::ruinsmodels as ruins;
 use crate::spacecraft::{self as sc, Gait, Mech, MechKind};
+use crate::towermodels as tower;
 
 use super::App;
 
@@ -64,6 +65,9 @@ pub struct Gallery {
     /// a Banana Bay Battle model instead (`baymodels::GALLERY`), drawn
     /// under the 3 pm sun on a patch of sea
     pub bay: Option<usize>,
+    /// a Mape's Tower model instead (`towermodels::GALLERY`), drawn in
+    /// the twilight
+    pub tower: Option<usize>,
     /// `cat`: the map whose big cat it is (`map=ruins`; else Sector Ape's)
     pub map: crate::map::Map,
 }
@@ -80,6 +84,7 @@ impl Gallery {
             aim: V3::ZERO,
             ruins: None,
             bay: None,
+            tower: None,
             map: crate::map::Map::Sector,
         };
         for (i, pair) in spec.split(',').enumerate() {
@@ -87,6 +92,7 @@ impl Gallery {
                 g.model = MODELS.iter().position(|m| *m == pair).unwrap_or(0);
                 g.ruins = ruins::GALLERY.iter().position(|m| *m == pair);
                 g.bay = bay::GALLERY.iter().position(|m| *m == pair);
+                g.tower = tower::GALLERY.iter().position(|m| *m == pair);
                 continue;
             }
             let Some((k, v)) = pair.split_once('=') else {
@@ -120,6 +126,9 @@ impl Gallery {
         }
         if let Some(r) = self.bay {
             return bay::framing(bay::GALLERY[r]);
+        }
+        if let Some(r) = self.tower {
+            return tower::framing(tower::GALLERY[r]);
         }
         match self.key() {
             "mothership" => (V3::ZERO, int(125)),
@@ -171,6 +180,9 @@ impl Gallery {
         }
         if let Some(r) = self.bay {
             return bay::gallery(b, bay::GALLERY[r], &f, tick);
+        }
+        if let Some(r) = self.tower {
+            return tower::gallery(b, tower::GALLERY[r], &f, tick);
         }
         match self.key() {
             "mothership" => sc::mothership(b, &f, tick),
@@ -267,6 +279,8 @@ impl App {
             ruins::look()
         } else if g.bay.is_some() {
             bay::gallery_look()
+        } else if g.tower.is_some() {
+            tower::gallery_look()
         } else {
             sc::look()
         };
@@ -288,7 +302,7 @@ impl App {
         let mut b = Batch::new();
         if g.ruins.is_some() {
             ruins::sky(&mut b, cam.eye, ruins::SUN_YAW);
-        } else if g.bay.is_some() {
+        } else if g.bay.is_some() || g.tower.is_some() {
             // a clear sky: the clear colour alone
         } else {
             sc::stars(&mut b, cam.eye, 500);

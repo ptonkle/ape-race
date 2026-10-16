@@ -36,6 +36,7 @@ maps-ski = "the Ski Slope (Yeti Peak)"
 maps-sector = "Sector Ape (space)"
 maps-ruins = "Sunset Ruins"
 maps-bay = "Banana Bay Battle"
+maps-tower = "Mape's Tower"
 
 # Tags whose tests always run in a quick check.
 [always]
@@ -141,6 +142,8 @@ tags = ["boundary"]
 "crates/core/src/baymodels.rs" = ["maps-bay", "render"]
 "crates/core/src/bayscape.rs" = ["maps-bay", "render"]
 "crates/core/src/bayscape/**" = ["maps-bay", "render"]
+"crates/core/src/towermodels.rs" = ["maps-tower", "render"]
+"crates/core/src/towermodels/**" = ["maps-tower", "render"]
 
 # integration tests: a change to one runs it
 "crates/core/tests/ai.rs" = ["ai", "maps-jungle"]
@@ -252,6 +255,7 @@ tags = ["boundary"]
 "lib:bay::course_tests::" = ["maps-bay", "physics"]
 "lib:baymodels::" = ["maps-bay", "render"]
 "lib:bayscape::" = ["maps-bay", "render"]
+"lib:towermodels::" = ["maps-tower", "render"]
 "lib:camera::" = ["camera"]
 "lib:camera::hulls::" = ["camera", "maps-bay"]
 "lib:city::" = ["maps-city", "physics"]
