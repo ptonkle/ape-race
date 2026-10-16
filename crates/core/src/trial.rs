@@ -151,14 +151,16 @@ pub const BAY: [u32; 4] = [
     secs(BAY_AUTHOR),
 ];
 
-/// Mape's Tower's target times in hundredths of a second. STAND-IN (the
-/// skeleton, 2026-10-15): from the stand-in course's King Kong (60.0 s,
-/// a Chimpanzee) with the Jungle's steps; re-measure on the real course
-/// (`ai::time_trial`, every kind).
-pub const TOWER_AUTHOR: u32 = 5_900;
-pub const TOWER_GOLD: u32 = 6_600;
-pub const TOWER_SILVER: u32 = 7_600;
-pub const TOWER_BRONZE: u32 = 9_100;
+/// Mape's Tower's target times in hundredths of a second (2026-10-15, set
+/// as the others' were: King Kong alone as a Time Trial runs finishes in
+/// 58.4–67.7 s by kind, the Lemur best, the Orangutan slowest;
+/// `tests/tower_ai.rs` `tower_time_trial_report`, SECOND-ORDER TM1).
+/// Author just under the best kind, then the Jungle's steps of 7, 10 and
+/// 15 s. Re-measure if the course's length changes.
+pub const TOWER_AUTHOR: u32 = 5_800;
+pub const TOWER_GOLD: u32 = 6_500;
+pub const TOWER_SILVER: u32 = 7_500;
+pub const TOWER_BRONZE: u32 = 9_000;
 
 /// Mape's Tower's target times, in race ticks, slowest first.
 pub const TOWER: [u32; 4] = [
@@ -178,7 +180,6 @@ pub fn medals(map: Map) -> [u32; 4] {
         Map::Sector => SECTOR,
         Map::Ruins => RUINS,
         Map::Bay => BAY,
-        // STAND-IN (Mape's Tower's skeleton): from the stand-in course
         Map::Tower => TOWER,
     }
 }

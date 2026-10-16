@@ -14,8 +14,8 @@ The standard map-build steps (MAPS.md "Build steps"), one row each. Status is on
 | 8 | Art placed on the course | Not started |  |
 | 9 | Lobby spot and flyover | Not started |  |
 | 10 | AI validation | Done | 16 layouts: Sloth 107.2 s, Monkey 92.0, Ape 77.3, King Kong 64.5 (max 137.9 s); ordering test `tower_difficulties_are_ordered_and_spaced` (TC5) |
-| 11 | Medal times | Not started |  |
-| 12 | Step and frame cost | Not started |  |
+| 11 | Medal times | Done | Lemur 58.42 s best (58.4–67.7 by kind): Author 0:58, Gold 1:05, Silver 1:15, Bronze 1:30; test `the_tower_medals_follow_its_time_trial` (TM1) |
+| 12 | Step and frame cost | In progress | Step: worst 4.0 ms, median 111 µs (Ruins 2.7–3.9 ms / 56 µs, Bay 3.3 ms / 67 µs); fix suggested for `nearest_3d` (TM2). Frame (scenery) cost: art agent |
 | 13 | Colourblind and JOJO MODE | Not started |  |
 | 14 | Map card | Not started |  |
 | 15 | Screenshots at 1920×1080 | Not started |  |

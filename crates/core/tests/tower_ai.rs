@@ -2,9 +2,10 @@
 //! the zipper and finishes (TW1), and the difficulties stay ordered and
 //! spaced over sixteen layouts, as on the other maps (TC5).
 
-use tool_core::ai::{trial_at, Difficulty};
+use tool_core::ai::{time_trial, trial_at, Difficulty, Trial};
 use tool_core::course::Course;
 use tool_core::fx::ONE;
+use tool_core::map::Map;
 use tool_core::rules::{Kind, TICKS_PER_SECOND};
 use tool_core::tower::{tower, tower_seeded};
 
@@ -143,5 +144,68 @@ fn the_chase_camera_follows_up_the_climb_and_down_the_zipper() {
         after_top < START_TOP + 40 * ONE,
         "the eye comes back down to {} m",
         after_top / ONE
+    );
+}
+
+fn secs(ticks: u32) -> f64 {
+    ticks as f64 / TICKS_PER_SECOND as f64
+}
+
+/// Mape's Tower's medal report: King Kong alone as a Time Trial runs,
+/// every kind and Equal Stats, against its medal times (TM rows).
+#[test]
+#[ignore]
+fn tower_time_trial_report() {
+    let runs: Vec<_> = Kind::ALL
+        .into_iter()
+        .map(|k| (k, false))
+        .chain([(Kind::Chimpanzee, true)])
+        .map(|(k, eq)| std::thread::spawn(move || time_trial(tower(), k, eq, LIMIT)))
+        .collect();
+    let row: Vec<Trial> = runs.into_iter().map(|r| r.join().unwrap()).collect();
+    println!("tower time trial (last: equal stats)");
+    for t in &row {
+        println!(
+            "  {:<11} finish {:>9}  grabs {:>3}  landings {:>2}  ground {:>5.1} s",
+            format!("{:?}", t.kind),
+            t.finish
+                .map(|f| format!("{:.2} s", secs(f)))
+                .unwrap_or("-".into()),
+            t.grabs,
+            t.landings,
+            secs(t.ground_ticks),
+        );
+    }
+    let medals = tool_core::trial::medals(Map::Tower).map(secs);
+    println!("medals bronze / silver / gold / author: {medals:.2?}");
+}
+
+/// The tower's medals follow its time trial (TM1): the best kind's run
+/// (King Kong alone, Speed Boosts only) beats Gold, and the Author time
+/// is just under it (inside 1.5 s).
+#[test]
+fn the_tower_medals_follow_its_time_trial() {
+    let runs: Vec<_> = Kind::ALL
+        .into_iter()
+        .map(|k| std::thread::spawn(move || time_trial(tower(), k, false, LIMIT)))
+        .collect();
+    let best = runs
+        .into_iter()
+        .filter_map(|r| r.join().unwrap().finish)
+        .min()
+        .expect("some kind finishes");
+    let target = |m| tool_core::trial::target_on(Map::Tower, m);
+    use tool_core::trial::Medal;
+    assert!(
+        best <= target(Medal::Gold),
+        "best run {:.2} s misses Gold",
+        secs(best)
+    );
+    let author = target(Medal::Author);
+    assert!(
+        author <= best && best - author <= 3 * TICKS_PER_SECOND as u32 / 2,
+        "Author {:.2} s is not just under the best run {:.2} s",
+        secs(author),
+        secs(best)
     );
 }
