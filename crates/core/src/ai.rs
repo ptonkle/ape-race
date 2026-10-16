@@ -1234,7 +1234,6 @@ fn fly_ahead(
     };
     // (how far along it is: worked out once a tick, after each step)
     let mut along = progress(course, a);
-    let from = along;
     // (Sector Ape: the candidates not worth looking at yet)
     let mut watch = course.sector.as_ref().map(|_| Watch::new(a, cands));
     // (and where it steers for, worked out once when that never moves)
@@ -1292,7 +1291,7 @@ fn fly_ahead(
             w.follow(a);
         }
         along = progress(course, a);
-        if deck && a.mode == Mode::Grounded && along > from {
+        if deck && a.mode == Mode::Grounded {
             // (Banana Bay Battle: down on a deck ahead, not in the sea)
             let raised = course.support(a.pos) > course.terrain(a.pos.x, a.pos.z) + int(3);
             if raised {
