@@ -23,9 +23,8 @@
 //! out over the rim the portal's lane beams, longer and lower than the
 //! bridges' and lifting, for an ape coming off the field's top rising
 //! or falling (TC5, TC2-1); the sling row at the bottom of the tube, five beams hung from the
-//! tunnel mouth's top edge `SLING_DIP` under level. The tube's pads:
-//! `TUBE_PADS` across it, their gaps a sine weave of `WEAVE_AMPLITUDE`
-//! over `WEAVE_PERIOD` pads, measured reachable (TW2-5). Reset pads a few
+//! tunnel mouth's top edge `SLING_DIP` under level. The tube's trampolines: `TUBE_DISCS` discs
+//! floating through its volume (`tube_discs`, T100). Reset pads a few
 //! metres under the centreline every other station (ledges on tower 1's
 //! inner wall inside), each throwing an ape up and on to the next beam
 //! (`boost`); the portal's pad is where a reset in the tube goes.
@@ -63,10 +62,10 @@ pub const LEGS: &[(Leg, Climb)] = &[
     (Leg::UpperBridge, Climb(250, 0, 4)), // 5 under the upper bridge
     (Leg::Inside, Climb(100, 0, 6)),      // 6 on through the doorway to the axis
     (Leg::Inside, Climb(150, 0, 150)),    // 7 straight up tower 1's axis
-    (Leg::Portal, Climb(90, 0, 20)),      // 8 straight out over the far rim, through the tear
-    (Leg::Tube, Climb(280, 0, -280)),     // 9 straight down the tube
-    (Leg::Sling, Climb(40, 0, -24)),      // 10 the bend into the mouth
-    (Leg::Tunnel, Climb(70, 0, 0)),       // 11 the tunnel to the finish
+    (Leg::Portal, Climb(105, 0, 23)), // 8 straight out over the far rim, through the tear (T100: 15 m longer, so the wider tube stands wholly past the tear)
+    (Leg::Tube, Climb(280, 0, -280)), // 9 straight down the tube
+    (Leg::Sling, Climb(40, 0, -24)),  // 10 the bend into the mouth
+    (Leg::Tunnel, Climb(70, 0, 0)),   // 11 the tunnel to the finish
 ];
 /// The legs' indices.
 const SPIRAL: usize = 3;
@@ -138,19 +137,25 @@ const PAD_UNDER: i32 = int(5);
 /// Reset pads stand this far short of their station.
 const PAD_BEFORE: i32 = int(10);
 
-/// The tube: its inside radius (2/3 of an old spiral's width), its wall,
-/// the pads' count and the sine weave of their gaps (TW2-5), the pads'
-/// gap's radius.
-const TUBE_RADIUS: i32 = int(17) + cm(50);
+/// The tube: its inside radius (70 m across, T100: twice the first
+/// tube's) and its wall.
+const TUBE_RADIUS: i32 = int(35);
 const TUBE_WALL: i32 = int(4);
-pub const TUBE_PADS: usize = 22;
-pub const WEAVE_AMPLITUDE: i32 = int(7);
-pub const WEAVE_PERIOD: i32 = 12;
-const HOLE: i32 = int(6);
-/// The first pad this far under the tube's top, the last this far over
-/// the sling row's anchors.
-const PADS_FROM_TOP: i32 = int(30);
-const PADS_OVER_SLING: i32 = int(24);
+/// The trampolines' count (T100). Lower it to thin them: the placement's
+/// order keeps any first N spread evenly through the tube.
+pub const TUBE_DISCS: usize = 150;
+/// The trampolines' one fixed placement draws from `Dice(DISC_SEED)`
+/// (the same in every layout).
+pub const DISC_SEED: u64 = 0x7D15_C0DE;
+/// No two trampolines' middles nearer than this (each is 10 m across, so
+/// they never touch).
+pub const DISC_SPACING: i32 = int(11);
+/// The trampolines keep this far off the wall, the highest this far
+/// under the tube's top, the lowest this far over the sling row's
+/// anchors.
+const DISC_WALL_CLEAR: i32 = int(1);
+pub(crate) const DISCS_FROM_TOP: i32 = int(8);
+pub(crate) const DISCS_OVER_SLING: i32 = int(12);
 /// The tunnel: its mouth's height (the sling anchors on its top edge),
 /// its half width, its length past the mouth, the sling row's dip under
 /// level, its beams' length and lanes.
@@ -158,7 +163,10 @@ const MOUTH_HEIGHT: i32 = int(30);
 const TUNNEL_HALF: i32 = int(16);
 const TUNNEL_LEN: i32 = int(250);
 const SLING_DIP: i32 = deg(10);
-const SLING_LEN: i32 = int(24);
+/// (reaching back across the tube to 7 m past its axis)
+const SLING_LEN: i32 = TUBE_RADIUS + int(7);
+/// The sling row's beams this far apart across the mouth.
+const SLING_LANE: i32 = int(5);
 /// The tunnel's floor is this far under the tube leg's end less the bend.
 const FLOOR_UNDER_LINE: i32 = int(6);
 
@@ -250,36 +258,59 @@ fn beam(bottom: V3, hang: V3, length: i32, at: i32) -> Vine {
     }
 }
 
-/// The pad `k` of `n` down the tube: its gap's offset from the axis (a
-/// sine weave across z) and its shape (a ring round the gap, a slab open
-/// past it, or quarters where the weave crosses the middle).
-fn tube_pad(k: usize, y: i32) -> TubePad {
-    let phase = (k as i64 * TURN as i64 / WEAVE_PERIOD as i64) as i32;
-    let off = mul(WEAVE_AMPLITUDE, sin(phase));
-    let across = v3(0, 0, ONE);
-    let gap = across.scale(off);
-    let shape = match k % 3 {
-        0 => PadShape::Ring {
-            at: gap,
-            hole: HOLE,
-        },
-        1 if off.abs() > HOLE => PadShape::Slab {
-            open: across.scale(ONE * off.signum()),
-            edge: off.abs() - HOLE,
-        },
-        1 => PadShape::Ring {
-            at: gap,
-            hole: HOLE,
-        },
-        _ if off.abs() < int(2) => PadShape::Quarters {
-            axis: v3(ONE, 0, 0),
-        },
-        _ => PadShape::Ring {
-            at: gap,
-            hole: HOLE,
-        },
-    };
-    TubePad { y, shape, gap }
+/// The radical inverse of `i` in `base`, in `[0, ONE)`: the Halton
+/// sequence's coordinate.
+fn radical_inverse(mut i: u32, base: u32) -> i32 {
+    let (mut num, mut den) = (0u64, 1u64);
+    while i > 0 {
+        num = num * base as u64 + (i % base) as u64;
+        den *= base as u64;
+        i /= base;
+    }
+    ((num << 16) / den) as i32
+}
+
+/// The tube's trampolines (T100), `n` of them, in a tube round `axis`
+/// with their middles from `lo` to `hi`: a scrambled Halton sequence
+/// through the volume (bases 2 and 3 across, area-even, 5 down), each
+/// point kept only if no kept one is within `DISC_SPACING`, so any first
+/// N are spread evenly, not in layers; each leans a random 0 to
+/// `DISC_TILT` in a random direction. The same for every layout.
+pub(crate) fn tube_discs(axis: V3, lo: i32, hi: i32, n: usize) -> Vec<Disc> {
+    let mut dice = Dice(DISC_SEED);
+    let shift = [
+        dice.range(0, ONE - 1),
+        dice.range(0, ONE - 1),
+        dice.range(0, ONE - 1),
+    ];
+    let wrap = |u: i32, k: usize| (u + shift[k]) & (ONE - 1);
+    let across = TUBE_RADIUS - DISC_RADIUS - DISC_WALL_CLEAR;
+    let mut discs: Vec<Disc> = Vec::with_capacity(n);
+    let mut i = 1u32;
+    while discs.len() < n && i < 1 << 16 {
+        let r = mul(across, fx::sqrt(wrap(radical_inverse(i, 2), 0)));
+        let a = mul(TURN, wrap(radical_inverse(i, 3), 1));
+        let y = lo + mul(hi - lo, wrap(radical_inverse(i, 5), 2));
+        // (the lean is drawn for every point, kept or not, so a point's
+        // lean does not hang on which came before it)
+        let tilt = dice.range(0, DISC_TILT);
+        let lean = dice.range(0, TURN - 1);
+        i += 1;
+        let centre = v3(axis.x + mul(r, sin(a)), y, axis.z + mul(r, cos(a)));
+        if discs
+            .iter()
+            .any(|d| !d.centre.sub(centre).longer_than(DISC_SPACING))
+        {
+            continue;
+        }
+        let normal = v3(
+            mul(sin(tilt), sin(lean)),
+            cos(tilt),
+            mul(sin(tilt), cos(lean)),
+        );
+        discs.push(Disc { centre, normal });
+    }
+    discs
 }
 
 /// Mape's Tower from another seed (the beams shift a little).
@@ -682,27 +713,26 @@ pub fn tower_seeded(seed: u64) -> Course {
         .add(tear_left.scale(tear_half.1 + int(5)))
         .sub(v3(0, int(8), 0));
 
-    // the tube: down from the portal leg's end; its pads
+    // the tube: down from the portal leg's end; its trampolines
     let tube_top_p = c.point(tube_from);
     let bend_from = leg_at(BEND);
     let bend_to = leg_at(BEND + 1);
     let floor = c.point(bend_to).y - FLOOR_UNDER_LINE;
     let axis = v3(tube_top_p.x, 0, tube_top_p.z);
     let mouth_top = floor + MOUTH_HEIGHT;
-    let mut pads = Vec::new();
-    let first = tube_top_p.y - PADS_FROM_TOP;
-    let last = mouth_top + PADS_OVER_SLING;
-    for k in 0..TUBE_PADS {
-        let y = first - (first - last) * k as i32 / (TUBE_PADS as i32 - 1);
-        pads.push(tube_pad(k, y));
-    }
+    let discs = tube_discs(
+        axis,
+        mouth_top + DISCS_OVER_SLING,
+        tube_top_p.y - DISCS_FROM_TOP,
+        TUBE_DISCS,
+    );
     let tube = Tube {
         axis,
         top: tube_top_p.y,
         bottom: floor,
         radius: TUBE_RADIUS,
         wall: TUBE_WALL,
-        pads,
+        discs,
     };
 
     // the tunnel off the tube's bottom, its floor from the tube's far
@@ -720,6 +750,15 @@ pub fn tower_seeded(seed: u64) -> Course {
         top: floor,
     });
     let floor_platform = c.platforms.len() - 1;
+    // the tube's own floor, all across its foot (it is wider than the
+    // tunnel, T100)
+    c.platforms.push(Platform {
+        centre: v3(axis.x, floor, axis.z),
+        fwd: along,
+        half_len: TUBE_RADIUS,
+        half_width: TUBE_RADIUS,
+        top: floor,
+    });
     let finish = c.point(c.length).sub(mouth).dot(along);
     let tunnel = Tunnel {
         mouth,
@@ -738,7 +777,7 @@ pub fn tower_seeded(seed: u64) -> Course {
         .norm();
     let sling_at = bend_from + int(8);
     for k in -2..=2 {
-        let anchor = v3(mouth.x, mouth_top, mouth.z).add(right_of(along).scale(int(3) * k));
+        let anchor = v3(mouth.x, mouth_top, mouth.z).add(right_of(along).scale(SLING_LANE * k));
         c.vines.push(Vine {
             anchor,
             length: SLING_LEN,

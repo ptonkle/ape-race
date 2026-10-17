@@ -64,13 +64,18 @@
 //! - *The tube's air* (`TUBE_TERMINAL`, `TUBE_AIR`, `Ape::tube_air`): the
 //!   void's air is thicker, so a fall settles at a lower terminal speed
 //!   than open air, and steering in the air is `TUBE_AIR` times the kind's,
-//!   so the gaps can be reached one from the next (measured: TW2-5,
+//!   so a faller can steer round the trampolines (measured: TW2-5,
 //!   `MEASUREMENTS.md`). The AI falls the tube with the same steering
 //!   (`TowerLayout::tube_controls`).
-//! - *The tube's pads* (`TubePad`, `Tube::pad_hit`): a falling body whose
-//!   feet cross a pad's covered part is thrown back up at the mushroom's
-//!   bounce (`MUSHROOM_BOUNCE`, no push along), losing a second or two.
-//!   Nothing else in the tube is a bouncer.
+//! - *The tube's trampolines* (`Disc`, `Tube::disc_hit`, T100): a body
+//!   whose feet cross a disc's face from above bounces off it: the speed
+//!   into the face becomes `DISC_BOUNCE` out of it and half the speed
+//!   along it is kept, so a leaning disc throws the ape sideways too and
+//!   a fall at terminal speed loses about 2 s. Nothing else in the tube
+//!   is a bouncer.
+//! - *Into the tube* (`Ape::tube_entry`, T99): an ape coming into the
+//!   tube's column past the portal loses its speed across, so the fall
+//!   starts straight down whatever the entry.
 //!
 //! The types below are the contract between the course (placement, rules,
 //! the AI), the models and the scene. Positions are world space, fixed
@@ -94,10 +99,8 @@ mod stone;
 #[cfg(test)]
 mod tests;
 
-pub use layout::{
-    tower, tower_seeded, Climb, LEGS, START_TOP, TUBE_PADS, WEAVE_AMPLITUDE, WEAVE_PERIOD,
-};
-pub use rules::{TUBE_AIR, TUBE_SETTLE, TUBE_TERMINAL};
+pub use layout::{tower, tower_seeded, Climb, DISC_SEED, LEGS, START_TOP, TUBE_DISCS};
+pub use rules::{DISC_BOUNCE, TUBE_AIR, TUBE_SETTLE, TUBE_TERMINAL};
 pub use stone::{Gap, Solid};
 
 /// A body further than this from the centreline (in 3D) is out.
@@ -124,7 +127,7 @@ pub enum Leg {
     Inside,
     /// out over tower 1's open top and sideways through the tear
     Portal,
-    /// the fall down the tube past its pads
+    /// the fall down the tube past its trampolines
     Tube,
     /// the sling row at the tube's bottom
     Sling,
@@ -158,7 +161,7 @@ pub struct TowerLayout {
     pub clouds: Vec<CloudBand>,
     /// the tear beside tower 1's top, the wizard, the banana beyond
     pub portal: Portal,
-    /// the void's tube and its pads
+    /// the void's tube and its trampolines
     pub tube: Tube,
     /// the tunnel's mouth in the tube's wall, the sling row hung from its
     /// top edge, the tunnel and the finish
@@ -300,7 +303,8 @@ pub struct Portal {
     pub banana_len: i32,
 }
 
-/// The void's tube: a vertical fall, Dropper-style, with pads to dodge.
+/// The void's tube: a vertical fall, Dropper-style, with trampolines to
+/// dodge.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Tube {
     /// its axis (x and z), its top and its floor (the tunnel's floor)
@@ -311,78 +315,79 @@ pub struct Tube {
     pub radius: i32,
     /// its wall's thickness
     pub wall: i32,
-    /// the pads, top first
-    pub pads: Vec<TubePad>,
+    /// the trampolines floating in it (T100), in their fixed order: any
+    /// first N of them are spread evenly through the tube
+    pub discs: Vec<Disc>,
 }
 
-/// A bounce pad across part of the tube at one height.
+/// A trampoline floating free in the tube (T100): a flat round disc
+/// `DISC_RADIUS` in radius, its bouncing face up but leaning up to
+/// `DISC_TILT` (its face's normal, unit, tipped that far from straight
+/// up).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct TubePad {
-    /// its top's height
-    pub y: i32,
-    pub shape: PadShape,
-    /// the middle of its gap, in plan, from the tube's axis (what the
-    /// fastest line steers for)
-    pub gap: V3,
+pub struct Disc {
+    /// the middle of its bouncing face
+    pub centre: V3,
+    /// its face's normal (unit, up-ish)
+    pub normal: V3,
 }
 
-/// Which part of the tube's width a pad covers.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum PadShape {
-    /// the disc less a segment: open beyond `edge` along `open` (unit,
-    /// level) from the axis
-    Slab { open: V3, edge: i32 },
-    /// the disc less a round hole of radius `hole` at `at` (in plan, from
-    /// the axis)
-    Ring { at: V3, hole: i32 },
-    /// two opposite quarters, round ±`axis` (unit, level); open round
-    /// the other two
-    Quarters { axis: V3 },
-}
-
-/// The pads' thickness (drawing, and the band a crossing is found in).
-pub const TUBE_PAD_THICK: i32 = cm(80);
+/// The trampolines' radius (10 m across), their greatest lean and their
+/// thickness (drawing, and the band under the face a crossing is found
+/// in).
+pub const DISC_RADIUS: i32 = int(5);
+pub const DISC_TILT: i32 = crate::fx::deg(10);
+pub const DISC_THICK: i32 = cm(80);
 
 impl Tube {
     /// Whether a body with its hands at `p` is inside the tube.
     pub fn holds(&self, p: V3) -> bool {
-        p.y <= self.top
-            && p.y >= self.bottom
-            && !v3(p.x - self.axis.x, 0, p.z - self.axis.z).longer_than(self.radius)
+        p.y <= self.top && p.y >= self.bottom && self.over(p)
     }
 
-    /// Whether pad `k` covers the plan point `rel` (from the axis).
-    pub fn covered(&self, k: usize, rel: V3) -> bool {
-        if rel.longer_than(self.radius) {
-            return false;
-        }
-        match self.pads[k].shape {
-            PadShape::Slab { open, edge } => rel.dot(open) <= edge,
-            PadShape::Ring { at, hole } => rel.sub(at).longer_than(hole),
-            PadShape::Quarters { axis } => rel.dot(axis).abs() >= rel.dot(right_of(axis)).abs(),
-        }
+    /// Whether the point `p` is within the tube's radius, in plan.
+    pub fn over(&self, p: V3) -> bool {
+        !v3(p.x - self.axis.x, 0, p.z - self.axis.z).longer_than(self.radius)
     }
 
-    /// The pad a body falling from hands at `before` to `after` lands on:
-    /// its feet cross the pad's top (to its thickness) over a covered
-    /// part.
-    pub fn pad_hit(&self, before: V3, after: V3) -> Option<usize> {
-        let drop = crate::rules::BODY_DROP;
-        let (f0, f1) = (before.y - drop, after.y - drop);
-        if f1 >= f0 {
-            return None;
-        }
-        let rel = v3(after.x - self.axis.x, 0, after.z - self.axis.z);
-        (0..self.pads.len()).find(|&k| {
-            let y = self.pads[k].y;
-            f0 >= y - TUBE_PAD_THICK && f1 < y && self.covered(k, rel)
+    /// The trampoline a body moving from hands at `before` to `after`
+    /// lands on: its feet cross the disc's face (from above, to its
+    /// thickness) within its radius, moving into it.
+    pub fn disc_hit(&self, before: V3, after: V3) -> Option<usize> {
+        let drop = v3(0, crate::rules::BODY_DROP, 0);
+        let (f0, f1) = (before.sub(drop), after.sub(drop));
+        (0..self.discs.len()).find(|&k| {
+            let d = &self.discs[k];
+            let s0 = f0.sub(d.centre).dot(d.normal);
+            let s1 = f1.sub(d.centre).dot(d.normal);
+            s1 < s0
+                && s0 >= -DISC_THICK
+                && s1 < 0
+                && !f1.sub(d.centre).reject(d.normal).longer_than(DISC_RADIUS)
         })
     }
 
-    /// The next pad under a body with its hands at `p`, if any.
-    pub fn next_pad(&self, p: V3) -> Option<usize> {
+    /// The first trampoline under a body with its hands at `p` (its face
+    /// under the feet, at most `within` down) that the body's plan
+    /// position is over, give or take `margin`: what a faller steers
+    /// round.
+    pub fn disc_ahead(&self, p: V3, within: i32, margin: i32) -> Option<usize> {
         let feet = p.y - crate::rules::BODY_DROP;
-        (0..self.pads.len()).find(|&k| self.pads[k].y < feet)
+        let mut best: Option<(i32, usize)> = None;
+        for (k, d) in self.discs.iter().enumerate() {
+            let down = feet - d.centre.y;
+            if down < 0 || down > within {
+                continue;
+            }
+            let rel = v3(p.x - d.centre.x, 0, p.z - d.centre.z);
+            if rel.longer_than(DISC_RADIUS + margin) {
+                continue;
+            }
+            if best.is_none_or(|(b, _)| down < b) {
+                best = Some((down, k));
+            }
+        }
+        best.map(|(_, k)| k)
     }
 }
 

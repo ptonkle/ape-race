@@ -1,7 +1,8 @@
 //! Mape's Tower's rules, each run only when `Course.tower` is set: the 3D
 //! "along the course" (TW1), the boundary and the reset onto a pad with
 //! its boost (per leg: the tube's and the sling's resets go to the
-//! portal), the climb vines' lift, and the tube's air and pads (TW2-5).
+//! portal), the climb vines' lift, and the tube's air, its entry (T99)
+//! and its trampolines (T100).
 
 use super::*;
 use crate::ape::{Ape, Controls, Mode};
@@ -9,7 +10,7 @@ use crate::course::{Course, STEP};
 use crate::fx::{mul, ONE};
 use crate::geom::yaw_of;
 use crate::race::{Event, Race};
-use crate::rules::{BODY_DROP, DT, MUSHROOM_BOUNCE};
+use crate::rules::{BODY_DROP, DT};
 
 /// The fall's terminal speed in the tube: the void's air is thicker than
 /// open air (where a fall from the tear reached about 50 m/s). Measured
@@ -22,8 +23,19 @@ pub const TUBE_SETTLE: i32 = ONE * 8;
 /// Air steering in the tube is this many times the kind's (the void
 /// pushes back).
 pub const TUBE_AIR: i32 = ONE * 3;
-/// The weave aims this many seconds of its sideways speed short of the gap.
+/// The steering aims this many seconds of its sideways speed short of
+/// where it wants to be.
 const TUBE_LEAD: i32 = ONE * 3 / 10;
+/// A trampoline's bounce (T100): the speed into its face becomes this out
+/// of it, and `DISC_KEEP` of the speed along it is kept. From terminal
+/// speed a hit loses about (38 + 13)² / (2 × 17 × 38) ≈ 2 s against
+/// falling on.
+pub const DISC_BOUNCE: i32 = int(13);
+const DISC_KEEP: i32 = ONE / 2;
+/// The steering looks this far down for a trampoline to dodge, and
+/// passes one this far clear of its rim.
+const DODGE_LOOK: i32 = int(30);
+const DODGE_CLEAR: i32 = int(2);
 
 impl Course {
     /// Mape's Tower's `nearest`: the nearest centreline sample to `p` in
@@ -113,24 +125,40 @@ impl Course {
 }
 
 impl TowerLayout {
-    /// The AI's (and the measurement's) steering down the tube: from the
-    /// moment a pad is passed, aim at the next pad's gap; with no pad left,
-    /// at the sling row (the tunnel's mouth). None outside the tube.
+    /// The AI's steering down the tube: with a trampoline under it
+    /// (within `DODGE_LOOK`), steer out past its rim on the side the ape
+    /// is already on (toward the axis if that side is the wall's); with
+    /// none under it, under the lowest trampoline steer for the axis (the
+    /// sling row), else no steering. None outside the tube.
     pub fn tube_controls(&self, a: &Ape) -> Option<Controls> {
-        if !self.tube.holds(a.pos) {
+        let z = &self.tube;
+        if !z.holds(a.pos) {
             return None;
         }
-        let aim = match self.tube.next_pad(a.pos) {
-            Some(k) => self.tube.axis.add(self.tube.pads[k].gap),
-            None => self.tube.axis,
+        let flat = |p: V3| v3(p.x, 0, p.z);
+        let lowest = z.discs.iter().map(|d| d.centre.y).min().unwrap_or(z.top);
+        let aim = if let Some(k) = z.disc_ahead(a.pos, DODGE_LOOK, DODGE_CLEAR) {
+            let c = flat(z.discs[k].centre);
+            let axis = flat(z.axis);
+            let mut out = flat(a.pos).sub(c);
+            if !out.longer_than(cm(50)) {
+                out = axis.sub(c);
+            }
+            let mut aim = c.add(out.with_len(DISC_RADIUS + DODGE_CLEAR * 2));
+            if aim.sub(axis).longer_than(z.radius - int(2)) {
+                // (the wall's side: go round the other way)
+                aim = c.sub(out.with_len(DISC_RADIUS + DODGE_CLEAR * 2));
+            }
+            aim
+        } else if a.pos.y - BODY_DROP < lowest {
+            flat(z.axis)
+        } else {
+            return Some(Controls::default());
         };
         // (aim short by the sideways speed's lead, as a player does, so
-        // the ape settles on the gap instead of swinging past it)
+        // the ape settles instead of swinging past)
         let to = v3(aim.x - a.pos.x, 0, aim.z - a.pos.z).sub(a.vel.flat().scale(TUBE_LEAD));
         let mut c = Controls::default();
-        // (the kind's air steering is a fixed push: steer only while off
-        // the gap by more than a body's width, so the ape settles on it
-        // instead of hunting round it)
         if to.longer_than(cm(60)) {
             c.fwd = 1;
             c.yaw = yaw_of(to);
@@ -182,20 +210,47 @@ impl Ape {
         }
     }
 
-    /// Mape's Tower's tube: a fall onto a pad's covered part bounces up at
-    /// the mushroom's speed (TW2-5). Whether it bounced.
-    pub(crate) fn tube_pads(&mut self, course: &Course, before: V3) -> bool {
+    /// Mape's Tower's tube (T99): an ape flying into the tube's column
+    /// past the portal (from outside its radius, or from over its top,
+    /// to within it under its top) loses its speed across, so the fall
+    /// starts straight down whatever the entry. Whether it did.
+    pub(crate) fn tube_entry(&mut self, course: &Course, before: V3) -> bool {
         let Some(t) = course.tower.as_deref() else {
             return false;
         };
-        if self.swinging().is_some() || self.vel.y > 0 {
+        let z = &t.tube;
+        let inside =
+            |p: V3| t.in_void(p) && z.over(p) && p.y <= z.top && p.y > z.bottom + t.tunnel.height;
+        if self.swinging().is_some() || inside(before) || !inside(self.pos) {
             return false;
         }
-        let Some(k) = t.tube.pad_hit(before, self.pos) else {
+        self.vel = v3(0, self.vel.y, 0);
+        true
+    }
+
+    /// Mape's Tower's tube (T100): feet crossing a trampoline's face from
+    /// above bounce off it: the speed into the face becomes `DISC_BOUNCE`
+    /// out of it and `DISC_KEEP` of the speed along it is kept, so a
+    /// leaning disc throws the ape sideways too. Whether it bounced.
+    pub(crate) fn tube_discs(&mut self, course: &Course, before: V3) -> bool {
+        let Some(t) = course.tower.as_deref() else {
             return false;
         };
-        self.pos.y = self.pos.y.max(t.tube.pads[k].y + BODY_DROP);
-        self.vel.y = MUSHROOM_BOUNCE;
+        if self.swinging().is_some() {
+            return false;
+        }
+        let Some(k) = t.tube.disc_hit(before, self.pos) else {
+            return false;
+        };
+        let d = t.tube.discs[k];
+        // (the feet back on the face)
+        let feet = self.pos.sub(v3(0, BODY_DROP, 0));
+        let under = feet.sub(d.centre).dot(d.normal);
+        if under < 0 {
+            self.pos = self.pos.add(d.normal.scale(-under));
+        }
+        let along = self.vel.reject(d.normal);
+        self.vel = d.normal.scale(DISC_BOUNCE).add(along.scale(DISC_KEEP));
         self.mode = Mode::Flying;
         true
     }

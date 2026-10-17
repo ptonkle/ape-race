@@ -577,20 +577,20 @@ mod tests {
     }
 
     /// TA2-8: the void's fog washed the tube; inside it the fog starts
-    /// past several pads, so they read from the top and the walls stand.
+    /// past several trampolines, so they read from the top and the walls stand.
     #[test]
-    fn inside_the_tube_the_fog_starts_past_several_pads() {
+    fn inside_the_tube_the_fog_starts_past_several_trampolines() {
         let c = Map::Tower.course();
         let t = c.tower.as_ref().unwrap();
         let z = &t.tube;
         let top = v3(z.axis.x, z.top - int(5), z.axis.z);
         assert!(t.in_void(top) && in_tube(t, top));
         let l = look_in(t, top, Weather::Clear);
-        // clear five pads down from the first
-        let five = top.y - z.pads[5].y;
+        // clear 60 m down (some 30 trampolines)
+        let five = int(60);
         assert!(
             l.fog_range.0 > five,
-            "the fog starts {} m down, the fifth pad {} m",
+            "the fog starts {} m down, not past {} m",
             l.fog_range.0 / ONE,
             five / ONE
         );

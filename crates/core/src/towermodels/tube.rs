@@ -1,23 +1,25 @@
 //! The second design's portal world (`notes/tower2-plan.md` steps 7–10):
 //! the vertical tube the apes drop down (about 300 m long and 35 m
-//! across, two thirds of a v1 spiral's 55 m width), in the zipper space's
-//! colours, with portholes the creatures look in through; the bounce
-//! pads across it, drawn as the void's own bouncers (glowing sea-green
-//! films with a bright rim, readable from above at speed); and the
+//! across, T100), in the zipper space's colours, with portholes the
+//! creatures look in through; the trampolines floating in it (dark mats,
+//! glowing bullseyes and bright padded rims, readable from above at
+//! speed); and the
 //! horizontal tunnel at its foot with the mouth's anchor bar the sling
 //! vines hang from. The zip (`zip`), the creatures and the banana sea
 //! are reused as they are.
 
 use super::{bar, halo_ball, halo_bar, pick, pulse, put, put_turned, round, wave, DEEP_SKY};
-use crate::fx::{cm, cos, int, mul, sin, sqrt, HALF, ONE, QUARTER, TURN};
+use crate::fx::{cm, cos, int, mul, sin, HALF, ONE, QUARTER, TURN};
 use crate::geom::{v3, Affine, V3};
 use crate::mesh::Mesh;
 use crate::render::{mix, rgb, Batch, Rgb};
 
-/// The tube's length, radius and the tunnel's length (a bridge's).
+/// The tube's length and radius (70 m across, T100), the tunnel's length
+/// (a bridge's) and radius (the first tube's, about the tunnel's width).
 pub const TUBE_LENGTH: i32 = int(300);
-pub const TUBE_RADIUS: i32 = int(17) + cm(50);
+pub const TUBE_RADIUS: i32 = int(35);
 pub const TUNNEL_LENGTH: i32 = int(250);
+pub const TUNNEL_RADIUS: i32 = int(17) + cm(50);
 
 /// Panels round the tube's wall.
 const PANELS: i32 = 12;
@@ -35,6 +37,8 @@ const RING_DIM: Rgb = rgb(60, 150, 130);
 const FILM: Rgb = rgb(140, 236, 216);
 const FILM_DEEP: Rgb = rgb(70, 170, 160);
 const BUBBLE: Rgb = rgb(190, 255, 240);
+const MAT: Rgb = rgb(34, 22, 58);
+const PAD_A: Rgb = rgb(236, 90, 200);
 const GLASS: Rgb = rgb(120, 200, 190);
 const BAR_IRON: Rgb = rgb(58, 32, 88);
 const STUD: Rgb = rgb(170, 120, 240);
@@ -286,224 +290,55 @@ pub fn tube_porthole(b: &mut Batch, f: &Affine, r: i32, depth: i32, a: i32, k: u
         .then(&Affine::rot_y(HALF))
 }
 
-/// The shapes a bounce pad takes across the tube: each covers part of the
-/// width so the fall weaves round them.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum PadShape {
-    /// the +x half of the disc (turn it with `yaw`)
-    Half,
-    /// a ring with a hole half the radius in its middle
-    Ring,
-    /// two opposite quarters: +x+z and -x-z
-    Quarters,
-    /// a ring whose hole, of radius `hole`, is at `at` (in the pad's
-    /// plane, from the axis): the physics' ring (`tower::PadShape::Ring`,
-    /// its hole off the middle at the weave's offset)
-    Holed { at: V3, hole: i32 },
-}
-
-impl PadShape {
-    pub const ALL: [PadShape; 3] = [PadShape::Half, PadShape::Ring, PadShape::Quarters];
-
-    /// Shape `k` of the three, round and round.
-    pub fn nth(k: u32) -> PadShape {
-        PadShape::ALL[(k % 3) as usize]
-    }
-}
-
-/// The ring pad's hole, in radii.
-pub const RING_HOLE: i32 = ONE / 2;
-
-/// Whether a pad of `shape` in a tube of radius `r` (before its `yaw`)
-/// covers the point `(x, z)` across the tube.
-pub fn pad_covers(shape: PadShape, r: i32, x: i32, z: i32) -> bool {
-    let d2 = (x as i64 * x as i64 + z as i64 * z as i64) >> 16;
-    let r2 = (r as i64 * r as i64) >> 16;
-    if d2 > r2 {
-        return false;
-    }
-    match shape {
-        PadShape::Half => x >= 0,
-        PadShape::Ring => {
-            let hole = mul(r, RING_HOLE);
-            d2 >= (hole as i64 * hole as i64) >> 16
-        }
-        PadShape::Quarters => (x >= 0 && z >= 0) || (x <= 0 && z <= 0),
-        PadShape::Holed { at, hole } => v3(x - at.x, 0, z - at.z).longer_than(hole),
-    }
-}
-
-/// A bounce pad across a tube of radius `r`, flat in the xz plane at y 0
-/// (its bouncing face up), turned `yaw` about the axis: a glassy
-/// sea-green film (strips of it) with a bright glowing rim all round its
-/// outline, bubbles swelling along the rim, and the whole breathing with
-/// the tick; `squash` 0..ONE flares it (just bounced on). The glow reads
-/// from above at falling speed. About 30–45 shapes and a halo.
-#[allow(clippy::too_many_arguments)]
-pub fn void_pad(
-    b: &mut Batch,
-    f: &Affine,
-    r: i32,
-    shape: PadShape,
-    yaw: i32,
-    squash: i32,
-    tick: u32,
-    k: u32,
-) {
-    let g = f.then(&Affine::rot_y(yaw));
+/// A trampoline floating in the void (T100), its bouncing face the
+/// frame's xz plane at y 0 (face up; lean the frame to lean it), `r` in
+/// radius: a dark violet mat with a glowing sea-green bullseye, a padded
+/// rim of eight segments in alternating magenta and sea-green, and a
+/// shallow skirt under it; `squash` 0..ONE flares the mat (just bounced
+/// on). 11 shapes.
+pub fn void_trampoline(b: &mut Batch, f: &Affine, r: i32, squash: i32, tick: u32, k: u32) {
     let sq = squash.clamp(0, ONE);
-    let breathe = pulse(tick, 3, k, ONE * 9 / 10);
-    let film = mix(FILM, [ONE; 3], sq / 2);
-    let rim = mix(RING, [ONE; 3], sq / 3);
-    let thick = cm(50);
-    // the film: strips across the covered part
-    let rows = 6;
-    let strip = |b: &mut Batch, x0: i32, x1: i32, z0: i32, z1: i32| {
-        put(
-            b,
-            &g,
-            Mesh::Cube,
-            v3((x0 + x1) / 2, 0, (z0 + z1) / 2),
-            v3((x1 - x0).abs() + cm(10), thick, (z1 - z0).abs()),
-            film,
-            ONE / 2,
-        );
-    };
-    let chord = |x: i32| -> i32 {
-        let s = ((r as i64 * r as i64 - x as i64 * x as i64) >> 16).max(0) as i32;
-        sqrt(s)
-    };
-    match shape {
-        PadShape::Half => {
-            for i in 0..rows {
-                let x0 = r * i / rows;
-                let x1 = r * (i + 1) / rows;
-                let c = chord((x0 + x1) / 2);
-                strip(b, x0, x1, -c, c);
-            }
-            // the rim: the straight edge and the arc
-            bar(
-                b,
-                &g,
-                Mesh::Cube,
-                v3(0, 0, -r),
-                v3(0, 0, r),
-                cm(60),
-                rim,
-                ONE,
-            );
-            arc_rim(b, &g, r, -QUARTER, QUARTER, 8, rim, tick, k);
-        }
-        PadShape::Ring => {
-            let hole = mul(r, RING_HOLE);
-            let mid = (r + hole) / 2;
-            let n = 16;
-            for i in 0..n {
-                bar(
-                    b,
-                    &g,
-                    Mesh::Cube,
-                    round(mid, TURN * i / n, 0),
-                    round(mid, TURN * (i + 1) / n, 0),
-                    r - hole,
-                    film,
-                    ONE / 2,
-                );
-            }
-            arc_rim(b, &g, r, 0, TURN, 12, rim, tick, k);
-            arc_rim(b, &g, hole, 0, TURN, 8, rim, tick, k + 7);
-        }
-        PadShape::Quarters => {
-            for s in [1, -1] {
-                for i in 0..rows {
-                    let x0 = s * r * i / rows;
-                    let x1 = s * r * (i + 1) / rows;
-                    let c = chord((x0 + x1) / 2);
-                    strip(b, x0, x1, 0, s * c);
-                }
-                bar(
-                    b,
-                    &g,
-                    Mesh::Cube,
-                    V3::ZERO,
-                    v3(s * r, 0, 0),
-                    cm(60),
-                    rim,
-                    ONE,
-                );
-                bar(
-                    b,
-                    &g,
-                    Mesh::Cube,
-                    V3::ZERO,
-                    v3(0, 0, s * r),
-                    cm(60),
-                    rim,
-                    ONE,
-                );
-            }
-            arc_rim(b, &g, r, 0, QUARTER, 5, rim, tick, k);
-            arc_rim(b, &g, r, HALF, HALF + QUARTER, 5, rim, tick, k + 3);
-        }
-        PadShape::Holed { at, hole } => {
-            // a fan of film strips from the hole's rim out to the wall
-            // (each wide enough to close the fan at the wall), a rim
-            // round both
-            let n = 24;
-            let deep = mix(film, FILM_DEEP, ONE / 3);
-            for i in 0..n {
-                let a = TURN * i / n;
-                let dir = v3(sin(a), 0, cos(a));
-                let c = if (i + k as i32) % 2 == 0 { film } else { deep };
-                bar(
-                    b,
-                    &g,
-                    Mesh::Cube,
-                    at.add(dir.scale(hole)),
-                    dir.scale(r),
-                    int(5),
-                    c,
-                    ONE / 2,
-                );
-            }
-            arc_rim(b, &g, r, 0, TURN, 12, rim, tick, k);
-            arc_rim(
-                b,
-                &g.then(&Affine::translate(at)),
-                hole,
-                0,
-                TURN,
-                8,
-                rim,
-                tick,
-                k + 7,
-            );
-        }
-    }
-    let d = mul(2 * r, breathe);
-    halo_ball(b, &g, v3(0, cm(20), 0), d, FILM_DEEP, ONE / 4 + sq / 2);
-}
-
-/// A glowing rim along the arc of radius `r` from bearing `a0` to `a1`
-/// in `n` bars, a bubble swelling at each joint.
-#[allow(clippy::too_many_arguments)]
-fn arc_rim(b: &mut Batch, g: &Affine, r: i32, a0: i32, a1: i32, n: i32, c: Rgb, tick: u32, k: u32) {
+    let breathe = pulse(tick, 3, k, ONE * 3 / 5);
+    let mat = mix(MAT, FILM, sq / 2);
+    let mat_r = r - cm(70);
+    put(
+        b,
+        f,
+        Mesh::Cyl,
+        v3(0, -cm(10), 0),
+        v3(2 * mat_r, cm(20), 2 * mat_r),
+        mat,
+        ONE / 8,
+    );
+    // the bullseye, a little proud of the mat
+    let eye = r * 2 / 5;
+    put(
+        b,
+        f,
+        Mesh::Cyl,
+        v3(0, cm(2), 0),
+        v3(2 * eye, cm(6), 2 * eye),
+        mix(FILM_DEEP, FILM, breathe),
+        ONE / 2 + sq / 2,
+    );
+    // the padded rim
+    let n = 8;
     for i in 0..n {
-        let p = round(r, a0 + (a1 - a0) * i / n, 0);
-        let q = round(r, a0 + (a1 - a0) * (i + 1) / n, 0);
-        bar(b, g, Mesh::Cube, p, q, cm(60), c, ONE);
-        let s = mul(cm(90), pulse(tick, 2, k * 16 + i as u32, ONE / 2));
-        put(b, g, Mesh::Sphere, p, v3(s, s, s), BUBBLE, ONE / 2);
+        let p = round(r - cm(35), TURN * i / n, 0);
+        let q = round(r - cm(35), TURN * (i + 1) / n, 0);
+        let c = if (i + k as i32) % 2 == 0 { PAD_A } else { RING };
+        bar(b, f, Mesh::Cube, p, q, cm(70), c, ONE / 3);
     }
-}
-
-/// Where the pad at `depth` down the tube goes, for a tube `len` long
-/// with `n` pads from `first` to `last` (depths): pad `i`'s depth.
-pub fn pad_depth(i: u32, n: u32, first: i32, last: i32) -> i32 {
-    if n <= 1 {
-        return first;
-    }
-    first + (last - first) / (n as i32 - 1) * i as i32
+    // the skirt under it
+    put(
+        b,
+        f,
+        Mesh::Cyl,
+        v3(0, -cm(60), 0),
+        v3(2 * r - cm(40), cm(60), 2 * r - cm(40)),
+        WALL_DEEP,
+        0,
+    );
 }
 
 /// The horizontal tunnel at the tube's foot, radius `r`, running from its
@@ -595,10 +430,11 @@ pub fn tunnel_mouth(b: &mut Batch, f: &Affine, r: i32, tick: u32, k: u32) -> (V3
 
 /// The tube's foot joined to the tunnel's mouth: the tube's floor is
 /// the tunnel's floor (its last segment drawn `tube_with_door`). The
-/// frame for `tunnel` beside a tube whose foot (its floor, on its axis)
-/// is at `foot`, the tunnel running off along bearing `a`: its axis `r`
-/// over the floor, its mouth at the tube's wall (`r` out along `a`).
-pub fn tunnel_frame(foot: &Affine, r: i32, a: i32) -> Affine {
+/// frame for a `tunnel` of radius `tr` beside a tube of radius `r` whose
+/// foot (its floor, on its axis) is at `foot`, the tunnel running off
+/// along bearing `a`: its axis `tr` over the floor, its mouth at the
+/// tube's wall (`r` out along `a`).
+pub fn tunnel_frame(foot: &Affine, r: i32, tr: i32, a: i32) -> Affine {
     foot.then(&Affine::rot_y(a))
-        .then(&Affine::translate(v3(0, r, r)))
+        .then(&Affine::translate(v3(0, tr, r)))
 }

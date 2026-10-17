@@ -94,7 +94,7 @@ pub fn gallery_look_of(key: &str) -> Look {
 /// The descent's gallery keys, shown in the zipper space's light.
 pub const ZIPPER_KEYS: [&str; 11] = [
     "tube",
-    "voidpads",
+    "voidtrampolines",
     "tunnelmouth",
     "zip",
     "topsy",
@@ -281,7 +281,7 @@ pub const GALLERY: [&str; 38] = [
     "towers",
     "portal",
     "tube",
-    "voidpads",
+    "voidtrampolines",
     "tunnelmouth",
     "keep",
     "keepsection",
@@ -325,8 +325,8 @@ pub fn framing(key: &str) -> (V3, i32) {
         // in view all the way round, TA2-4)
         "towers" => (v3(0, int(130), 0), int(250)),
         "portal" => (v3(0, int(25), 0), int(36)),
-        "tube" => (v3(0, -int(60), 0), int(80)),
-        "voidpads" => (v3(0, 0, 0), int(60)),
+        "tube" => (v3(0, -int(60), 0), int(110)),
+        "voidtrampolines" => (v3(0, 0, 0), int(30)),
         // (the camera 75 m off the mouth: outside the ring and past the
         // 40 m of tunnel whichever way it turns, TA2-4)
         "tunnelmouth" => (V3::ZERO, int(44)),
@@ -464,36 +464,32 @@ pub fn gallery(b: &mut Batch, key: &str, f: &Affine, tick: u32) {
                 ONE / 3,
                 tick,
             );
-            for i in 0..5u32 {
-                void_pad(
-                    b,
-                    &at(0, -int(20) - int(22) * i as i32, 0),
-                    TUBE_RADIUS,
-                    PadShape::nth(i),
-                    deg(50) * i as i32,
-                    0,
-                    tick,
-                    i,
-                );
+            for i in 0..9u32 {
+                let a = deg(97) * i as i32;
+                let lean = Affine::rot_x(deg(i as i32 % 11));
+                let f = at(0, -int(15) - int(12) * i as i32, 0)
+                    .then(&Affine::translate(round(int(18), a, 0)))
+                    .then(&Affine::rot_y(a))
+                    .then(&lean);
+                void_trampoline(b, &f, crate::tower::DISC_RADIUS, 0, tick, i);
             }
         }
-        "voidpads" => {
-            for (i, s) in PadShape::ALL.into_iter().enumerate() {
-                void_pad(
+        "voidtrampolines" => {
+            for i in 0..3 {
+                let f = at(int(i * 14 - 14), 0, 0).then(&Affine::rot_x(deg(5 * i)));
+                void_trampoline(
                     b,
-                    &at(int(i as i32 * 40 - 40), 0, 0),
-                    TUBE_RADIUS,
-                    s,
-                    0,
-                    wave(tick, 2, i as i32 * 9_000).max(0),
+                    &f,
+                    crate::tower::DISC_RADIUS,
+                    wave(tick, 2, i * 9_000).max(0),
                     tick,
                     i as u32,
                 );
             }
         }
         "tunnelmouth" => {
-            tunnel_mouth(b, f, TUBE_RADIUS, tick, 1);
-            tunnel(b, f, TUBE_RADIUS, int(40), 1);
+            tunnel_mouth(b, f, TUNNEL_RADIUS, tick, 1);
+            tunnel(b, f, TUNNEL_RADIUS, int(40), 1);
         }
         "keep" => keep(b, f, int(10), 8, 7),
         "keepsection" => keep_section(b, f, int(10), int(12), 3, Detail::Near),

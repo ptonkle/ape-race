@@ -82,12 +82,12 @@ fn main() {
     );
     let z = &t.tube;
     println!(
-        "tube axis {} top {} bottom {} r {} pads {}",
+        "tube axis {} top {} bottom {} r {} discs {}",
         p(z.axis),
         f(z.top),
         f(z.bottom),
         f(z.radius),
-        z.pads.len()
+        z.discs.len()
     );
     let bz = &t.banana_zone;
     println!(

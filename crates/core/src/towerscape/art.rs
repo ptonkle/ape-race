@@ -16,9 +16,9 @@
 //! are (at most two a section), inner balconies and ledges inside.
 //!
 //! The void (past the portal's plane) is its own place: the tube in 36 m
-//! segments with its portholes and the creatures looking in, the pads
-//! drawn where the physics' `PadShape`s cover (`pad_frame`, checked by
-//! `the_drawn_pads_cover_what_the_physics_covers`), the tunnel's mouth
+//! segments with its portholes and the creatures looking in, the
+//! trampolines drawn on the physics' discs (`disc_frame`, checked by
+//! `the_drawn_trampolines_lie_on_the_physics_discs`), the tunnel's mouth
 //! with the sling bar, the tunnel and the banana sea; drawn only from
 //! past the plane, as the climb's parts only from before it (`Chunk.side`).
 //! The portal itself turns and breathes each frame (`towerscape::dynamic`,
@@ -26,11 +26,11 @@
 
 use crate::course::Course;
 use crate::fx::{cm, int, mul, ONE, TURN};
-use crate::geom::{right_of, v3, yaw_of, Affine, V3};
+use crate::geom::{v3, yaw_of, Affine, V3};
 use crate::mesh::Mesh;
 use crate::render::Batch;
 use crate::scene::{self, Scenery, VineLook};
-use crate::tower::{Hanger, PadShape, TowerLayout, TubePad, TUBE_PAD_THICK};
+use crate::tower::{Disc, Hanger, TowerLayout, DISC_RADIUS};
 use crate::towermodels as m;
 use crate::towermodels::{MagePose, Spell};
 
@@ -40,7 +40,7 @@ pub const REACH: i32 = int(90);
 /// The tube's wall stops this far under its top (`tower::stone::TUBE_RIM`,
 /// not exported): the line comes in over it, so the wall is drawn from
 /// there down.
-const TUBE_RIM: i32 = int(10);
+const TUBE_RIM: i32 = int(14);
 /// The tube and the tunnel are drawn in segments this long (three of the
 /// model's bands), each in its own cell.
 const SEGMENT: i32 = int(36);
@@ -274,42 +274,26 @@ fn tower1_cuts(t: &TowerLayout, y0: i32, y1: i32, door: bool) -> [m::Cut; 8] {
     cuts
 }
 
-/// The frame a void pad is drawn in and the model's shape and radius for
-/// it, so the model covers what the physics' `PadShape` covers: a slab
-/// is the model's half disc turned so its covered half lies against
-/// `open`, shifted `edge` along it and drawn `edge` bigger so its arc
-/// still reaches the wall (the extra is in the wall); quarters are the
-/// model's turned so its covered quadrants lie round ±`axis`; a ring is
-/// the model's holed ring, its hole where the physics' is (TA2-4). The
-/// frame is at the tube's axis at the pad's middle height.
-fn pad_frame(tube_axis: V3, r: i32, pad: &TubePad) -> (Affine, (m::PadShape, i32)) {
-    let mid = v3(tube_axis.x, pad.y - TUBE_PAD_THICK / 2, tube_axis.z);
-    match pad.shape {
-        PadShape::Slab { open, edge } => (
-            at(mid.add(open.scale(edge)), yaw_of(right_of(open).neg())),
-            (m::PadShape::Half, r + edge),
-        ),
-        PadShape::Quarters { axis } => {
-            (at(mid, yaw_of(axis) - TURN / 8), (m::PadShape::Quarters, r))
-        }
-        PadShape::Ring { at: hole_at, hole } => {
-            (at(mid, 0), (m::PadShape::Holed { at: hole_at, hole }, r))
-        }
+/// The frame a trampoline is drawn in: at its disc's middle, its y
+/// axis the disc's normal (turned to the lean's bearing, then tipped).
+fn disc_frame(d: &Disc) -> Affine {
+    let n = d.normal;
+    let tilt = crate::fx::QUARTER - crate::geom::pitch_of(n);
+    let yaw = if n.flat().longer_than(ONE / 1000) {
+        yaw_of(n)
+    } else {
+        0
+    };
+    // (whichever way `rot_x` tips, the one that lands the y axis on the
+    // normal)
+    let tip = |t: i32| at(d.centre, yaw).then(&Affine::rot_x(t));
+    let (fa, fb) = (tip(tilt), tip(-tilt));
+    let up = v3(0, ONE, 0);
+    if fa.apply_dir(up).sub(n).len() <= fb.apply_dir(up).sub(n).len() {
+        fa
+    } else {
+        fb
     }
-}
-
-/// Whether the drawing of `pad` (as `pad_frame` places it) covers the
-/// plan point `rel` from the tube's axis, for the test against the
-/// physics.
-#[cfg(test)]
-fn drawn_covers(tube_axis: V3, r: i32, pad: &TubePad, rel: V3) -> bool {
-    let (f, (shape, rr)) = pad_frame(tube_axis, r, pad);
-    // the point in the pad's frame: the frame's x and z axes
-    let p = tube_axis.add(rel);
-    let d = p.sub(f.t);
-    let ax = f.apply_dir(v3(ONE, 0, 0));
-    let az = f.apply_dir(v3(0, 0, ONE));
-    m::pad_covers(shape, rr, d.dot(ax), d.dot(az))
 }
 
 /// A caster's beam inside tower 1: a plain glowing rod from `a` to `z`
@@ -799,11 +783,11 @@ fn build(c: &Course, t: &TowerLayout, sink: &mut Sink) -> Vec<Option<V3>> {
         );
     });
 
-    // the pads: where the physics' shapes cover (`pad_frame`)
-    for (k, pad) in z.pads.iter().enumerate() {
-        let (f, (shape, rr)) = pad_frame(z.axis, z.radius, pad);
-        put("void pads", Some(v3(z.axis.x, pad.y, z.axis.z)), &mut |b| {
-            m::void_pad(b, &f, rr, shape, 0, 0, tick, k as u32)
+    // the trampolines, each on its physics' disc (`disc_frame`)
+    for (k, d) in z.discs.iter().enumerate() {
+        let f = disc_frame(d);
+        put("void pads", Some(d.centre), &mut |b| {
+            m::void_trampoline(b, &f, DISC_RADIUS, 0, tick, k as u32)
         });
     }
 
@@ -823,17 +807,14 @@ fn build(c: &Course, t: &TowerLayout, sink: &mut Sink) -> Vec<Option<V3>> {
         .iter()
         .position(|h| *h == Hanger::Sling)
         .map_or(tn.mouth.y + tn.height, |i| c.anchor(i, 0).y);
-    let bar_up = mul(z.radius, ONE * 4 / 5);
+    let tr = m::TUNNEL_RADIUS;
+    let bar_up = mul(tr, ONE * 4 / 5);
     let fm = at(v3(tn.mouth.x, sling_y - bar_up, tn.mouth.z), mouth_yaw);
-    put(
-        "tunnel mouth",
-        Some(tn.mouth.add(v3(0, z.radius, 0))),
-        &mut |b| {
-            m::tunnel_mouth(b, &fm, z.radius, tick, 5);
-        },
-    );
+    put("tunnel mouth", Some(tn.mouth.add(v3(0, tr, 0))), &mut |b| {
+        m::tunnel_mouth(b, &fm, tr, tick, 5);
+    });
     let foot = at(v3(z.axis.x, z.bottom, z.axis.z), 0);
-    let ft = m::tunnel_frame(&foot, z.radius, mouth_yaw);
+    let ft = m::tunnel_frame(&foot, z.radius, tr, mouth_yaw);
     let mut along = 0;
     let mut seg = 0u32;
     while along < tn.length {
@@ -841,7 +822,7 @@ fn build(c: &Course, t: &TowerLayout, sink: &mut Sink) -> Vec<Option<V3>> {
         let f = ft.then(&Affine::translate(v3(0, 0, along)));
         let mid = f.apply(v3(0, 0, len / 2));
         put("tunnel", Some(mid), &mut |b| {
-            m::tunnel(b, &f, z.radius, len, seg + 11)
+            m::tunnel(b, &f, tr, len, seg + 11)
         });
         along += len;
         seg += 1;
@@ -965,79 +946,25 @@ mod tests {
     }
 
     #[test]
-    fn the_drawn_pads_cover_what_the_physics_covers() {
+    fn the_drawn_trampolines_lie_on_the_physics_discs() {
         let c = Map::Tower.course();
         let t = c.tower.as_ref().unwrap();
-        // the layout's pads, and one of each shape turned every which
-        // way (the stand-in lays no quarters)
-        let mut z = t.tube.clone();
-        for k in 0..8u32 {
-            let dir = crate::geom::facing(TURN * k as i32 / 8, 0);
-            let off = dir.scale(int(k as i32) - int(4));
-            let y = z.bottom + int(50) + int(k as i32);
-            z.pads.push(TubePad {
-                y,
-                shape: PadShape::Quarters { axis: dir },
-                gap: off,
-            });
-            z.pads.push(TubePad {
-                y,
-                shape: PadShape::Slab {
-                    open: dir,
-                    edge: int(k as i32) - int(3),
-                },
-                gap: off,
-            });
-            z.pads.push(TubePad {
-                y,
-                shape: PadShape::Ring {
-                    at: off,
-                    hole: int(5) + int(k as i32) / 2,
-                },
-                gap: off,
-            });
-        }
-        let r = z.radius;
-        let mut shapes = [0; 3];
-        for (k, pad) in z.pads.iter().enumerate() {
-            shapes[match pad.shape {
-                PadShape::Slab { .. } => 0,
-                PadShape::Ring { .. } => 1,
-                PadShape::Quarters { .. } => 2,
-            }] += 1;
-            // every metre across the tube, a metre in from the wall (the
-            // drawn edges are a strip's width wide)
-            let mut wrong = 0;
-            let mut n = 0;
-            let step = ONE;
-            let mut x = -r;
-            while x <= r {
-                let mut zz = -r;
-                while zz <= r {
-                    let rel = v3(x, 0, zz);
-                    if !rel.longer_than(r - int(1)) {
-                        n += 1;
-                        if z.covered(k, rel) != drawn_covers(z.axis, r, pad, rel) {
-                            wrong += 1;
-                        }
-                    }
-                    zz += step;
-                }
-                x += step;
-            }
-            // (the edges of a slab or a quadrant are drawn to the point;
-            // the ring's hole as the physics has it: nothing wrong but a
-            // point or two on an edge: a slab turned on a diagonal puts a
-            // few of the edge line's points over, in fixed point)
+        let z = &t.tube;
+        assert!(!z.discs.is_empty());
+        for (k, d) in z.discs.iter().enumerate() {
+            let f = disc_frame(d);
+            // the frame's origin is the disc's middle, its up the normal
+            assert_eq!(f.apply(V3::ZERO), d.centre, "trampoline {k}");
+            let up = f.apply_dir(v3(0, ONE, 0));
             assert!(
-                wrong * 20 < n,
-                "pad {k} ({:?}): {wrong} of {n} points drawn against the physics",
-                pad.shape
+                !up.sub(d.normal).longer_than(ONE / 50),
+                "trampoline {k}: drawn up {up:?}, the disc's normal {:?}",
+                d.normal
             );
+            // a point on the drawn rim lies on the disc's face
+            let rim = f.apply(v3(DISC_RADIUS, 0, 0));
+            assert!(rim.sub(d.centre).dot(d.normal).abs() < cm(5));
+            assert!((rim.dist(d.centre) - DISC_RADIUS).abs() < cm(5));
         }
-        assert!(
-            shapes.iter().all(|&n| n > 0),
-            "every shape placed: {shapes:?}"
-        );
     }
 }

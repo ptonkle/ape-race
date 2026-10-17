@@ -406,5 +406,6 @@ pub(super) fn stonework(t: &TowerLayout) -> Vec<Solid> {
 }
 
 /// The tube's wall stops this far under its top: the race comes in over
-/// the rim.
-pub const TUBE_RIM: i32 = crate::fx::int(10);
+/// the rim (14 m: the wider tube's near rim stands under the line out
+/// of the tear, T100).
+pub const TUBE_RIM: i32 = crate::fx::int(14);

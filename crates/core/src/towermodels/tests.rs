@@ -334,30 +334,20 @@ fn the_tower_models_stay_within_budget() {
             1_100,
         ),
         (
-            "void pad, half",
-            shapes(&|b| void_pad(b, &id, TUBE_RADIUS, PadShape::Half, 0, 0, t, 1)),
-            60,
-        ),
-        (
-            "void pad, ring",
-            shapes(&|b| void_pad(b, &id, TUBE_RADIUS, PadShape::Ring, 0, ONE / 2, t, 2)),
-            60,
-        ),
-        (
-            "void pad, quarters",
-            shapes(&|b| void_pad(b, &id, TUBE_RADIUS, PadShape::Quarters, deg(30), 0, t, 3)),
-            60,
+            "void trampoline",
+            shapes(&|b| void_trampoline(b, &id, crate::tower::DISC_RADIUS, ONE / 2, t, 1)),
+            12,
         ),
         (
             "tunnel mouth",
             shapes(&|b| {
-                tunnel_mouth(b, &id, TUBE_RADIUS, t, 1);
+                tunnel_mouth(b, &id, TUNNEL_RADIUS, t, 1);
             }),
             60,
         ),
         (
             "tunnel 250 m",
-            shapes(&|b| tunnel(b, &id, TUBE_RADIUS, TUNNEL_LENGTH, 1)),
+            shapes(&|b| tunnel(b, &id, TUNNEL_RADIUS, TUNNEL_LENGTH, 1)),
             600,
         ),
         (
@@ -622,49 +612,18 @@ fn the_bridge_hangers_hang_one_every_22_m_under_the_deck() {
     assert!(b.count() >= 5 * hooks.len());
 }
 
+/// A void trampoline stays within its radius (a little over, for its
+/// rim's padding), close to its face, and its bullseye glows (T100).
 #[test]
-fn the_pads_each_cover_part_of_the_width() {
-    let r = TUBE_RADIUS;
-    // the half covers +x, not -x
-    assert!(pad_covers(PadShape::Half, r, r / 2, 0));
-    assert!(!pad_covers(PadShape::Half, r, -r / 2, 0));
-    // the ring covers the rim, not the hole
-    assert!(pad_covers(PadShape::Ring, r, r * 3 / 4, 0));
-    assert!(!pad_covers(PadShape::Ring, r, 0, 0));
-    assert!(!pad_covers(PadShape::Ring, r, r / 4, 0));
-    // the holed ring covers all but its hole, off the middle (TA2-4)
-    let holed = PadShape::Holed {
-        at: v3(int(7), 0, 0),
-        hole: int(6),
-    };
-    assert!(pad_covers(holed, r, 0, 0));
-    assert!(!pad_covers(holed, r, int(7), 0));
-    assert!(!pad_covers(holed, r, int(12), int(1)));
-    assert!(pad_covers(holed, r, -int(7), 0));
-    // the quarters cover +x+z and -x-z, not the other two
-    assert!(pad_covers(PadShape::Quarters, r, r / 2, r / 2));
-    assert!(pad_covers(PadShape::Quarters, r, -r / 2, -r / 2));
-    assert!(!pad_covers(PadShape::Quarters, r, r / 2, -r / 2));
-    // nothing outside the tube
-    for s in PadShape::ALL {
-        assert!(!pad_covers(s, r, r + int(1), 0));
-    }
-    // drawn, each pad's film stays inside the tube and its rim glows
-    for s in PadShape::ALL {
-        let mut b = Batch::new();
-        void_pad(&mut b, &Affine::IDENTITY, r, s, 0, 0, 30, 1);
-        let shapes = all_shapes(b);
-        assert!(
-            shapes
-                .iter()
-                .all(|(_, a, _, _)| off_axis(a.t) <= r + int(1)),
-            "{s:?}"
-        );
-        assert!(
-            shapes.iter().any(|(_, _, _, glow)| *glow >= ONE),
-            "{s:?} has no glowing rim"
-        );
-    }
+fn a_void_trampoline_stays_on_its_disc_and_glows() {
+    let r = crate::tower::DISC_RADIUS;
+    let mut b = Batch::new();
+    void_trampoline(&mut b, &Affine::IDENTITY, r, 0, 30, 1);
+    let shapes = all_shapes(b);
+    assert!(shapes
+        .iter()
+        .all(|(_, a, _, _)| off_axis(a.t) <= r + cm(10) && a.t.y.abs() <= int(1)));
+    assert!(shapes.iter().any(|(_, _, _, glow)| *glow >= ONE / 2));
 }
 
 #[test]
@@ -707,7 +666,7 @@ fn the_portal_turns_and_breathes_and_shut_draws_nothing() {
 
 #[test]
 fn the_tunnel_runs_level_from_its_mouth_under_the_anchor_bar() {
-    let r = TUBE_RADIUS;
+    let r = TUNNEL_RADIUS;
     let mut b = Batch::new();
     tunnel(&mut b, &Affine::IDENTITY, r, TUNNEL_LENGTH, 1);
     for (mesh, a, _, _) in all_shapes(b) {

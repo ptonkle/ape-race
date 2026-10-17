@@ -1270,7 +1270,7 @@ fn flight_controls(
     cands: &[usize],
     last_grab: bool,
 ) -> Controls {
-    // (Mape's Tower: down the tube it weaves for the pads' gaps, the
+    // (Mape's Tower: down the tube it steers round the trampolines (T100), the
     // same steering the measurement used, TW2-5; the sling row at the
     // bottom is grabbed as any beam in reach)
     if let Some(t) = course.tower.as_deref() {

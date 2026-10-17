@@ -481,37 +481,282 @@ fn inside_beams_fill_the_hollow_each_within_a_swing_of_two_others() {
     }
 }
 
-/// A fall onto a pad's covered part bounces the ape back up at the
-/// mushroom's speed; a fall through its gap does not (TW2-5).
+/// The trampolines' spread (T100) over `discs`: the counts in `bands`
+/// equal height bands between the highest and the lowest, and in the
+/// inner and outer halves of the tube's area.
+fn disc_spread(tube: &Tube, discs: &[Disc], bands: usize) -> (Vec<usize>, [usize; 2]) {
+    let hi = discs.iter().map(|d| d.centre.y).max().unwrap();
+    let lo = discs.iter().map(|d| d.centre.y).min().unwrap();
+    let mut counts = vec![0; bands];
+    let mut halves = [0; 2];
+    // (the inner half of the area the middles may take)
+    let across = tube.radius - DISC_RADIUS;
+    let half_r = fx::mul(across, ONE * 707 / 1000);
+    for d in discs {
+        let b = ((d.centre.y - lo) as i64 * bands as i64 / (hi - lo + 1) as i64) as usize;
+        counts[b] += 1;
+        let rel = v3(d.centre.x - tube.axis.x, 0, d.centre.z - tube.axis.z);
+        halves[rel.longer_than(half_r) as usize] += 1;
+    }
+    (counts, halves)
+}
+
+/// The tube holds `TUBE_DISCS` (150) trampolines, each wholly inside it,
+/// leaning at most 10°, no two nearer than `DISC_SPACING` (so none
+/// touch), spread through the whole volume (about 15 in every 30 m, as
+/// many in the outer half of the area as the inner), the same placement
+/// in every layout (T100).
 #[test]
-fn a_tube_pad_bounces_a_fall_on_its_cover_and_lets_one_through_its_gap() {
+fn the_tube_holds_150_trampolines_spread_evenly_and_leaning_at_most_10_degrees() {
     let c = tower();
     let t = c.tower.as_deref().unwrap();
     let tube = &t.tube;
-    let drop = |rel: V3| {
-        let k = 3;
-        let pad = tube.pads[k];
-        let start = tube.axis.add(rel).add(v3(0, pad.y + BODY_DROP + int(6), 0));
+    let discs = &tube.discs;
+    assert_eq!(TUBE_DISCS, 150);
+    assert_eq!(discs.len(), TUBE_DISCS);
+    let (mut most_lean, mut least_lean) = (0, i32::MAX);
+    for (k, d) in discs.iter().enumerate() {
+        let n = d.normal;
+        assert!((n.len() - ONE).abs() < ONE / 100, "disc {k}: normal {n:?}");
+        let lean = fx::QUARTER - crate::geom::pitch_of(n);
+        assert!(
+            lean <= DISC_TILT + fx::deg(1) / 4,
+            "disc {k} leans {} deg",
+            lean * 360 / fx::TURN
+        );
+        most_lean = most_lean.max(lean);
+        least_lean = least_lean.min(lean);
+        // wholly inside: its rim in plan inside the wall, its rim's
+        // heights inside the tube's
+        let rel = v3(d.centre.x - tube.axis.x, 0, d.centre.z - tube.axis.z);
+        assert!(
+            !rel.longer_than(tube.radius - DISC_RADIUS),
+            "disc {k} in the wall"
+        );
+        assert!(
+            d.centre.y + DISC_RADIUS < tube.top && d.centre.y - DISC_RADIUS > tube.bottom,
+            "disc {k} out of the tube's height"
+        );
+    }
+    // (random leans: some nearly flat, some nearly the most)
+    assert!(least_lean < fx::deg(2) && most_lean > fx::deg(8));
+    let mut nearest = i32::MAX;
+    for i in 0..discs.len() {
+        for j in i + 1..discs.len() {
+            nearest = nearest.min(discs[i].centre.dist(discs[j].centre));
+        }
+    }
+    assert!(
+        nearest >= crate::tower::layout::DISC_SPACING,
+        "two discs {} cm apart",
+        nearest * 100 / ONE
+    );
+    // the volume: about 15 in every 30 m slice, no layers or gaps
+    let hi = discs.iter().map(|d| d.centre.y).max().unwrap();
+    let lo = discs.iter().map(|d| d.centre.y).min().unwrap();
+    assert!(hi - lo > int(240), "spread over {} m", (hi - lo) / ONE);
+    let slices = ((hi - lo) / int(30)) as usize;
+    let (counts, halves) = disc_spread(tube, discs, slices);
+    assert!(
+        counts.iter().all(|&n| (12..=24).contains(&n)),
+        "per ~30 m slice: {counts:?}"
+    );
+    assert!(
+        halves[0].abs_diff(halves[1]) * 5 <= discs.len(),
+        "inner and outer halves: {halves:?}"
+    );
+    // seen from the top they cover the tube about three times over
+    let mut covered = 0;
+    let mut n = 0;
+    let r = tube.radius;
+    let mut x = -r;
+    while x <= r {
+        let mut z = -r;
+        while z <= r {
+            if !v3(x, 0, z).longer_than(r) {
+                n += 1;
+                let p = tube.axis.add(v3(x, 0, z));
+                if discs
+                    .iter()
+                    .any(|d| !v3(p.x - d.centre.x, 0, p.z - d.centre.z).longer_than(DISC_RADIUS))
+                {
+                    covered += 1;
+                }
+            }
+            z += int(2);
+        }
+        x += int(2);
+    }
+    assert!(
+        covered * 100 > n * 85,
+        "only {covered} of {n} points covered from the top"
+    );
+    // one fixed placement, every layout
+    for k in 1..4 {
+        let other = seeded(k);
+        let o = other.tower.as_deref().unwrap();
+        assert_eq!(o.tube.discs.len(), discs.len());
+        for (a, b) in o.tube.discs.iter().zip(discs) {
+            assert_eq!(a.normal, b.normal);
+            assert_eq!(a.centre.sub(o.tube.axis), b.centre.sub(tube.axis));
+        }
+    }
+}
+
+/// The placement's order keeps any first N spread evenly (T100): the
+/// first N of the list are what `tube_discs` makes for N, and each
+/// prefix fills the height and the area as the whole does.
+#[test]
+fn any_first_n_trampolines_stay_evenly_spread() {
+    let c = tower();
+    let t = c.tower.as_deref().unwrap();
+    let tube = &t.tube;
+    // (the band the layout places them in)
+    let hi = tube.top - crate::tower::layout::DISCS_FROM_TOP;
+    let lo = tube.bottom + t.tunnel.height + crate::tower::layout::DISCS_OVER_SLING;
+    for n in [10, 20, 40, 75, 110] {
+        let first = crate::tower::layout::tube_discs(tube.axis, lo, hi, n);
+        assert_eq!(first[..], tube.discs[..n], "the first {n}");
+        let bands = (n / 10).max(2);
+        let (counts, halves) = disc_spread(tube, &first, bands);
+        let each = n / bands;
+        assert!(
+            counts.iter().all(|&k| k * 2 >= each && k * 2 <= each * 3),
+            "first {n}, per band of {bands}: {counts:?}"
+        );
+        assert!(
+            halves[0].abs_diff(halves[1]) * 3 <= n,
+            "first {n}, inner and outer: {halves:?}"
+        );
+        // (the top and bottom halves of the fall alike)
+        let top = first.iter().filter(|d| d.centre.y > (hi + lo) / 2).count();
+        assert!(
+            top.abs_diff(n - top) * 4 <= n,
+            "first {n}: {top} in the top half"
+        );
+    }
+}
+
+/// A fall at terminal speed onto a leaning trampoline bounces off its
+/// face: up at no more than `DISC_BOUNCE`, its speed across along the
+/// face's lean, and losing about 2 s against the same fall without it
+/// (T100).
+#[test]
+fn a_trampoline_kills_the_fall_and_throws_the_ape_along_its_face() {
+    let c = tower();
+    let t = c.tower.as_deref().unwrap();
+    let tube = &t.tube;
+    // the most leaning disc high up and away from the wall
+    let k = (0..tube.discs.len())
+        .filter(|&k| {
+            let d = tube.discs[k];
+            d.centre.y > tube.bottom + int(140)
+                && !v3(d.centre.x - tube.axis.x, 0, d.centre.z - tube.axis.z).longer_than(int(15))
+        })
+        .max_by_key(|&k| -tube.discs[k].normal.y)
+        .unwrap();
+    let d = tube.discs[k];
+    assert!(d.normal.y < fx::cos(fx::deg(6)), "a leaning disc");
+    // the tube with that disc alone, and with none
+    let with_discs = |discs: Vec<Disc>| {
+        let mut c2 = c.clone();
+        c2.tower.as_mut().unwrap().tube.discs = discs;
+        c2
+    };
+    let one = with_discs(vec![d]);
+    let none = with_discs(vec![]);
+    let start = d.centre.add(v3(0, BODY_DROP + int(8), 0));
+    let fall = |course: &crate::course::Course| {
         let mut a = Ape::new(Kind::Chimpanzee, true, start, 0);
         a.mode = Mode::Flying;
-        a.vel = v3(0, -int(30), 0);
-        a.hint = c.nearest_anywhere(start);
-        let mut bounced = false;
-        for tick in 0..TICKS_PER_SECOND as u32 / 2 {
-            a.step(&Controls::default(), &c, tick);
-            bounced |= a.happened.contains(&crate::ape::Happening::Bounce);
+        a.vel = v3(0, -TUBE_TERMINAL, 0);
+        a.hint = course.nearest_anywhere(start);
+        let mut after = None;
+        let mut ticks = 0;
+        for tick in 0..(12 * TICKS_PER_SECOND) as u32 {
+            a.step(&Controls::default(), course, tick);
+            if after.is_none() && a.happened.contains(&crate::ape::Happening::Bounce) {
+                after = Some(a.vel);
+            }
+            ticks = tick;
+            if a.pos.y < d.centre.y - int(80) {
+                break;
+            }
         }
-        (bounced, a.pos.y - BODY_DROP < pad.y, a.vel.y)
+        (after, ticks as i32)
     };
-    let gap = tube.pads[3].gap;
-    let (bounced, through, _) = drop(gap);
-    assert!(!bounced && through, "the gap lets the ape through");
-    // the covered side: across from the gap
-    let side = v3(0, 0, if gap.z > 0 { -int(12) } else { int(12) });
-    assert!(tube.covered(3, side));
-    let (bounced, through, vy) = drop(side);
-    assert!(bounced && !through, "the cover bounces it");
-    assert!(vy > 0 && vy <= crate::rules::MUSHROOM_BOUNCE);
+    let (bounce, slow) = fall(&one);
+    let (none_bounce, fast) = fall(&none);
+    assert!(none_bounce.is_none());
+    let v = bounce.expect("the disc bounces the fall");
+    assert!(
+        v.y > 0 && v.y <= DISC_BOUNCE,
+        "up at {} cm/s",
+        v.y as i64 * 100 / ONE as i64
+    );
+    // across: along the face's lean
+    let (across, lean) = (v.flat(), d.normal.flat());
+    assert!(across.longer_than(ONE), "thrown across at {:?}", across);
+    assert!(
+        across.norm().dot(lean.norm()) > ONE * 95 / 100,
+        "thrown {across:?}, the face leans {lean:?}"
+    );
+    let lost = (slow - fast) * ONE / TICKS_PER_SECOND;
+    assert!(
+        lost > ONE * 3 / 2 && lost < ONE * 5 / 2,
+        "a hit loses {} ms",
+        lost as i64 * 1000 / ONE as i64
+    );
+}
+
+/// Coming into the tube through the portal stops the speed across, so
+/// the fall starts straight down whatever the entry (T99); in the tube
+/// the steering moves the ape across again.
+#[test]
+fn coming_into_the_tube_stops_the_speed_across() {
+    let c = tower();
+    let t = c.tower.as_deref().unwrap();
+    let tube = &t.tube;
+    let through = t.portal.through;
+    let side = crate::geom::right_of(through);
+    // just short of the tear, a few metres off its middle, flying in
+    // fast and across
+    let start = t
+        .portal
+        .tear
+        .sub(through.scale(int(2)))
+        .add(side.scale(int(4)));
+    let start = v3(start.x, tube.top - int(2), start.z);
+    assert!(!t.in_void(start));
+    let mut a = Ape::new(Kind::Chimpanzee, true, start, 0);
+    a.mode = Mode::Flying;
+    a.vel = through.scale(int(20)).add(side.scale(int(7)));
+    a.hint = c.nearest_anywhere(start);
+    let mut entered = false;
+    for tick in 0..TICKS_PER_SECOND as u32 {
+        a.step(&Controls::default(), &c, tick);
+        if tube.holds(a.pos) && t.in_void(a.pos) {
+            assert_eq!(a.vel.flat(), V3::ZERO, "no speed across once in");
+            entered = true;
+            break;
+        }
+    }
+    assert!(entered, "the ape came into the tube");
+    // a few seconds on it is still under where it came in
+    let at = a.pos;
+    for tick in 0..(2 * TICKS_PER_SECOND) as u32 {
+        a.step(&Controls::default(), &c, tick);
+    }
+    assert!(!v3(a.pos.x - at.x, 0, a.pos.z - at.z).longer_than(int(1)));
+    // steering in the tube moves it across again
+    let ctl = Controls {
+        fwd: 1,
+        ..Controls::default()
+    };
+    for tick in 0..(TICKS_PER_SECOND / 2) as u32 {
+        a.step(&ctl, &c, tick);
+    }
+    assert!(a.vel.flat().longer_than(ONE));
 }
 
 /// In the tube the fall settles at `TUBE_TERMINAL` and the steering is
@@ -554,21 +799,21 @@ fn the_tubes_air_is_thick_and_its_steering_strong() {
     );
 }
 
-/// The measurement (TW2-5, `MEASUREMENTS.md`): a human-like weave (steer
-/// for the next gap from the moment the last pad is passed: the AI's
-/// `tube_controls`) falls the whole tube touching no pad, from the top
-/// and from a start off the axis, and reports the terminal speed, the
-/// fall's time and the worst miss of a gap's middle.
+/// The AI's steering down the tube (`tube_controls`, dodging the
+/// trampoline under it) falls the whole tube to the sling row, from the
+/// top, from a start off the axis and from the portal's throw (which
+/// once overflew the tube, TC2-9: T99 stops it over the column), and
+/// stays in the tube.
 #[test]
-fn a_weave_steered_for_each_gap_falls_the_tube_touching_no_pad() {
+fn the_tube_steering_falls_the_whole_tube_dodging_trampolines() {
     let c = tower();
     let t = c.tower.as_deref().unwrap();
     let tube = &t.tube;
     for (name, start) in [
         ("the axis", v3(tube.axis.x, tube.top - int(1), tube.axis.z)),
         (
-            "8 m off",
-            v3(tube.axis.x, tube.top - int(1), tube.axis.z + int(8)),
+            "20 m off",
+            v3(tube.axis.x, tube.top - int(1), tube.axis.z + int(20)),
         ),
         (
             "the portal's throw",
@@ -582,44 +827,28 @@ fn a_weave_steered_for_each_gap_falls_the_tube_touching_no_pad() {
         if name == "the portal's throw" {
             a.vel = t.portal.through.scale(int(18));
         }
-        let (mut fastest, mut bounces, mut worst, mut ticks) = (0, 0, 0, 0);
-        let mut passed = 0;
-        for tick in 0..(12 * TICKS_PER_SECOND) as u32 {
+        let (mut bounces, mut ticks, mut reached) = (0, 0, false);
+        for tick in 0..(25 * TICKS_PER_SECOND) as u32 {
             let ctl = t.tube_controls(&a).unwrap_or_default();
-            let before = a.pos;
             a.step(&ctl, &c, tick);
             ticks = tick;
-            fastest = fastest.max(-a.vel.y);
             if a.happened.contains(&crate::ape::Happening::Bounce) {
                 bounces += 1;
             }
-            // the miss at each pad crossed
-            for (k, pad) in tube.pads.iter().enumerate() {
-                if before.y - BODY_DROP >= pad.y && a.pos.y - BODY_DROP < pad.y {
-                    let rel = v3(a.pos.x - tube.axis.x, 0, a.pos.z - tube.axis.z);
-                    worst = worst.max(rel.sub(pad.gap).len());
-                    passed = passed.max(k + 1);
-                }
-            }
-            if a.pos.y - BODY_DROP < tube.bottom + int(30) {
+            if a.pos.y - BODY_DROP < tube.bottom + int(40) {
+                reached = a.pos.y > tube.bottom && tube.over(a.pos);
                 break;
             }
         }
-        // (the numbers, in MEASUREMENTS.md: terminal 39.8 m/s, about
-        // 7.5 s to the sling's height, worst miss 1.8 m; the core prints
-        // nothing, so they are carried in the failure messages)
-        assert_eq!(
-            bounces,
-            0,
-            "from {name}: {bounces} bounces (terminal {} m/s, {} ticks, worst miss {} cm)",
-            fastest / ONE,
-            ticks,
-            worst * 100 / ONE
-        );
-        assert_eq!(passed, tube.pads.len(), "from {name}: {passed} pads passed");
+        // (the core prints nothing: the numbers are in the message)
         assert!(
-            ticks < (10 * TICKS_PER_SECOND) as u32,
-            "from {name}: too slow"
+            reached,
+            "from {name}: not down the tube ({bounces} bounces, {ticks} ticks, at {:?})",
+            a.pos
+        );
+        assert!(
+            ticks < (20 * TICKS_PER_SECOND) as u32,
+            "from {name}: too slow ({bounces} bounces, {ticks} ticks)"
         );
     }
 }

@@ -671,10 +671,11 @@ impl Ape {
                 self.happened.push(Happening::Wall);
             }
         }
-        // Mape's Tower: the stonework is solid (TW12), the tube's pads
-        // bounce (TW2-5)
+        // Mape's Tower: the stonework is solid (TW12), coming into the
+        // tube stops the speed across (T99), its trampolines bounce (T100)
         if let Some(t) = course.tower.as_deref() {
-            if self.tube_pads(course, before) {
+            self.tube_entry(course, before);
+            if self.tube_discs(course, before) {
                 self.happened.push(Happening::Bounce);
             }
             if let Some((p, v, wall)) = t.stone_push(self.pos, self.vel) {

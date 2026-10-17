@@ -200,7 +200,7 @@ fn both_towers_and_the_tube_are_solid() {
     let y = tube.top - int(100);
     let (end, hit) = fly(
         &c,
-        v3(tube.axis.x, y, tube.axis.z),
+        v3(tube.axis.x, y, tube.axis.z + tube.radius - int(15)),
         v3(tube.axis.x, y, tube.axis.z + tube.radius),
         25,
     );
