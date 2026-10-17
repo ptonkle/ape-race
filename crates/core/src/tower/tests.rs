@@ -623,3 +623,70 @@ fn a_weave_steered_for_each_gap_falls_the_tube_touching_no_pad() {
         );
     }
 }
+
+fn seeded(k: u64) -> crate::course::Course {
+    if k == 0 {
+        tower()
+    } else {
+        tower_seeded(0x70E5_0000_0001 + k * 7919)
+    }
+}
+
+/// The swing in at tower 1's doorway (TC2-17): from the upper bridge to
+/// the entry beams inside the doorway no two beams are more than 35 m
+/// apart along the course, over sixteen layouts (without the porch beam
+/// the last station stood 24 m or more short of the wall and the entry
+/// beams 53-56 m on, and the Sloth and the Monkey swung there to the
+/// time limit).
+#[test]
+fn the_swing_in_at_the_doorway_is_a_hop_from_beam_to_beam() {
+    for k in 0..16 {
+        let c = seeded(k);
+        let t = c.tower.as_deref().unwrap();
+        let from = t.leg_start(Leg::UpperBridge, c.length);
+        let to = t.leg_start(Leg::Inside, c.length) + 30 * ONE;
+        let mut at: Vec<i32> = c
+            .vines
+            .iter()
+            .map(|v| v.at)
+            .filter(|a| (from..=to).contains(a))
+            .collect();
+        at.sort();
+        let worst = at.windows(2).map(|w| w[1] - w[0]).max().unwrap();
+        assert!(
+            worst <= 35 * ONE,
+            "layout {k}: a gap of {} m on the swing in",
+            worst / ONE
+        );
+    }
+}
+
+/// Out over tower 1's rim (TC2-8, TC2-18): a portal beam within 20 m of
+/// the wall hangs its bottom at least 3 m over the rim, over sixteen
+/// layouts (at the rim's height a swing out from it crossed the wall's
+/// top with the feet in the stone and fell to the floor).
+#[test]
+fn the_portal_beams_by_the_wall_hang_clear_over_the_rim() {
+    for k in 0..16 {
+        let c = seeded(k);
+        let t = c.tower.as_deref().unwrap();
+        let t1 = &t.towers[0];
+        let from = t.leg_start(Leg::Portal, c.length);
+        let to = t.leg_start(Leg::Tube, c.length);
+        for (i, v) in c.vines.iter().enumerate() {
+            if !(from..to).contains(&v.at) {
+                continue;
+            }
+            let bottom = v.anchor.add(c.hang(i).scale(v.length));
+            let off = bottom.flat().sub(t1.centre.flat());
+            if off.longer_than(t1.inner - 20 * ONE) && !off.longer_than(t1.radius + 20 * ONE) {
+                assert!(
+                    bottom.y >= t1.top() + 3 * ONE,
+                    "layout {k}: beam {i}'s bottom {} m by the wall (rim {} m)",
+                    bottom.y / ONE,
+                    t1.top() / ONE
+                );
+            }
+        }
+    }
+}
