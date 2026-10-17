@@ -19,9 +19,14 @@ def text(page, sel):
 
 
 def canvas_drawn(page):
-    """True when the 3D view holds more than one colour (WebGL drew)."""
+    """True when the 3D view holds more than one colour (WebGL drew).
+
+    Sampled inside an animation frame, after the game's own frame callback
+    has drawn: on a GPU the drawing buffer is cleared once the frame is
+    shown, so a copy taken between frames is blank (it only read back under
+    software drawing)."""
     return page.evaluate(
-        """() => {
+        """() => new Promise(done => requestAnimationFrame(() => {
         const c = document.getElementById('view');
         const probe = document.createElement('canvas');
         probe.width = 16; probe.height = 16;
@@ -30,8 +35,8 @@ def canvas_drawn(page):
         const d = g.getImageData(0, 0, 16, 16).data;
         const seen = new Set();
         for (let i = 0; i < d.length; i += 4) seen.add(d[i] + ',' + d[i + 1] + ',' + d[i + 2]);
-        return seen.size > 4;
-    }"""
+        done(seen.size > 4);
+    }))"""
     )
 
 

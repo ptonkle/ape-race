@@ -24,6 +24,7 @@ Environment:
     BUILDER_ORIGIN    check a deployed origin instead of serving dist/, e.g.
                       https://example.github.io/my-tool  (no trailing slash)
 """
+import engines
 import functools
 import http.server
 import importlib.util
@@ -84,7 +85,7 @@ def run_engine(p, engine, base, interactions):
     def same_origin(url):
         return url.startswith(origin + "/") or url.startswith("blob:" + origin) or url.startswith("data:")
 
-    browser = getattr(p, engine).launch()
+    browser = engines.launch(p, engine)
     context = browser.new_context(accept_downloads=True)
     context.on("request", lambda r: None if same_origin(r.url) else seen["foreign"].append(r.url))
 
@@ -112,6 +113,7 @@ def run_engine(p, engine, base, interactions):
     page.goto(base + "/index.html")
     page.wait_for_selector("body[data-ready='true']", timeout=20000)
     check(True, "page reported ready")
+    print(f"  WebGL: {engines.renderer(page)}")
     page.wait_for_timeout(IDLE_MS)
     check(not seen["foreign"], f"no off-origin request during load and {IDLE_MS // 1000}s idle {seen['foreign']}")
 

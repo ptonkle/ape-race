@@ -257,6 +257,7 @@ tags = ["boundary"]
 "tests/browser/interactions.py" = ["page"]
 "tests/browser/online.py" = ["online"]
 "tests/browser/online_race.py" = ["online"]
+"tests/browser/engines.py" = ["page", "online"]
 "scripts/check-online.sh" = ["online"]
 
 # nothing to run: docs, notes, tools that the checks do not use
