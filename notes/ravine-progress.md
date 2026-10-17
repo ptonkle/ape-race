@@ -8,7 +8,7 @@ The standard map-build steps (MAPS.md "Build steps"), one row each. Status is on
 | 2 | Skeleton and contract | Done | Merged: `Map::Ravine` (held from the map grid and Random, `Map::held`), the `RavineLayout` contract (`ravine.rs`), a stand-in course (the Jungle's layout, own seed), night look, PROTOCOL 15; SECOND-ORDER RV1–RV6 |
 | 3 | Ape costumes | Done | `Gear::Cowboy` (models/cowboy.rs): hat, bandana, gun belt, chaps, boots with spurs, bananas in a holster or bandolier, a mix and palette per kind; `SPIDER_JAGUAR` (models/spider.rs), eight banded legs; Costume "Cowboy"; shots `notes/ravine-shots/costumes/`; RG1–RG6. Branch `ravine-gear`; Map::Ravine wiring is two lines for the skeleton (RG6) |
 | 4 | Models | Done (merged) | `crates/core/src/ravinemodels.rs` + `ravinemodels/`: snake vine and snapped, wall lizards (red/yellow/blue), mine cart, track with trestles, wall hole, T-rex skull from its tooth list, proboscis sphinx, campfire with roasting bananas, tents, mining props, rope bridge, log span, fossils, mushrooms, torch, fireflies. 25 gallery keys; shots in `notes/ravine-shots/models/`; SECOND-ORDER RM-1–RM-5 |
-| 5 | Sky and lighting | In progress | agent on `ravine-sky` |
+| 5 | Sky and lighting | Done (branch `ravine-sky`, not merged) | `ravinescape.rs`: moonlit night, stars, Milky Way, low moon, glow pools, warm tunnel / teal cave looks, open mesa fog, pale moss-green vines; 6 tests; shots `notes/ravine-shots/sky/` (on stand-in scenery); SECOND-ORDER RK1–RK6 |
 | 6 | Course layout | In progress (merged; AI does not finish every layout since the rules: hairpin and Sloth stalls being fixed) | The real 1,742 m route (`ravine/layout.rs`): braids, two arches, caves, a hairpin round a fin with the T-rex skull shortcut (saves 173 m, about 7 s), four tight corners, the split (upper passage 36 m shorter, sparser, more snakes; lower through the mine tunnel), 4 mine tracks from wall holes, 8 lizards, glows thickening to the mesa finish. Snakes about 15%, fixed list. 11 layout tests (SECOND-ORDER RC1–RC6). **With the merged rules the AI does not yet finish every race** (RC4: Sloth 3 DNF of 6; King Kong stuck once at the hairpin's fin tip) |
 | 7 | Map rules | Done (merged) | Snake vines snap and drop the ape (regrow after 10 s, saved, synced); teeth reset to the floor (lava: the kill); walls, roofs, cave/tunnel sides, holes, skull bone, sphinx and rocks solid, swept and indexed; decks and solid tops are floors; camera keeps inside rooms and out of rock; lizard/cart bounce tested; AI avoids most snakes (Sloth least). Tested alone on bare courses (`ravine/rules_tests.rs`); SECOND-ORDER RR1–RR8 |
 | 8 | Art placed on the course | Not started | |
@@ -31,7 +31,7 @@ Stages: Model, Gameplay (or n/a), Placed in course, Tested.
 | Feature | Source | Model | Gameplay | Placed | Tested |
 | --- | --- | --- | --- | --- | --- |
 | Slot-canyon walls as barriers (moss, lichen, fossils, bones) | brief | – | Done | – | – |
-| Starry sky, soft night light | brief | – | n/a | – | – |
+| Starry sky, soft night light | brief | Done | n/a | Done | Done |
 | Torches, fireflies, glowing mushrooms leading to the finish | brief | Done | n/a | – | – |
 | Rope bridges and logs with vines of varying length | brief | Done | – | – | – |
 | Snake vines (~15%; snap, drop) | brief | Done | Done | – | – |

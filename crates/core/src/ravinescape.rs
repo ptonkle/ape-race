@@ -64,11 +64,11 @@ pub const MOON_OFF: i32 = deg(24);
 /// The sky dome's radius (inside the far plane, as Mape's Tower's).
 const DOME: i32 = int(560);
 /// Stars scattered over the whole sky.
-pub const FIELD_STARS: u32 = 340;
+pub const FIELD_STARS: u32 = 320;
 /// Small stars thick along the Milky Way.
-pub const BAND_STARS: u32 = 300;
+pub const BAND_STARS: u32 = 380;
 /// The Milky Way's soft haze blobs.
-pub const BAND_HAZE: u32 = 46;
+pub const BAND_HAZE: u32 = 60;
 /// How far round the eye a glow's pool of light is drawn.
 pub const POOL_SEEN: i32 = int(110);
 
@@ -237,11 +237,12 @@ fn pick(k: u32, salt: u32, lo: i32, hi: i32) -> i32 {
     lo + ((hash(k, salt) & 0xFFFF) as i64 * (hi - lo) as i64 / 0x1_0000) as i32
 }
 
-/// The Milky Way's frame: `u` along the horizon where it rises, `v` its
-/// highest point (tilted 64° up), `p` across it.
+/// The Milky Way's frame: `u` along the horizon where it rises (to the
+/// left of the course's first heading), `v` its highest point (ahead, 38°
+/// up, so it arches across the view down the canyon), `p` across it.
 fn band_frame(moon: i32) -> (V3, V3, V3) {
-    let yaw = moon + deg(70);
-    let tilt = deg(64);
+    let yaw = moon - MOON_OFF - TURN / 4;
+    let tilt = deg(38);
     (
         facing(yaw, 0),
         facing(yaw + TURN / 4, tilt),
@@ -277,30 +278,28 @@ pub fn dynamic(b: &mut Batch, c: &Course, r: &RavineLayout, eye: V3, ticks: u32)
 /// The stars, the Milky Way and the moon round `eye`.
 pub fn sky(b: &mut Batch, eye: V3, moon: i32, ticks: u32) {
     let f = band_frame(moon);
-    // the haze behind the stars: soft blobs along the band, a little
-    // warmer toward the galaxy's core
+    // the haze: soft glows along the band (fading to nothing at their
+    // edges), a little warmer toward the galaxy's core
     for i in 0..BAND_HAZE {
         let t = pick(i, 31, deg(4), deg(176));
-        let w = pick(i, 32, -ONE / 9, ONE / 9);
+        let w = pick(i, 32, -ONE / 10, ONE / 10);
         let dir = band_dir(f, t, w);
         if dir.y < ONE / 30 {
             continue;
         }
         let at = eye.add(dir.scale(DOME - int(20)));
-        let s = int(pick(i, 33, 22, 40));
+        let s = int(pick(i, 33, 30, 56));
         let core = (t - deg(70)).abs() < deg(30);
         let c = if core {
-            rgb(52, 48, 86)
-        } else if i % 2 == 0 {
-            rgb(34, 40, 86)
+            rgb(170, 150, 210)
         } else {
-            rgb(40, 44, 92)
+            rgb(130, 140, 220)
         };
-        b.push(
+        b.push_halo(
             Mesh::Sphere,
             &placed(at, pick(i, 34, 0, TURN), v3(s, s * 2 / 3, s)),
             c,
-            SKY_GLOW,
+            ONE / 2,
         );
     }
     // the band's small stars, thick near its middle line
@@ -312,7 +311,7 @@ pub fn sky(b: &mut Batch, eye: V3, moon: i32, ticks: u32) {
             continue;
         }
         let at = eye.add(dir.scale(DOME - int(40)));
-        let rad = cm(pick(i, 44, 70, 150));
+        let rad = cm(pick(i, 44, 90, 190));
         let c = if i % 4 == 0 {
             rgb(255, 236, 214)
         } else {
@@ -327,9 +326,9 @@ pub fn sky(b: &mut Batch, eye: V3, moon: i32, ticks: u32) {
         let dir = facing(pick(i, 12, 0, TURN), el);
         let at = eye.add(dir.scale(DOME - int(40)));
         let rad = if i % 23 == 0 {
-            cm(pick(i, 13, 260, 340))
+            cm(pick(i, 13, 320, 420))
         } else {
-            cm(pick(i, 13, 100, 220))
+            cm(pick(i, 13, 140, 260))
         };
         let tw = (ticks / 8).wrapping_add(hash(i, 14)) % 9;
         let c = if tw == 0 {
@@ -359,7 +358,7 @@ fn moon_disc(b: &mut Batch, eye: V3, moon: i32) {
     );
     let side = facing(moon + TURN / 4, 0);
     let up = facing(moon, MOON_HIGH + TURN / 4);
-    for (k, (dx, dy, s)) in [(-5, 4, 6), (4, -3, 5), (2, 6, 4)].into_iter().enumerate() {
+    for (k, (dx, dy, s)) in [(-4, 3, 4), (3, -2, 4), (1, 5, 3)].into_iter().enumerate() {
         let spot = at
             .sub(dir.scale(rad - int(3)))
             .add(side.scale(int(dx)))

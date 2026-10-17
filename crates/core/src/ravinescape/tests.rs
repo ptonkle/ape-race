@@ -106,11 +106,14 @@ fn the_night_sky_has_hundreds_of_stars_the_milky_way_and_the_moon() {
         "stars {}",
         b.count_of(Mesh::Ico)
     );
+    // the moon and its seas, and the Milky Way's soft haze
     assert!(
-        b.count_of(Mesh::Sphere) >= 30,
-        "haze and moon {}",
+        b.count_of(Mesh::Sphere) >= 4,
+        "{}",
         b.count_of(Mesh::Sphere)
     );
+    let haze = b.take_halos();
+    assert!(haze.count() >= 30, "haze and corona {}", haze.count());
     // the moon stands ahead of the start, low over the rim
     let moon = facing(moon_yaw(&c), MOON_HIGH);
     assert!(moon.dot(c.heading[0].flat().norm()) > ONE * 3 / 4);
@@ -118,7 +121,7 @@ fn the_night_sky_has_hundreds_of_stars_the_milky_way_and_the_moon() {
     // the whole draw stays within the frame's budget (with the pools)
     let mut all = Batch::new();
     dynamic(&mut all, &c, &r, eye, 0);
-    assert!(all.count() < 800, "{}", all.count());
+    assert!(all.count() < 900, "{}", all.count());
 }
 
 #[test]
