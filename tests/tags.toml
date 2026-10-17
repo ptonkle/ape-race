@@ -79,7 +79,9 @@ tags = ["boundary"]
 "crates/core/src/race.rs" = ["race"]
 "crates/core/src/trial.rs" = ["race"]
 "crates/core/src/hype.rs" = ["race", "sound"]
-"crates/core/src/dance.rs" = ["race", "render"]
+# the dance and the flame jaguar are drawn, not raced: a mesh change cannot
+# break a race's flow (the jaguar's timings are race rules, so it keeps race)
+"crates/core/src/dance.rs" = ["render", "camera"]
 "crates/core/src/jaguar.rs" = ["race", "render"]
 "crates/core/src/items.rs" = ["items"]
 "crates/core/src/items/**" = ["items"]
@@ -91,9 +93,9 @@ tags = ["boundary"]
 "crates/core/src/see.rs" = ["camera", "render"]
 "crates/core/src/mesh.rs" = ["render"]
 "crates/core/src/models.rs" = ["render"]
-"crates/core/src/models/tourist.rs" = ["render", "costumes", "maps-city"]
+"crates/core/src/models/tourist.rs" = ["render", "costumes"]
 "crates/core/src/models/wizard.rs" = ["render", "costumes"]
-"crates/core/src/models/flame.rs" = ["render", "race"]
+"crates/core/src/models/flame.rs" = ["render"]
 "crates/core/src/sky.rs" = ["render"]
 "crates/core/src/icon.rs" = ["menus"]
 "crates/core/src/speedo.rs" = ["menus"]
@@ -219,6 +221,32 @@ tags = ["boundary"]
 "crates/core/src/app.rs" = { patterns = ['^pub const VERSION: &str = "[^"]*";$'], tags = ["notes"] }
 
 # ---------------------------------------------------------------------------
+# Function -> tags, for a big file whose functions belong to different
+# features: per file, Python regular expressions over the name of the
+# outermost `fn` (or `def`) holding a changed line (its doc comments and
+# attributes count as part of it). Every matching regex adds its tags; a
+# changed line in no named function, or in one no regex names, takes the
+# file's [sources] tags. Empty for now: app.rs is being split into modules
+# instead (2026-10-17), e.g. '^weather_select$' = ["weather", "menus"].
+[functions]
+
+# the jaguar's timings and Eaten::new are race rules; its pose is only drawn
+[functions."crates/core/src/jaguar.rs"]
+'^(jaguar|size|whole|gait|fwd)$' = ["render"]
+
+# A changed line inside `def step_<name>` of these files runs browser step
+# <name> alone (it must be a step in [browser]); any other line keeps the
+# file's [sources] tags. The regex's group 1 is the step.
+[steps]
+"tests/browser/interactions.py" = '^step_(\w+)$'
+
+# Test files run their own tests, not every test of their topic: a changed
+# crates/core/tests/<file>.rs runs test:<file>; a changed *tests.rs under
+# crates/core/src runs its module's tests; a changed line inside a
+# `#[cfg(test)] mod` runs the test it sits in (or that module's tests, for a
+# helper). Their [sources] tags apply only when no such test exists.
+
+# ---------------------------------------------------------------------------
 # Cargo tests -> tags. A key is `<target>:<name prefix>`: `lib:` for the
 # core's own tests by module path, `test:<file>` for an integration test file
 # (crates/core/tests/<file>.rs), optionally with `:<name prefix>`. The
@@ -269,7 +297,12 @@ tags = ["boundary"]
 "lib:bayscape::" = ["maps-bay", "render"]
 "lib:towermodels::" = ["maps-tower", "render"]
 "lib:towerscape::" = ["maps-tower", "weather", "render"]
-"lib:tower::" = ["maps-tower", "physics", "race", "maps-jungle", "maps-city", "maps-ski", "maps-sector", "maps-ruins", "maps-bay"]
+"lib:tower::" = ["maps-tower", "physics"]
+"lib:tower::tests::the_map_is_wired_by_its_key_and_name" = ["maps-tower", "menus", "maps-jungle", "maps-city", "maps-ski", "maps-sector", "maps-ruins", "maps-bay"]
+"lib:tower::tests::the_path_is_three_d_only_here" = ["maps-tower", "maps-jungle", "maps-city", "maps-ski", "maps-sector", "maps-ruins", "maps-bay"]
+"lib:tower::tests::with_floor_is_lava" = ["maps-tower", "physics", "race"]
+"lib:tower::tests::item_crates_hang" = ["maps-tower", "items"]
+"lib:tower::tests::a_summoned_vine_is_placed" = ["maps-tower", "physics", "items"]
 "lib:tower::audit::" = ["maps-tower", "physics"]
 "lib:camera::" = ["camera"]
 "lib:camera::hulls::" = ["camera", "maps-bay"]

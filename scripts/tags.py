@@ -13,9 +13,12 @@ quick options:
     --all-browsers    browser and online checks in Chromium, Firefox and
                       WebKit (also ALL_BROWSERS=1); Chromium only otherwise
 
-A file listed in [lines] whose every changed line matches one of its patterns
-takes that rule's tags instead of its [sources] tags (a VERSION bump alone in
-app.rs is `notes`).
+A changed file is placed line by line where it can be (file_plan): a test
+file runs its own tests only; a line in a `#[cfg(test)] mod` runs its test; a
+[lines] pattern (a VERSION bump in app.rs) takes that rule's tags; a line in
+a function named in [functions] takes that function's tags; a line in a
+browser step of a [steps] file runs that step. Any other line takes the
+file's [sources] tags.
 
 The base defaults to the commit of the newest passing `check` row in
 notes/check-times.md, so a quick check only ever skips relative to a full pass.
@@ -177,6 +180,20 @@ def guard():
             except re.error as e:
                 problems.append(f"[lines] {path}: bad pattern {pat!r}: {e}")
 
+    for path, funcs in cfg.get("functions", {}).items():
+        for pat, tags in funcs.items():
+            check_names(f"[functions] {path} {pat}", tags)
+            try:
+                re.compile(pat)
+            except re.error as e:
+                problems.append(f"[functions] {path}: bad pattern {pat!r}: {e}")
+    for path, pat in cfg.get("steps", {}).items():
+        try:
+            if re.compile(pat).groups < 1:
+                problems.append(f"[steps] {path}: {pat!r} has no group for the step")
+        except re.error as e:
+            problems.append(f"[steps] {path}: bad pattern {pat!r}: {e}")
+
     ids = cargo_tests()
     used = set()
     for tid in ids:
@@ -252,40 +269,278 @@ def changed_files(base, rng):
     return sorted(files)
 
 
-def changed_lines(base, rng, path):
-    """The added and removed lines of one file's diff (base to the working
-    tree, or the range), without the diff's own headers."""
+
+ITEM = re.compile(
+    r'^\s*(?:pub(?:\([^)]*\))?\s+)?(?:(?:const|async|unsafe|extern\s+"[^"]*")\s+)*(fn|mod)\s+(\w+)')
+LEAD = re.compile(r"^\s*(//|#\[|#!\[)")
+
+
+def rust_items(text):
+    """The fn and mod items of a Rust file as (kind, name, first, last, attrs):
+    1-based lines, `first` taking in the doc comments and attributes above
+    the item. Braces are counted outside strings, chars and comments."""
+    lines = text.split("\n")
+    items, stack, pending = [], [], None
+    depth, state, hashes, block = 0, None, 0, 0
+    for no, line in enumerate(lines, 1):
+        if state is None:
+            m = ITEM.match(line)
+            if m:
+                first = no
+                while first > 1 and LEAD.match(lines[first - 2]):
+                    first -= 1
+                attrs = " ".join(lines[first - 1:no - 1])
+                pending = (m.group(1), m.group(2), first, attrs, depth)
+        i, n = 0, len(line)
+        if state == "line":
+            state = None
+        while i < n:
+            c = line[i]
+            if state == "block":
+                if line.startswith("*/", i):
+                    block -= 1
+                    i += 2
+                    if not block:
+                        state = None
+                    continue
+                if line.startswith("/*", i):
+                    block += 1
+                    i += 2
+                    continue
+                i += 1
+                continue
+            if state == "str":
+                if c == "\\":
+                    i += 2
+                    continue
+                if c == '"':
+                    state = None
+                i += 1
+                continue
+            if state == "raw":
+                if line.startswith('"' + "#" * hashes, i):
+                    state = None
+                    i += 1 + hashes
+                    continue
+                i += 1
+                continue
+            # normal
+            if line.startswith("//", i):
+                break
+            if line.startswith("/*", i):
+                state, block = "block", 1
+                i += 2
+                continue
+            m = re.match(r'b?r(#*)"', line[i:])
+            if m and (i == 0 or not (line[i - 1].isalnum() or line[i - 1] == "_")):
+                state, hashes = "raw", len(m.group(1))
+                i += len(m.group(0))
+                continue
+            if c == '"':
+                state = "str"
+            elif c == "'":
+                if line.startswith("\\", i + 1):
+                    j = line.find("'", i + 2)
+                    i = (j if j > 0 else i) + 1
+                    continue
+                if i + 2 < n and line[i + 2] == "'":
+                    i += 3
+                    continue
+            elif c == ";" and pending and pending[4] == depth:
+                pending = None
+            elif c == "{":
+                if pending and pending[4] == depth:
+                    stack.append(pending)
+                    pending = None
+                depth += 1
+            elif c == "}":
+                depth -= 1
+                if stack and stack[-1][4] == depth:
+                    kind, name, first, attrs, _ = stack.pop()
+                    items.append((kind, name, first, no, attrs))
+            i += 1
+    return items
+
+
+def python_items(text):
+    """The top-level defs of a Python file as (kind, name, first, last, attrs)."""
+    lines = text.split("\n")
+    out, cur = [], None
+    for no, line in enumerate(lines, 1):
+        if line and not line[0].isspace() and not line.startswith("#"):
+            if cur:
+                out.append(cur)
+                cur = None
+            m = re.match(r"(?:async\s+)?def\s+(\w+)", line)
+            if m:
+                cur = ("fn", m.group(1), no, no, "")
+        elif cur and line.strip():
+            cur = cur[:3] + (no,) + cur[4:]
+    if cur:
+        out.append(cur)
+    return out
+
+
+def enclosing(items, line):
+    """The items holding a line, outermost first."""
+    return sorted((it for it in items if it[2] <= line <= it[3]), key=lambda it: it[2])
+
+
+def hunks(base, rng, path):
+    """The changed lines of one file's diff as (side, line number, text):
+    side '-' numbers the old file's lines, '+' the new file's."""
     out = sh(["git", "diff", "-U0", "--no-color", rng or base, "--", path])
-    return [ln[1:] for ln in out.splitlines()
-            if ln[:1] in "+-" and not ln.startswith(("+++ ", "--- "))]
+    rows, old, new = [], 0, 0
+    for ln in out.splitlines():
+        m = re.match(r"@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@", ln)
+        if m:
+            old, new = int(m.group(1)), int(m.group(2))
+        elif ln.startswith(("+++ ", "--- ")):
+            continue
+        elif ln[:1] == "-":
+            rows.append(("-", old, ln[1:]))
+            old += 1
+        elif ln[:1] == "+":
+            rows.append(("+", new, ln[1:]))
+            new += 1
+    return rows
 
 
-def line_tags(cfg, base, rng, path):
-    """The [lines] tags of a file whose every changed line matches one of its
-    patterns, or None (its [sources] tags then apply)."""
-    rule = cfg.get("lines", {}).get(path)
-    if not rule:
-        return None
-    lines = changed_lines(base, rng, path)
-    pats = [re.compile(p) for p in rule["patterns"]]
-    if lines and all(any(p.search(ln) for p in pats) for ln in lines):
-        return set(rule["tags"])
+def side_text(base, rng, path, side):
+    """A file's text before ('-') or after ('+') the change."""
+    if rng:
+        a, b = rng.split("..", 1)
+        rev = a if side == "-" else b
+    elif side == "-":
+        rev = base
+    else:
+        p = ROOT / path
+        return p.read_text(errors="replace") if p.exists() else ""
+    r = subprocess.run(["git", "show", f"{rev}:{path}"], cwd=ROOT, capture_output=True, text=True)
+    return r.stdout if r.returncode == 0 else ""
+
+
+def module_path(path):
+    """`crates/core/src/app/weather_tests.rs` -> `app::weather_tests`."""
+    rel = path[len("crates/core/src/"):-len(".rs")]
+    rel = re.sub(r"(^|/)(lib|mod)$", "", rel)
+    return rel.replace("/", "::")
+
+
+def is_test_mod(item):
+    return item[0] == "mod" and ("cfg(test)" in item[4] or item[1] == "tests" or item[1].endswith("_tests"))
+
+
+def test_file_prefix(path):
+    """The test id prefix of a file that holds only tests, or None."""
+    m = re.fullmatch(r"crates/core/tests/(\w+)\.rs", path)
+    if m:
+        return f"test:{m.group(1)}:"
+    if path.startswith("crates/core/src/") and re.search(r"(^|/|_)tests\.rs$", path):
+        return f"lib:{module_path(path)}::"
     return None
 
 
-def plan(cfg, files, base=None, rng=None):
+def picked_by(picks, tid):
+    """Whether a test id is one of the picks: an exact id, or a prefix
+    ending `:` or `::` (a test file's or a test module's tests)."""
+    return any(tid == p or (p.endswith(":") and tid.startswith(p)) for p in picks)
+
+
+def test_pick(path, chain, ids):
+    """The tests a line in a `#[cfg(test)] mod` needs: the test it sits in,
+    or the module's tests (a helper, a `use`), or None outside one."""
+    mods = []
+    for i, it in enumerate(chain):
+        if it[0] != "mod":
+            return None
+        mods.append(it[1])
+        if is_test_mod(it):
+            mp = "::".join(x for x in [module_path(path), *mods] if x)
+            inner = chain[i + 1] if i + 1 < len(chain) else None
+            if inner and inner[0] == "fn" and f"lib:{mp}::{inner[1]}" in ids():
+                return f"lib:{mp}::{inner[1]}"
+            prefix = f"lib:{mp}::"
+            return prefix if any(t.startswith(prefix) for t in ids()) else None
+    return None
+
+
+def file_plan(cfg, path, base, rng, ids):
+    """One changed file's (tags, cargo test picks, browser step picks).
+
+    A test file runs its own tests only. Otherwise each changed line is
+    placed: a [lines] pattern takes that rule's tags; a line in a
+    `#[cfg(test)] mod` runs that test (or the module's tests, for a helper);
+    a line in a function that a [functions] regex names takes its tags; a
+    line in a `def step_<name>` of a [steps] file runs that browser step.
+    Any other line takes the file's [sources] tags."""
+    fallback = file_tags(cfg, path)
+    fallback = {ALL} if fallback is None else fallback
+    prefix = test_file_prefix(path)
+    if prefix:
+        if any(t.startswith(prefix) for t in ids()):
+            return set(), {prefix}, set()
+        if not (ROOT / path).exists() and not rng:
+            return set(), set(), set()
+        return fallback, set(), set()
+    lines_rule = cfg.get("lines", {}).get(path)
+    funcs = cfg.get("functions", {}).get(path)
+    steps = cfg.get("steps", {}).get(path)
+    rust_core = path.startswith("crates/core/src/") and path.endswith(".rs")
+    if not (lines_rule or funcs or steps or rust_core):
+        return fallback, set(), set()
+    pats = [re.compile(p) for p in (lines_rule or {}).get("patterns", [])]
+    fpats = [(re.compile(k), set(v)) for k, v in (funcs or {}).items()]
+    items = {}
+    tags, picks, bsteps = set(), set(), set()
+    rows = hunks(base, rng, path)
+    if not rows:  # an untracked file, a binary one: no lines to place
+        return fallback, set(), set()
+    for side, no, text in rows:
+        if not text.strip():  # a blank line breaks nothing
+            continue
+        if pats and any(p.search(text) for p in pats):
+            tags |= set(lines_rule["tags"])
+            continue
+        if side not in items:
+            src = side_text(base, rng, path, side)
+            items[side] = python_items(src) if path.endswith(".py") else rust_items(src)
+        chain = enclosing(items[side], no)
+        if rust_core:
+            pick = test_pick(path, chain, ids)
+            if pick:
+                picks.add(pick)
+                continue
+        fn = next((it[1] for it in chain if it[0] == "fn"), None)
+        if fn and steps:
+            m = re.fullmatch(steps, fn)
+            if m and m.group(1) in cfg["browser"]:
+                bsteps.add(m.group(1))
+                continue
+        hit = set().union(*(t for p, t in fpats if fn and p.search(fn))) if fn else set()
+        tags |= hit or fallback
+    return tags, picks, bsteps
+
+
+def plan(cfg, files, base=None, rng=None, ids=None):
     hit = set(cfg["always"]["tags"])
-    rows = []
+    rows, picks, bsteps = [], set(), set()
+    cache = []
+
+    def all_ids():
+        if not cache:
+            cache.append(set(ids() if ids else cargo_tests()))
+        return cache[0]
+
     for f in files:
-        tags = line_tags(cfg, base, rng, f)
-        if tags is None:
-            tags = file_tags(cfg, f)
-        if tags is None:
+        if file_tags(cfg, f) is None:
             print(f"  {f} matches no glob in tests/tags.toml: running everything")
-            tags = {ALL}
-        rows.append((f, tags))
+        tags, p, b = file_plan(cfg, f, base, rng, all_ids)
+        rows.append((f, tags, p, b))
         hit |= tags
-    return rows, hit
+        picks |= p
+        bsteps |= b
+    return rows, hit, picks, bsteps
 
 
 def quick(args):
@@ -299,11 +554,25 @@ def quick(args):
     base = rest[0] if rest else (None if rng else default_base())
     cfg = load()
     files = changed_files(base, rng)
-    rows, hit = plan(cfg, files, base, rng)
+    listed = []
+
+    def ids_once():
+        if not listed:
+            t = time.time()
+            listed.append(cargo_tests())
+            listed.append(time.time() - t)
+        return listed[0]
+
+    rows, hit, picks, direct = plan(cfg, files, base, rng, ids_once)
 
     print(f"== quick check: changes {rng or base + '..HEAD + working tree'}")
-    for f, tags in rows:
-        print(f"  {f} -> {', '.join(sorted(tags)) or '(nothing)'}")
+    for f, tags, p, b in rows:
+        own = [", ".join(sorted(tags))] if tags else []
+        if p:
+            own.append(f"its tests {', '.join(sorted(p))}" if len(p) < 4 else f"{len(p)} of its tests")
+        if b:
+            own.append(f"browser step {', '.join(sorted(b))}")
+        print(f"  {f} -> {'; '.join(own) or '(nothing)'}")
     print(f"tags hit: {', '.join(sorted(hit))}")
 
     engines = "chromium firefox webkit" if every else "chromium"
@@ -327,16 +596,15 @@ def quick(args):
         step("lint", ["cargo", "clippy", "--workspace", "--all-targets", "--quiet", "--", "-D", "warnings"])
 
     # cargo tests
-    t = time.time()
-    ids = cargo_tests()
-    times.append(f"list={time.time() - t:.1f}")
-    picked = [tid for tid in ids if wanted(test_tags(cfg, tid) or {ALL}, hit)]
+    ids = ids_once()
+    times.append(f"list={listed[1]:.1f}")
+    picked = [tid for tid in ids if wanted(test_tags(cfg, tid) or {ALL}, hit) or picked_by(picks, tid)]
     # one invocation by exact name: each test binary runs the names it has
     # (lib names carry a module path; integration names are bare)
     names = sorted({tid.split(":", 2)[-1] if tid.startswith("test:") else tid.split(":", 1)[1] for tid in picked})
     tfiles = sorted({tid.split(":")[1] for tid in picked if tid.startswith("test:")})
 
-    bsteps = [s for s, tags in cfg["browser"].items() if step_hit(tags, hit)]
+    bsteps = [s for s, tags in cfg["browser"].items() if step_hit(tags, hit) or s in direct]
     browser_run = [s for s in bsteps if s != "boot"]
     osteps = [s for s, tags in cfg["online"].items() if ALL in hit or set(tags) & hit]
 
