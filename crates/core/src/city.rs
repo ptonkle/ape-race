@@ -172,6 +172,9 @@ impl Course {
         if let Some(r) = self.ruins.as_deref() {
             return self.ruins_bouncer(r, m, tick);
         }
+        if let Some(r) = self.ravine.as_deref() {
+            return self.ravine_bouncer(r, m, tick);
+        }
         let b = self.mushrooms[m];
         let Some(city) = self.city.as_ref() else {
             return b;
@@ -249,6 +252,9 @@ impl Course {
     pub fn bouncer_under(&self, p: V3, tick: u32) -> Option<usize> {
         if let Some(r) = self.ruins.as_deref() {
             return self.ruins_bouncer_under(r, p, tick);
+        }
+        if let Some(r) = self.ravine.as_deref() {
+            return self.ravine_bouncer_under(r, p, tick);
         }
         let Some(city) = self.city.as_ref() else {
             return self.mushroom_under(p);

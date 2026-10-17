@@ -172,6 +172,24 @@ pub const TOWER: [u32; 4] = [
     secs(TOWER_AUTHOR),
 ];
 
+/// Rattlesnake Ravine's target times in hundredths of a second. STAND-IN
+/// (the skeleton, 2026-10-17): from the stand-in course's King Kong as a
+/// Time Trial (59.3–79.1 s by kind, the Orangutan best, the Gorilla
+/// slowest) with the Jungle's steps of 7, 10 and 15 s; re-measure on the
+/// real course (`ai::time_trial`, every kind).
+pub const RAVINE_AUTHOR: u32 = 5_850;
+pub const RAVINE_GOLD: u32 = 6_550;
+pub const RAVINE_SILVER: u32 = 7_550;
+pub const RAVINE_BRONZE: u32 = 9_050;
+
+/// Rattlesnake Ravine's target times, in race ticks, slowest first.
+pub const RAVINE: [u32; 4] = [
+    secs(RAVINE_BRONZE),
+    secs(RAVINE_SILVER),
+    secs(RAVINE_GOLD),
+    secs(RAVINE_AUTHOR),
+];
+
 /// A map's target times, in race ticks, slowest first (Bronze, Silver,
 /// Gold, Author).
 pub fn medals(map: Map) -> [u32; 4] {
@@ -183,6 +201,7 @@ pub fn medals(map: Map) -> [u32; 4] {
         Map::Ruins => RUINS,
         Map::Bay => BAY,
         Map::Tower => TOWER,
+        Map::Ravine => RAVINE,
     }
 }
 

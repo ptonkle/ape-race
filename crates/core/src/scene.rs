@@ -127,6 +127,7 @@ pub fn look(map: Map) -> Look {
         Map::Ruins => crate::ruinsscape::look(),
         Map::Bay => crate::bayscape::look(),
         Map::Tower => crate::towerscape::look(),
+        Map::Ravine => crate::ravinescape::look(),
     }
 }
 
@@ -146,6 +147,8 @@ pub fn look_of(c: &Course) -> Look {
         Map::Bay => crate::bayscape::look_for(c),
         // a golden late afternoon (the frame takes `look_in`: by height)
         Map::Tower => crate::towerscape::look(),
+        // STAND-IN (Rattlesnake Ravine's skeleton): a plain night
+        Map::Ravine => crate::ravinescape::look(),
     }
 }
 
@@ -540,6 +543,9 @@ pub fn scenery(c: &Course) -> Scenery {
     }
     if let Some(b) = &c.bay {
         return crate::bayscape::scenery(c, b);
+    }
+    if let Some(r) = &c.ravine {
+        return crate::ravinescape::scenery(c, r);
     }
     jungle_scenery(c)
 }
@@ -1961,6 +1967,10 @@ pub fn catch_up_colour(map: Map, vivid: bool) -> Rgb {
         // Mape's Tower: a deep crimson, apart from every spell beam (the
         // stand-in's hot orange was the fire beam's colour, TL3)
         (Map::Tower, false) => rgb(230, 20, 30),
+        // STAND-IN (Rattlesnake Ravine's skeleton): a bright cyan against
+        // its Jungle-green vines; the art agent chooses against its real
+        // vines and the night
+        (Map::Ravine, false) => rgb(40, 230, 255),
         // the colourblind mode (TRIAGE T33): told from the map's vivid
         // vine by brightness, not hue alone, and kept off the item flowers'
         // violet: a deep red-orange under the bright green vines, a dark
@@ -1974,6 +1984,7 @@ pub fn catch_up_colour(map: Map, vivid: bool) -> Rgb {
         (Map::Ruins, true) => rgb(200, 0, 120),
         (Map::Bay, true) => crate::bayscape::fleet::CATCH_UP_VIVID,
         (Map::Tower, true) => rgb(230, 70, 0),
+        (Map::Ravine, true) => rgb(0, 70, 255),
     }
 }
 
@@ -2301,7 +2312,8 @@ pub fn preview(c: &Course) -> Preview {
         Map::Bay => crate::bayscape::lobby::preview(c),
         // a high bridge, the keep's wall beside the ape, the sky beyond
         Map::Tower => crate::towerscape::lobby::preview(c),
-        Map::Jungle => {
+        // STAND-IN (Rattlesnake Ravine's skeleton): the Jungle's start tree
+        Map::Jungle | Map::Ravine => {
             let pl = c.platforms.first();
             let feet = pl.map_or(c.point(int(4)), |p| {
                 v3(p.centre.x, p.top, p.centre.z).add(p.fwd.scale(p.half_len / 2))
@@ -2363,7 +2375,7 @@ pub fn flyover_camera(c: &Course, ticks: u32, from: i32) -> Camera {
         Map::Ski => int(16),
         Map::Sector => int(20),
         Map::Ruins => int(14),
-        Map::Bay | Map::Tower => int(14),
+        Map::Bay | Map::Tower | Map::Ravine => int(14),
     };
     let eye = v3(p.x, c.terrain(p.x, p.z) + lift, p.z);
     // down the Ski Slope's hill, the glide looks down it too

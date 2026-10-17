@@ -5,7 +5,7 @@ The standard map-build steps (MAPS.md "Build steps"), one row each. Status is on
 | # | Step | Status | Notes |
 | --- | --- | --- | --- |
 | 1 | Brief and answers | Done | `briefs/rattlesnake-ravine.md`; pitfalls from earlier maps in `notes/ravine-pitfalls.md` |
-| 2 | Skeleton and contract | Not started | |
+| 2 | Skeleton and contract | Done | Branch `ravine-skel`: `Map::Ravine` (held from the map grid and Random, `Map::held`), the `RavineLayout` contract (`ravine.rs`), a stand-in course (the Jungle's layout, own seed), night look, PROTOCOL 15; SECOND-ORDER RV1–RV6 |
 | 3 | Ape costumes | Not started | Wild West gear, one palette per ape; spider-jaguar |
 | 4 | Models | Not started | |
 | 5 | Sky and lighting | Not started | |
