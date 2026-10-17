@@ -10,3 +10,4 @@ One row per failing run of `scripts/timed-checks.sh`, newest last: the tests and
 | 2026-10-17 01:17 | 1.14.0 | 9192d6e | check (chromium+firefox+webkit) | cargo:tower::audit::every_vine_is_clear_of_the_stone |
 | 2026-10-17 09:17 | 1.14.0 | 8b79781 | check (chromium+firefox+webkit) | cargo:tower::audit::every_vine_is_clear_of_the_stone |
 | 2026-10-17 09:57 | 1.14.2 | 4b4b3cc | quick (chromium; tags ai, all, boundary, camera, costumes, items, maps-tower, menus, notes, online, page, physics, race, render, replay, sound, weather) | cargo:tower::audit::every_vine_is_clear_of_the_stone |
+| 2026-10-17 10:11 | 1.14.2 | fc084f7 | quick (chromium; tags boundary, camera, costumes, items, menus, notes, online, page, race, replay, sound, weather) | cargo:tower::audit::every_vine_is_clear_of_the_stone |
