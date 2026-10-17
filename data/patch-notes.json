@@ -1,5 +1,12 @@
 [
   {
+    "version": "1.14.4",
+    "date": "2026-10-17",
+    "notes": [
+      "Removed the Monkey difficulty."
+    ]
+  },
+  {
     "version": "1.14.3",
     "date": "2026-10-17",
     "notes": [

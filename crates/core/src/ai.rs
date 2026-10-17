@@ -53,7 +53,7 @@ const DECK: usize = usize::MAX - 1;
 /// (it runs off it at a rope), at `DECK_COST` metres less than a rope as
 /// far along. King Kong waits longer: sooner, it took decks a rope would
 /// have beaten (the Gorilla's Time Trial 17 s slower).
-const BAY_DECK_AFTER: [u32; 4] = [SECOND, SECOND, SECOND, 3 * SECOND];
+const BAY_DECK_AFTER: [u32; 3] = [SECOND, SECOND, 3 * SECOND];
 const SECOND: u32 = TICKS_PER_SECOND as u32;
 const DECK_COST: i32 = int(10);
 /// It grabs a vine only this far below its anchor or more.
@@ -138,8 +138,9 @@ const LEAD_NEAR: i32 = int(8);
 )]
 #[serde(rename_all = "snake_case")]
 pub enum Difficulty {
+    /// (a saved "monkey", the level removed in 1.14.4, loads as the Sloth)
+    #[serde(alias = "monkey")]
     Sloth,
-    Monkey,
     Ape,
     /// the AI at its best (and the default)
     #[default]
@@ -148,32 +149,29 @@ pub enum Difficulty {
 
 impl Difficulty {
     /// Easiest first.
-    pub const ALL: [Difficulty; 4] = [
-        Difficulty::Sloth,
-        Difficulty::Monkey,
-        Difficulty::Ape,
-        Difficulty::KingKong,
-    ];
+    pub const ALL: [Difficulty; 3] = [Difficulty::Sloth, Difficulty::Ape, Difficulty::KingKong];
 
     pub fn key(self) -> &'static str {
         match self {
             Difficulty::Sloth => "sloth",
-            Difficulty::Monkey => "monkey",
             Difficulty::Ape => "ape",
             Difficulty::KingKong => "king_kong",
         }
     }
 
+    /// A key; "monkey" (the level removed in 1.14.4, nearer the Sloth than
+    /// the Ape) gives the Sloth.
     pub fn from_key(k: &str) -> Option<Difficulty> {
+        if k == "monkey" {
+            return Some(Difficulty::Sloth);
+        }
         Difficulty::ALL.into_iter().find(|d| d.key() == k)
     }
 
     /// A level's handicaps on a map: the Jungle's for every map, except on
-    /// the City: there, with the Jungle's handicaps, the Monkey was no
-    /// faster than the Sloth and the Ape barely faster than the Monkey
-    /// (sharp corners and sparser vines spread the levels differently), so
-    /// the City's Monkey reacts a little sooner and misjudges less, and its
-    /// Ape has stronger arms and reacts sooner. On the Ski Slope the swings
+    /// the City: there, with the Jungle's handicaps, the levels bunched up
+    /// (sharp corners and sparser vines spread them differently), so the
+    /// City's Ape has stronger arms and reacts sooner. On the Ski Slope the swings
     /// run fast downhill, so a level's reaction time would let the best
     /// release go by (stuck whirling on a vine): it reacts sooner there
     /// (`SKI_HESITATE`), and looks further ahead. Sunset Ruins and Banana
@@ -250,12 +248,6 @@ impl Difficulty {
             };
         }
         match self {
-            Difficulty::Monkey if city => Tuning {
-                hesitate: CITY_MONKEY_HESITATE,
-                jitter: CITY_MONKEY_HESITATE,
-                noise: CITY_MONKEY_NOISE,
-                ..t
-            },
             Difficulty::Ape if city => Tuning {
                 hesitate: CITY_APE_HESITATE,
                 jitter: CITY_APE_HESITATE,
@@ -278,18 +270,6 @@ impl Difficulty {
                 noise: int(6),
                 drive: 2,
                 item_wait: 6 * second,
-                flight: FLIGHT_TICKS,
-                hidden: true,
-            },
-            Difficulty::Monkey => Tuning {
-                ideal_hop: int(24),
-                look: LOOK,
-                cands: MAX_CANDS,
-                hesitate: 18,
-                jitter: 14,
-                noise: int(5),
-                drive: 3,
-                item_wait: 3 * second,
                 flight: FLIGHT_TICKS,
                 hidden: true,
             },
@@ -321,13 +301,17 @@ impl Difficulty {
     }
 }
 
+// The per-map tables below are indexed by level, easiest first: Sloth,
+// Ape, King Kong. Their notes predate 1.14.4, when the Monkey (the level
+// between the Sloth and the Ape) was removed with its column (DM-1).
+
 /// The Ski Slope's reaction times, easiest level first (see
 /// [`Difficulty::tuning_on`]). TRIAGE T84 (fewer low vines) moved the
 /// Monkey's 2 → 3 and the Ape's drive 7 → 8 to keep the levels 6 s apart.
-const SKI_HESITATE: [u32; 4] = [6, 3, 1, 0];
-const SKI_DRIVE: [u32; 4] = [2, 5, 8, DUTY];
-const SKI_NOISE: [i32; 4] = [int(6), int(4), int(2), 0];
-const SKI_HOP: [i32; 4] = [int(22), int(24), int(26), int(28)];
+const SKI_HESITATE: [u32; 3] = [6, 1, 0];
+const SKI_DRIVE: [u32; 3] = [2, 8, DUTY];
+const SKI_NOISE: [i32; 3] = [int(6), int(2), 0];
+const SKI_HOP: [i32; 3] = [int(22), int(26), int(28)];
 
 /// Mape's Tower's handicaps, easiest level first (see
 /// [`Difficulty::tuning_on`]). Down the zipper the swings run fast, as on
@@ -338,17 +322,17 @@ const SKI_HOP: [i32; 4] = [int(22), int(24), int(26), int(28)];
 /// arms (`TOWER_INSIDE_DRIVE`), so the bridges' arms and the reactions
 /// space the levels: the Ape 5 of 8, the reactions 10 / 5 / 2 / 0 ticks
 /// (TC2-17, TC2-19).
-const TOWER_HESITATE: [u32; 4] = [10, 5, 2, 0];
-const TOWER_JITTER: [u32; 4] = [10, 5, 2, 0];
-const TOWER_DRIVE: [u32; 4] = [3, 3, 6, DUTY];
-const TOWER_NOISE: [i32; 4] = [int(6), int(4), int(3), 0];
+const TOWER_HESITATE: [u32; 3] = [10, 2, 0];
+const TOWER_JITTER: [u32; 3] = [10, 2, 0];
+const TOWER_DRIVE: [u32; 3] = [3, 6, DUTY];
+const TOWER_NOISE: [i32; 3] = [int(6), int(3), 0];
 /// Mape's Tower's arms on the climbs, easiest level first: round tower 2
 /// (`TOWER_SPIRAL_DRIVE`) and up the hollow and over the rim
 /// (`TOWER_INSIDE_DRIVE`). A climb is won by pumping: with the bridges'
 /// weak arms the Sloth and the Monkey whirled on one beam for 20-80 s
 /// there and ran out of time (TC2-17).
-const TOWER_SPIRAL_DRIVE: [u32; 4] = [6, 6, 0, 0];
-const TOWER_INSIDE_DRIVE: [u32; 4] = [DUTY, DUTY, DUTY, DUTY];
+const TOWER_SPIRAL_DRIVE: [u32; 3] = [6, 0, 0];
+const TOWER_INSIDE_DRIVE: [u32; 3] = [DUTY, DUTY, DUTY];
 
 /// The arms a level swings with at least on Mape's Tower where `a` is
 /// (none off the climbs; see `TOWER_INSIDE_DRIVE`).
@@ -394,10 +378,10 @@ const TOWER_BEHIND: i32 = int(40);
 /// temple face was solid (1.11.1) the Sloth came within 1 s of the Monkey
 /// and the Ape within 6 s of King Kong: the Sloth's arms are now 1 of 8 and
 /// the Ape's 4, with a 6-tick reaction (RT11).
-const RUINS_HESITATE: [u32; 4] = [12, 16, 6, 0];
-const RUINS_JITTER: [u32; 4] = [6, 5, 5, 0];
-const RUINS_DRIVE: [u32; 4] = [1, 3, 4, DUTY];
-const RUINS_NOISE: [i32; 4] = [int(8), int(4), int(3), 0];
+const RUINS_HESITATE: [u32; 3] = [12, 6, 0];
+const RUINS_JITTER: [u32; 3] = [6, 5, 0];
+const RUINS_DRIVE: [u32; 3] = [1, 4, DUTY];
+const RUINS_NOISE: [i32; 3] = [int(8), int(3), 0];
 /// Banana Bay Battle's handicaps, easiest level first (see
 /// [`Difficulty::tuning_on`]). With the Jungle's, the Sloth was no slower
 /// than the Monkey (72.7 vs 67.1 s over 16 layouts, some Sloth runs 56 s):
@@ -412,10 +396,10 @@ const RUINS_NOISE: [i32; 4] = [int(8), int(4), int(3), 0];
 /// ropes (BT5) the Sloth came within 5.4 s of the Monkey: its arms went
 /// back to 2 of 8 from the fleet overhaul's 3 (BO7; it now gets off every
 /// deck with 2). The Ape reacts in 5 ticks here (BO7).
-const BAY_HESITATE: [u32; 4] = [18, 18, 5, 0];
-const BAY_JITTER: [u32; 4] = [14, 14, 4, 0];
-const BAY_DRIVE: [u32; 4] = [2, 3, 4, DUTY];
-const BAY_NOISE: [i32; 4] = [int(6), int(5), int(2), 0];
+const BAY_HESITATE: [u32; 3] = [18, 5, 0];
+const BAY_JITTER: [u32; 3] = [14, 4, 0];
+const BAY_DRIVE: [u32; 3] = [2, 4, DUTY];
+const BAY_NOISE: [i32; 3] = [int(6), int(2), 0];
 /// On Sunset Ruins, how near a low vine over the river must be for a
 /// swimmer to swim for it and catch it, not for the bank (RT10).
 const RUINS_SWIM_TO: i32 = int(16);
@@ -431,9 +415,6 @@ struct On {
     tower: bool,
 }
 
-/// The City's Monkey (see [`Difficulty::tuning_on`]).
-const CITY_MONKEY_HESITATE: u32 = 12;
-const CITY_MONKEY_NOISE: i32 = int(4);
 /// The City's Ape: stronger arms and a quicker reaction than on the
 /// Jungle, to keep the levels spaced there.
 const CITY_APE_HESITATE: u32 = 2;
@@ -473,10 +454,10 @@ struct Tuning {
 const SECTOR_LOOK: i32 = int(130);
 const SECTOR_CANDS: usize = 16;
 const SECTOR_FLIGHT: u32 = 4 * TICKS_PER_SECOND as u32;
-const SECTOR_HESITATE: [u32; 4] = [4, 2, 0, 0];
-const SECTOR_DRIVE: [u32; 4] = [3, 3, 6, DUTY];
-const SECTOR_NOISE: [i32; 4] = [cm(1700), cm(600), int(3), 0];
-const SECTOR_HOP: [i32; 4] = [int(22), int(28), int(28), int(28)];
+const SECTOR_HESITATE: [u32; 3] = [4, 0, 0];
+const SECTOR_DRIVE: [u32; 3] = [3, 6, DUTY];
+const SECTOR_NOISE: [i32; 3] = [cm(1700), int(3), 0];
+const SECTOR_HOP: [i32; 3] = [int(22), int(28), int(28)];
 const SECTOR_AIM: i32 = int(30);
 /// Each reset onto a deck makes it misjudge up to this much more (four at
 /// most).
@@ -500,7 +481,7 @@ fn give_up(course: &Course) -> u32 {
         None => GIVE_UP,
     }
 }
-const SECTOR_HIDDEN: [bool; 4] = [false, false, false, true];
+const SECTOR_HIDDEN: [bool; 3] = [false, false, true];
 
 /// The drive pattern's length, ticks.
 const DUTY: u32 = 8;
@@ -2151,7 +2132,7 @@ mod tests {
     use super::*;
 
     /// Mape's Tower's climbs (TC2-17): inside tower 1's hollow every level
-    /// swings with full arms, round tower 2 the Sloth and the Monkey with
+    /// swings with full arms, round tower 2 the Sloth with
     /// stronger arms than on the bridges, and on the start row nothing is
     /// added to a level's own arms.
     #[test]
@@ -2179,20 +2160,19 @@ mod tests {
                 "{level:?} at the start"
             );
         }
-        for level in [Difficulty::Sloth, Difficulty::Monkey] {
-            let own = level.tuning_on(On {
-                city: false,
-                ski: false,
-                sector: false,
-                ruins: false,
-                bay: false,
-                tower: true,
-            });
-            assert!(
-                tower_climb_drive(t, &spiral, &c, level) > own.drive,
-                "{level:?} round tower 2"
-            );
-        }
+        let level = Difficulty::Sloth;
+        let own = level.tuning_on(On {
+            city: false,
+            ski: false,
+            sector: false,
+            ruins: false,
+            bay: false,
+            tower: true,
+        });
+        assert!(
+            tower_climb_drive(t, &spiral, &c, level) > own.drive,
+            "{level:?} round tower 2"
+        );
     }
 
     /// Mape's Tower, at the shaft's top: a beam hanging higher than the one

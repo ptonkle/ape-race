@@ -9,6 +9,14 @@ use tool_core::map::Map;
 use tool_core::race::{Driver, Entry, Race};
 use tool_core::rules::{Kind, TICKS_PER_SECOND};
 
+/// The AI levels of a race's four seats.
+const SEATS: [Difficulty; 4] = [
+    Difficulty::Sloth,
+    Difficulty::Sloth,
+    Difficulty::Ape,
+    Difficulty::KingKong,
+];
+
 /// Where each finisher is 10 s after its finish, in races of four AIs.
 fn finishers(seed: u64) -> Vec<(usize, Kind, i32, i32)> {
     let kinds = [
@@ -26,7 +34,8 @@ fn finishers(seed: u64) -> Vec<(usize, Kind, i32, i32)> {
         })
         .collect();
     let mut race = Race::new(Map::Sector.course(), &entries, seed.is_multiple_of(3), seed);
-    let mut brains: Vec<Brain> = Difficulty::ALL
+    // four seats, three levels: the Monkey's seat (removed, DM-4) is a Sloth's
+    let mut brains: Vec<Brain> = SEATS
         .iter()
         .enumerate()
         .map(|(i, &d)| Brain::new(d, 0xF1E5 + seed * 11 + i as u64))

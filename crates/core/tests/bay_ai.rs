@@ -1,6 +1,6 @@
 //! The AI on Banana Bay Battle (2026-10-15): every difficulty finishes it,
 //! from the water and the decks back onto the line, no ape ever passes
-//! through a set sail, and the difficulties stay ordered and spaced, as on
+//! through a set sail, and King Kong beats the Sloth on average, as on
 //! the Jungle (`tests/ai.rs`; SECOND-ORDER BT rows).
 
 use tool_core::ai::{think, time_trial, trial_at, Brain, Difficulty, Trial};
@@ -28,15 +28,12 @@ fn secs(ticks: u32) -> f64 {
     ticks as f64 / TICKS_PER_SECOND as f64
 }
 
-/// As `difficulties_are_ordered_and_spaced` on the Jungle: over sixteen
-/// layouts of Banana Bay Battle (one Chimpanzee, Equal Stats), each easier
-/// level's mean finish is at least `GAP` slower than the next harder's,
-/// and every race at every level finishes inside the limit (150 s).
-/// Sixteen, not eight: one layout's whirl on a rope can move a level's
-/// mean by 3 s (BT1).
+/// The AI is there to show the map can be finished (SECOND-ORDER DM-3):
+/// over eight layouts (one Chimpanzee, Equal Stats) every race at every
+/// level finishes inside the limit (150 s), and King Kong's mean finish
+/// is faster than the Sloth's. No spacing between the levels is asked.
 #[test]
-fn bay_difficulties_are_ordered_and_spaced() {
-    const GAP: f64 = 6.0;
+fn bay_every_level_finishes_and_king_kong_beats_the_sloth() {
     let runs: Vec<_> = Difficulty::ALL
         .into_iter()
         .map(|level| {
@@ -64,16 +61,11 @@ fn bay_difficulties_are_ordered_and_spaced() {
         println!("{:<10} {row:.1?} mean {mean:.1} s", level.key());
         means.push(mean);
     }
-    for (i, w) in means.windows(2).enumerate() {
-        assert!(
-            w[0] >= w[1] + GAP,
-            "{} ({:.1} s) is not {GAP} s slower than {} ({:.1} s)",
-            Difficulty::ALL[i].key(),
-            w[0],
-            Difficulty::ALL[i + 1].key(),
-            w[1]
-        );
-    }
+    let (sloth, king_kong) = (means[0], means[means.len() - 1]);
+    assert!(
+        king_kong < sloth,
+        "king_kong ({king_kong:.1} s) is not faster than sloth ({sloth:.1} s) on average"
+    );
 }
 
 /// Banana Bay Battle's medal report: King Kong alone as a Time Trial runs,
@@ -169,11 +161,17 @@ fn four_ai_apes_race_the_bay_and_none_passes_through_a_set_sail() {
         })
         .collect();
     let mut race = Race::new(bay(), &entries, false, 7);
-    let mut brains: Vec<Brain> = Difficulty::ALL
-        .iter()
-        .enumerate()
-        .map(|(i, &d)| Brain::new(d, 0xA9E5 + i as u64))
-        .collect();
+    // four seats, three levels (the Monkey's seat, removed in DM-4, a Sloth's)
+    let mut brains: Vec<Brain> = [
+        Difficulty::Sloth,
+        Difficulty::Sloth,
+        Difficulty::Ape,
+        Difficulty::KingKong,
+    ]
+    .iter()
+    .enumerate()
+    .map(|(i, &d)| Brain::new(d, 0xA9E5 + i as u64))
+    .collect();
     let b = race.course.bay.as_deref().unwrap().clone();
     let mut resets = 0;
     while race.clock < LIMIT && race.phase != Phase::Done {

@@ -1,5 +1,5 @@
-//! The AI on the City (2026-10-12): every difficulty finishes it, and the
-//! difficulties stay ordered and spaced, as on the Jungle (`tests/ai.rs`).
+//! The AI on the City (2026-10-12): every difficulty finishes it, and King
+//! Kong beats the Sloth on average, as on the Jungle (`tests/ai.rs`).
 
 use tool_core::ai::{think, time_trial, trial_at, Brain, Difficulty, Trial};
 use tool_core::city::{city, city_seeded};
@@ -30,13 +30,12 @@ fn layouts() -> Vec<Course> {
         .collect()
 }
 
-/// As `difficulties_are_ordered_and_spaced` on the Jungle: over eight
-/// layouts of the City (one Chimpanzee, Equal Stats), each easier level's
-/// mean finish is at least `GAP` slower than the next harder's, and every
-/// race at every level finishes inside the limit (150 s).
+/// The AI is there to show the map can be finished (SECOND-ORDER DM-3):
+/// over eight layouts (one Chimpanzee, Equal Stats) every race at every
+/// level finishes inside the limit (150 s), and King Kong's mean finish
+/// is faster than the Sloth's. No spacing between the levels is asked.
 #[test]
-fn city_difficulties_are_ordered_and_spaced() {
-    const GAP: f64 = 6.0;
+fn city_every_level_finishes_and_king_kong_beats_the_sloth() {
     let runs: Vec<_> = Difficulty::ALL
         .into_iter()
         .map(|level| {
@@ -66,16 +65,11 @@ fn city_difficulties_are_ordered_and_spaced() {
         println!("{:<10} {row:.1?} mean {mean:.1} s", level.key());
         means.push(mean);
     }
-    for (i, w) in means.windows(2).enumerate() {
-        assert!(
-            w[0] >= w[1] + GAP,
-            "{} ({:.1} s) is not {GAP} s slower than {} ({:.1} s)",
-            Difficulty::ALL[i].key(),
-            w[0],
-            Difficulty::ALL[i + 1].key(),
-            w[1]
-        );
-    }
+    let (sloth, king_kong) = (means[0], means[means.len() - 1]);
+    assert!(
+        king_kong < sloth,
+        "king_kong ({king_kong:.1} s) is not faster than sloth ({sloth:.1} s) on average"
+    );
 }
 
 /// Every kind of ape, at the easiest and the best level, finishes the City
@@ -109,7 +103,7 @@ fn four_ai_apes_with_items_finish_the_city() {
     let kinds = [Kind::Gibbon, Kind::Gorilla, Kind::Lemur, Kind::Orangutan];
     let levels = [
         Difficulty::Sloth,
-        Difficulty::Monkey,
+        Difficulty::Sloth,
         Difficulty::Ape,
         Difficulty::KingKong,
     ];
@@ -143,11 +137,18 @@ fn a_city_ai_overdue_on_a_vine_gives_up_with_releases_queued() {
         .collect();
     let mut race = Race::new(city(), &entries, false, 7);
     race.items = ItemSet::ALL;
-    let mut brains: Vec<Brain> = Difficulty::ALL
-        .iter()
-        .enumerate()
-        .map(|(i, &d)| Brain::new(d, 0xA9E5 + i as u64))
-        .collect();
+    // four seats, three levels: with the Monkey removed (DM-5) this order
+    // still overdues the Sloth (3 give-ups; none with the T90 fix undone)
+    let mut brains: Vec<Brain> = [
+        Difficulty::Sloth,
+        Difficulty::Ape,
+        Difficulty::KingKong,
+        Difficulty::Sloth,
+    ]
+    .iter()
+    .enumerate()
+    .map(|(i, &d)| Brain::new(d, 0xA9E5 + i as u64))
+    .collect();
     let (mut held, mut since, mut longest) = (None, 0, 0);
     while race.clock < LIMIT && race.phase != Phase::Done {
         let c: Vec<_> = (0..4).map(|i| think(&race, i, &mut brains[i])).collect();

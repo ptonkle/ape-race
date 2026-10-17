@@ -14,6 +14,14 @@ use tool_core::race::{Driver, Entry, Phase, Race};
 use tool_core::replay::fingerprint;
 use tool_core::rules::{Kind, TICKS_PER_SECOND};
 
+/// The AI levels of a race's four seats.
+const SEATS: [Difficulty; 4] = [
+    Difficulty::Sloth,
+    Difficulty::Sloth,
+    Difficulty::Ape,
+    Difficulty::KingKong,
+];
+
 fn mix(h: &mut u64, v: i64) {
     *h ^= v as u64;
     *h = h.wrapping_mul(0x0000_0100_0000_01B3);
@@ -33,7 +41,8 @@ fn race_hash(seed: u64, lava: bool) -> u64 {
         .collect();
     let mut race = Race::new(Map::Sector.course(), &entries, false, seed);
     race.lava = lava;
-    let mut brains: Vec<Brain> = Difficulty::ALL
+    // four seats, three levels: the Monkey's seat (removed, DM-4) is a Sloth's
+    let mut brains: Vec<Brain> = SEATS
         .iter()
         .enumerate()
         .map(|(i, &d)| Brain::new(d, 0xA9E5 + seed * 7 + i as u64))
@@ -86,12 +95,14 @@ const LAYOUT: u32 = 2_063_114_272;
 /// (seeds 1, 2, 3 and 6 retaken 2026-10-16 for TRIAGE T90: a caught Hook
 /// tows its user and no longer pulls the hooked ape back, a deliberate
 /// item change)
+/// (all retaken 2026-10-17 for 1.14.4: the Monkey level was removed, so the
+/// race's second seat is a Sloth, SECOND-ORDER DM-4)
 const SEEDS: [u64; 6] = [
-    13_312_039_068_957_592_439,
-    16_276_669_354_203_758_541,
-    8_025_049_562_526_048_327,
-    5_943_055_988_806_801_884,
-    12_567_516_417_570_027_149,
-    8_026_403_963_651_469_750,
+    1_852_813_321_290_551_993,
+    13_750_823_436_147_438_851,
+    8_537_279_962_408_538_083,
+    9_335_109_251_823_115_830,
+    1_822_746_278_256_832_855,
+    9_917_851_283_649_035_894,
 ];
-const LAVA: [u64; 2] = [8_983_391_733_978_846_429, 3_757_321_401_680_909_238];
+const LAVA: [u64; 2] = [1_042_971_815_671_394_990, 15_235_268_330_251_624_765];
