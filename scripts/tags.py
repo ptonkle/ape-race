@@ -123,15 +123,30 @@ def test_tags(cfg, tid):
     return None if best is None else set(best[1])
 
 
+# a map's scenery tests stay behind their map: `scenery` hits only the maps
+# a change reaches, so a city scenery change runs no bay scenery test
+DRAWN = {"models", "gear", "sky"}
+
+
+def implied(cfg, hit):
+    """The hit tags with what [implies] adds (render hits models, gear...)."""
+    out = set(hit)
+    for t in hit:
+        out |= set(cfg.get("implies", {}).get(t, []))
+    return out
+
+
 def wanted(tags, hit):
     """A test runs when its tags meet the hit ones. A map's test (one with a
     maps-* tag) also needs one of its maps hit: a race-flow or menu change
     doesn't run every map's AI races (the person, 2026-10-17). Physics and
-    AI changes reach every map, so they hit them all."""
+    AI changes reach every map, so they hit them all. A drawn thing's test
+    (an outfit, a map's look) runs on its drawn tag alone: a gear change
+    runs the Ski Slope's gear test without a Ski Slope change."""
     if ALL in hit:
         return True
     maps = {t for t in tags if t.startswith("maps-")}
-    if maps:
+    if maps and not tags & hit & DRAWN:
         reach = {t for t in hit if t.startswith("maps-")}
         if not maps & reach and not hit & {"physics", "ai"}:
             return False
@@ -172,6 +187,8 @@ def guard():
         for k, tags in cfg[section].items():
             check_names(f"[{section}] {k}", tags)
     check_names("[always]", cfg["always"]["tags"])
+    for k, tags in cfg.get("implies", {}).items():
+        check_names(f"[implies] {k}", [k, *tags])
     for path, rule in cfg.get("lines", {}).items():
         check_names(f"[lines] {path}", rule["tags"])
         for pat in rule["patterns"]:
@@ -540,7 +557,7 @@ def plan(cfg, files, base=None, rng=None, ids=None):
         hit |= tags
         picks |= p
         bsteps |= b
-    return rows, hit, picks, bsteps
+    return rows, implied(cfg, hit), picks, bsteps
 
 
 def quick(args):
