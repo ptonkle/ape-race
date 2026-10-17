@@ -9,12 +9,12 @@ The standard map-build steps (MAPS.md "Build steps"), one row each. Status is on
 | 3 | Ape costumes | Done (v1) | Unchanged: wizard and witch mixes |
 | 4 | Models | Done (unseen in the browser) | `towermodels/towers.rs`, `tube.rs`, `portal.rs` (TM2 rows); gallery keys `towers`, `tower1`, `tower2`, `longbridge`, `portal`, `tube`, `voidpads`, `tunnelmouth`; the art agent shoots them first |
 | 5 | Sky and lighting | Done (v1) | Unchanged: Clear, Twilight, Dawn; the void past the portal |
-| 6 | Course layout | In progress (course agent, branch `tower2-course`) | the real vines, pads and lanes on the contract |
+| 6 | Course layout | In progress (course agent, branch `tower2-course`) | the portal's lane beams longer, lower and lifting (TC2-1); every level finishes layout 0 (Sloth 133.3, Monkey 139.9, Ape 125.8, King Kong 90.1 s) but the portal hand-over is a lottery: not in order, and the Sloth fails on other layouts |
 | 7 | Map rules | In progress | Tube air (terminal 38 m/s, 3× control), pads, walls, resets per leg in `tower/rules.rs`, `stone.rs`; the sling untested until an AI finishes |
 | 8 | Art placed on the course | In progress (agent, branch `tower2-art`) | committed 19:33: all v2 models placed from the contract (TA2-1..); shots not taken yet |
 | 9 | Lobby spot and flyover | In progress (same agent) | lobby on the lower deck looking at tower 2; the flyover a closed lap over tower 1's top; tests not yet reported |
-| 10 | AI validation | In progress (course agent, branch `tower2-course`) | Three of four levels finish in order; the Sloth 10 s short; the inside climb and the portal hand-over are the slow, fragile legs (TW2-12) |
-| 11 | Medal times | Not started | |
+| 10 | AI validation | In progress | All four finish layout 0, out of order; `tower_difficulties_are_ordered_and_spaced` and `every_level_flies_through_the_tear` fail over 16 layouts (TC2-1: the hand-over needs a rule, not a dice roll) |
+| 11 | Medal times | Done (provisional) | Gibbon 95.6 s best; Author 94.5, Gold 101.5, Silver 111.5, Bronze 126.5 (TC2-4); re-measure after TC2-1 |
 | 12 | Step and frame cost | Not started | |
 | 13 | Colourblind and JOJO MODE | Not started | |
 | 14 | Map card | Not started | New card from the new flyover |

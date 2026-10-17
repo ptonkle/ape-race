@@ -1566,12 +1566,11 @@ pub fn dynamic(f: &Frame) -> (Batch, Batch) {
     } else {
         int(230)
     };
-    // Mape's Tower: the climb and the zipper share their space; the eye
-    // sees the beams of the half it is in (by the course, not the plane)
-    let deep = c
-        .tower
-        .as_ref()
-        .map(|_| c.nearest_anywhere(eye) > c.path.len() / 2);
+    // Mape's Tower: past the tear only the sling row is drawn, and on
+    // the towers' side everything but it (the second design: the tube
+    // stands apart from the towers, so the halves are told by the plane,
+    // not the course's middle, TC2-2)
+    let deep = c.tower.as_ref().map(|t| t.in_void(eye));
     for i in 0..c.vines.len() {
         let a = c.anchor(i, tick);
         if a.flat().sub(eye.flat()).len() > near {
