@@ -35,7 +35,6 @@ import json
 import os
 import pathlib
 import sys
-import time
 
 from playwright.sync_api import sync_playwright
 
@@ -103,7 +102,7 @@ class Tab:
 
 
 def run_engine(p, engine, origin):
-    print(f"\n[{engine}] {origin}/index.html?codes&ice=none")
+    transport.report.note(f"\n[{engine}] {origin}/index.html?codes&ice=none")
     seen = {"foreign": [], "console": [], "errors": [], "sockets": []}
     browser = getattr(p, engine).launch()
     paste = transport.loopback if engine in transport.LOOPBACK_ONLY else (lambda c: c)
@@ -298,13 +297,16 @@ def main():
     host, port = server.server_address[:2]
     origin = f"http://{host}:{port}"
     with sync_playwright() as p:
-        for i, engine in enumerate(transport.ENGINES, 1):
-            began, before = time.monotonic(), len(transport.failures)
-            tag = f"[{engine} {i}/{len(transport.ENGINES)}]"
-            print(f"\n   {tag} start …", flush=True)
-            run_engine(p, engine, origin)
-            bad = len(transport.failures) - before
-            print(f"   {tag} done: {'PASS' if not bad else f'FAIL ({bad} failed)'} ({time.monotonic() - began:.0f} s)", flush=True)
+        transport.report = transport.progress.Report(transport.ENGINES, ["race"])
+        try:
+            for i, engine in enumerate(transport.ENGINES, 1):
+                transport.report.engine_start(i, engine)
+                transport.report.step_start(1, "race between two tabs")
+                run_engine(p, engine, origin)
+                transport.report.step_end()
+                transport.report.engine_end()
+        finally:
+            transport.report.close()
     server.shutdown()
     if transport.failures:
         print(f"\nONLINE RACE CHECK FAILED: {len(transport.failures)} problem(s)")

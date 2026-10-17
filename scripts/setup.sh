@@ -6,5 +6,6 @@ cd "$(dirname "$0")/.."
 python3 -m venv .venv
 .venv/bin/pip install --quiet --upgrade pip
 .venv/bin/pip install --quiet "playwright==1.63.0"
+.venv/bin/pip install --quiet "rich==14.1.0"  # the browser checks' progress bars (optional)
 .venv/bin/python -m playwright install ${PLAYWRIGHT_WITH_DEPS:+--with-deps} chromium firefox webkit
 echo "Browser check ready: .venv/bin/python tests/browser/check.py"

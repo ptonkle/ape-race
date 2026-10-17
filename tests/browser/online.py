@@ -33,9 +33,11 @@ import os
 import pathlib
 import re
 import sys
-import time
 import threading
 import zlib
+
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+import progress  # noqa: E402  (tests/browser/progress.py)
 
 from playwright.sync_api import sync_playwright
 
@@ -56,8 +58,11 @@ LOOPBACK_ONLY = {"webkit"}
 failures = []
 
 
+report = None  # tests/browser/progress.py: the bars or the plain lines
+
+
 def check(ok, what):
-    print(("  PASS " if ok else "  FAIL ") + what)
+    report.check(ok, what)
     if not ok:
         failures.append(what)
 
@@ -177,7 +182,7 @@ def loopback(code):
 
 
 def run_engine(p, engine, origin):
-    print(f"\n[{engine}] {origin}/nettest.html?ice=none")
+    report.note(f"\n[{engine}] {origin}/nettest.html?ice=none")
     seen = {"foreign": [], "console": [], "errors": [], "sockets": []}
     browser = getattr(p, engine).launch()
     # Each tab is its own browser context: three separate "browsers".
@@ -187,7 +192,7 @@ def run_engine(p, engine, origin):
     c = tabs[2] if len(tabs) > 2 else None
     paste = loopback if engine in LOOPBACK_ONLY else (lambda code: code)
     if engine in LOOPBACK_ONLY:
-        print("  NOTE two tabs only, mDNS candidates pasted as 127.0.0.1 (see LOOPBACK_ONLY)")
+        report.note("  NOTE two tabs only, mDNS candidates pasted as 127.0.0.1 (see LOOPBACK_ONLY)")
 
     def finish():
         csp = [x for t in tabs if not t.page.is_closed() for x in t.csp()]
@@ -287,19 +292,23 @@ def run_engine(p, engine, origin):
 
 
 def main():
+    global report
     if not (DIST / "nettest.html").exists():
         sys.exit("dist/nettest.html is missing: run scripts/build.sh first")
     server = serve()
     host, port = server.server_address[:2]
     origin = f"http://{host}:{port}"
     with sync_playwright() as p:
-        for i, engine in enumerate(ENGINES, 1):
-            began, before = time.monotonic(), len(failures)
-            tag = f"[{engine} {i}/{len(ENGINES)}]"
-            print(f"\n   {tag} start …", flush=True)
-            run_engine(p, engine, origin)
-            bad = len(failures) - before
-            print(f"   {tag} done: {'PASS' if not bad else f'FAIL ({bad} failed)'} ({time.monotonic() - began:.0f} s)", flush=True)
+        report = progress.Report(ENGINES, ["transport"])
+        try:
+            for i, engine in enumerate(ENGINES, 1):
+                report.engine_start(i, engine)
+                report.step_start(1, "transport between tabs")
+                run_engine(p, engine, origin)
+                report.step_end()
+                report.engine_end()
+        finally:
+            report.close()
     server.shutdown()
     if failures:
         print(f"\nONLINE CHECK FAILED: {len(failures)} problem(s)")

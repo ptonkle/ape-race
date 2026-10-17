@@ -17,6 +17,7 @@ and end with one summary line per stage. The `TIMES`, `QUICK ...`,
     checkrun.py stage <key> <n/m> <label> <mode> -- <cmd...>
     checkrun.py summary                            the closing table
     checkrun.py times                              the `TIMES` line
+    checkrun.py plain [width] < raw > log          a terminal recording as plain lines
 
 `kind` picks the rows of notes/check-times.md the estimates come from; `key`
 is the stage's name in the `TIMES` line. Modes:
@@ -27,12 +28,16 @@ is the stage's name in the `TIMES` line. Modes:
     wasm    scripts/wasm_imports.py: one line on a pass, all of it on a flag
 
 The run's state (start time, finished stages) is in the file $CHECK_STATE.
-Colour only when the output is a terminal or CHECK_COLOR=1.
+Watched in a terminal (stdout a TTY, CHECK_PLAIN unset): colour, the cargo
+tests as cargo-nextest's progress bar (when installed; CHECK_NEXTEST=0 to
+skip it) and the browser checks' rich bars (tests/browser/progress.py).
+Anywhere else, e.g. logged to a file: the plain lines.
 """
 import json
 import os
 import pathlib
 import re
+import shutil
 import statistics
 import subprocess
 import sys
@@ -43,7 +48,7 @@ LOG = ROOT / "notes" / "check-times.md"
 
 
 def colour(code, text):
-    on = os.environ.get("CHECK_COLOR") == "1" or (sys.stdout.isatty() and os.environ.get("CHECK_COLOR") != "0")
+    on = sys.stdout.isatty() and os.environ.get("CHECK_PLAIN") != "1"
     return f"\033[{code}m{text}\033[0m" if on else text
 
 
@@ -81,8 +86,144 @@ def footer(ok, label, detail, took):
 # ------------------------------------------------------------------ runners
 
 
+def live():
+    """Whether a person watches this in a terminal (bars, progress, colour)."""
+    return sys.stdout.isatty() and os.environ.get("CHECK_PLAIN") != "1"
+
+
+ANSI = re.compile(r"\x1b\[[0-9;?]*[A-Za-z]|\x1b\][^\x07]*\x07|\x1b[()][0-9A-B]")
+
+
+def plain_lines(raw, width=None):
+    """Terminal output as the lines a person saw last: a small terminal that
+    follows the cursor moves, line clears and wrapping of progress bars, then
+    gives each line (wrapped rows joined again) without colour."""
+    width = width or int(os.environ.get("COLUMNS", "0") or 0) or 200
+    rows, wrapped = [[]], [False]  # each row's characters; whether it wrapped on from the row above
+    r = c = 0
+    i, n = 0, len(raw)
+
+    def row(k):
+        while len(rows) <= k:
+            rows.append([])
+            wrapped.append(False)
+        return rows[k]
+
+    while i < n:
+        ch = raw[i]
+        if ch == "\x1b":
+            m = re.compile(r"\x1b\[([0-9;?]*)([A-Za-z])").match(raw, i)
+            if m:
+                arg, op = m.group(1), m.group(2)
+                k = int(arg.split(";")[0]) if arg[:1].isdigit() else None
+                if op == "A":
+                    r = max(0, r - (k or 1))
+                elif op == "B":
+                    r += k or 1
+                elif op == "G":
+                    c = (k or 1) - 1
+                elif op == "K":
+                    line = row(r)
+                    if k == 2:
+                        line.clear()
+                        wrapped[r] = False
+                    elif not k:
+                        del line[c:]
+                elif op == "J" and k in (None, 0):
+                    del row(r)[c:]
+                    del rows[r + 1:], wrapped[r + 1:]
+                i = m.end()
+                continue
+            m = re.compile(r"\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)|\x1b[()][0-9A-B]|\x1b[=>78]").match(raw, i)
+            i = m.end() if m else i + 1
+            continue
+        if ch == "\r":
+            c = 0
+        elif ch == "\n":  # as a terminal with onlcr: a new line starts at its left
+            r, c = r + 1, 0
+            row(r)
+            wrapped[r] = False
+        elif ch == "\b":
+            c = max(0, c - 1)
+        elif ch >= " ":
+            if c >= width:
+                r, c = r + 1, 0
+                row(r)
+                wrapped[r] = True
+            line = row(r)
+            line.extend(" " * (c - len(line)))
+            if c < len(line):
+                line[c] = ch
+            else:
+                line.append(ch)
+            c += 1
+        i += 1
+    out = []
+    for line, cont in zip(rows, wrapped):
+        text = "".join(line)
+        if cont and out and out[-1][-1:] not in ("", " "):  # a long line, not a padded bar row
+            out[-1] += text
+        else:
+            out.append(text)
+    return [l.rstrip() for l in out]
+
+
+def run_tty(cmd, env):
+    """Runs `cmd` on a terminal of its own (so it draws its bars), copying
+    what it draws to ours; returns (exit code, what it printed)."""
+    import fcntl
+    import pty
+    import termios
+
+    master, slave = pty.openpty()
+    try:
+        fcntl.ioctl(slave, termios.TIOCSWINSZ, fcntl.ioctl(sys.stdout.fileno(), termios.TIOCGWINSZ, b"\0" * 8))
+    except OSError:
+        pass
+    p = subprocess.Popen(cmd, cwd=ROOT, env=env, stdin=subprocess.DEVNULL, stdout=slave, stderr=slave)
+    os.close(slave)
+    seen = []
+    out = sys.stdout.buffer
+    while True:
+        try:
+            chunk = os.read(master, 65536)
+        except OSError:
+            break
+        if not chunk:
+            break
+        seen.append(chunk)
+        out.write(chunk)
+        out.flush()
+    os.close(master)
+    return p.wait(), b"".join(seen).decode("utf-8", "replace")
+
+
+def detail_file(env):
+    """A file the browser scripts write their counts to (tests/browser/progress.py)."""
+    import tempfile
+
+    fd, path = tempfile.mkstemp(prefix="check-detail-")
+    os.close(fd)
+    env["CHECK_DETAIL"] = path
+    return path
+
+
+def read_detail(path):
+    try:
+        return pathlib.Path(path).read_text().strip()
+    finally:
+        pathlib.Path(path).unlink(missing_ok=True)
+
+
 def run_plain(cmd, env):
-    """Passes output through; the detail is the command's own last verdict line."""
+    """Passes output through (on a terminal of its own when watched, so the
+    browser checks draw their bars); the detail is their counts."""
+    path = detail_file(env)
+    if live():
+        code, raw = run_tty(cmd, env)
+        verdict = next((l.strip() for l in reversed(plain_lines(raw)) if re.search(r"CHECK (PASSED|FAILED)", l)), "")
+        detail = read_detail(path)
+        return code, detail or verdict or ("" if not code else f"exit {code}")
     p = subprocess.Popen(cmd, cwd=ROOT, env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1)
     verdict, passes, fails = "", 0, 0
     for line in p.stdout:
@@ -93,8 +234,8 @@ def run_plain(cmd, env):
         passes += line.startswith("  PASS ")
         fails += line.startswith("  FAIL ")
     code = p.wait()
-    detail = f"{passes} checks passed, {fails} failed" if passes or fails else ""
-    if code and not fails and verdict:
+    detail = read_detail(path) or (f"{passes} checks passed, {fails} failed" if passes or fails else "")
+    if code and not fails and verdict and not detail:
         detail = verdict
     return code, detail
 
@@ -136,10 +277,54 @@ def binary_name(line):
     return pathlib.Path(src).stem
 
 
+def nextest_cmd(cmd):
+    """`cargo test <targets> [-- --exact names]` as the same run in cargo-nextest."""
+    args = [c for c in cmd[2:] if c != "--quiet"]
+    names = []
+    if "--" in args:
+        names = [a for a in args[args.index("--") + 1:] if a != "--exact"]
+        args = args[: args.index("--")]
+    out = ["cargo", "nextest", "run", *args, "--show-progress", "bar", "--status-level", "slow",
+           "--final-status-level", "slow", "--no-input-handler", "--cargo-quiet"]
+    if names:
+        out += ["-E", " | ".join(f"test(={n})" for n in names)]
+    return out
+
+
+def run_nextest(cmd, env):
+    """cargo-nextest with its progress bar; failures print in full."""
+    code, raw = run_tty(nextest_cmd(cmd), env)
+    text = "\n".join(plain_lines(raw))
+    failing = list(dict.fromkeys(f"{a}: {b}" for a, b in NEXTEST_FAIL.findall(text)))
+    runs = re.findall(r"Summary \[\s*[\d.]+s\] (\d+) tests? run: (\d+) passed(?:, (\d+) failed)?(?:.*?(\d+) skipped)?", text)
+    detail = f"{runs[-1][1]} passed, {runs[-1][2] or 0} failed" + (f", {runs[-1][3]} skipped" if runs[-1][3] else "") if runs else ""
+    if code == 0 and "--doc" not in cmd and not ("--lib" in cmd or "--tests" in cmd):
+        # nextest does not run doctests; cargo test does (the workspace has none today)
+        doc = subprocess.run(["cargo", "test", "--workspace", "--doc", "--quiet"], cwd=ROOT, env=env,
+                             stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+        n = sum(int(x) for x in re.findall(r"test result: \w+\. (\d+) passed", doc.stdout))
+        if doc.returncode:
+            sys.stdout.write(doc.stdout)
+            return doc.returncode, f"{detail}; doctests failed"
+        detail += f", {n} doctests"
+    if failing:
+        detail += " — " + "; ".join(failing)
+    elif code and not detail:
+        detail = f"did not build or stopped (exit {code})"
+    return code, detail
+
+
+# a failing test in nextest's output: `FAIL [   0.004s] (1/21) tool_core patch_notes::tests::x`
+NEXTEST_FAIL = re.compile(r"(?m)^\s*(?:FAIL|SIGSEGV|SIGABRT|SIGKILL|TIMEOUT|ABORT|LEAK-FAIL)\s+\[\s*[\d.]+s\]\s+(?:\(\s*\d+/\d+\)\s+)?(\S+)\s+(\S+)")
+
+
 def run_cargo(cmd, env):
-    """cargo test without --quiet, folded to one line per test binary."""
+    """cargo test: in a watched terminal cargo-nextest's progress bar when it
+    is installed; otherwise (a log) one line per test binary."""
+    if live() and shutil.which("cargo-nextest") and os.environ.get("CHECK_NEXTEST") != "0":
+        return run_nextest(cmd, env)
     cmd = [c for c in cmd if c != "--quiet"]
-    live = os.environ.get("CHECK_COLOR") == "1" or sys.stdout.isatty()
+    live_ = live()
     p = subprocess.Popen(cmd, cwd=ROOT, env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1)
     name, buf, done, planned = None, [], 0, 0
     total = {"passed": 0, "failed": 0, "ignored": 0}
@@ -160,12 +345,12 @@ def run_cargo(cmd, env):
             continue
         if re.match(r"test .* \.\.\. ok$", s) or re.match(r"test .* \.\.\. ignored", s):
             done += 1
-            if live and planned > 20 and time.time() - last_tick > 0.5:
+            if live_ and planned > 20 and time.time() - last_tick > 0.5:
                 last_tick = time.time()
                 print(f"\r\033[K   {name:<18} {done}/{planned}", end="", flush=True)
             continue
         if "has been running for over" in s:
-            print(("\r\033[K" if live else "") + "   " + s, flush=True)
+            print(("\r\033[K" if live_ else "") + "   " + s, flush=True)
             continue
         m = re.match(r"test result: (\w+)\. (\d+) passed; (\d+) failed; (\d+) ignored.*finished in ([0-9.]+)s", s)
         if m:
@@ -173,19 +358,19 @@ def run_cargo(cmd, env):
             total["passed"] += n_pass
             total["failed"] += n_fail
             total["ignored"] += n_ign
-            if live:
+            if live_:
                 print("\r\033[K", end="")
-            if not ok:
-                for b in buf:
-                    print(b)
-                print(s)
-                failing += [f"{name}: {x}" for x in re.findall(r"^test (\S+) \.\.\. FAILED", "\n".join(buf), re.M)]
             if n_pass + n_fail == 0:
                 idle += 1
             else:
                 fail = colour("31", f"  {n_fail} FAILED") if n_fail else ""
                 ign = f"  ({n_ign} ignored)" if n_ign else ""
                 print(f"   {name:<18} {n_pass:>4} passed{fail}  {t:5.1f} s{ign}", flush=True)
+            if not ok:  # the binary's own failure report, in full
+                for b in buf:
+                    print(b)
+                print(s, flush=True)
+                failing += [f"{name}: {x}" for x in re.findall(r"^test (\S+) \.\.\. FAILED", "\n".join(buf), re.M)]
             name = None
             continue
         if s.strip():
@@ -271,6 +456,10 @@ def main(argv):
         key, n, label, mode = argv[1:5]
         cmd = argv[argv.index("--") + 1:]
         return Run("check", state).stage(key, n, label, mode, cmd)
+    if argv[0] == "plain":  # stdin's terminal output as plain lines: `plain [width]`
+        width = int(argv[1]) if len(argv) > 1 else None
+        sys.stdout.write("\n".join(plain_lines(sys.stdin.buffer.read().decode("utf-8", "replace"), width)) + "\n")
+        return 0
     if argv[0] == "times":
         r = Run("check", state)
         print(f"TIMES {r.times()} total={time.time() - r.t0:.1f}")

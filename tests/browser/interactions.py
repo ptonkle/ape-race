@@ -374,35 +374,29 @@ def step_random_map(page, check):
 STEPS = [("boot", step_boot), ("settings", step_settings), ("race", step_race), ("secret", step_secret), ("time_trial", step_time_trial), ("replays_list", step_replays_list), ("whats_new", step_whats_new), ("city_map", step_city_map), ("weather", step_weather), ("setup_layout", step_setup_layout), ("random_map", step_random_map)]
 
 
-def run(page, check, engine, tag=None):
-    """Runs every step, or `boot` and those named in BUILDER_STEPS. Prints a
-    line as each step starts and one with its verdict and seconds as it ends;
-    `tag` (e.g. "[chromium 1/3]") heads those lines."""
+def chosen_steps():
+    """The steps this run takes: all, or `boot` and those in BUILDER_STEPS."""
     wanted = os.environ.get("BUILDER_STEPS")
     chosen = None if wanted is None else set(wanted.split()) | {"boot"}
-    steps = [(n, s) for n, s in STEPS if chosen is None or n in chosen]
-    skipped = [n for n, _ in STEPS if chosen is not None and n not in chosen]
+    return [(n, s) for n, s in STEPS if chosen is None or n in chosen]
+
+
+def run(page, check, engine, report, first=1):
+    """Runs the chosen steps; `report` (tests/browser/progress.py) shows each
+    one start and end. `first` is the first step's number in the engine's
+    count (the check's own load step comes before)."""
+    steps = chosen_steps()
+    skipped = [n for n, _ in STEPS if n not in dict(steps)]
     if skipped:
-        print(f"  (skipping {len(skipped)} steps not picked: {', '.join(skipped)})")
-    tag = tag or f"[{engine}]"
-    for k, (name, step) in enumerate(steps, 1):
-        fails = []
-
-        def counted(ok, what):
-            if not ok:
-                fails.append(what)
-            check(ok, what)
-
-        head = f"   {tag} step {k}/{len(steps)} {name}"
-        print(f"{head} …", flush=True)
-        began = time.monotonic()
-        verdict = "ERROR (exception, below)"
+        report.note(f"  (skipping {len(skipped)} steps not picked: {', '.join(skipped)})")
+    for k, (name, step) in enumerate(steps, first):
+        report.step_start(k, name)
         try:
-            step(page, counted)
-            verdict = f"FAIL ({len(fails)} failed)" if fails else "PASS"
-        finally:
-            took = time.monotonic() - began
-            print(f"{head} {verdict} ({took:.1f} s)" if took < 10 else f"{head} {verdict} ({took:.0f} s)", flush=True)
+            step(page, check)
+        except BaseException:
+            report.step_end(error=True)
+            raise
+        report.step_end()
 
 
 # Whether the menus fit: the column has no scrollbar, no panel scrolls inside,

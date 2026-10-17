@@ -15,8 +15,6 @@
 # the failing tests and browser steps to notes/test-failures.md.
 # Print each browser step as it finishes, not all at the end when logged to a file.
 export PYTHONUNBUFFERED=1
-# Colour for a person watching in a terminal (the stages see a pipe to tee).
-[ -t 1 ] && export CHECK_COLOR=1
 set -uo pipefail
 cd "$(dirname "$0")/.."
 LOG=notes/check-times.md
@@ -41,8 +39,16 @@ for which in ${1:-check online}; do
   load=$(cut -d' ' -f1 /proc/loadavg)
   when=$(date '+%Y-%m-%d %H:%M')
   out=$(mktemp)
-  "$script" "${args[@]}" 2>&1 | tee "$out"
-  code=${PIPESTATUS[0]}
+  if [ -t 1 ] && command -v script >/dev/null; then
+    # watched in a terminal: the check keeps one (its progress bars), and
+    # `script` records it; the recording is read as plain lines below
+    script -q -f -e -c "$(printf '%q ' "$script" "${args[@]}")" "$out.raw"
+    code=$?
+    python3 scripts/checkrun.py plain "$(tput cols 2>/dev/null || echo 200)" < "$out.raw" | grep -v '^Script \(started\|done\) on ' > "$out"; rm -f "$out.raw"
+  else
+    "$script" "${args[@]}" 2>&1 | tee "$out"
+    code=${PIPESTATUS[0]}
+  fi
   times=$(grep '^TIMES' "$out" | tail -n 1 | sed 's/^TIMES //')
   total=$(echo "$times" | grep -o 'total=[0-9.]*' | cut -d= -f2)
   steps=$(echo "$times" | sed 's/ *total=[0-9.]*//')

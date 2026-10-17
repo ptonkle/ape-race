@@ -31,9 +31,11 @@ import os
 import pathlib
 import sys
 import threading
-import time
 
 from playwright.sync_api import sync_playwright
+
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+import progress  # noqa: E402  (tests/browser/progress.py)
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 DIST = ROOT / "dist"
@@ -41,10 +43,11 @@ ENGINES = os.environ.get("BUILDER_ENGINES", "chromium firefox webkit").split()
 IDLE_MS = int(float(os.environ.get("BUILDER_IDLE", "10")) * 1000)
 
 failures = []
+report = None  # tests/browser/progress.py: the bars or the plain lines
 
 
 def check(ok, what):
-    print(("  PASS " if ok else "  FAIL ") + what)
+    report.check(ok, what)
     if not ok:
         failures.append(what)
 
@@ -76,9 +79,9 @@ def load_interactions():
     return module
 
 
-def run_engine(p, engine, base, interactions, tag):
-    print(f"\n[{engine}] {base}/")
-    print(f"   {tag} load and {IDLE_MS // 1000} s idle …", flush=True)
+def run_engine(p, engine, base, interactions):
+    report.note(f"\n[{engine}] {base}/")
+    report.step_start(1, "load", f"load and {IDLE_MS // 1000} s idle")
     scheme_host = base.split("/", 3)
     origin = "/".join(scheme_host[:3])
     seen = {"foreign": [], "console": [], "errors": [], "sockets": [], "popups": [], "workers": []}
@@ -116,8 +119,11 @@ def run_engine(p, engine, base, interactions, tag):
     check(True, "page reported ready")
     page.wait_for_timeout(IDLE_MS)
     check(not seen["foreign"], f"no off-origin request during load and {IDLE_MS // 1000}s idle {seen['foreign']}")
+    report.step_end()
 
-    interactions.run(page, check, engine, tag)
+    interactions.run(page, check, engine, report, first=2)
+
+    report.step_start(len(report.steps), "final checks", "final checks (errors, requests, workers)")
 
     csp = page.evaluate("() => window.__builderCsp || []")
     check(not csp, f"no Content-Security-Policy violation {csp}")
@@ -128,6 +134,7 @@ def run_engine(p, engine, base, interactions, tag):
     check(not seen["sockets"], f"no WebSocket {seen['sockets']}")
     check(not seen["popups"], f"no popup {seen['popups']}")
     check(not seen["workers"] and sw == 0, f"no worker or service worker {seen['workers']} sw={sw}")
+    report.step_end()
     browser.close()
 
 
@@ -141,13 +148,17 @@ def main():
         host, port = server.server_address[:2]
         origin = f"http://{host}:{port}"
     interactions = load_interactions()
-    with sync_playwright() as p:
-        for i, engine in enumerate(ENGINES, 1):
-            began, before = time.monotonic(), len(failures)
-            tag = f"[{engine} {i}/{len(ENGINES)}]"
-            run_engine(p, engine, origin, interactions, tag)
-            bad = len(failures) - before
-            print(f"   {tag} done: {'PASS' if not bad else f'FAIL ({bad} failed)'} ({time.monotonic() - began:.0f} s)", flush=True)
+    global report
+    steps = ["load"] + [n for n, _ in interactions.chosen_steps()] + ["final checks"]
+    report = progress.Report(ENGINES, steps)
+    try:
+        with sync_playwright() as p:
+            for i, engine in enumerate(ENGINES, 1):
+                report.engine_start(i, engine)
+                run_engine(p, engine, origin, interactions)
+                report.engine_end()
+    finally:
+        report.close()
     if server:
         server.shutdown()
     if failures:

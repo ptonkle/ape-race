@@ -697,6 +697,10 @@ def failures(path):
         m = re.match(r"test (\S+) \.\.\. FAILED", line) or re.match(r"---- (\S+) stdout ----", line)
         if m:
             out.append(f"cargo:{m.group(1)}")
+        # cargo-nextest (a watched run): `FAIL [   0.004s] (1/21) tool_core patch_notes::tests::x`
+        m = re.match(r"\s*(?:FAIL|SIGSEGV|SIGABRT|SIGKILL|TIMEOUT|ABORT|LEAK-FAIL)\s+\[\s*[\d.]+s\]\s+(?:\(\s*\d+/\d+\)\s+)?\S+\s+(\S+)", line)
+        if m:
+            out.append(f"cargo:{m.group(1)}")
         if line.startswith("  FAIL "):
             where = f"browser[{engine}]" + (f"/{step}" if step else "") if engine else "browser"
             if stage and "online" in stage.lower():
