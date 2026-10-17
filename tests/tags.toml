@@ -265,6 +265,7 @@ tags = ["boundary"]
 # nothing to run: docs, notes, tools that the checks do not use
 "**/*.md" = []
 "notes/**" = []
+".claude/skills/**" = []
 "briefs/**" = []
 ".claude/**" = []
 ".gitignore" = []
