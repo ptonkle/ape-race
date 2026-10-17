@@ -13,7 +13,7 @@ The standard map-build steps (MAPS.md "Build steps"), one row each. Status is on
 | 7 | Map rules | In progress | Tube air (terminal 38 m/s, 3× control), pads, walls, resets per leg in `tower/rules.rs`, `stone.rs`; the sling untested until an AI finishes |
 | 8 | Art placed on the course | Done (on the stand-in) | merged `tower2-art`: every v2 model placed from the contract (TA2-1); the inside's sharing/caps can go once the course thins the rings (TA2-3); stipple bands on the walls and the void fog for the person to judge (TA2-8) |
 | 9 | Lobby spot and flyover | Done | lobby mid lower bridge looking to tower 2 (both towers can't fit one view: 380 m apart, fog at 330 m); flyover a closed stadium lap, no jump (TA2-5, TA2-6) |
-| 10 | AI validation | In progress (planner agent) | layout 0: Sloth 133, Monkey 140, Ape 126, King Kong 90 s: all finish, not in order; the planner tries only the first 3 of 10 candidate beams, so apes whirl 8–40 s on one beam inside the hollow and over the rim (TC2-7); a lane beam with bottoms at the rim's height is a trap (TC2-8); the portal pad's throw overflies the tube (TC2-9) |
+| 10 | AI validation | In progress | planner agent (`tower2-planner`): on the tower the planner steers for all 10 candidates, and a beam 5 m higher than the one held counts as ahead though the course places it behind (TC2-12, TC2-13). King Kong and the Ape now finish layouts 0–3 (King Kong 85–100 s, hand-over 3–14.5 s, inside 24.5–33 s); the Monkey is out of time on layout 1 and the Sloth on 1 and 2; the Sloth's and the Monkey's inside climb is 39–72 s and on layout 0 the Sloth (123.4 s) beats the Monkey (137.0 s). Two candidate orders for the inside climb were worse and reverted (TC2-14); next is layout (b) with TC2-8 (TC2-15) |
 | 11 | Medal times | Done (provisional) | Author 94.5, Gold 101.5, Silver 111.5, Bronze 126.5 (v1 61/68/78/93); re-measure after the hand-over (TC2-4) |
 | 12 | Step and frame cost | In progress | worst frame 5,355 shapes (v1 4,896; budget 5,500), driven by the stand-in's inside density (TA2-2); the budget test passes after the merges; step cost not measured |
 | 13 | Colourblind and JOJO MODE | Not started | |
@@ -21,7 +21,7 @@ The standard map-build steps (MAPS.md "Build steps"), one row each. Status is on
 | 15 | Screenshots at 1920×1080 | Done (first pass) | `notes/tower2-shots/` 21 shots: gallery, play, lobby, flyover; on the journal; retake after the course lands |
 | 16 | Other maps unchanged | Done so far | fingerprint and replay-hash tests pass unchanged after every merge |
 | 17 | Docs | Not started | |
-| 18 | Full checks | Not started | debug workspace tests on `tower2` 89590ab: the same 4 failures; the vine audit's 120 rows are 32 entry-beam swings and 88 caster lines from the art merge (TC2-10, TA2-9), the latter for the polish agent |
+| 18 | Full checks | In progress | debug workspace tests on `tower2-planner`: fmt and clippy clean; the other maps unchanged; failing: the vine audit (120 rows: 32 entry-beam, 88 caster lines, TC2-10), the three tower AI tests (the Sloth and Monkey out of time on some layouts, order wrong on layout 0) and now the medal test (best Time Trial 87.7 s under Author 94.5; re-measure once every layout finishes), TC2-16 |
 | 19 | Deploy | Not started | Replaces the live tower |
 
 ## This map's features

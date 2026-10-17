@@ -80,6 +80,17 @@ const SKI_LOOK: i32 = int(110);
 const SKI_CANDS: usize = 16;
 /// A search tries steering for this many of them in turn.
 const STEERS: usize = 3;
+
+/// How many candidates a search steers for in turn: on Mape's Tower every
+/// one (inside the hollow and over the rim the first three often lie across
+/// the hollow or a station too high, and the ape whirled 8-40 s on one beam,
+/// TC2-7, TC2-12).
+fn steers(course: &Course) -> usize {
+    match course.tower {
+        Some(_) => MAX_CANDS,
+        None => STEERS,
+    }
+}
 /// After this long on one vine with no way on, it lets go forward.
 const GIVE_UP: u32 = 7 * TICKS_PER_SECOND as u32;
 /// Before letting go, it checks the landing has a way on: a second of
@@ -332,6 +343,11 @@ const TOWER_NOISE: [i32; 4] = [int(6), int(4), int(2), 0];
 /// swing's speed could carry the ape (the climb lift and the arms' reach)
 /// is out of its reach.
 const TOWER_OVERHEAD: i32 = int(6);
+/// Mape's Tower: a beam whose bottom hangs this much higher than the one
+/// held is ahead of it, though placed up to `TOWER_BEHIND` behind it along
+/// the course (see `ahead_from_cached`).
+const TOWER_CLIMB: i32 = int(5);
+const TOWER_BEHIND: i32 = int(40);
 /// Sunset Ruins' handicaps, easiest level first (see
 /// [`Difficulty::tuning_on`]). With the Jungle's, the Monkey was no faster
 /// than the Sloth and the Ape barely 6 s behind King Kong: the levels lose
@@ -920,8 +936,18 @@ fn ahead_from_cached(
 ) -> Vec<usize> {
     let mut good: Vec<(i64, usize)> = Vec::new();
     let mut rest = Vec::new();
+    // (Mape's Tower: at the shaft's top a beam's place along the course
+    // stops following its height (the top rings lie along the portal leg
+    // by their nearest point), so from a beam placed far along a higher
+    // one can be placed behind it and was never a candidate: the ape fell
+    // back into the hollow and climbed again, TC2-13. There a beam hanging
+    // `TOWER_CLIMB` higher than the one held is ahead too.)
+    let held_bottom = match (&course.tower, held) {
+        (Some(_), Some(h)) => Some(course.vine_bottom(h, tick)),
+        _ => None,
+    };
     for (i, v) in course.vines.iter().enumerate() {
-        if v.at <= from
+        if v.at <= from - TOWER_BEHIND * held_bottom.is_some() as i32
             || v.at > from + tune.look
             || Some(i) == held
             || off_limits(course, i, tune)
@@ -931,6 +957,9 @@ fn ahead_from_cached(
         }
         let an = anchor_cached(course, i, tick, anchors.as_deref_mut());
         let bottom = bottom_from(course, i, an);
+        if v.at <= from && held_bottom.is_none_or(|h| bottom < h + TOWER_CLIMB) {
+            continue;
+        }
         let low = bottom - course.terrain(an.x, an.z) < int(5);
         // (Mape's Tower: inside tower 1 the beams hang at every height
         // over the ape; one whose bottom is above anything a release
@@ -1503,7 +1532,7 @@ fn on_vine(a: &Ape, course: &Course, tick: u32, vine: usize, brain: &mut Brain) 
                 plan.sim = a.clone();
                 plan.sim_tick = tick;
                 plan.end = tick + HORIZON;
-                if plan.pick == 2 * brain.cands.len().min(STEERS) {
+                if plan.pick == 2 * brain.cands.len().min(steers(course)) {
                     // nothing ahead will do: any vine near will, even one
                     // across the course at this station, to come at the next
                     // from a better line
@@ -1516,7 +1545,7 @@ fn on_vine(a: &Ape, course: &Course, tick: u32, vine: usize, brain: &mut Brain) 
             }
             break;
         }
-        let (steer, coast) = pick(&brain.cands, plan.pick);
+        let (steer, coast) = pick(&brain.cands, plan.pick, steers(course));
         // (the vine after the one it steers for, from where the real ape
         // is: the same all this tick, so worked out once)
         let next = match after_steer {
@@ -1580,7 +1609,7 @@ fn on_vine(a: &Ape, course: &Course, tick: u32, vine: usize, brain: &mut Brain) 
     // that reaches a vine, and gives up even with releases queued.)
     let overdue = tick - plan.began > give_up(course);
     let whirl = overdue && course.city.is_some();
-    let (steer, coast) = pick(&brain.cands, plan.pick);
+    let (steer, coast) = pick(&brain.cands, plan.pick, steers(course));
     brain.target = Some(steer);
     let mut c = swing_controls(a, course, tick, steer, coast, tune);
 
@@ -1699,8 +1728,8 @@ fn onward(a: &Ape, course: &Course, tick: u32, m: &Moment, cands: &[usize], tune
 }
 
 /// A search pass's target and whether it lets the swing run free.
-fn pick(cands: &[usize], pick: usize) -> (usize, bool) {
-    let n = cands.len().min(STEERS);
+fn pick(cands: &[usize], pick: usize, steers: usize) -> (usize, bool) {
+    let n = cands.len().min(steers);
     (cands[pick % n], (pick / n) % 2 == 1)
 }
 
@@ -2077,4 +2106,68 @@ fn aim_at(course: &Course, target: usize) -> i32 {
         int(2)
     };
     course.vines.get(target).map_or(i32::MIN, |v| v.at - slack)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Mape's Tower, at the shaft's top: a beam hanging higher than the one
+    /// held is a candidate though the course places it behind (TC2-13).
+    /// On layout 3 the Ape held beam 251 (placed at 1286 m along the portal
+    /// leg) and never saw 277 and 278 (1278 m, 23 m higher): it fell back
+    /// into the hollow over and over.
+    #[test]
+    fn on_the_tower_a_higher_beam_placed_behind_is_a_candidate() {
+        let course = crate::tower::tower_seeded(0x70E5_0000_0001 + 3 * 7919);
+        let on = On {
+            city: false,
+            ski: false,
+            sector: false,
+            ruins: false,
+            bay: false,
+            tower: true,
+        };
+        let tune = Tuning {
+            cands: course.vines.len(),
+            ..Difficulty::KingKong.tuning_on(on)
+        };
+        let bottom = |i: usize| course.vine_bottom(i, 0);
+        // every held beam with a higher one placed behind it
+        let mut pairs = Vec::new();
+        for h in 0..course.vines.len() {
+            for v in 0..course.vines.len() {
+                let (ah, av) = (course.vines[h].at, course.vines[v].at);
+                if av <= ah && av > ah - TOWER_BEHIND && bottom(v) >= bottom(h) + TOWER_CLIMB {
+                    pairs.push((h, v));
+                }
+            }
+        }
+        assert!(
+            !pairs.is_empty(),
+            "the layout has a higher beam placed behind"
+        );
+        for (h, v) in pairs {
+            let an = course.anchor(h, 0);
+            // seen from where a swing on `h` could carry it: `v`'s bottom
+            let origin = v3(an.x, bottom(v), an.z);
+            let cands = ahead_from(
+                &course,
+                Some(h),
+                course.vines[h].at,
+                origin,
+                v3(ONE, 0, 0),
+                0,
+                tune,
+            );
+            assert!(
+                cands.contains(&v),
+                "holding beam {h} (at {} m, bottom {} m), beam {v} (at {} m, bottom {} m) is no candidate",
+                course.vines[h].at / ONE,
+                bottom(h) / ONE,
+                course.vines[v].at / ONE,
+                bottom(v) / ONE
+            );
+        }
+    }
 }
