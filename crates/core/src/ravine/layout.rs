@@ -958,13 +958,24 @@ fn lay_line(
                     let roof = roof_at(&rm, b);
                     (
                         v3(b.x, roof, b.z),
-                        roof - land(b) - int(3) - cm(if station % 2 == 1 { dice.range(0, 40) } else { 20 }),
+                        roof - land(b)
+                            - int(3)
+                            - cm(if station % 2 == 1 {
+                                dice.range(0, 40)
+                            } else {
+                                20
+                            }),
                         HangFrom::Roof { room },
                     )
                 }
                 _ => (
                     v3(b.x, land(b) + int(27), b.z),
-                    int(24) + cm(if station % 2 == 1 { dice.range(0, 40) } else { 20 }),
+                    int(24)
+                        + cm(if station % 2 == 1 {
+                            dice.range(0, 40)
+                        } else {
+                            20
+                        }),
                     HangFrom::Ledge {
                         wall: if off < 0 { 0 } else { 1 },
                     },
@@ -1104,7 +1115,11 @@ fn walls(c: &Course, plan: &Plan, split: Option<&Split>, has_skull: bool) -> Vec
     while s <= end {
         left_pts.push((s, face(s, -open(s)), rim(s, -1, len)));
         let (off, half) = upper_ray(s);
-        let rw = if off > 0 { (off + half).max(HALF) } else { open(s) };
+        let rw = if off > 0 {
+            (off + half).max(HALF)
+        } else {
+            open(s)
+        };
         right_pts.push((s, face(s, rw), rim(s, 1, len)));
         s += WALL_STEP;
     }

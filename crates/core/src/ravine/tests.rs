@@ -391,8 +391,14 @@ fn the_skull_saves_five_to_eight_seconds() {
     let round = out - into;
     let across = c.point(int(into)).flat().dist(c.point(int(out)).flat()) / ONE;
     let saves = round - across;
-    let secs = saves as f64 / PACE as f64;
-    assert!((5.0..=8.0).contains(&secs), "saves {saves} m: {secs:.1} s");
+    // (in tenths of a second: the core is fixed point)
+    let tenths = saves * 10 / PACE;
+    assert!(
+        (50..=80).contains(&tenths),
+        "saves {saves} m: {}.{} s",
+        tenths / 10,
+        tenths % 10
+    );
     // the mouth is halfway up the caves' wall (it stands between two, their
     // side walls being solid), in the fin, and its keep reaches through to
     // the out-leg
@@ -666,4 +672,81 @@ fn the_glows_lead_to_the_mesa_finish() {
     );
     assert!(f.sticks.len() >= 3 && f.tents.len() >= 3);
     assert!(f.campfire.flat().dist(f.sphinx.flat()) > int(10));
+}
+
+/// The hairpin's fin has a round tip: its inner face (the left wall's,
+/// both corners) bends round at least 8 m from the corners' middle, so a
+/// runner on the ground can get round (SECOND-ORDER RC7: at a 0 m inner
+/// radius King Kong ran into the fin's tip for ever).
+#[test]
+fn the_hairpins_fin_has_a_round_tip() {
+    let c = ravine();
+    let p = plan(false);
+    let face = |s: i32| {
+        c.point(int(s))
+            .add(right_of(c.heading_at(int(s))).scale(-HALF))
+            .flat()
+    };
+    // 6 m along the spine at the corners' R moves the inner face
+    // 6 r / R: r ≥ 8 m with R = r + HALF
+    let least = int(6) * 8 / (8 + HALF / ONE);
+    for s in (p.marks[leg::HAIRPIN]..p.marks[leg::OUT_LEG] - 6).step_by(2) {
+        let step = face(s).dist(face(s + 6));
+        assert!(
+            step >= least,
+            "at {s} m the fin's face moves {:?} cm in 6 m",
+            step * 100 / ONE
+        );
+    }
+}
+
+/// The upper passage's walls are clear of its middle all the way (they
+/// stood inside it in the swing, where the spine heads off at 45°, and
+/// the AI ran into them, SECOND-ORDER RC7).
+#[test]
+fn the_upper_passages_walls_are_clear_of_its_middle() {
+    for c in layouts() {
+        let r = lay(&c);
+        let sp = r.split.as_ref().unwrap();
+        let solids = super::solids::Solids::of(r);
+        for (k, p) in sp.upper.iter().enumerate() {
+            let at = p.add(v3(0, int(3), 0));
+            let near = solids
+                .list
+                .iter()
+                .filter(|s| s.kind == super::solids::SolidKind::Wall)
+                .any(|s| s.holds(at, int(12)));
+            assert!(!near, "upper point {k} at {at:?}: a wall within 12 m");
+        }
+    }
+}
+
+/// Every snake on the spine has a low vine within 12 m past it on its
+/// side, where an ape it drops lands (SECOND-ORDER RC7).
+#[test]
+fn a_low_vine_hangs_past_every_snake_on_its_side() {
+    for c in layouts() {
+        let r = lay(&c);
+        let place = |i: usize| {
+            let a = c.vines[i].anchor;
+            let (s, side) = c.progress(a, c.nearest_anywhere(a));
+            (s, side)
+        };
+        for i in 0..c.vines.len() {
+            let (s, side) = place(i);
+            if !r.hangers[i].snake || side.abs() > HALF {
+                continue;
+            }
+            let found = (0..c.vines.len()).any(|j| {
+                let (t, o) = place(j);
+                low(&c, j) && t >= s && t <= s + int(12) && o.signum() == side.signum()
+            });
+            assert!(
+                found,
+                "snake {i} at {} m, side {}: no low vine past it",
+                s / ONE,
+                side / ONE
+            );
+        }
+    }
 }
