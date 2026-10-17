@@ -5,14 +5,14 @@ The standard map-build steps (MAPS.md "Build steps"), one row each. Status is on
 | # | Step | Status | Notes |
 | --- | --- | --- | --- |
 | 1 | Brief and answers | Done | `briefs/mapes-tower-v2.md`, drawing `briefs/mapes-tower-v2.png` |
-| 2 | Skeleton and contract | Done (contract); stand-in course In progress | `tower.rs` contract merged (TW2-1..8); the tube air measured (TW2-5); the Sloth stalls inside tower 1 so no AI level finishes yet (agent on it, branch `tower2-ai`) |
+| 2 | Skeleton and contract | Done (contract); stand-in course In progress | `tower.rs` contract merged (TW2-1..8); the tube air measured (TW2-5); agent `tower2-ai` (last commit 19:30): a straight shaft up tower 1's axis; Monkey, Ape and King Kong finish the stand-in; the Sloth not yet reported |
 | 3 | Ape costumes | Done (v1) | Unchanged: wizard and witch mixes |
 | 4 | Models | Done (unseen in the browser) | `towermodels/towers.rs`, `tube.rs`, `portal.rs` (TM2 rows); gallery keys `towers`, `tower1`, `tower2`, `longbridge`, `portal`, `tube`, `voidpads`, `tunnelmouth`; the art agent shoots them first |
 | 5 | Sky and lighting | Done (v1) | Unchanged: Clear, Twilight, Dawn; the void past the portal |
 | 6 | Course layout | Not started | After the contract |
 | 7 | Map rules | In progress | Tube air (terminal 38 m/s, 3× control), pads, walls, resets per leg in `tower/rules.rs`, `stone.rs`; the sling untested until an AI finishes |
-| 8 | Art placed on the course | In progress (agent, branch `tower2-art`) | v2 models drawn as v1 stubs so far (TW2-7) |
-| 9 | Lobby spot and flyover | In progress (same agent) | stubbed at the start deck; two lobby/flyover tests fail (TW2-7) |
+| 8 | Art placed on the course | In progress (agent, branch `tower2-art`) | committed 19:33: all v2 models placed from the contract (TA2-1..); shots not taken yet |
+| 9 | Lobby spot and flyover | In progress (same agent) | lobby on the lower deck looking at tower 2; the flyover a closed lap over tower 1's top; tests not yet reported |
 | 10 | AI validation | Not started | The AI must climb a free interior and fall the tube |
 | 11 | Medal times | Not started | |
 | 12 | Step and frame cost | Not started | |
