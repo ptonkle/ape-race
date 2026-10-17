@@ -28,6 +28,27 @@ Keep `notes/<key>-progress.md` with one row per step and a status of **Done**, *
 
 New concepts get tracked too. Under the steps, the progress file has a **features table**: one row per concept from the brief (the river, the turtles, the trapdoors…), and a new row the moment anything new comes up (the person's feedback, a new mechanic, an idea mid-build), with its source. Each feature goes through the same stages: Model, Gameplay (or n/a), Placed in course, Tested. If a new kind of work applies to every map, add it to the step list above as well.
 
+## Common gotchas (from feedback on earlier maps)
+
+Gathered on 2026-10-17 from TRIAGE, SECOND-ORDER, the morning and progress notes and the git log, before Rattlesnake Ravine. Most frequent first. Every map agent's brief points here.
+
+1. **Drawn but not solid.** Players flew through the Ruins temple face (RC12), the tower walls (TW12), the ski lift towers (B6), the Sector wreck (SF5) and out of the tower exit tube's roof (T102). Make every wall, arch, roof and landmark solid from the first commit, roofs and tops included, with the solids reaching well past the drawing. Add a test that flies an ape at each one (like `tower/audit.rs`).
+2. **Drawing and solids disagree.** A filler block plugged the temple mouth (RS21), doorways didn't match (TA2-4), flush faces z-fought (TA2-10). Build the drawing and the solids from the same numbers. Leave openings empty, stop inner blocks short of outer faces, and check every opening from the chase camera.
+3. **No real floor on a top surface.** Apes rested "Flying" on stone tops (TW13). Boxes that only touch trap apes, so overlap them. Test that an ape can land, stand, walk and jump on every ledge, deck and log.
+4. **A vine just over a wall's top is a trap.** Feet swing into the stone (TC2-8). Keep vines at least 4 m clear of any top (`every_vine_is_clear_of_the_stone`).
+5. **The camera inside solids.** Seen at the start building (Y13), the temple mouth's roof (RS25–27), Bay hulls (BP1) and ski trees (SW10). Keep solids at least 16 m behind `path[0]`. Give every tunnel, cave and arch a keep-inside volume (`Chase::with_temple` / `Temple::kept_in`), and test that the eye never goes inside a solid.
+6. **Camera jiggle.** Dodging thin things shook the camera (Bay rigging, commit e96b603; Sector flyover, T83). Don't dodge ropes, vines or bridges: rely on the see-through hole (`see.rs`), and measure with `examples/camera_jiggle.rs`.
+7. **Too dark inside.** The Ruins corridor went near-black (RS19), and tops lit from below went black (SM4). Give enclosed parts their own light (a `look_inside`-style look), push the fog out, and add light sources you can see.
+8. **Hazards you can't read.** Pit vines vanished (RC12), fog hid scale (T98), and pits took 8 s to escape. Every hazard must read before you touch it, in colourblind and JOJO MODE too, and nothing should trap an ape for more than about 3 s.
+9. **The AI stalls on new shapes.** Tight turns (TC5), the planner searching too few vines (TC2-12/13), a low start (BC3), the Sloth in the river (RT10–12). Lay the route from spacings the AI already climbs (a station every 22–28 m, a low vine at every station or every other one, always more than one way on). Test any new mechanic alone on a tiny course first. AI and medal retuning happen only when the person asks.
+10. **Random vines make times a lottery** (TC2-23). Keep the route's vines fixed; vary only the decoration.
+11. **The lobby looks at the ground, or the ape sinks** (RS22, TL8, RS23). Plan the lobby spot on purpose and check host and joiner at three window sizes.
+12. **Shared moving things must be a pure function of the tick.** Cars use `car_at`, turtles `turtle_at`; anything that can be reset or tripped goes in the save points (RU1, RU2). One `*_at(i, tick)` serves the physics, the AI and the drawing.
+13. **Other maps change by accident.** Give new placement its own `Dice`, and keep `tests/maps_unchanged.rs` and `jungle_unchanged.rs` passing.
+14. **Step and frame cost.** The AI's copies made City steps spike to 6–7 ms (Y10). Index solids by place, reject with a cheap box first, measure with `examples/frame_cost.rs`, and stay inside the 5,500-shape budget.
+15. **Token burn.** A whole day went on art for a course the AI couldn't climb (see "Getting the AI round a new map"). Route first, art last, small time-boxed agents, ranged reads.
+16. **Failing tests left standing** (notes/test-failures.md). Fix the test or record it with the person's say-so; don't hand off red.
+
 ## What a map is
 
 - **One entry in `map.rs`:** `Map` (`Jungle`, `City`, …), with `key()` (the course's `name`, the settings' and replay library's word for it, and `map.<key>` in `data/strings.json`), `course()` (built from a fixed seed) and `Map::of(course)`.
