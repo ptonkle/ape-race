@@ -157,12 +157,14 @@ pub const BAY: [u32; 4] = [
 /// Gibbon and the Proboscis 2-3 s behind, the Orangutan slowest;
 /// `tests/tower_ai.rs` `tower_time_trial_report`, SECOND-ORDER TC2-20).
 /// Author just under the best kind, then the Jungle's steps of 7, 10 and
-/// 15 s. (Before the climb's arms and the porch beam, TC2-4: 94.5 / 101.5
+/// 15 s. TF-2: after T96-T100 the best run is 95.05 s (King Kong
+/// reaches higher beams inside, `TOWER_OVERHEAD` 12 m), so 94.5 / 101.5 /
+/// 111.5 / 126.5 s; before that 90 / 97 / 107 / 122 s. (Before the climb's arms and the porch beam, TC2-4: 94.5 / 101.5
 /// / 111.5 / 126.5 s; the first design's were 61 / 68 / 78 / 93 s.)
-pub const TOWER_AUTHOR: u32 = 9_000;
-pub const TOWER_GOLD: u32 = 9_700;
-pub const TOWER_SILVER: u32 = 10_700;
-pub const TOWER_BRONZE: u32 = 12_200;
+pub const TOWER_AUTHOR: u32 = 9_450;
+pub const TOWER_GOLD: u32 = 10_150;
+pub const TOWER_SILVER: u32 = 11_150;
+pub const TOWER_BRONZE: u32 = 12_650;
 
 /// Mape's Tower's target times, in race ticks, slowest first.
 pub const TOWER: [u32; 4] = [

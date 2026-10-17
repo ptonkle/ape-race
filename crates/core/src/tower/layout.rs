@@ -139,6 +139,8 @@ const PORCH: i32 = int(12);
 /// wall (the audit); a floating one within `FLOAT_IN` of the axis.
 pub const LAYER_RISE: i32 = cm(1050);
 const LAYER_BEAMS: usize = 4;
+/// The two entry beams' pairs hang this many metres inside the doorway.
+const ENTRY_IN: [i32; 2] = [12, 18];
 /// The rings go on this far over the rim, so the last swings inside reach
 /// the portal's beams over the top.
 const RINGS_OVER_RIM: i32 = int(20);
@@ -627,11 +629,11 @@ pub fn tower_seeded(seed: u64) -> Course {
     let rim = t1_centre.y + H1;
     // (two entry beams just inside the doorway, over the line as the
     // bridge's, so the climb inside can be started from the swing in)
-    // (their swing back runs into the wall beside the doorway, the
-    // audit's finding: from 20 m in it clears it, but the AI's portal
-    // hand-over re-rolls with any change here, TW2-13, TC2-3)
-    for k in [1, 2] {
-        let at = door_at + int(12) * k;
+    // (the second 18 m in, not 24: at 24 m, where the line turns up the
+    // axis, its swing back ran into the wall beside the doorway, the
+    // audit's finding, TC2-3, TF-1)
+    for inside in ENTRY_IN {
+        let at = door_at + int(inside);
         let r = right_of(flat(c.heading_at(at)));
         for lane in [-4, 4] {
             let base = c.point(at).add(r.scale(int(lane)));
