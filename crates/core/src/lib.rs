@@ -40,6 +40,7 @@ pub mod models;
 pub mod online;
 pub mod patch_notes;
 pub mod race;
+pub mod ravinemodels;
 pub mod render;
 pub mod replay;
 pub mod ruins;
