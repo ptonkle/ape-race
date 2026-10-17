@@ -111,6 +111,11 @@ pub const OUT_BELOW: i32 = int(18);
 /// (PLACEHOLDER: the person asked for it tuned until climbing feels as
 /// easy as a flat map; measure a Monkey's climb).
 pub const CLIMB_LIFT: i32 = int(3);
+/// The void past the portal's plane (`in_void`): from this far under
+/// the tear's bottom up, and this far under the tube's floor and round
+/// the tunnel (the column is the tube's inside).
+const VOID_UNDER_TEAR: i32 = int(40);
+const VOID_PAST: i32 = int(2);
 
 /// The legs of the race, in order.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -484,9 +489,26 @@ impl TowerLayout {
             && !v3(p.x - t1.centre.x, 0, p.z - t1.centre.z).longer_than(t1.inner)
     }
 
-    /// Whether a point is in the void (past the portal's plane).
+    /// Whether a point is in the void: past the portal's plane, and high
+    /// by the tear, in the tube's column or in the tunnel. (Not the whole
+    /// half past the plane: since T97 the start deck stands at its foot
+    /// by tower 1, and an eye there is in the towers' world.)
     pub fn in_void(&self, p: V3) -> bool {
-        p.sub(self.portal.tear).dot(self.portal.through) > 0
+        if p.sub(self.portal.tear).dot(self.portal.through) <= 0 {
+            return false;
+        }
+        let high = p.y >= self.portal.tear.y - self.portal.tear_half.0 - VOID_UNDER_TEAR;
+        let z = &self.tube;
+        let column = !v3(p.x - z.axis.x, 0, p.z - z.axis.z).longer_than(z.radius)
+            && p.y >= z.bottom - VOID_PAST;
+        let n = &self.tunnel;
+        let d = p.sub(n.mouth);
+        let along = d.dot(n.along);
+        let tunnel = along >= -z.wall - VOID_PAST
+            && along <= n.length + VOID_PAST
+            && d.dot(right_of(n.along)).abs() <= n.half_width + VOID_PAST
+            && d.y <= n.height + VOID_PAST;
+        high || column || tunnel
     }
 
     /// Whether vine `i` is a climb vine.

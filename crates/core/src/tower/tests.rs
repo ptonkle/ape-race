@@ -1028,3 +1028,41 @@ fn the_course_climbs_round_tower_1_before_the_lower_bridge() {
         .count();
     assert!(mages >= 6, "{mages} beams cast from tower 1's outside");
 }
+
+#[test]
+fn an_eye_round_the_start_and_the_climbs_is_never_in_the_void() {
+    // (the start deck stands by tower 1 past the portal's plane, T97: a
+    // camera round it must stay in the towers' world)
+    for seed in 0..16u64 {
+        let c = tower_seeded(seed);
+        let t = c.tower.as_ref().unwrap();
+        let mut s = 0;
+        while t.leg_at(s) != Leg::Portal {
+            let p = c.point(s);
+            for k in 0..16 {
+                let a = k * fx::TURN / 16;
+                for (r, up) in [(int(8), int(4)), (int(14), int(9)), (int(14), int(-6))] {
+                    let eye = p.add(v3(fx::mul(fx::cos(a), r), up, fx::mul(fx::sin(a), r)));
+                    assert!(
+                        !t.in_void(eye),
+                        "layout {seed}: an eye {:?} round {} m along is in the void",
+                        eye,
+                        s / ONE
+                    );
+                }
+            }
+            s += int(4);
+        }
+        // while the tube, the sling and the tunnel past the tear are
+        let mut s = c.length - int(1);
+        while t.leg_at(s) != Leg::Portal {
+            let p = c.point(s);
+            assert!(
+                t.in_void(p),
+                "layout {seed}: {} m along is not in the void",
+                s / ONE
+            );
+            s -= int(4);
+        }
+    }
+}
