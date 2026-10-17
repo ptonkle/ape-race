@@ -283,19 +283,23 @@ def step_city_map(page, check):
 
 
 def step_weather(page, check):
-    # The Ski Slope's weather (2026-10-13): chosen in Settings, kept after a
-    # reload, and shown under the map on the Ski Slope's setup only. The
-    # mouse leaves Back's spot first: Settings sits under it on the title
-    # and wobbles while hovered, which Firefox never calls stable
+    # The Ski Slope's weather: chosen on its setup (not in Settings since
+    # 2026-10-17), kept after a reload, and shown under the map on the Ski
+    # Slope's setup only. The mouse leaves Back's spot first: Settings sits
+    # under it on the title and wobbles while hovered, which Firefox never
+    # calls stable
     page.mouse.move(5, 5)
     page.click("[id='menu.settings']")
-    page.select_option("[id='settings.weather']", "snowing")
+    check(page.query_selector("[id='settings.weather']") is None, "no Weather in Settings")
     page.click("[id='menu.back']")
-    page.reload()
-    page.wait_for_selector("body[data-ready='true']", timeout=20000)
     page.click("[id='menu.race']")
     check(page.query_selector("[id='setup.weather']") is None, "no Weather on another map's setup")
     page.click("[id='setup.map.ski']")
+    page.wait_for_selector("[id='setup.weather']", timeout=5000)
+    page.select_option("[id='setup.weather']", "snowing")
+    page.reload()
+    page.wait_for_selector("body[data-ready='true']", timeout=20000)
+    page.click("[id='menu.race']")
     page.wait_for_selector("[id='setup.weather']", timeout=5000)
     check(page.input_value("[id='setup.weather']") == "snowing", "the weather is kept after a reload")
     check(canvas_drawn(page), "the Ski Slope is drawn in the snow behind the setup")
