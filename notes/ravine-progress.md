@@ -5,9 +5,9 @@ The standard map-build steps (MAPS.md "Build steps"), one row each. Status is on
 | # | Step | Status | Notes |
 | --- | --- | --- | --- |
 | 1 | Brief and answers | Done | `briefs/rattlesnake-ravine.md`; pitfalls from earlier maps in `notes/ravine-pitfalls.md` |
-| 2 | Skeleton and contract | Not started | |
-| 3 | Ape costumes | Not started | Wild West gear, one palette per ape; spider-jaguar |
-| 4 | Models | Not started | |
+| 2 | Skeleton and contract | In progress | agent on `ravine-skel` |
+| 3 | Ape costumes | In progress | Wild West gear, one palette per ape; spider-jaguar |
+| 4 | Models | In progress | agent on `ravine-models` |
 | 5 | Sky and lighting | Not started | |
 | 6 | Course layout | Not started | |
 | 7 | Map rules | Not started | |
