@@ -132,6 +132,15 @@ New concepts get tracked too. Under the steps, the progress file has a **feature
 - **Cull by 3D cells and by half.** Course chunks spanned the whole tower (9,652 shapes always drawn). Cells 40 m across and 15 m high with a height range, and a side of the mirror plane per chunk, cut it to 4,896 at most at once (TA2, TA3).
 - **Check the apes' real line through a set piece.** The AI flies 6-24 m over the line on the summit run and 20 m aside, so the first tear (28 m tall, at the line) was flown over; it is now 50 m by 56 m, 13 m above the line, and a test checks every level's crossing on 16 layouts (TA8).
 
+### What Mape's Tower's second design taught (2026-10-17, SECOND-ORDER TW2/TM2/TA2/TC2 rows)
+
+- **Route and AI before art.** The redesign spent a day of tokens with art, lobby, flyover and shots made on a course the AI could not yet climb; two agents in a row re-rolled layouts without moving the numbers. Lay the route from vine spacings the AI already climbs elsewhere, gate on every level finishing every layout, then do the art.
+- **The planner's candidate cut.** The AI kept 10 candidate vines but searched only the first 3 (`STEERS`); inside a hollow and over a rim those three were often out of reach and the ape whirled 8–40 s on one beam. On the tower it searches all 10, and a beam hanging higher counts as ahead even when it is placed behind on the line (TC2-12, TC2-13).
+- **Climbs want full arms.** With the bridges' weak arms the Sloth and the Monkey whirled 20–80 s on the climbs; every level pumps with full arms inside the hollow, and the slow levels with stronger arms round the outside spiral (`TOWER_INSIDE_DRIVE`, `TOWER_SPIRAL_DRIVE`, TC2-17).
+- **A rim is a trap.** A beam whose bottom is at the wall's top height swings the feet through the stone; beams just inside a wall hang at least 4 m over it (TC2-8).
+- **Random vines spread the times.** Scattered beams with no path make the inside climb take 20–60 s even for King Kong, which swamps the gaps between levels; a single-layout order test becomes a lottery (TC2-23).
+- **Flush solids z-fight.** A mortar block flush with both stone skins drew stipple bands across every wall; stop inner blocks short of the faces (TA2-10). Bridge hooks hung a fixed depth under a deck sat inside its stone; drop each until its beam is clear (TA2-11).
+
 ## Checklist for a new map
 
 - [ ] **The lobby zone, designed on purpose** (the person, 2026-10-13: a core thing for every map). It's where your ape stands behind Race Setup, Time Trial and the online lobby, so it's the map's first impression. Choose a spot that shows the map at its best (its time of day, its set piece behind), with room for T76's lineup of every player's ape and yours on a pedestal in front. Wire it through `scene::preview(course)` and check `app/menu_dock.rs` `preview_spot` actually uses it: the Jungle's never did; it stood the ape at the world origin on the forest floor, T77. Screenshot the setup screen and the lobby on the new map before calling the map done.
