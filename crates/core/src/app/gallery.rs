@@ -16,6 +16,7 @@ use crate::baymodels as bay;
 use crate::fx::{self, deg, int, mul, ratio, ONE, TURN};
 use crate::geom::{facing, v3, Affine, V3};
 use crate::models;
+use crate::ravinemodels as ravine;
 use crate::render::{self, Batch, Camera};
 use crate::ruinsmodels as ruins;
 use crate::spacecraft::{self as sc, Gait, Mech, MechKind};
@@ -68,6 +69,9 @@ pub struct Gallery {
     /// a Mape's Tower model instead (`towermodels::GALLERY`), drawn in
     /// the twilight
     pub tower: Option<usize>,
+    /// a Rattlesnake Ravine model instead (`ravinemodels::GALLERY`), drawn
+    /// at night
+    pub ravine: Option<usize>,
     /// `cat`: the map whose big cat it is (`map=ruins`; else Sector Ape's)
     pub map: crate::map::Map,
     /// `cat`: Mape's Tower's flame cat (`flame=on`), whatever `map` says
@@ -87,6 +91,7 @@ impl Gallery {
             ruins: None,
             bay: None,
             tower: None,
+            ravine: None,
             map: crate::map::Map::Sector,
             flame: false,
         };
@@ -96,6 +101,7 @@ impl Gallery {
                 g.ruins = ruins::GALLERY.iter().position(|m| *m == pair);
                 g.bay = bay::GALLERY.iter().position(|m| *m == pair);
                 g.tower = tower::GALLERY.iter().position(|m| *m == pair);
+                g.ravine = ravine::GALLERY.iter().position(|m| *m == pair);
                 continue;
             }
             let Some((k, v)) = pair.split_once('=') else {
@@ -130,6 +136,9 @@ impl Gallery {
         }
         if let Some(r) = self.bay {
             return bay::framing(bay::GALLERY[r]);
+        }
+        if let Some(r) = self.ravine {
+            return ravine::framing(ravine::GALLERY[r]);
         }
         if let Some(r) = self.tower {
             return tower::framing(tower::GALLERY[r]);
@@ -185,6 +194,9 @@ impl Gallery {
         }
         if let Some(r) = self.bay {
             return bay::gallery(b, bay::GALLERY[r], &f, tick);
+        }
+        if let Some(r) = self.ravine {
+            return ravine::gallery(b, ravine::GALLERY[r], &f, tick);
         }
         if let Some(r) = self.tower {
             return tower::gallery(b, tower::GALLERY[r], &f, tick);
@@ -289,6 +301,8 @@ impl App {
             ruins::look()
         } else if g.bay.is_some() {
             bay::gallery_look()
+        } else if g.ravine.is_some() {
+            ravine::gallery_look()
         } else if let Some(r) = g.tower {
             tower::gallery_look_of(tower::GALLERY[r])
         } else {
@@ -312,7 +326,7 @@ impl App {
         let mut b = Batch::new();
         if g.ruins.is_some() {
             ruins::sky(&mut b, cam.eye, ruins::SUN_YAW);
-        } else if g.bay.is_some() || g.tower.is_some() {
+        } else if g.bay.is_some() || g.tower.is_some() || g.ravine.is_some() {
             // a clear sky: the clear colour alone
         } else {
             sc::stars(&mut b, cam.eye, 500);
@@ -329,6 +343,14 @@ impl App {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_ravine_models_have_their_own_keys_and_parse() {
+        for (i, key) in ravine::GALLERY.iter().enumerate() {
+            assert!(!MODELS.contains(key), "{key}");
+            assert_eq!(Gallery::parse(key).ravine, Some(i), "{key}");
+        }
+    }
 
     #[test]
     fn a_gallery_spec_picks_its_model_and_camera() {

@@ -7,7 +7,7 @@ The standard map-build steps (MAPS.md "Build steps"), one row each. Status is on
 | 1 | Brief and answers | Done | `briefs/rattlesnake-ravine.md`; pitfalls from earlier maps in `notes/ravine-pitfalls.md` |
 | 2 | Skeleton and contract | In progress | agent on `ravine-skel` |
 | 3 | Ape costumes | In progress | Wild West gear, one palette per ape; spider-jaguar |
-| 4 | Models | In progress | agent on `ravine-models` |
+| 4 | Models | Done (merged) | `crates/core/src/ravinemodels.rs` + `ravinemodels/`: snake vine and snapped, wall lizards (red/yellow/blue), mine cart, track with trestles, wall hole, T-rex skull from its tooth list, proboscis sphinx, campfire with roasting bananas, tents, mining props, rope bridge, log span, fossils, mushrooms, torch, fireflies. 25 gallery keys; shots in `notes/ravine-shots/models/`; SECOND-ORDER RM-1–RM-5 |
 | 5 | Sky and lighting | Not started | |
 | 6 | Course layout | Not started | |
 | 7 | Map rules | Not started | |
@@ -32,16 +32,16 @@ Stages: Model, Gameplay (or n/a), Placed in course, Tested.
 | --- | --- | --- | --- | --- | --- |
 | Slot-canyon walls as barriers (moss, lichen, fossils, bones) | brief | – | – | – | – |
 | Starry sky, soft night light | brief | – | n/a | – | – |
-| Torches, fireflies, glowing mushrooms leading to the finish | brief | – | n/a | – | – |
-| Rope bridges and logs with vines of varying length | brief | – | – | – | – |
-| Snake vines (~15%; snap, drop) | brief | – | – | – | – |
+| Torches, fireflies, glowing mushrooms leading to the finish | brief | Done | n/a | – | – |
+| Rope bridges and logs with vines of varying length | brief | Done | – | – | – |
+| Snake vines (~15%; snap, drop) | brief | Done | – | – | – |
 | Braided winding route | brief | n/a | – | – | – |
 | Upper passage (short, sparse vines, more snakes) | brief | n/a | – | – | – |
-| Lower passage: mine tunnel, equipment, digs | brief | – | – | – | – |
+| Lower passage: mine tunnel, equipment, digs | brief | Done | – | – | – |
 | Caves, archways, long jumps, tight corners | brief | – | – | – | – |
-| T-rex mouth shortcut (teeth reset to the floor) | brief | – | – | – | – |
+| T-rex mouth shortcut (teeth reset to the floor) | brief | Done | – | – | – |
 | Wild West gear, palette per ape | brief | – | n/a | n/a | – |
-| Wall lizards (bouncers, like the turtles) | brief | – | – | – | – |
-| Mine-cart tracks from wall holes; carts like the City's cars | brief | – | – | – | – |
+| Wall lizards (bouncers, like the turtles) | brief | Done | – | – | – |
+| Mine-cart tracks from wall holes; carts like the City's cars | brief | Done | – | – | – |
 | Spider-jaguar (Floor is Lava) | brief | – | – | n/a | – |
-| Mesa finish: proboscis sphinx, campfire, roasting bananas, tents | brief | – | n/a | – | – |
+| Mesa finish: proboscis sphinx, campfire, roasting bananas, tents | brief | Done | n/a | – | – |
