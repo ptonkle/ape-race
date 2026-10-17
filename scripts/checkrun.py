@@ -39,6 +39,7 @@ import pathlib
 import re
 import shutil
 import statistics
+import struct
 import subprocess
 import sys
 import time
@@ -54,6 +55,15 @@ def colour(code, text):
 
 def secs(s):
     return f"{s:.1f} s" if s < 10 else f"{s:.0f} s"
+
+
+def emit(kind, **fields):
+    """One progress event for the dashboard (scripts/check-dashboard.py),
+    appended to $CHECK_EVENTS as a JSON line; nothing without it."""
+    path = os.environ.get("CHECK_EVENTS")
+    if path:
+        with open(path, "a") as f:
+            f.write(json.dumps({"k": kind, "at": time.time(), **fields}) + "\n")
 
 
 def estimate(kind, key):
@@ -75,11 +85,13 @@ def estimate(kind, key):
 
 def header(n, label, est):
     tail = f" — usually ~{secs(est)}" if est is not None and est >= 1 else ""
+    emit("stage", n=n, label=label, est=est)
     print("\n" + colour("1", f"== {n} {label}{tail}"), flush=True)
 
 
 def footer(ok, label, detail, took):
     mark = colour("32", "✓") if ok else colour("31", "✗")
+    emit("done", label=label, ok=ok, detail=detail, secs=took)
     print(f"   {mark} {label}: {detail} ({secs(took)})" if detail else f"   {mark} {label} ({secs(took)})", flush=True)
 
 
@@ -168,6 +180,11 @@ def plain_lines(raw, width=None):
     return [l.rstrip() for l in out]
 
 
+# the widest a redrawn bar line may be: narrower than any window it will
+# reasonably be watched in
+BAR_COLS = 64
+
+
 def run_tty(cmd, env):
     """Runs `cmd` on a terminal of its own (so it draws its bars), copying
     what it draws to ours; returns (exit code, what it printed)."""
@@ -176,10 +193,15 @@ def run_tty(cmd, env):
     import termios
 
     master, slave = pty.openpty()
+    # At most BAR_COLS wide: this terminal's size is set once, so a bar sized
+    # to the window at the start wrapped when the window narrowed (moved to a
+    # monitor with other scaling) and every redraw stacked a new line.
+    rows, cols = 40, BAR_COLS
     try:
-        fcntl.ioctl(slave, termios.TIOCSWINSZ, fcntl.ioctl(sys.stdout.fileno(), termios.TIOCGWINSZ, b"\0" * 8))
+        rows, cols = struct.unpack("HHHH", fcntl.ioctl(sys.stdout.fileno(), termios.TIOCGWINSZ, b"\0" * 8))[:2]
     except OSError:
         pass
+    fcntl.ioctl(slave, termios.TIOCSWINSZ, struct.pack("HHHH", rows, min(cols, BAR_COLS), 0, 0))
     p = subprocess.Popen(cmd, cwd=ROOT, env=env, stdin=subprocess.DEVNULL, stdout=slave, stderr=slave)
     os.close(slave)
     seen = []
@@ -318,10 +340,113 @@ def run_nextest(cmd, env):
 NEXTEST_FAIL = re.compile(r"(?m)^\s*(?:FAIL|SIGSEGV|SIGABRT|SIGKILL|TIMEOUT|ABORT|LEAK-FAIL)\s+\[\s*[\d.]+s\]\s+(?:\(\s*\d+/\d+\)\s+)?(\S+)\s+(\S+)")
 
 
+def run_nextest_events(cmd, env):
+    """cargo-nextest for the dashboard: its JSON events (libtest-json) say
+    which tests are running, for a bar event naming the longest-running one;
+    the log gets failures and the summary only."""
+    import threading
+
+    args = [a for a in nextest_cmd(cmd) if a not in ("--max-progress-running", "0")]
+    i = args.index("--show-progress")
+    del args[i:i + 2]
+    args += ["--message-format", "libtest-json"]
+    env = {**env, "NEXTEST_EXPERIMENTAL_LIBTEST_JSON": "1"}
+    import shlex
+    import tempfile
+
+    # nextest sends its JSON as it happens only on a terminal (on a pipe every
+    # event came at the end): `script` gives it one, its human output going
+    # to a file the summary is read from afterwards
+    err = tempfile.NamedTemporaryFile("w+", suffix=".nextest", delete=False)
+    err.close()
+    inner = shlex.join(args) + " 2>" + shlex.quote(err.name)
+    p = subprocess.Popen(["script", "-q", "-f", "-e", "-c", inner, "/dev/null"], cwd=ROOT, env=env,
+                         stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, stdin=subprocess.DEVNULL)
+    human = []
+
+    def read_human():
+        pass
+
+    t = threading.Thread(target=read_human, daemon=True)
+    t.start()
+    total, done, running, last = 0, 0, {}, 0.0
+
+    known = []
+
+    def planned():
+        """nextest's own count ("Starting 757 tests"), from its human output."""
+        if not known:
+            try:
+                m = re.search(r"Starting (\d+) tests?", open(err.name, errors="replace").read())
+            except OSError:
+                m = None
+            if m:
+                known.append(int(m.group(1)))
+        return known[0] if known else 0
+
+    def short(name):
+        return name.split("$", 1)[-1]
+
+    def tick(force=False):
+        nonlocal last
+        if force or time.time() - last > 0.2:
+            last = time.time()
+            note = ""
+            if running:
+                name, began = min(running.items(), key=lambda kv: kv[1])
+                note = f"{short(name)} ({secs(time.time() - began)})"
+                if len(running) > 1:
+                    note += f" +{len(running) - 1} more"
+            emit("bar", id="core", label="core tests", done=done, total=max(planned() or total, done, 1), note=note)
+
+    def json_lines():
+        for raw in p.stdout:
+            yield raw.decode("utf-8", "replace").strip()
+
+    for line in json_lines():
+        try:
+            e = json.loads(line)
+        except ValueError:
+            continue
+        if e.get("type") == "suite" and e.get("event") == "started":
+            total += e.get("test_count", 0)
+        elif e.get("type") == "test":
+            if e.get("event") == "started":
+                running[e["name"]] = time.time()
+            elif e.get("event") in ("ok", "failed", "timeout"):
+                running.pop(e.get("name"), None)
+                done += 1
+            else:  # ignored: never started, not counted
+                running.pop(e.get("name"), None)
+        tick()
+    code = p.wait()
+    t.join(timeout=5)
+    tick(force=True)
+    with open(err.name, errors="replace") as f:
+        text = ANSI.sub("", f.read())
+    os.unlink(err.name)
+    for line in text.splitlines(True):
+        if NEXTEST_FAIL.match(line) or line.lstrip().startswith(("Summary", "error")):
+            sys.stdout.write(line)
+    sys.stdout.flush()
+    failing = list(dict.fromkeys(f"{a}: {b}" for a, b in NEXTEST_FAIL.findall(text)))
+    runs = re.findall(r"Summary \[[^\]]*\]\s+(\d+) tests? run: (\d+) passed(?:, (\d+) failed)?(?:[^\n]*?(\d+) skipped)?", text)
+    detail = f"{runs[-1][1]} passed, {runs[-1][2] or 0} failed" + (f", {runs[-1][3]} skipped" if runs[-1][3] else "") if runs else ""
+    if failing:
+        detail += " — " + "; ".join(failing)
+    elif code and not detail:
+        sys.stdout.write(text)
+        detail = f"did not build or stopped (exit {code})"
+    return code, detail
+
+
 def run_cargo(cmd, env):
     """cargo test: in a watched terminal cargo-nextest's progress bar when it
     is installed; otherwise (a log) one line per test binary."""
-    if live() and shutil.which("cargo-nextest") and os.environ.get("CHECK_NEXTEST") != "0":
+    nextest = shutil.which("cargo-nextest") and os.environ.get("CHECK_NEXTEST") != "0"
+    if nextest and os.environ.get("CHECK_EVENTS") and not live():
+        return run_nextest_events(cmd, env)
+    if live() and nextest:
         return run_nextest(cmd, env)
     cmd = [c for c in cmd if c != "--quiet"]
     live_ = live()

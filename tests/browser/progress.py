@@ -19,6 +19,7 @@ scripts/tags.py `failures` and the person's own greps read:
 Either way the run ends with the script's own PASSED/FAILED lines, and the
 counts go to $CHECK_DETAIL (a file scripts/checkrun.py reads) when it is set.
 """
+import json
 import os
 import sys
 import time
@@ -36,6 +37,15 @@ def live_wanted():
 
 def secs(s):
     return f"{s:.1f} s" if s < 10 else f"{s:.0f} s"
+
+
+def emit(kind, **fields):
+    """A progress event for the dashboard (scripts/check-dashboard.py), when
+    $CHECK_EVENTS names its file."""
+    path = os.environ.get("CHECK_EVENTS")
+    if path:
+        with open(path, "a") as f:
+            f.write(json.dumps({"k": kind, "at": time.time(), **fields}) + "\n")
 
 
 class Report:
@@ -96,6 +106,8 @@ class Report:
         self.engine, self.tag = engine, f"[{engine} {i}/{len(self.engines)}]"
         self.engine_began, self.engine_failed = time.monotonic(), self.failed
         self.engine_checks, self.cur = self.passed + self.failed, "starting"
+        self.done = 0
+        emit("bar", id=engine, label=engine, done=0, total=len(self.steps), note="starting")
         if self.live:
             self.progress.start_task(self.tasks[engine])
 
@@ -104,6 +116,7 @@ class Report:
         self.step_failed = self.failed
         self.head = f"   {self.tag} step {k}/{len(self.steps)} {label or name}"
         self.cur = name
+        emit("bar", id=self.engine, label=self.engine, done=self.done, total=len(self.steps), note=name)
         if self.live:
             self.progress.update(self.tasks[self.engine], step=name)
         else:
@@ -113,6 +126,8 @@ class Report:
         took = time.monotonic() - self.step_began
         bad = self.failed - self.step_failed
         verdict = "ERROR (exception, below)" if error else f"FAIL ({bad} failed)" if bad else "PASS"
+        self.done += 1
+        emit("bar", id=self.engine, label=self.engine, done=self.done, total=len(self.steps), note=self.cur, bad=bool(bad or error))
         if self.live:
             self.say(f"{self.head} {verdict} ({secs(took)})", "red" if bad or error else "dim")
             self.progress.advance(self.tasks[self.engine])

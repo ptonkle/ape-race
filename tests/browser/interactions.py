@@ -240,6 +240,15 @@ def step_city_map(page, check):
     options = page.eval_on_selector_all("[id='setup.map'] .tile, [id='setup.map'] .card", "ts => ts.map(t => t.innerText.trim())")
     maps = MAPS
     check(options == maps, f"Race Setup offers every map and Random as cards {options}")
+    # the cards' pictures load after the cards appear: wait for them to finish
+    # (a fast browser read them mid-load, 2026-10-17), then check each one
+    try:
+        page.wait_for_function(
+            "() => [...document.querySelectorAll(\"[id='setup.map'] .tile-hero img, [id='setup.map'] .card img\")].every(i => i.complete)",
+            timeout=5000,
+        )
+    except Exception:
+        pass  # the check below names the ones that did not load
     pictures = page.eval_on_selector_all(
         "[id='setup.map'] .tile-hero img, [id='setup.map'] .card img", "is => is.map(i => i.complete && i.naturalWidth > 0)"
     )
