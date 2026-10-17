@@ -427,6 +427,10 @@ impl Race {
             if self.ravine(i) {
                 continue;
             }
+            // Rattlesnake Ravine: the snake vines and the teeth
+            if self.rattlesnake(i) {
+                continue;
+            }
             // Banana Bay Battle: the water
             if self.bay_water(i) {
                 continue;
@@ -526,6 +530,8 @@ impl Race {
             // Sunset Ruins: and trip a wire
             self.trip_wires(i);
             self.hold_doors(i);
+            // Rattlesnake Ravine: and snap a snake vine
+            self.remote_snap(i);
         }
     }
 

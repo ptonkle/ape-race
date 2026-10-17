@@ -59,6 +59,11 @@ pub enum Happening {
     Spiked,
     /// Sector Ape: launched down the wreck's hidden passage (T88)
     Launched,
+    /// Rattlesnake Ravine: a grabbed snake vine snapped, the ape drops
+    Snapped,
+    /// Rattlesnake Ravine: brushed a T-rex tooth (the race puts it on the
+    /// floor under the jaw)
+    Bitten,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -175,6 +180,7 @@ impl Ape {
         let mut best = None;
         let mut best_d = self.phys.reach;
         let ruins = course.ruins.as_deref();
+        let ravine = course.ravine.as_deref();
         for i in 0..course.vines.len() {
             if let Some((v, ago)) = self.last_vine {
                 if v == i && ago < RELEASE_IGNORE {
@@ -184,6 +190,10 @@ impl Ape {
             // (Sunset Ruins: a pit vine is up out of reach while its
             // trapdoor is shut)
             if ruins.is_some_and(|r| r.vine_up(i, tick)) {
+                continue;
+            }
+            // (Rattlesnake Ravine: a snapped snake vine is gone a while)
+            if ravine.is_some_and(|r| r.vine_gone(i, tick)) {
                 continue;
             }
             let a = course.anchor(i, tick);
@@ -300,6 +310,10 @@ impl Ape {
     }
 
     fn grab(&mut self, vine: usize, course: &Course, tick: u32) {
+        // Rattlesnake Ravine: a snake vine snaps, and the ape drops
+        if course.ravine.is_some() && self.snake_snap(vine, course, tick) {
+            return;
+        }
         let a = course.anchor(vine, tick);
         let length = course.vines[vine].length;
         let to = self.pos.sub(a);
@@ -663,6 +677,11 @@ impl Ape {
         // Sunset Ruins: the temple's face, solid but for its mouth
         if course.ruins.is_some() {
             self.hit_facade(course, before);
+        }
+        // Rattlesnake Ravine: the walls, roofs, holes, skull, sphinx and
+        // rocks are solid; the teeth bite
+        if course.ravine.is_some() {
+            self.hit_ravine(course, before);
         }
         // Banana Bay Battle: the treasure chest is solid
         if let Some(b) = course.bay.as_deref() {
