@@ -127,7 +127,6 @@ fn the_night_sky_has_hundreds_of_stars_the_milky_way_and_the_moon() {
     let mut s = Batch::new();
     sky(&mut s, eye, moon_yaw(&c), 0);
     let total = s.count() + s.take_halos().count();
-    eprintln!("sky shapes {total}");
     assert!(total <= 600, "sky shapes {total}");
 }
 
