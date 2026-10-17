@@ -23,14 +23,13 @@ fn only_rattlesnake_ravine_has_a_ravine_layout() {
 }
 
 #[test]
-fn the_ravine_is_held_from_the_map_choice_and_random() {
-    assert!(Map::Ravine.held());
-    assert!(!Map::offered().any(|m| m == Map::Ravine));
-    // every other map is still offered
-    assert_eq!(Map::offered().count(), Map::ALL.len() - 1);
-    for seed in 0..500u64 {
-        assert_ne!(Map::random(seed, Map::Jungle), Map::Ravine, "seed {seed}");
-    }
+fn the_ravine_is_on_the_map_choice_and_in_random() {
+    assert!(!Map::Ravine.held());
+    assert!(Map::offered().any(|m| m == Map::Ravine));
+    assert!(
+        (0..500u64).any(|seed| Map::random(seed, Map::Jungle) == Map::Ravine),
+        "Random never picks the Ravine"
+    )
 }
 
 #[test]
