@@ -33,7 +33,10 @@ use crate::tower::TowerLayout;
 
 mod art;
 pub mod lobby;
-pub use art::{beam_vine, cast_by, casters, parts, scenery, spell_of, worst_drawn, REACH};
+pub use art::{
+    beam_vine, cast_by, casters, parts, portal_frame, portal_pose, scenery, spell_of, worst_drawn,
+    worst_drawn_at, PORTAL_SEEN, REACH,
+};
 
 /// Shown full colour and unfogged, as the sky is (`scene.frag`).
 pub const SKY_GLOW: i32 = ONE * 2;
@@ -301,8 +304,10 @@ fn pick(k: u32, salt: u32, lo: i32, hi: i32) -> i32 {
 
 /// The sky round `eye` in weather `w`, drawn each frame: the dome (its
 /// colour a multiple of the sky's), then the zipper's motes, Twilight's
-/// stars, or Dawn's or Clear's sun and streaks, and the cloud sea.
+/// stars, or Dawn's or Clear's sun and streaks, and the cloud sea; and
+/// the portal, turning and breathing, from within `PORTAL_SEEN` of it.
 pub fn dynamic(b: &mut Batch, t: &TowerLayout, eye: V3, ticks: u32, w: Weather) {
+    portal_frame(b, t, eye, ticks);
     let zipper = t.in_void(eye);
     let s = sky_at(t, eye, w);
     let deep = [0, 1, 2].map(|k| fx::div(s.zenith[k], s.sky[k].max(1)).min(ONE));
@@ -517,19 +522,40 @@ mod tests {
         let out = eye_at(t, ONE / 2);
         let inside = t.portal.tear.add(t.portal.through.scale(int(30)));
         assert!(t.in_void(inside) && !t.in_void(out));
-        for w in [Weather::Clear, Weather::Twilight, Weather::Dawn] {
-            let l = look_in(t, inside, w);
-            assert_eq!((l.sky, l.fog, l.rim), (ZIPPER.sky, ZIPPER.fog, ZIPPER.rim));
-            assert_ne!(look_in(t, out, w).sky, ZIPPER.sky);
-            // the void draws its dome and motes, no sun, stars or clouds
-            let mut b = Batch::new();
-            dynamic(&mut b, t, inside, 0, w);
+        let count = |b: &mut Batch| {
             let n = std::cell::Cell::new(0);
             b.restyle(|c, g| {
                 n.set(n.get() + 1);
                 (c, g)
             });
-            assert_eq!(n.get(), 161, "{w:?}");
+            n.get()
+        };
+        for w in [Weather::Clear, Weather::Twilight, Weather::Dawn] {
+            let l = look_in(t, inside, w);
+            assert_eq!((l.sky, l.fog, l.rim), (ZIPPER.sky, ZIPPER.fog, ZIPPER.rim));
+            assert_ne!(look_in(t, out, w).sky, ZIPPER.sky);
+            // the void draws its dome and motes, no sun, stars or clouds
+            // (far from the portal, which is drawn each frame near it)
+            let deep = t
+                .portal
+                .tear
+                .add(t.portal.through.scale(PORTAL_SEEN + int(50)));
+            let mut b = Batch::new();
+            dynamic(&mut b, t, deep, 0, w);
+            assert_eq!(count(&mut b), 161, "{w:?}");
+            // near the tear the portal is drawn too, and it turns
+            let mut b = Batch::new();
+            dynamic(&mut b, t, inside, 0, w);
+            let near = count(&mut b);
+            assert!(near > 161 + 150, "{w:?}: {near} shapes by the portal");
+            let (mut a, mut z) = (Batch::new(), Batch::new());
+            dynamic(&mut a, t, inside, 0, w);
+            dynamic(&mut z, t, inside, 30, w);
+            assert_ne!(
+                a.finish(crate::render::DYNAMIC_BUFFER).0,
+                z.finish(crate::render::DYNAMIC_BUFFER).0,
+                "{w:?}: the portal moves"
+            );
         }
     }
 
