@@ -11,14 +11,14 @@ The standard map-build steps (MAPS.md "Build steps"), one row each. Status is on
 | 5 | Sky and lighting | Done (v1) | Unchanged: Clear, Twilight, Dawn; the void past the portal |
 | 6 | Course layout | Not started | After the contract |
 | 7 | Map rules | Not started | The tube: no vines, bounce pads as obstacles, air control, the bottom row's sling |
-| 8 | Art placed on the course | Not started | |
-| 9 | Lobby spot and flyover | Not started | |
+| 8 | Art placed on the course | Done (stand-in layout; branch `tower2-art`) | `towerscape/art.rs` from the contract (TA2-1); the portal turns each frame; worst frame 5,355 shapes inside tower 1 against v1's 4,896 (TA2-2) |
+| 9 | Lobby spot and flyover | Done (branch `tower2-art`) | The lower deck's middle looking at tower 2 (TA2-5); a closed stadium lap over tower 1's top (TA2-6); the flyover tests pass again |
 | 10 | AI validation | Not started | The AI must climb a free interior and fall the tube |
 | 11 | Medal times | Not started | |
-| 12 | Step and frame cost | Not started | |
+| 12 | Step and frame cost | Frame cost measured | Scenery 5,355 at once (TA2-2); the step cost after the course agent (TM2) |
 | 13 | Colourblind and JOJO MODE | Not started | |
 | 14 | Map card | Not started | New card from the new flyover |
-| 15 | Screenshots at 1920×1080 | Not started | |
+| 15 | Screenshots at 1920×1080 | First set done | `notes/tower2-shots/` (gallery, the race leg by leg, the lobby, the flyover; TA2-8) |
 | 16 | Other maps unchanged | Not started | |
 | 17 | Docs | Not started | |
 | 18 | Full checks | Not started | |

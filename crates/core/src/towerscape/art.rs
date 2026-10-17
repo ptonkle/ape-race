@@ -945,11 +945,18 @@ fn build(c: &Course, t: &TowerLayout, sink: &mut Sink) -> Vec<Option<V3>> {
         seg += 1;
     }
 
-    // the banana sea past the finish, where the apes dance
+    // the banana sea: the tunnel opens onto it past its far end (the
+    // model's heaps and hills spread out to the horizon, so inside the
+    // tunnel they cut through its walls; the apes dance at the zone,
+    // looking down the tunnel to it)
     let bz = &t.banana_zone;
-    let f = at(bz.centre, mouth_yaw);
-    let r = bz.radius.max(int(60));
-    put("banana sea", None, &mut |b| m::banana_sea(b, &f, r, tick));
+    let sea = tn
+        .mouth
+        .add(tn.along.scale(tn.length + bz.radius + int(20)));
+    let f = at(v3(sea.x, bz.centre.y, sea.z), mouth_yaw);
+    put("banana sea", None, &mut |b| {
+        m::banana_sea(b, &f, bz.radius, tick)
+    });
     tips
 }
 
