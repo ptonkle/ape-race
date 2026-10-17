@@ -19,26 +19,18 @@ if [ -z "$PY" ]; then
   if [ -x .venv/bin/python ]; then PY=.venv/bin/python; else PY=python3; fi
 fi
 
-# Each step's time in seconds, printed at the end as one `TIMES` line
-# (scripts/timed-checks.sh keeps them in notes/check-times.md).
-T0=$(date +%s.%N); TLAST=$T0; TNAME=""; TIMES=""
-lap() {
-  local now; now=$(date +%s.%N)
-  if [ -n "$TNAME" ]; then TIMES="$TIMES $TNAME=$(printf '%.1f' "$(echo "$now - $TLAST" | bc)")"; fi
-  TLAST=$now
-}
-step() { lap; local n="${1#* }"; TNAME="${n%% *}"; printf '\n\033[1m== %s\033[0m\n' "$*"; }
+# Each stage runs through scripts/checkrun.py (see scripts/check.sh). At the
+# end one `TIMES` line (scripts/timed-checks.sh keeps it in notes/check-times.md).
+export CHECK_STATE; CHECK_STATE=$(mktemp)
+trap 'rm -f "$CHECK_STATE"' EXIT
+"$PY" scripts/checkrun.py begin online
+stage() { "$PY" scripts/checkrun.py stage "$@"; }
 
-step "1/3 release build (scripts/build.sh, checks web/vendor/SHA256SUMS)"
-./scripts/build.sh >/dev/null
-echo "dist/ assembled"
+stage release 1/3 "release build (scripts/build.sh)" quiet -- ./scripts/build.sh
+stage transport 2/3 "transport between tabs (tests/browser/online.py)" plain -- "$PY" tests/browser/online.py
+# `a` is this stage's name in notes/check-times.md since the first rows
+stage a 3/3 "a race between two tabs (tests/browser/online_race.py)" plain -- "$PY" tests/browser/online_race.py
 
-step "2/3 transport between tabs (tests/browser/online.py)"
-"$PY" tests/browser/online.py
-
-step "3/3 a race between two tabs through the game page (tests/browser/online_race.py)"
-"$PY" tests/browser/online_race.py
-
-lap
-echo "TIMES$TIMES total=$(printf '%.1f' "$(echo "$(date +%s.%N) - $T0" | bc)")"
+"$PY" scripts/checkrun.py summary
+"$PY" scripts/checkrun.py times
 printf '\n\033[1mONLINE CHECK PASSED\033[0m\n'

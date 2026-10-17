@@ -35,6 +35,7 @@ import json
 import os
 import pathlib
 import sys
+import time
 
 from playwright.sync_api import sync_playwright
 
@@ -297,8 +298,13 @@ def main():
     host, port = server.server_address[:2]
     origin = f"http://{host}:{port}"
     with sync_playwright() as p:
-        for engine in transport.ENGINES:
+        for i, engine in enumerate(transport.ENGINES, 1):
+            began, before = time.monotonic(), len(transport.failures)
+            tag = f"[{engine} {i}/{len(transport.ENGINES)}]"
+            print(f"\n   {tag} start …", flush=True)
             run_engine(p, engine, origin)
+            bad = len(transport.failures) - before
+            print(f"   {tag} done: {'PASS' if not bad else f'FAIL ({bad} failed)'} ({time.monotonic() - began:.0f} s)", flush=True)
     server.shutdown()
     if transport.failures:
         print(f"\nONLINE RACE CHECK FAILED: {len(transport.failures)} problem(s)")

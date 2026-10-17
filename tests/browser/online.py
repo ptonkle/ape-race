@@ -33,6 +33,7 @@ import os
 import pathlib
 import re
 import sys
+import time
 import threading
 import zlib
 
@@ -292,8 +293,13 @@ def main():
     host, port = server.server_address[:2]
     origin = f"http://{host}:{port}"
     with sync_playwright() as p:
-        for engine in ENGINES:
+        for i, engine in enumerate(ENGINES, 1):
+            began, before = time.monotonic(), len(failures)
+            tag = f"[{engine} {i}/{len(ENGINES)}]"
+            print(f"\n   {tag} start …", flush=True)
             run_engine(p, engine, origin)
+            bad = len(failures) - before
+            print(f"   {tag} done: {'PASS' if not bad else f'FAIL ({bad} failed)'} ({time.monotonic() - began:.0f} s)", flush=True)
     server.shutdown()
     if failures:
         print(f"\nONLINE CHECK FAILED: {len(failures)} problem(s)")

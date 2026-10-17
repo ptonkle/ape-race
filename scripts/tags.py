@@ -608,14 +608,32 @@ def quick(args):
 
     engines = "chromium firefox webkit" if every else "chromium"
     py = os.environ.get("BUILDER_PYTHON") or (str(ROOT / ".venv/bin/python") if (ROOT / ".venv/bin/python").exists() else "python3")
-    times = []
-    t0 = time.time()
+    import checkrun  # scripts/checkrun.py: how each stage prints
 
-    def step(name, cmd, env=None):
-        print(f"\n\033[1m== {name}: {' '.join(cmd) if len(cmd) < 12 else ' '.join(cmd[:10]) + ' ...'}\033[0m", flush=True)
-        t = time.time()
-        code = subprocess.run(cmd, cwd=ROOT, env={**os.environ, **(env or {})}).returncode
-        times.append(f"{name}={time.time() - t:.1f}")
+    run = checkrun.Run("quick")
+    times = []
+
+    def plan_rest():
+        """The cargo picks and browser/online steps (lists the cargo tests once)."""
+        ids = ids_once()
+        times.append(f"list={listed[1]:.1f}")
+        picked = [tid for tid in ids if wanted(test_tags(cfg, tid) or {ALL}, hit) or picked_by(picks, tid)]
+        # one invocation by exact name: each test binary runs the names it has
+        # (lib names carry a module path; integration names are bare)
+        names = sorted({tid.split(":", 2)[-1] if tid.startswith("test:") else tid.split(":", 1)[1] for tid in picked})
+        tfiles = sorted({tid.split(":")[1] for tid in picked if tid.startswith("test:")})
+        return ids, picked, names, tfiles
+
+    bsteps = [s for s, tags in cfg["browser"].items() if step_hit(tags, hit) or s in direct]
+    # boot alone runs too (a tab icon change): it is what boot checks
+    browser_run = [s for s in bsteps if s != "boot"] or (["boot"] if "boot" in bsteps else [])
+    osteps = [s for s, tags in cfg["online"].items() if ALL in hit or set(tags) & hit]
+    stages = 5 + bool(browser_run) + len(osteps)  # format lint core release WebAssembly ...
+    n = iter(range(1, stages + 1))
+
+    def step(name, label, mode, cmd, env=None):
+        code = run.stage(name, f"{next(n)}/{stages}", label, mode, cmd, env)
+        times.append(f"{name}={run.stages[-1][3]:.1f}")
         if code:
             print(f"\nQUICK CHECK FAILED at {name} (exit {code})")
             print(f"QUICK tags={','.join(sorted(hit))} engines={engines.replace(' ', '+')}")
@@ -623,23 +641,10 @@ def quick(args):
             sys.exit(code)
 
     if not dry:
-        step("format", ["cargo", "fmt", "--all", "--", "--check"])
-        step("lint", ["cargo", "clippy", "--workspace", "--all-targets", "--quiet", "--", "-D", "warnings"])
+        step("format", "format (cargo fmt --check)", "plain", ["cargo", "fmt", "--all", "--", "--check"])
+        step("lint", "lint (cargo clippy)", "plain", ["cargo", "clippy", "--workspace", "--all-targets", "--quiet", "--", "-D", "warnings"])
 
-    # cargo tests
-    ids = ids_once()
-    times.append(f"list={listed[1]:.1f}")
-    picked = [tid for tid in ids if wanted(test_tags(cfg, tid) or {ALL}, hit) or picked_by(picks, tid)]
-    # one invocation by exact name: each test binary runs the names it has
-    # (lib names carry a module path; integration names are bare)
-    names = sorted({tid.split(":", 2)[-1] if tid.startswith("test:") else tid.split(":", 1)[1] for tid in picked})
-    tfiles = sorted({tid.split(":")[1] for tid in picked if tid.startswith("test:")})
-
-    bsteps = [s for s, tags in cfg["browser"].items() if step_hit(tags, hit) or s in direct]
-    # boot alone runs too (a tab icon change): it is what boot checks
-    browser_run = [s for s in bsteps if s != "boot"] or (["boot"] if "boot" in bsteps else [])
-    osteps = [s for s, tags in cfg["online"].items() if ALL in hit or set(tags) & hit]
-
+    ids, picked, names, tfiles = plan_rest()
     print(f"\ncargo tests: {len(picked)} of {len(ids)} (integration files {', '.join(tfiles) or 'none'})")
     print(f"browser steps: {', '.join(['boot'] + [s for s in browser_run if s != 'boot']) if browser_run else 'none (browser check skipped)'}"
           f"{' in ' + engines if browser_run else ''}")
@@ -648,22 +653,25 @@ def quick(args):
         return 0
 
     if ALL in hit:
-        step("core", ["cargo", "test", "--workspace", "--quiet"])
+        step("core", "core tests (all)", "cargo", ["cargo", "test", "--workspace"])
+    elif names:
+        step("core", f"core tests ({len(picked)} picked)", "cargo",
+             ["cargo", "test", "--workspace", "--lib", "--tests", "--", "--exact", *names])
     else:
-        if names:
-            step("core", ["cargo", "test", "--workspace", "--lib", "--tests", "--quiet", "--", "--exact", *names])
-    step("release", ["./scripts/build.sh"])
-    step("WebAssembly", [py, "scripts/wasm_imports.py", "dist"])
+        run.skip("core", f"{next(n)}/{stages}", "core tests", "none picked")
+    step("release", "release build (scripts/build.sh)", "quiet", ["./scripts/build.sh"])
+    step("WebAssembly", "WebAssembly import audit", "wasm", [py, "scripts/wasm_imports.py", "dist"])
     if browser_run:
         env = {"BUILDER_ENGINES": engines}
         if not (ALL in hit or "page" in hit):
             env["BUILDER_STEPS"] = " ".join(s for s in browser_run if s != "boot")
-        step("browser", [py, "tests/browser/check.py"], env)
+        step("browser", f"browser check ({engines})", "plain", [py, "tests/browser/check.py"], env)
     for s in osteps:
-        step(f"online-{s}", [py, ONLINE_STEPS[s]], {"BUILDER_ENGINES": engines})
+        step(f"online-{s}", f"online {s} ({ONLINE_STEPS[s]})", "plain", [py, ONLINE_STEPS[s]], {"BUILDER_ENGINES": engines})
 
+    run.summary()
     print(f"QUICK tags={','.join(sorted(hit))} engines={engines.replace(' ', '+') if browser_run or osteps else 'none'}")
-    print("TIMES " + " ".join(times) + f" total={time.time() - t0:.1f}")
+    print("TIMES " + " ".join(times) + f" total={time.time() - run.t0:.1f}")
     print("\n\033[1mQUICK CHECK PASSED\033[0m")
     return 0
 
@@ -679,11 +687,11 @@ def failures(path):
     for line in pathlib.Path(path).read_text(errors="replace").splitlines():
         line = re.sub(r"\x1b\[[0-9;]*m", "", line)
         if line.startswith("== "):
-            stage = line[3:].split(" (")[0].split(":")[0]
+            stage = line[3:].split(" — ")[0].split(" (")[0].split(":")[0]
         m = re.match(r"\[(\w+)\] ", line)
         if m:
             engine, step = m.group(1), None
-        m = re.match(r"  -- step (\w+)", line)
+        m = re.match(r"  -- step (\w+)", line) or re.match(r"\s*\[\w+ \d+/\d+\] step \d+/\d+ (\w+) …", line)
         if m:
             step = m.group(1)
         m = re.match(r"test (\S+) \.\.\. FAILED", line) or re.match(r"---- (\S+) stdout ----", line)

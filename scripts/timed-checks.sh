@@ -15,6 +15,8 @@
 # the failing tests and browser steps to notes/test-failures.md.
 # Print each browser step as it finishes, not all at the end when logged to a file.
 export PYTHONUNBUFFERED=1
+# Colour for a person watching in a terminal (the stages see a pipe to tee).
+[ -t 1 ] && export CHECK_COLOR=1
 set -uo pipefail
 cd "$(dirname "$0")/.."
 LOG=notes/check-times.md

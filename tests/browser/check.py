@@ -31,6 +31,7 @@ import os
 import pathlib
 import sys
 import threading
+import time
 
 from playwright.sync_api import sync_playwright
 
@@ -75,8 +76,9 @@ def load_interactions():
     return module
 
 
-def run_engine(p, engine, base, interactions):
+def run_engine(p, engine, base, interactions, tag):
     print(f"\n[{engine}] {base}/")
+    print(f"   {tag} load and {IDLE_MS // 1000} s idle …", flush=True)
     scheme_host = base.split("/", 3)
     origin = "/".join(scheme_host[:3])
     seen = {"foreign": [], "console": [], "errors": [], "sockets": [], "popups": [], "workers": []}
@@ -115,7 +117,7 @@ def run_engine(p, engine, base, interactions):
     page.wait_for_timeout(IDLE_MS)
     check(not seen["foreign"], f"no off-origin request during load and {IDLE_MS // 1000}s idle {seen['foreign']}")
 
-    interactions.run(page, check, engine)
+    interactions.run(page, check, engine, tag)
 
     csp = page.evaluate("() => window.__builderCsp || []")
     check(not csp, f"no Content-Security-Policy violation {csp}")
@@ -140,8 +142,12 @@ def main():
         origin = f"http://{host}:{port}"
     interactions = load_interactions()
     with sync_playwright() as p:
-        for engine in ENGINES:
-            run_engine(p, engine, origin, interactions)
+        for i, engine in enumerate(ENGINES, 1):
+            began, before = time.monotonic(), len(failures)
+            tag = f"[{engine} {i}/{len(ENGINES)}]"
+            run_engine(p, engine, origin, interactions, tag)
+            bad = len(failures) - before
+            print(f"   {tag} done: {'PASS' if not bad else f'FAIL ({bad} failed)'} ({time.monotonic() - began:.0f} s)", flush=True)
     if server:
         server.shutdown()
     if failures:

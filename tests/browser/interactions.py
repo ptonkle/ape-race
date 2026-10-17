@@ -374,18 +374,35 @@ def step_random_map(page, check):
 STEPS = [("boot", step_boot), ("settings", step_settings), ("race", step_race), ("secret", step_secret), ("time_trial", step_time_trial), ("replays_list", step_replays_list), ("whats_new", step_whats_new), ("city_map", step_city_map), ("weather", step_weather), ("setup_layout", step_setup_layout), ("random_map", step_random_map)]
 
 
-def run(page, check, engine):
-    """Runs every step, or `boot` and those named in BUILDER_STEPS."""
+def run(page, check, engine, tag=None):
+    """Runs every step, or `boot` and those named in BUILDER_STEPS. Prints a
+    line as each step starts and one with its verdict and seconds as it ends;
+    `tag` (e.g. "[chromium 1/3]") heads those lines."""
     wanted = os.environ.get("BUILDER_STEPS")
     chosen = None if wanted is None else set(wanted.split()) | {"boot"}
-    for name, step in STEPS:
-        if chosen is not None and name not in chosen:
-            print(f"  (skipped step {name})")
-            continue
-        print(f"  -- step {name}")
+    steps = [(n, s) for n, s in STEPS if chosen is None or n in chosen]
+    skipped = [n for n, _ in STEPS if chosen is not None and n not in chosen]
+    if skipped:
+        print(f"  (skipping {len(skipped)} steps not picked: {', '.join(skipped)})")
+    tag = tag or f"[{engine}]"
+    for k, (name, step) in enumerate(steps, 1):
+        fails = []
+
+        def counted(ok, what):
+            if not ok:
+                fails.append(what)
+            check(ok, what)
+
+        head = f"   {tag} step {k}/{len(steps)} {name}"
+        print(f"{head} …", flush=True)
         began = time.monotonic()
-        step(page, check)
-        print(f"  -- step {name} took {time.monotonic() - began:.1f} s")
+        verdict = "ERROR (exception, below)"
+        try:
+            step(page, counted)
+            verdict = f"FAIL ({len(fails)} failed)" if fails else "PASS"
+        finally:
+            took = time.monotonic() - began
+            print(f"{head} {verdict} ({took:.1f} s)" if took < 10 else f"{head} {verdict} ({took:.0f} s)", flush=True)
 
 
 # Whether the menus fit: the column has no scrollbar, no panel scrolls inside,
