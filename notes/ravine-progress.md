@@ -9,7 +9,7 @@ The standard map-build steps (MAPS.md "Build steps"), one row each. Status is on
 | 3 | Ape costumes | Done | `Gear::Cowboy` (models/cowboy.rs): hat, bandana, gun belt, chaps, boots with spurs, bananas in a holster or bandolier, a mix and palette per kind; `SPIDER_JAGUAR` (models/spider.rs), eight banded legs; Costume "Cowboy"; shots `notes/ravine-shots/costumes/`; RG1–RG6. Branch `ravine-gear`; Map::Ravine wiring is two lines for the skeleton (RG6) |
 | 4 | Models | Done (merged) | `crates/core/src/ravinemodels.rs` + `ravinemodels/`: snake vine and snapped, wall lizards (red/yellow/blue), mine cart, track with trestles, wall hole, T-rex skull from its tooth list, proboscis sphinx, campfire with roasting bananas, tents, mining props, rope bridge, log span, fossils, mushrooms, torch, fireflies. 25 gallery keys; shots in `notes/ravine-shots/models/`; SECOND-ORDER RM-1–RM-5 |
 | 5 | Sky and lighting | Not started | |
-| 6 | Course layout | In progress | agent on `ravine-course` (started 10:13) |
+| 6 | Course layout | In progress | agent on `ravine-course` (started 10:13); first work-in-progress commit 10:48 |
 | 7 | Map rules | Done (merged) | Snake vines snap and drop the ape (regrow after 10 s, saved, synced); teeth reset to the floor (lava: the kill); walls, roofs, cave/tunnel sides, holes, skull bone, sphinx and rocks solid, swept and indexed; decks and solid tops are floors; camera keeps inside rooms and out of rock; lizard/cart bounce tested; AI avoids most snakes (Sloth least). Tested alone on bare courses (`ravine/rules_tests.rs`); SECOND-ORDER RR1–RR8 |
 | 8 | Art placed on the course | Not started | |
 | 9 | Lobby spot and flyover | Not started | |
@@ -19,7 +19,7 @@ The standard map-build steps (MAPS.md "Build steps"), one row each. Status is on
 | 13 | Colourblind and JOJO MODE | Not started | |
 | 14 | Map card | Not started | |
 | 15 | Screenshots at 1920×1080 | Not started | |
-| 16 | Other maps unchanged | Not started | |
+| 16 | Other maps unchanged | In progress | 10:51: the other-maps-unchanged tests pass on `ravine` with skeleton, models, costumes and rules merged |
 | 17 | Docs | Not started | |
 | 18 | Full checks | Not started | |
 | 19 | Deploy | Waiting on you | Held until you say |
