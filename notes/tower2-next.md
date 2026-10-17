@@ -22,4 +22,4 @@ T100 and T99 both touch the tube, so do them in one agent (or T99 inline: it is 
 
 ## After the queue
 
-Rebuild, the person plays it locally, shots of the new tube at 1920×1080 on the journal `#tower` (one batched publish), quick check (`BUILDER_PYTHON=/home/peter/slop/ape-race/.venv/bin/python ./scripts/timed-checks.sh quick`), then the deploy question. Still open from the night: `notes/tower2-morning.md` questions (the inside climb's spread is partly answered by T96; the tube's green glow is replaced by T100's new pads).
+Rebuild, the person plays it locally, shots of the new tube at 1920×1080 on the journal `#tower` (one batched publish), quick check (`BUILDER_PYTHON=../ape-race/.venv/bin/python ./scripts/timed-checks.sh quick`), then the deploy question. Still open from the night: `notes/tower2-morning.md` questions (the inside climb's spread is partly answered by T96; the tube's green glow is replaced by T100's new pads).
