@@ -102,7 +102,7 @@ fn the_night_sky_has_hundreds_of_stars_the_milky_way_and_the_moon() {
     sky(&mut b, eye, moon_yaw(&c), 0);
     // every field and band star above the horizon, and the haze
     assert!(
-        b.count_of(Mesh::Ico) >= 550,
+        b.count_of(Mesh::Ico) >= 320,
         "stars {}",
         b.count_of(Mesh::Ico)
     );
@@ -122,6 +122,13 @@ fn the_night_sky_has_hundreds_of_stars_the_milky_way_and_the_moon() {
     let mut all = Batch::new();
     dynamic(&mut all, &c, &r, eye, 0);
     assert!(all.count() < 900, "{}", all.count());
+    // the sky alone, haze and all, fits 600 shapes (the hairpin's worst
+    // frame plus the sky within 5,500; it was ~1,028, RA-15)
+    let mut s = Batch::new();
+    sky(&mut s, eye, moon_yaw(&c), 0);
+    let total = s.count() + s.take_halos().count();
+    eprintln!("sky shapes {total}");
+    assert!(total <= 600, "sky shapes {total}");
 }
 
 #[test]
