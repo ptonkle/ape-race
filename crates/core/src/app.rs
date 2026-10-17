@@ -384,7 +384,7 @@ pub struct Play {
 /// Slope, 1.4 the map grid and kept best replays, 1.5 auras and palettes,
 /// 1.6 finish dances),
 /// patch (fixes only).
-pub const VERSION: &str = "1.13.3";
+pub const VERSION: &str = "1.13.4";
 
 pub struct App {
     strings: BTreeMap<String, String>,

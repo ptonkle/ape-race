@@ -815,13 +815,138 @@ fn gorilla_parts() -> (Vec<Syllable>, Vec<Note>) {
     (voice, chest)
 }
 
-/// The gorilla's call as a Q16 mix with a peak of ONE.
-fn gorilla_mix() -> Vec<i64> {
-    let (voice, chest) = gorilla_parts();
+/// A nasal vowel for the proboscis monkey's honk (a high second formant).
+const NA: Vowel = Vowel(300, 1700, 2500);
+
+/// The chimpanzee: a fast pant-hoot, five quick "hoo"s climbing to two
+/// screams. Fast and high, against the gorilla's slow and deep.
+fn chimpanzee_parts() -> (Vec<Syllable>, Vec<Note>) {
+    let mut voice = Vec::new();
+    for k in 0..5u32 {
+        voice.push(syl(
+            k * 130,
+            90,
+            (370 + k * 15, 410 + k * 15),
+            OO,
+            OO,
+            50 + k as i32 * 10,
+        ));
+    }
+    voice.push(Syllable {
+        growl: 20,
+        ..syl(680, 180, (700, 1100), OH, AH, 95)
+    });
+    voice.push(Syllable {
+        growl: 25,
+        ..syl(880, 220, (900, 1300), AH, EE, 100)
+    });
+    (voice, Vec::new())
+}
+
+/// The orangutan: one long slow groan that swells, opens and sinks, with
+/// a bubbling growl. One sliding note, nothing else like it.
+fn orangutan_parts() -> (Vec<Syllable>, Vec<Note>) {
+    let voice = vec![
+        Syllable {
+            growl: 30,
+            ..syl(0, 520, (140, 200), OO, OH, 80)
+        },
+        Syllable {
+            growl: 35,
+            ..syl(460, 620, (200, 170), OH, AH, 100)
+        },
+        Syllable {
+            growl: 30,
+            ..syl(1020, 420, (170, 105), AH, OO, 85)
+        },
+    ];
+    (voice, Vec::new())
+}
+
+/// The gibbon: a sung song of pure whoops sweeping up, each higher and
+/// quicker, then one falling away. No voice growl at all: tones.
+fn gibbon_parts() -> (Vec<Syllable>, Vec<Note>) {
+    use Env::*;
+    use Wave::*;
+    let notes = vec![
+        n((600, 1100), 0, 260, 70, Sine, Swell),
+        n((600, 1100), 0, 260, 20, Triangle, Swell),
+        n((650, 1200), 300, 240, 75, Sine, Swell),
+        n((650, 1200), 300, 240, 20, Triangle, Swell),
+        n((700, 1300), 560, 220, 80, Sine, Swell),
+        n((700, 1300), 560, 220, 20, Triangle, Swell),
+        n((800, 1500), 780, 320, 90, Sine, Swell),
+        n((800, 1500), 780, 320, 25, Triangle, Swell),
+        n((1500, 900), 1100, 260, 80, Sine, Perc),
+        n((1500, 900), 1100, 260, 20, Triangle, Perc),
+    ];
+    (Vec::new(), notes)
+}
+
+/// The proboscis monkey: two buzzy nasal honks and a snort.
+fn proboscis_parts() -> (Vec<Syllable>, Vec<Note>) {
+    use Env::*;
+    use Wave::*;
+    let voice = vec![
+        Syllable {
+            growl: 35,
+            ..syl(0, 220, (230, 190), NA, NA, 90)
+        },
+        Syllable {
+            growl: 35,
+            ..syl(300, 260, (240, 185), NA, NA, 100)
+        },
+    ];
+    let notes = vec![
+        n((0, 0), 620, 170, 55, Noise(120), Perc),
+        n((120, 60), 620, 120, 40, Sine, Perc),
+    ];
+    (voice, notes)
+}
+
+/// The lemur: a cat-like yowl rising then falling, then a fast chatter
+/// of clicks.
+fn lemur_parts() -> (Vec<Syllable>, Vec<Note>) {
+    use Env::*;
+    use Wave::*;
+    let voice = vec![
+        Syllable {
+            growl: 10,
+            ..syl(0, 420, (480, 760), EE, AH, 90)
+        },
+        Syllable {
+            growl: 10,
+            ..syl(400, 350, (760, 420), AH, OO, 85)
+        },
+    ];
+    let mut notes = Vec::new();
+    for k in 0..10u32 {
+        let at = 800 + k * 55;
+        notes.push(n((0, 0), at, 14, 70, Noise(255), Perc));
+        notes.push(n((900, 700), at, 22, 35, Square, Perc));
+    }
+    (voice, notes)
+}
+
+/// `kind`'s call as syllables (the voice) and notes (everything else).
+fn call_parts(kind: Kind) -> (Vec<Syllable>, Vec<Note>) {
+    match kind {
+        Kind::Gorilla => gorilla_parts(),
+        Kind::Chimpanzee => chimpanzee_parts(),
+        Kind::Orangutan => orangutan_parts(),
+        Kind::Gibbon => gibbon_parts(),
+        Kind::Proboscis => proboscis_parts(),
+        Kind::Lemur => lemur_parts(),
+    }
+}
+
+/// `kind`'s call as a Q16 mix with a peak of ONE.
+fn call_mix(kind: Kind) -> Vec<i64> {
+    let (voice, chest) = call_parts(kind);
     let end_v = voice.iter().map(|s| s.at_ms + s.ms).max().unwrap_or(0);
     let end_c = chest.iter().map(|n| n.at_ms + n.ms).max().unwrap_or(0);
     let mut mix = vec![0i64; ms_to_samples(end_v.max(end_c) + 15)];
-    let mut dice = Dice(0x6042_1114);
+    let mut dice = Dice(0x6042_1114 + kind as u64 * 0x9E37);
     for s in &voice {
         let start = ms_to_samples(s.at_ms);
         for (i, v) in syllable(s, &mut dice).into_iter().enumerate() {
@@ -847,13 +972,18 @@ fn gorilla_mix() -> Vec<i64> {
 /// under the hype calls, which were found too loud (the person, T58).
 const CALL_LOUD: i64 = 40;
 
-/// The gorilla's call as 16-bit samples at `volume` percent.
-pub fn gorilla_samples(volume: u8) -> Vec<i16> {
-    let mut mix = gorilla_mix();
+/// `kind`'s call as 16-bit samples at `volume` percent.
+pub fn call_samples(kind: Kind, volume: u8) -> Vec<i16> {
+    let mut mix = call_mix(kind);
     for m in mix.iter_mut() {
         *m = *m * CALL_LOUD / 100;
     }
     to_pcm(&mix, volume)
+}
+
+/// The gorilla's call as 16-bit samples at `volume` percent.
+pub fn gorilla_samples(volume: u8) -> Vec<i16> {
+    call_samples(Kind::Gorilla, volume)
 }
 
 /// The gorilla's call as a complete WAV file.
@@ -872,22 +1002,9 @@ pub fn call_kind(key: &str) -> Option<Kind> {
     key.strip_prefix("call-").and_then(Kind::from_key)
 }
 
-/// `kind`'s call at `volume` percent, as a complete WAV file. Only the
-/// gorilla's exists; the others borrow it until their own are made.
+/// `kind`'s call at `volume` percent, as a complete WAV file.
 pub fn call(kind: Kind, volume: u8) -> Vec<u8> {
-    match kind {
-        Kind::Gorilla => gorilla(volume),
-        // TODO T58: the orangutan's own call
-        Kind::Orangutan => gorilla(volume),
-        // TODO T58: the chimpanzee's own call
-        Kind::Chimpanzee => gorilla(volume),
-        // TODO T58: the gibbon's own call
-        Kind::Gibbon => gorilla(volume),
-        // TODO T58: the proboscis monkey's own call
-        Kind::Proboscis => gorilla(volume),
-        // TODO T58: the lemur's own call
-        Kind::Lemur => gorilla(volume),
-    }
+    wav_file(&call_samples(kind, volume))
 }
 
 /// Ticks between one ape's calls (the person: 2 s, everywhere).
@@ -960,7 +1077,7 @@ fn pass_by(mix: &[i64]) -> Vec<i64> {
 
 /// The gorilla's call as heard while it swings past, as 16-bit samples.
 pub fn gorilla_pass_samples(volume: u8) -> Vec<i16> {
-    let mut mix = pass_by(&gorilla_mix());
+    let mut mix = pass_by(&call_mix(Kind::Gorilla));
     for m in mix.iter_mut() {
         *m = *m * CALL_LOUD / 100;
     }
@@ -1016,6 +1133,32 @@ mod call_tests {
         let far = call_gain(fx::int(20));
         assert!(far < near / 10 && far > 0, "20 m: {far}");
         assert!(call_gain(fx::int(40)) * 100 <= ONE, "silent at 40 m");
+    }
+
+    /// A clip's length in ms and its mean zero-crossing rate in Hz (a
+    /// rough pitch).
+    fn shape(pcm: &[i16]) -> (usize, usize) {
+        let ms = pcm.len() * 1000 / SAMPLE_RATE as usize;
+        let crossings = pcm.windows(2).filter(|w| (w[0] < 0) != (w[1] < 0)).count();
+        (ms, crossings * SAMPLE_RATE as usize / 2 / pcm.len().max(1))
+    }
+
+    #[test]
+    fn every_kinds_call_is_its_own() {
+        let shapes: Vec<(Kind, (usize, usize))> = Kind::ALL
+            .iter()
+            .map(|&k| (k, shape(&call_samples(k, 100))))
+            .collect();
+        for (i, (a, (ms_a, hz_a))) in shapes.iter().enumerate() {
+            for (b, (ms_b, hz_b)) in &shapes[i + 1..] {
+                let len_apart = ms_a.abs_diff(*ms_b) > 80;
+                let pitch_apart = hz_a.abs_diff(*hz_b) * 100 > hz_a.max(hz_b) * 15;
+                assert!(
+                    len_apart || pitch_apart,
+                    "{a:?} ({ms_a} ms, ~{hz_a} Hz) and {b:?} ({ms_b} ms, ~{hz_b} Hz) sound alike"
+                );
+            }
+        }
     }
 
     #[test]
