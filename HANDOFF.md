@@ -4,6 +4,11 @@ Stage 9, written by the agent. `C5 Consolidate in your own words`.
 
 A fresh session starts from this file, not from memory.
 
+## Rattlesnake Ravine (2026-10-17, branch `ravine`, held, not deployed)
+
+- The map (key `ravine`, TRIAGE T107, brief `briefs/rattlesnake-ravine.md`, progress `notes/ravine-progress.md`): steps 1–14 and 17 done; 12 (sky shapes), 15 (screenshots), 16 and 18 open; deploy held. `Map::held` keeps it off the map grid and Random until the person releases it (README's How to Play row says so). AI over 16 layouts: Sloth 131.9 s (5 timeouts, accepted), Ape 97.2, King Kong 77.1. Medals Author 1:05, Gold 1:12, Silver 1:22, Bronze 1:37.
+- The release's patch-note draft is in `notes/ravine-progress.md` step 19, not yet in `data/patch-notes.json`.
+
 ## Mape's Tower, second design (2026-10-17, branch `tower2`, 1.14.0, not deployed)
 
 - Start from `notes/tower2-morning.md` (questions for the person) and `notes/tower2-progress.md`.
