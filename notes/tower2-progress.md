@@ -13,15 +13,15 @@ The standard map-build steps (MAPS.md "Build steps"), one row each. Status is on
 | 7 | Map rules | In progress | Tube air (terminal 38 m/s, 3× control), pads, walls, resets per leg in `tower/rules.rs`, `stone.rs`; the sling untested until an AI finishes |
 | 8 | Art placed on the course | Done (on the stand-in) | merged `tower2-art`: every v2 model placed from the contract (TA2-1); the inside's sharing/caps can go once the course thins the rings (TA2-3); stipple bands on the walls and the void fog for the person to judge (TA2-8) |
 | 9 | Lobby spot and flyover | Done | lobby mid lower bridge looking to tower 2 (both towers can't fit one view: 380 m apart, fog at 330 m); flyover a closed stadium lap, no jump (TA2-5, TA2-6) |
-| 10 | AI validation | In progress | planner agent (`tower2-planner`): on the tower the planner steers for all 10 candidates, and a beam 5 m higher than the one held counts as ahead though the course places it behind (TC2-12, TC2-13). King Kong and the Ape now finish layouts 0–3 (King Kong 85–100 s, hand-over 3–14.5 s, inside 24.5–33 s); the Monkey is out of time on layout 1 and the Sloth on 1 and 2; the Sloth's and the Monkey's inside climb is 39–72 s and on layout 0 the Sloth (123.4 s) beats the Monkey (137.0 s). Two candidate orders for the inside climb were worse and reverted (TC2-14); next is layout (b) with TC2-8 (TC2-15) |
-| 11 | Medal times | Done (provisional) | Author 94.5, Gold 101.5, Silver 111.5, Bronze 126.5 (v1 61/68/78/93); re-measure after the hand-over (TC2-4) |
+| 10 | AI validation | In progress | aigate agent (`tower2-aigate`): stronger arms on the climbs (full inside and over the rim, Sloth 5 and Monkey 6 round tower 2), a porch beam at the doorway, portal beams by the wall 4 m over the rim (TC2-17, TC2-18). Every level finishes all 16 layouts inside 140 s (tear seeds: 63 of 64 inside 150 s); means King Kong 96.7, Ape 106.7, Monkey 110.5, Sloth 118.3 s; not yet ordered (Monkey only 3.8 s behind the Ape; layout 0 107.0 / 107.6 / 106.6 / 116.2 s, TC2-19) |
+| 11 | Medal times | Done | Author 90.0, Gold 97.0, Silver 107.0, Bronze 122.0 (the Chimpanzee's Time Trial 90.58 s best; every kind finishes; TC2-20) |
 | 12 | Step and frame cost | In progress | worst frame 5,355 shapes (v1 4,896; budget 5,500), driven by the stand-in's inside density (TA2-2); the budget test passes after the merges; step cost not measured |
 | 13 | Colourblind and JOJO MODE | Not started | |
 | 14 | Map card | Not started | New card from the new flyover |
 | 15 | Screenshots at 1920×1080 | Done (first pass) | `notes/tower2-shots/` 21 shots: gallery, play, lobby, flyover; on the journal; retake after the course lands |
 | 16 | Other maps unchanged | Done so far | fingerprint and replay-hash tests pass unchanged after every merge |
 | 17 | Docs | Not started | |
-| 18 | Full checks | In progress | debug workspace tests on `tower2-planner`: fmt and clippy clean; the other maps unchanged; failing: the vine audit (120 rows: 32 entry-beam, 88 caster lines, TC2-10), the three tower AI tests (the Sloth and Monkey out of time on some layouts, order wrong on layout 0) and now the medal test (best Time Trial 87.7 s under Author 94.5; re-measure once every layout finishes), TC2-16 |
+| 18 | Full checks | In progress | debug on `tower2-aigate`: fmt and clippy clean, other maps unchanged, medal test passes; failing: the vine audit (32 entry-beam rows, 104 caster lines), the three tower AI tests (order and spacing; one Monkey tear run 161 s) (TC2-22) |
 | 19 | Deploy | Not started | Replaces the live tower |
 
 ## This map's features

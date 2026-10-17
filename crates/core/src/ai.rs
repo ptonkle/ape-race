@@ -334,11 +334,41 @@ const SKI_HOP: [i32; 4] = [int(22), int(24), int(26), int(28)];
 /// the Ski Slope, so a level's Jungle reaction let the release go by: the
 /// reactions are the Ski Slope's (the Monkey 113 → 106 s over four
 /// layouts, before the zipper's beams were lengthened; TC5). With the Jungle's arms the Ape was 6.4 s ahead of the Monkey:
-/// its arms are 5 of 8 here.
-const TOWER_HESITATE: [u32; 4] = [6, 3, 1, 0];
-const TOWER_JITTER: [u32; 4] = [6, 3, 1, 0];
-const TOWER_DRIVE: [u32; 4] = [2, 3, 5, DUTY];
+/// its arms were 5 of 8 here. In the second design the climbs get their own
+/// arms (`TOWER_INSIDE_DRIVE`), so the bridges' arms and the reactions
+/// space the levels: the Ape 4 of 8, the reactions 10 / 5 / 2 / 0 ticks
+/// (TC2-17, TC2-19).
+const TOWER_HESITATE: [u32; 4] = [10, 5, 2, 0];
+const TOWER_JITTER: [u32; 4] = [10, 5, 2, 0];
+const TOWER_DRIVE: [u32; 4] = [2, 3, 4, DUTY];
 const TOWER_NOISE: [i32; 4] = [int(6), int(4), int(2), 0];
+/// Mape's Tower's arms on the climbs, easiest level first: round tower 2
+/// (`TOWER_SPIRAL_DRIVE`) and up the hollow and over the rim
+/// (`TOWER_INSIDE_DRIVE`). A climb is won by pumping: with the bridges'
+/// weak arms the Sloth and the Monkey whirled on one beam for 20-80 s
+/// there and ran out of time (TC2-17).
+const TOWER_SPIRAL_DRIVE: [u32; 4] = [5, 6, 0, 0];
+const TOWER_INSIDE_DRIVE: [u32; 4] = [DUTY, DUTY, DUTY, DUTY];
+
+/// The arms a level swings with at least on Mape's Tower where `a` is
+/// (none off the climbs; see `TOWER_INSIDE_DRIVE`).
+fn tower_climb_drive(
+    t: &crate::tower::TowerLayout,
+    a: &Ape,
+    course: &Course,
+    level: Difficulty,
+) -> u32 {
+    use crate::tower::Leg;
+    let k = level as usize;
+    if t.inside_tower_1(a.pos) {
+        return TOWER_INSIDE_DRIVE[k];
+    }
+    match t.leg_at(progress(course, a)) {
+        Leg::Inside | Leg::Portal => TOWER_INSIDE_DRIVE[k],
+        Leg::Tower2 => TOWER_SPIRAL_DRIVE[k],
+        _ => 0,
+    }
+}
 /// Mape's Tower: a beam whose bottom hangs more than this over the top a
 /// swing's speed could carry the ape (the climb lift and the arms' reach)
 /// is out of its reach.
@@ -1469,6 +1499,11 @@ fn on_vine(a: &Ape, course: &Course, tick: u32, vine: usize, brain: &mut Brain) 
         // swings with all it has
         tune.drive = DUTY;
     }
+    if let Some(t) = course.tower.as_deref() {
+        tune.drive = tune
+            .drive
+            .max(tower_climb_drive(t, a, course, brain.difficulty));
+    }
     let stale = match &brain.plan {
         Some(p) => p.vine != vine || fresh,
         None => true,
@@ -2111,6 +2146,51 @@ fn aim_at(course: &Course, target: usize) -> i32 {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Mape's Tower's climbs (TC2-17): inside tower 1's hollow every level
+    /// swings with full arms, round tower 2 the Sloth and the Monkey with
+    /// stronger arms than on the bridges, and on the start row nothing is
+    /// added to a level's own arms.
+    #[test]
+    fn on_the_tower_every_level_climbs_with_strong_arms() {
+        let c = crate::tower::tower();
+        let t = c.tower.as_deref().unwrap();
+        let t1 = &t.towers[0];
+        let at = |p: V3| {
+            let mut a = Ape::new(crate::rules::Kind::Chimpanzee, true, p, 0);
+            a.hint = c.nearest_anywhere(p);
+            a
+        };
+        let inside = at(v3(t1.centre.x, t1.centre.y + t1.height / 2, t1.centre.z));
+        let spiral = at(c.point(t.leg_start(crate::tower::Leg::Tower2, c.length) + int(40)));
+        let start = at(c.point(int(4)));
+        for level in Difficulty::ALL {
+            assert_eq!(
+                tower_climb_drive(t, &inside, &c, level),
+                DUTY,
+                "{level:?} inside"
+            );
+            assert_eq!(
+                tower_climb_drive(t, &start, &c, level),
+                0,
+                "{level:?} at the start"
+            );
+        }
+        for level in [Difficulty::Sloth, Difficulty::Monkey] {
+            let own = level.tuning_on(On {
+                city: false,
+                ski: false,
+                sector: false,
+                ruins: false,
+                bay: false,
+                tower: true,
+            });
+            assert!(
+                tower_climb_drive(t, &spiral, &c, level) > own.drive,
+                "{level:?} round tower 2"
+            );
+        }
+    }
 
     /// Mape's Tower, at the shaft's top: a beam hanging higher than the one
     /// held is a candidate though the course places it behind (TC2-13).

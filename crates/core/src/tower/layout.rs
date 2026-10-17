@@ -108,6 +108,8 @@ const GAP: i32 = 22;
 /// far over it.
 const ANCHOR_OVER: i32 = int(26);
 const BOTTOM_OVER: i32 = int(2);
+/// The porch beam hangs this far short of tower 1's doorway (see `tower`).
+const PORCH: i32 = int(12);
 /// Inside tower 1: a ring of beams every this many metres of height, this
 /// many round, their length. A beam cast from a window or an inner
 /// balcony is anchored out in the hollow, `CAST_IN` from the axis (the
@@ -126,6 +128,10 @@ const FLOAT_IN: i32 = 10;
 /// beams).
 const PORTAL_LONGER: i32 = int(10);
 const PORTAL_DROP: i32 = int(2);
+/// A portal beam within `RIM_NEAR` of tower 1's wall hangs its bottom at
+/// least `RIM_CLEAR` over the rim (TC2-8).
+const RIM_NEAR: i32 = int(20);
+const RIM_CLEAR: i32 = int(4);
 /// Reset pads stand this far under the centreline: under the swings, and
 /// in a jump's reach of the vines.
 const PAD_UNDER: i32 = int(5);
@@ -525,6 +531,29 @@ pub fn tower_seeded(seed: u64) -> Course {
         }
     }
 
+    // the porch beam: one beam on the line under the upper bridge's end,
+    // `PORCH` short of the doorway's wall, so the swing in starts from a
+    // beam a hop from the entry beams (without it the last station is 24 m
+    // or more short of the wall and the entry beams 53-56 m on: the Sloth
+    // and the Monkey swung there to the time limit, TC2-17); no dice, so
+    // the rest of the layout is unchanged
+    {
+        let at = door_at - PORCH;
+        let base = c.point(at);
+        let bottom = v3(base.x, base.y + BOTTOM_OVER, base.z);
+        let mut v = beam(bottom, DOWN, ANCHOR_OVER - BOTTOM_OVER, at);
+        let b = &bridges[1];
+        let under = b.from.y.min(b.to.y) - b.thick - DECK_CLEAR;
+        if v.anchor.y > under {
+            v.length -= v.anchor.y - under;
+            v.anchor.y = under;
+        }
+        c.vines.push(v);
+        hangers.push(Hanger::Bridge { bridge: 1 });
+        lifts.push(false);
+        hangs.push(DOWN);
+    }
+
     // inside tower 1: rings of beams every LAYER_RISE of height, from
     // windows and inner balconies leaning in and from anchors floating
     // in the middle, scattered round by the dice
@@ -619,7 +648,15 @@ pub fn tower_seeded(seed: u64) -> Course {
         let r = right_of(h);
         for lane in [-6, 6] {
             let base = c.point(s).add(r.scale(int(lane)));
-            let bottom = v3(base.x, base.y - PORTAL_DROP, base.z);
+            let mut bottom = v3(base.x, base.y - PORTAL_DROP, base.z);
+            // (a beam just inside the wall hangs `RIM_CLEAR` over the rim:
+            // with its bottom at the rim's height a swing out from it
+            // crossed the wall's top with the feet in the stone and fell
+            // to the floor, TC2-8, TC2-18)
+            let off = base.flat().sub(t1_centre.flat());
+            if off.longer_than(inner - RIM_NEAR) && !off.longer_than(R1 + RIM_NEAR) {
+                bottom.y = bottom.y.max(rim + RIM_CLEAR);
+            }
             let v = beam(bottom, DOWN, ANCHOR_OVER + PORTAL_LONGER, s);
             hangers.push(Hanger::Dragon {
                 at: v
