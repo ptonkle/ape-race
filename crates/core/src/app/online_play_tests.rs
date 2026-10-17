@@ -241,6 +241,74 @@ fn the_screech_action_plays_on_both_apps() {
     );
 }
 
+/// A gain the core wrote as a decimal (`0.42`), in hundredths (no floats
+/// in the core, its tests included).
+fn hundredths(v: &Value) -> i64 {
+    let text = v.to_string();
+    let (whole, frac) = text.split_once('.').unwrap_or((&text, ""));
+    let frac = format!("{frac:0<2}");
+    whole.parse::<i64>().unwrap() * 100 + frac[..2].parse::<i64>().unwrap()
+}
+
+/// The ape calls the page is told to play: (sound key, loudness in hundredths,
+/// 100 = full).
+fn calls(a: &mut App) -> Vec<(String, i64)> {
+    let ui: Value = serde_json::from_str(&a.ui()).unwrap();
+    ui["calls"]
+        .as_array()
+        .map(|cs| {
+            cs.iter()
+                .map(|c| {
+                    (
+                        c["key"].as_str().unwrap().to_string(),
+                        hundredths(&c["gain"]),
+                    )
+                })
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+#[test]
+fn the_call_button_reaches_the_other_player_in_the_lobby_and_the_race() {
+    // TRIAGE T58: Left Shift in the lobby plays the chosen ape's call on
+    // both apps; in the race the other hears it by distance
+    let mut p = Pair::lobby();
+    p.apps[1].act("lobby.ape", "lemur");
+    p.run(100);
+    for a in &mut p.apps {
+        calls(a);
+    }
+    p.apps[1].key("ShiftLeft", true);
+    p.apps[1].key("ShiftLeft", false);
+    p.run(100);
+    for (k, a) in p.apps.iter_mut().enumerate() {
+        assert_eq!(calls(a), vec![("call-lemur".to_string(), 100)], "app {k}");
+    }
+    p.race();
+    for _ in 0..3 {
+        p.run(1000);
+    }
+    for a in &mut p.apps {
+        calls(a);
+    }
+    let kind = p.apps[0].play.as_ref().unwrap().race.racers[0].ape.kind;
+    p.apps[0].key("ShiftLeft", true);
+    p.apps[0].key("ShiftLeft", false);
+    p.run(100);
+    let own = calls(&mut p.apps[0]);
+    assert_eq!(own, vec![(crate::sound::call_key(kind), 100)]);
+    let heard = calls(&mut p.apps[1]);
+    assert_eq!(heard.len(), 1, "{heard:?}");
+    assert_eq!(heard[0].0, crate::sound::call_key(kind));
+    assert!(heard[0].1 > 0 && heard[0].1 < 100, "by distance: {heard:?}");
+    // the joiner's recording of the race keeps it
+    let jp = p.apps[1].play.as_ref().unwrap();
+    let rec = jp.record.as_ref().unwrap();
+    assert_eq!(rec.calls.len(), 1);
+    assert_eq!(rec.calls[0].1, 0);
+}
+
 #[test]
 fn a_supplied_screech_file_plays_at_the_players_volume() {
     // the swap-in path for the person's recording (SECOND-ORDER L4)

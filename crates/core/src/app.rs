@@ -47,6 +47,8 @@ const TICK_COST: i64 = 1_000_000;
 
 /// The left mouse button, held as if it were a key.
 const GRAB_BUTTON: &str = "Mouse0";
+/// The call button (TRIAGE T58): Left Shift, unused until now.
+const CALL_KEY: &str = "ShiftLeft";
 
 /// Two presses of R within this many ticks restart the race (0.4 s,
 /// TRIAGE T7).
@@ -401,6 +403,12 @@ pub struct App {
     keys: BTreeSet<String>,
     /// the item key went down since the last tick
     item_pressed: bool,
+    /// Ticks until the call button (Left Shift, TRIAGE T58) works again.
+    call_cooldown: u32,
+    /// Ape calls for the page to play this frame: the sound key and the
+    /// loudness, 0..=100 (full for the player's own or the followed ape,
+    /// by distance for another's).
+    calls: Vec<(String, i32)>,
     mouse: (i32, i32),
     pointer_locked: bool,
     last_us: Option<i64>,
@@ -473,6 +481,8 @@ impl App {
             play: None,
             keys: BTreeSet::new(),
             item_pressed: false,
+            call_cooldown: 0,
+            calls: Vec::new(),
             mouse: (0, 0),
             pointer_locked: false,
             last_us: None,
@@ -709,6 +719,9 @@ impl App {
             if code == "KeyR" && !self.keys.contains(code) {
                 self.quick_restart();
             }
+            if code == CALL_KEY && !self.keys.contains(code) {
+                self.call_pressed();
+            }
             if code == "Space" && !self.keys.contains(code) {
                 if let Some(pb) = self.play.as_mut().and_then(|p| p.replay.as_mut()) {
                     pb.playing = !pb.playing;
@@ -768,6 +781,67 @@ impl App {
     /// The window lost focus: let go of every key.
     pub fn blur(&mut self) {
         self.keys.clear();
+    }
+
+    /// The call button (TRIAGE T58): the player's ape gives its kind's
+    /// call, in a race (and the others hear it, by distance), in Race Setup
+    /// and Time Trial setup, and in the online lobby (the ape chosen as the
+    /// character; the other players hear it too). Presses inside the
+    /// cooldown do nothing; not while watching a replay, nor paused.
+    fn call_pressed(&mut self) {
+        if self.call_cooldown > 0 {
+            return;
+        }
+        match self.screen {
+            Screen::Setup | Screen::Lobby => {
+                let kind = self.settings.kind;
+                self.calls.push((sound::call_key(kind), 100));
+                if let Some(o) = &mut self.online.session {
+                    let _ = o.call_in_lobby(kind);
+                }
+            }
+            Screen::Race => {
+                let Some(mut p) = self.play.take() else {
+                    return;
+                };
+                if p.replay.is_none() && (!p.paused || p.online) {
+                    let who = p.local;
+                    self.hear_call(&p, who);
+                    if let Some(rec) = &mut p.record {
+                        rec.calls.push((p.race.tick, who));
+                    }
+                    if p.online {
+                        if let Some(o) = &mut self.online.session {
+                            o.send_call(who);
+                        }
+                    }
+                } else {
+                    self.play = Some(p);
+                    return;
+                }
+                self.play = Some(p);
+            }
+            _ => return,
+        }
+        self.call_cooldown = sound::CALL_COOLDOWN;
+    }
+
+    /// Racer `who` calls: the page plays its kind's call at full loudness
+    /// when it is the followed ape, else at a loudness from its distance
+    /// to the followed ape (`sound::call_gain`), nothing when too far.
+    pub(crate) fn hear_call(&mut self, p: &Play, who: usize) {
+        let Some(r) = p.race.racers.get(who) else {
+            return;
+        };
+        let f = &p.race.racers[p.focus.racer];
+        let gain = if who == p.focus.racer {
+            100
+        } else {
+            fx::mul(sound::call_gain(r.ape.pos.dist(f.ape.pos)), int(100)) / ONE
+        };
+        if gain > 0 {
+            self.calls.push((sound::call_key(r.ape.kind), gain));
+        }
     }
 
     fn held(&self, codes: &[&str]) -> bool {
@@ -1412,12 +1486,17 @@ impl App {
             return;
         }
         self.ticks = self.ticks.wrapping_add(1);
+        self.call_cooldown = self.call_cooldown.saturating_sub(1);
         let Some(mut p) = self.play.take() else {
             return;
         };
         if p.replay.is_some() {
-            for cue in replay_tick(&mut p) {
+            let (cues, calls) = replay_tick(&mut p);
+            for cue in cues {
                 self.sounds.push(cue.key().to_string());
+            }
+            for who in calls {
+                self.hear_call(&p, who);
             }
         } else if !p.paused || p.online {
             self.step_race(&mut p);
@@ -1794,6 +1873,13 @@ impl App {
         self.dock_ui(&mut v);
         if !self.sounds.is_empty() {
             v["sounds"] = json!(std::mem::take(&mut self.sounds));
+        }
+        if !self.calls.is_empty() {
+            let calls: Vec<Value> = std::mem::take(&mut self.calls)
+                .into_iter()
+                .map(|(key, g)| json!({ "key": key, "gain": decimal(&format!("{}.{:02}", g / 100, g % 100)) }))
+                .collect();
+            v["calls"] = Value::Array(calls);
         }
         if std::mem::take(&mut self.save) {
             v["save"] = json!(serde_json::to_string(&self.settings).unwrap_or_default());
@@ -2562,6 +2648,9 @@ impl App {
         if let Some(level) = sound::voice_level(key) {
             return sound::voice(level, self.settings.volume);
         }
+        if let Some(kind) = sound::call_kind(key) {
+            return sound::call(kind, self.settings.volume);
+        }
         match Cue::from_key(key) {
             Some(c) => sound::wav(c, self.settings.volume),
             None => Vec::new(),
@@ -2668,14 +2757,16 @@ fn play_camera(p: &Play, alpha: i32) -> Camera {
 
 /// One page tick of a replay: as many race ticks as the speed (or a seek)
 /// wants, the player's recorded camera with them when it follows the
-/// player. Returns the sounds of the followed ape, none while seeking.
-fn replay_tick(p: &mut Play) -> Vec<Cue> {
+/// player. Returns the sounds of the followed ape and the racers that
+/// called (TRIAGE T58), none while seeking.
+fn replay_tick(p: &mut Play) -> (Vec<Cue>, Vec<usize>) {
     let Some(mut pb) = p.replay.take() else {
-        return Vec::new();
+        return (Vec::new(), Vec::new());
     };
     let n = pb.due(p.race.tick);
     let seeking = pb.seek.is_some();
     let mut cues = Vec::new();
+    let mut calls = Vec::new();
     for _ in 0..n {
         pb.keep(&mut p.race, &p.brains);
         let c = pb.rec.at(p.race.tick);
@@ -2702,13 +2793,14 @@ fn replay_tick(p: &mut Play) -> Vec<Cue> {
                     .iter()
                     .filter_map(|e| cue_for(e, p.focus.racer)),
             );
+            calls.extend(pb.rec.calls_at(p.race.tick));
         }
     }
     p.replay = Some(pb);
     if n > 0 {
         step_chains(p);
     }
-    cues
+    (cues, calls)
 }
 
 /// The orbit and trackside replay cameras, on the followed ape.
@@ -2931,6 +3023,8 @@ fn cue_for(e: &Event, local: usize) -> Option<Cue> {
     }
 }
 
+#[cfg(test)]
+mod call_tests;
 #[cfg(test)]
 mod costume_tests;
 #[cfg(test)]

@@ -7,6 +7,7 @@
 use serde::{Deserialize, Serialize};
 
 use crate::fx::{self, Dice, ONE};
+use crate::rules::Kind;
 
 pub const SAMPLE_RATE: u32 = 22_050;
 
@@ -860,6 +861,52 @@ pub fn gorilla(volume: u8) -> Vec<u8> {
     wav_file(&gorilla_samples(volume))
 }
 
+/// The sound key of `kind`'s call (`App::sound` makes it): `call-gorilla`,
+/// `call-chimpanzee`...
+pub fn call_key(kind: Kind) -> String {
+    format!("call-{}", kind.key())
+}
+
+/// The kind whose call a sound key names.
+pub fn call_kind(key: &str) -> Option<Kind> {
+    key.strip_prefix("call-").and_then(Kind::from_key)
+}
+
+/// `kind`'s call at `volume` percent, as a complete WAV file. Only the
+/// gorilla's exists; the others borrow it until their own are made.
+pub fn call(kind: Kind, volume: u8) -> Vec<u8> {
+    match kind {
+        Kind::Gorilla => gorilla(volume),
+        // TODO T58: the orangutan's own call
+        Kind::Orangutan => gorilla(volume),
+        // TODO T58: the chimpanzee's own call
+        Kind::Chimpanzee => gorilla(volume),
+        // TODO T58: the gibbon's own call
+        Kind::Gibbon => gorilla(volume),
+        // TODO T58: the proboscis monkey's own call
+        Kind::Proboscis => gorilla(volume),
+        // TODO T58: the lemur's own call
+        Kind::Lemur => gorilla(volume),
+    }
+}
+
+/// Ticks between one ape's calls (the person: 2 s, everywhere).
+pub const CALL_COOLDOWN: u32 = 2 * crate::rules::TICKS_PER_SECOND as u32;
+
+/// The loudness (Q16, ONE up close) of a call heard from an ape `dist`
+/// (Q16 m) away: 1 / (1 + (d / `PASS_REF`)²), half at 4 m, about 1% at
+/// 40 m. Decided in the core each frame and handed to the page as a gain.
+pub fn call_gain(dist: i32) -> i32 {
+    let d_cm = dist.max(0) as i64 * 100 / ONE as i64;
+    gain_at_cm(d_cm) as i32
+}
+
+/// `call_gain` on a distance in centimetres.
+fn gain_at_cm(d: i64) -> i64 {
+    let r2 = PASS_REF * PASS_REF * 10_000;
+    ONE as i64 * r2 / (r2 + d * d)
+}
+
 // A pass: the caller swings past the listener on a straight line, closest
 // `PASS_NEAR` away, at `PASS_SPEED`, nearest `PASS_MID` percent of the way
 // through the call. Loudness falls with distance (1 / (1 + (d / PASS_REF)²)).
@@ -878,8 +925,7 @@ const PASS_MID: i64 = 50;
 /// along its track from its nearest point.
 fn pass_at(x: i64) -> i64 {
     let d = fx::isqrt((x * x + PASS_NEAR * PASS_NEAR * 10_000) as u128) as i64;
-    let r2 = PASS_REF * PASS_REF * 10_000;
-    ONE as i64 * r2 / (r2 + d * d)
+    gain_at_cm(d)
 }
 
 /// `mix` as heard while its caller passes: the one clip, its loudness
@@ -942,10 +988,10 @@ mod call_tests {
     #[test]
     fn the_gorilla_calls_for_about_a_second_and_a_half_and_quietly() {
         let pcm = gorilla_samples(100);
-        let secs = pcm.len() as f64 / SAMPLE_RATE as f64;
+        let ms = pcm.len() * 1000 / SAMPLE_RATE as usize;
         assert!(
-            (1.2..1.8).contains(&secs),
-            "the gorilla's call lasts {secs:.2} s"
+            (1200..1800).contains(&ms),
+            "the gorilla's call lasts {ms} ms"
         );
         let loud = peak(&pcm) as i64;
         let hype = peak(&voice_samples(3, 100)) as i64;
@@ -953,6 +999,23 @@ mod call_tests {
             loud * 2 < hype,
             "the gorilla's call peaks at {loud}, the hype call at {hype}: it should be far quieter"
         );
+    }
+
+    #[test]
+    fn every_kind_has_a_call_key_and_a_clip_and_the_gain_falls_with_distance() {
+        for k in Kind::ALL {
+            let key = call_key(k);
+            assert_eq!(call_kind(&key), Some(k), "{key}");
+            let wav = call(k, 100);
+            assert_eq!(&wav[0..4], b"RIFF", "{key}");
+        }
+        assert_eq!(call_kind("hype1"), None);
+        assert_eq!(call_gain(0), ONE);
+        let near = call_gain(fx::int(4));
+        assert!((ONE / 2 - 20..=ONE / 2 + 20).contains(&near), "4 m: {near}");
+        let far = call_gain(fx::int(20));
+        assert!(far < near / 10 && far > 0, "20 m: {far}");
+        assert!(call_gain(fx::int(40)) * 100 <= ONE, "silent at 40 m");
     }
 
     #[test]

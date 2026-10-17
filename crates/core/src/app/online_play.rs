@@ -412,6 +412,10 @@ impl App {
         for _ in 0..o.take_screeches() {
             self.sounds.push(crate::sound::SCREECH.to_string());
         }
+        // another player's lobby call (TRIAGE T58): its chosen kind's call
+        for kind in o.take_lobby_calls() {
+            self.calls.push((crate::sound::call_key(kind), 100));
+        }
         if let Some(start) = o.take_race_start() {
             // the host's map, built here if this browser has not shown it
             self.ensure_world(start.map);
@@ -502,6 +506,14 @@ impl App {
         o.sync_race(now, &mut p.race);
         for h in o.take_hits() {
             crate::items::apply_hit(&mut p.race, h.victim, h.by, h.item);
+        }
+        // other players' calls (TRIAGE T58): heard by distance, recorded
+        let calls = o.take_calls();
+        for who in calls {
+            self.hear_call(p, who);
+            if let Some(rec) = &mut p.record {
+                rec.calls.push((p.race.tick, who));
+            }
         }
     }
 
