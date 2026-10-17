@@ -1,5 +1,20 @@
 [
   {
+    "version": "1.13.4",
+    "date": "2026-10-16",
+    "notes": [
+      "Every ape has its own call on Left Shift."
+    ]
+  },
+  {
+    "version": "1.13.3",
+    "date": "2026-10-16",
+    "notes": [
+      "Press Left Shift to hear your ape call out, in the lobby and in a race. Other racers hear it too.",
+      "Only the gorilla has its own voice so far."
+    ]
+  },
+  {
     "version": "1.13.2",
     "date": "2026-10-16",
     "notes": [

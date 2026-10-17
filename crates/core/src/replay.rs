@@ -110,6 +110,8 @@ pub struct Recording {
     /// the [`FORMAT`] it was made in (TRIAGE T55: another one plays
     /// differently, so it is watch-only)
     pub format: u32,
+    /// the apes' calls (TRIAGE T58): (race tick, racer), in tick order
+    pub calls: Vec<(u32, usize)>,
 }
 
 impl Recording {
@@ -142,7 +144,16 @@ impl Recording {
             serial: 0,
             track: None,
             format: FORMAT,
+            calls: Vec::new(),
         }
+    }
+
+    /// The racers that called at race tick `tick`.
+    pub fn calls_at(&self, tick: u32) -> impl Iterator<Item = usize> + '_ {
+        self.calls
+            .iter()
+            .filter(move |(t, _)| *t == tick)
+            .map(|(_, who)| *who)
     }
 
     /// Starts recording an online race (`race` must not have stepped yet):
@@ -719,6 +730,10 @@ struct Stored {
     /// take the shelf's
     #[serde(default, skip_serializing_if = "Option::is_none")]
     format: Option<u32>,
+    /// the apes' calls (TRIAGE T58): [tick, racer] pairs; written only
+    /// when there were any, so older shelves read back the same
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    calls: Vec<(u32, usize)>,
 }
 
 impl Stored {
@@ -741,6 +756,7 @@ impl Stored {
             controls: pack(&r.controls),
             track: r.track.as_ref().map(|t| t.pack(r.entries.len())),
             format: Some(r.format),
+            calls: r.calls.clone(),
         }
     }
 
@@ -757,6 +773,7 @@ impl Stored {
         if (track.is_some()) != (self.mode == Mode::Online) {
             return None;
         }
+        let apes = self.entries.len();
         Some(Recording {
             track,
             controls: unpack(&self.controls)?,
@@ -778,6 +795,11 @@ impl Stored {
             eaten: self.eaten,
             serial: self.serial,
             format: self.format.unwrap_or(shelf),
+            calls: self
+                .calls
+                .into_iter()
+                .filter(|(_, who)| *who < apes)
+                .collect(),
         })
     }
 }

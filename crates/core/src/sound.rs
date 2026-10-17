@@ -7,6 +7,7 @@
 use serde::{Deserialize, Serialize};
 
 use crate::fx::{self, Dice, ONE};
+use crate::rules::Kind;
 
 pub const SAMPLE_RATE: u32 = 22_050;
 
@@ -762,6 +763,419 @@ pub fn voice_level(key: &str) -> Option<u8> {
         "hype2" => Some(2),
         "hype3" => Some(3),
         _ => None,
+    }
+}
+
+// ---- ape calls: each kind's own call (TRIAGE T58) ----
+//
+// The gorilla: two chesty grunts, a roar that opens up and falls away, then
+// a chest beat. Same formant voice as the hype calls, with the vowels'
+// formants lower (a bigger chest), a deep pitch and a heavy growl. The
+// chest beat is a run of hollow thuds (a sine thump and a slap of noise).
+//
+// A call is one clip. Heard from another ape it is the same clip played
+// through a loudness that follows the distance (`pass_by` renders that for
+// the journal; in the game the page plays the clip with the gain the core
+// hands it). No pitch bend (the person, 2026-10-16) and no left/right
+// placement.
+
+/// Gorilla vowels: the hype vowels scaled down for a big chest.
+const GUH: Vowel = Vowel(430, 800, 1750);
+const GAH: Vowel = Vowel(540, 940, 1950);
+
+/// The gorilla's call, as syllables (the voice) and thuds (the chest).
+fn gorilla_parts() -> (Vec<Syllable>, Vec<Note>) {
+    use Env::*;
+    use Wave::*;
+    let voice = vec![
+        Syllable {
+            growl: 40,
+            ..syl(0, 150, (72, 60), GUH, GUH, 70)
+        },
+        Syllable {
+            growl: 40,
+            ..syl(220, 150, (76, 62), GUH, GUH, 80)
+        },
+        Syllable {
+            growl: 50,
+            ..syl(450, 170, (82, 118), GUH, GAH, 100)
+        },
+        Syllable {
+            growl: 55,
+            ..syl(600, 380, (118, 58), GAH, GUH, 100)
+        },
+    ];
+    let mut chest = Vec::new();
+    for k in 0..5u32 {
+        let at = 1030 + k * 90;
+        let hz = if k % 2 == 0 { (175, 70) } else { (155, 65) };
+        chest.push(n(hz, at, 70, 85, Sine, Perc));
+        chest.push(n((0, 0), at, 35, 35, Noise(90), Perc));
+    }
+    (voice, chest)
+}
+
+/// A nasal vowel for the proboscis monkey's honk (a high second formant).
+const NA: Vowel = Vowel(300, 1700, 2500);
+
+/// The chimpanzee: a fast pant-hoot, five quick "hoo"s climbing to two
+/// screams. Fast and high, against the gorilla's slow and deep.
+fn chimpanzee_parts() -> (Vec<Syllable>, Vec<Note>) {
+    let mut voice = Vec::new();
+    for k in 0..5u32 {
+        voice.push(syl(
+            k * 130,
+            90,
+            (370 + k * 15, 410 + k * 15),
+            OO,
+            OO,
+            50 + k as i32 * 10,
+        ));
+    }
+    voice.push(Syllable {
+        growl: 20,
+        ..syl(680, 180, (700, 1100), OH, AH, 95)
+    });
+    voice.push(Syllable {
+        growl: 25,
+        ..syl(880, 220, (900, 1300), AH, EE, 100)
+    });
+    (voice, Vec::new())
+}
+
+/// The orangutan: one long slow groan that swells, opens and sinks, with
+/// a bubbling growl. One sliding note, nothing else like it.
+fn orangutan_parts() -> (Vec<Syllable>, Vec<Note>) {
+    let voice = vec![
+        Syllable {
+            growl: 30,
+            ..syl(0, 520, (140, 200), OO, OH, 80)
+        },
+        Syllable {
+            growl: 35,
+            ..syl(460, 620, (200, 170), OH, AH, 100)
+        },
+        Syllable {
+            growl: 30,
+            ..syl(1020, 420, (170, 105), AH, OO, 85)
+        },
+    ];
+    (voice, Vec::new())
+}
+
+/// The gibbon: a sung song of pure whoops sweeping up, each higher and
+/// quicker, then one falling away. No voice growl at all: tones.
+fn gibbon_parts() -> (Vec<Syllable>, Vec<Note>) {
+    use Env::*;
+    use Wave::*;
+    let notes = vec![
+        n((600, 1100), 0, 260, 70, Sine, Swell),
+        n((600, 1100), 0, 260, 20, Triangle, Swell),
+        n((650, 1200), 300, 240, 75, Sine, Swell),
+        n((650, 1200), 300, 240, 20, Triangle, Swell),
+        n((700, 1300), 560, 220, 80, Sine, Swell),
+        n((700, 1300), 560, 220, 20, Triangle, Swell),
+        n((800, 1500), 780, 320, 90, Sine, Swell),
+        n((800, 1500), 780, 320, 25, Triangle, Swell),
+        n((1500, 900), 1100, 260, 80, Sine, Perc),
+        n((1500, 900), 1100, 260, 20, Triangle, Perc),
+    ];
+    (Vec::new(), notes)
+}
+
+/// The proboscis monkey: two buzzy nasal honks and a snort.
+fn proboscis_parts() -> (Vec<Syllable>, Vec<Note>) {
+    use Env::*;
+    use Wave::*;
+    let voice = vec![
+        Syllable {
+            growl: 35,
+            ..syl(0, 220, (230, 190), NA, NA, 90)
+        },
+        Syllable {
+            growl: 35,
+            ..syl(300, 260, (240, 185), NA, NA, 100)
+        },
+    ];
+    let notes = vec![
+        n((0, 0), 620, 170, 55, Noise(120), Perc),
+        n((120, 60), 620, 120, 40, Sine, Perc),
+    ];
+    (voice, notes)
+}
+
+/// The lemur: a cat-like yowl rising then falling, then a fast chatter
+/// of clicks.
+fn lemur_parts() -> (Vec<Syllable>, Vec<Note>) {
+    use Env::*;
+    use Wave::*;
+    let voice = vec![
+        Syllable {
+            growl: 10,
+            ..syl(0, 420, (480, 760), EE, AH, 90)
+        },
+        Syllable {
+            growl: 10,
+            ..syl(400, 350, (760, 420), AH, OO, 85)
+        },
+    ];
+    let mut notes = Vec::new();
+    for k in 0..10u32 {
+        let at = 800 + k * 55;
+        notes.push(n((0, 0), at, 14, 70, Noise(255), Perc));
+        notes.push(n((900, 700), at, 22, 35, Square, Perc));
+    }
+    (voice, notes)
+}
+
+/// `kind`'s call as syllables (the voice) and notes (everything else).
+fn call_parts(kind: Kind) -> (Vec<Syllable>, Vec<Note>) {
+    match kind {
+        Kind::Gorilla => gorilla_parts(),
+        Kind::Chimpanzee => chimpanzee_parts(),
+        Kind::Orangutan => orangutan_parts(),
+        Kind::Gibbon => gibbon_parts(),
+        Kind::Proboscis => proboscis_parts(),
+        Kind::Lemur => lemur_parts(),
+    }
+}
+
+/// `kind`'s call as a Q16 mix with a peak of ONE.
+fn call_mix(kind: Kind) -> Vec<i64> {
+    let (voice, chest) = call_parts(kind);
+    let end_v = voice.iter().map(|s| s.at_ms + s.ms).max().unwrap_or(0);
+    let end_c = chest.iter().map(|n| n.at_ms + n.ms).max().unwrap_or(0);
+    let mut mix = vec![0i64; ms_to_samples(end_v.max(end_c) + 15)];
+    let mut dice = Dice(0x6042_1114 + kind as u64 * 0x9E37);
+    for s in &voice {
+        let start = ms_to_samples(s.at_ms);
+        for (i, v) in syllable(s, &mut dice).into_iter().enumerate() {
+            if let Some(m) = mix.get_mut(start + i) {
+                *m += v * s.loud as i64 / 100;
+            }
+        }
+    }
+    for note in &chest {
+        let start = ms_to_samples(note.at_ms);
+        let count = ms_to_samples(note.ms);
+        for (i, v) in wave(note, count, &mut dice).into_iter().enumerate() {
+            if let Some(m) = mix.get_mut(start + i) {
+                *m += v * envelope(note.contour, i, count) / 1024 * note.loud as i64 / 100;
+            }
+        }
+    }
+    normalise(&mut mix);
+    mix
+}
+
+/// The peak of an ape's call heard up close, percent of full scale: far
+/// under the hype calls, which were found too loud (the person, T58).
+const CALL_LOUD: i64 = 40;
+
+/// `kind`'s call as 16-bit samples at `volume` percent.
+pub fn call_samples(kind: Kind, volume: u8) -> Vec<i16> {
+    let mut mix = call_mix(kind);
+    for m in mix.iter_mut() {
+        *m = *m * CALL_LOUD / 100;
+    }
+    to_pcm(&mix, volume)
+}
+
+/// The gorilla's call as 16-bit samples at `volume` percent.
+pub fn gorilla_samples(volume: u8) -> Vec<i16> {
+    call_samples(Kind::Gorilla, volume)
+}
+
+/// The gorilla's call as a complete WAV file.
+pub fn gorilla(volume: u8) -> Vec<u8> {
+    wav_file(&gorilla_samples(volume))
+}
+
+/// The sound key of `kind`'s call (`App::sound` makes it): `call-gorilla`,
+/// `call-chimpanzee`...
+pub fn call_key(kind: Kind) -> String {
+    format!("call-{}", kind.key())
+}
+
+/// The kind whose call a sound key names.
+pub fn call_kind(key: &str) -> Option<Kind> {
+    key.strip_prefix("call-").and_then(Kind::from_key)
+}
+
+/// `kind`'s call at `volume` percent, as a complete WAV file.
+pub fn call(kind: Kind, volume: u8) -> Vec<u8> {
+    wav_file(&call_samples(kind, volume))
+}
+
+/// Ticks between one ape's calls (the person: 2 s, everywhere).
+pub const CALL_COOLDOWN: u32 = 2 * crate::rules::TICKS_PER_SECOND as u32;
+
+/// The loudness (Q16, ONE up close) of a call heard from an ape `dist`
+/// (Q16 m) away: 1 / (1 + (d / `PASS_REF`)²), half at 4 m, about 1% at
+/// 40 m. Decided in the core each frame and handed to the page as a gain.
+pub fn call_gain(dist: i32) -> i32 {
+    let d_cm = dist.max(0) as i64 * 100 / ONE as i64;
+    gain_at_cm(d_cm) as i32
+}
+
+/// `call_gain` on a distance in centimetres.
+fn gain_at_cm(d: i64) -> i64 {
+    let r2 = PASS_REF * PASS_REF * 10_000;
+    ONE as i64 * r2 / (r2 + d * d)
+}
+
+// A pass: the caller swings past the listener on a straight line, closest
+// `PASS_NEAR` away, at `PASS_SPEED`, nearest `PASS_MID` percent of the way
+// through the call. Loudness falls with distance (1 / (1 + (d / PASS_REF)²)).
+// The pitch does not change: a Doppler bend was tried and the person
+// did not want it.
+
+/// The passer's speed, m/s (a fast swing).
+const PASS_SPEED: i64 = 18;
+/// How close it comes, metres.
+const PASS_NEAR: i64 = 3;
+/// The distance at which the loudness has halved, metres.
+const PASS_REF: i64 = 4;
+/// Where in the call the passer is nearest, percent.
+const PASS_MID: i64 = 50;
+/// The loudness (Q16, ONE up close) of a call heard from a passer `x` cm
+/// along its track from its nearest point.
+fn pass_at(x: i64) -> i64 {
+    let d = fx::isqrt((x * x + PASS_NEAR * PASS_NEAR * 10_000) as u128) as i64;
+    gain_at_cm(d)
+}
+
+/// `mix` as heard while its caller passes: the one clip, its loudness
+/// falling off with the distance, normalised to a peak of ONE.
+fn pass_by(mix: &[i64]) -> Vec<i64> {
+    let len = mix.len() as i64;
+    if len < 2 {
+        return mix.to_vec();
+    }
+    let rate = SAMPLE_RATE as i64;
+    let mid = len * PASS_MID / 100;
+    let mut out = Vec::with_capacity(mix.len());
+    // the read position in 1/2^16 samples
+    let mut pos: i64 = 0;
+    let mut k: i64 = 0;
+    while pos < len << 16 {
+        let x = (k - mid) * PASS_SPEED * 100 / rate;
+        let gain = pass_at(x);
+        let step = ONE as i64;
+        let i = (pos >> 16) as usize;
+        let frac = pos & 0xFFFF;
+        let a = mix[i];
+        let b = mix[(i + 1).min(mix.len() - 1)];
+        let v = a + (b - a) * frac / 65_536;
+        out.push(v * gain / ONE as i64);
+        pos += step;
+        k += 1;
+    }
+    normalise(&mut out);
+    out
+}
+
+/// The gorilla's call as heard while it swings past, as 16-bit samples.
+pub fn gorilla_pass_samples(volume: u8) -> Vec<i16> {
+    let mut mix = pass_by(&call_mix(Kind::Gorilla));
+    for m in mix.iter_mut() {
+        *m = *m * CALL_LOUD / 100;
+    }
+    to_pcm(&mix, volume)
+}
+
+/// The gorilla's call heard swinging past, as a complete WAV file.
+pub fn gorilla_pass(volume: u8) -> Vec<u8> {
+    wav_file(&gorilla_pass_samples(volume))
+}
+
+#[cfg(test)]
+mod call_tests {
+    use super::*;
+
+    fn peak(pcm: &[i16]) -> i32 {
+        pcm.iter().map(|v| (*v as i32).abs()).max().unwrap_or(0)
+    }
+
+    fn tenth_peak(pcm: &[i16], k: usize) -> i32 {
+        let n = pcm.len() / 10;
+        peak(&pcm[k * n..(k + 1) * n])
+    }
+
+    #[test]
+    fn the_gorilla_calls_for_about_a_second_and_a_half_and_quietly() {
+        let pcm = gorilla_samples(100);
+        let ms = pcm.len() * 1000 / SAMPLE_RATE as usize;
+        assert!(
+            (1200..1800).contains(&ms),
+            "the gorilla's call lasts {ms} ms"
+        );
+        let loud = peak(&pcm) as i64;
+        let hype = peak(&voice_samples(3, 100)) as i64;
+        assert!(
+            loud * 2 < hype,
+            "the gorilla's call peaks at {loud}, the hype call at {hype}: it should be far quieter"
+        );
+    }
+
+    #[test]
+    fn every_kind_has_a_call_key_and_a_clip_and_the_gain_falls_with_distance() {
+        for k in Kind::ALL {
+            let key = call_key(k);
+            assert_eq!(call_kind(&key), Some(k), "{key}");
+            let wav = call(k, 100);
+            assert_eq!(&wav[0..4], b"RIFF", "{key}");
+        }
+        assert_eq!(call_kind("hype1"), None);
+        assert_eq!(call_gain(0), ONE);
+        let near = call_gain(fx::int(4));
+        assert!((ONE / 2 - 20..=ONE / 2 + 20).contains(&near), "4 m: {near}");
+        let far = call_gain(fx::int(20));
+        assert!(far < near / 10 && far > 0, "20 m: {far}");
+        assert!(call_gain(fx::int(40)) * 100 <= ONE, "silent at 40 m");
+    }
+
+    /// A clip's length in ms and its mean zero-crossing rate in Hz (a
+    /// rough pitch).
+    fn shape(pcm: &[i16]) -> (usize, usize) {
+        let ms = pcm.len() * 1000 / SAMPLE_RATE as usize;
+        let crossings = pcm.windows(2).filter(|w| (w[0] < 0) != (w[1] < 0)).count();
+        (ms, crossings * SAMPLE_RATE as usize / 2 / pcm.len().max(1))
+    }
+
+    #[test]
+    fn every_kinds_call_is_its_own() {
+        let shapes: Vec<(Kind, (usize, usize))> = Kind::ALL
+            .iter()
+            .map(|&k| (k, shape(&call_samples(k, 100))))
+            .collect();
+        for (i, (a, (ms_a, hz_a))) in shapes.iter().enumerate() {
+            for (b, (ms_b, hz_b)) in &shapes[i + 1..] {
+                let len_apart = ms_a.abs_diff(*ms_b) > 80;
+                let pitch_apart = hz_a.abs_diff(*hz_b) * 100 > hz_a.max(hz_b) * 15;
+                assert!(
+                    len_apart || pitch_apart,
+                    "{a:?} ({ms_a} ms, ~{hz_a} Hz) and {b:?} ({ms_b} ms, ~{hz_b} Hz) sound alike"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn the_passing_gorilla_swells_in_from_afar_at_its_own_pitch() {
+        let pcm = gorilla_pass_samples(100);
+        let first = tenth_peak(&pcm, 0);
+        let loudest = (0..10).map(|k| tenth_peak(&pcm, k)).max().unwrap();
+        assert!(
+            first * 3 < loudest,
+            "the passing call opens at {first} and peaks at {loudest}: it should swell in from afar"
+        );
+        let plain = gorilla_samples(100);
+        assert_eq!(
+            pcm.len(),
+            plain.len(),
+            "the pass plays the clip at its own speed, so it is exactly as long"
+        );
     }
 }
 

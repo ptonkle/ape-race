@@ -719,14 +719,23 @@ async function bufferFor(key) {
   return buffers[key];
 }
 
-async function play(key) {
+// Plays the sound `key` names once; an ape's call (TRIAGE T58) comes with
+// the loudness the core decided, 0 to 1, from the caller's distance.
+async function play(key, gain) {
   if (!audio) return;
   try {
     const buffer = await bufferFor(key);
     if (!buffer) return;
     const source = audio.createBufferSource();
     source.buffer = await buffer;
-    source.connect(audio.destination);
+    if (gain === undefined) {
+      source.connect(audio.destination);
+    } else {
+      const level = audio.createGain();
+      level.gain.value = gain;
+      source.connect(level);
+      level.connect(audio.destination);
+    }
     source.start();
     document.body.dataset.sound = key;
   } catch (e) {
@@ -806,7 +815,8 @@ function handle(view) {
   // Storage full: the core asks again with fewer recent replays, never
   // fewer bests (TRIAGE T55).
   if (view.save_replays && !writeStore(REPLAYS_KEY, view.save_replays)) game.replays_not_saved();
-  if (view.sounds) view.sounds.forEach(play);
+  if (view.sounds) view.sounds.forEach((key) => play(key));
+  if (view.calls) view.calls.forEach((c) => play(c.key, c.gain));
   // Messages first: a Leave goes out before the transport closes.
   if (view.net_requests) {
     flushNet();
