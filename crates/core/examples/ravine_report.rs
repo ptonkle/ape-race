@@ -65,8 +65,18 @@ fn row_for(
 ) -> Vec<String> {
     let mut row = Vec::new();
     for k in 0..seeds {
+        let mut c = course_for(k, upper, jungle);
+        if std::env::var("NOSNAKE").is_ok() {
+            for h in &mut c.ravine.as_deref_mut().unwrap().hangers { h.snake = false; }
+        }
+        if std::env::var("NOROOF").is_ok() {
+            c.ravine.as_deref_mut().unwrap().rooms.clear();
+        }
+        if std::env::var("NOWALL").is_ok() {
+            c.ravine.as_deref_mut().unwrap().walls.clear();
+        }
         let t = trial_at(
-            course_for(k, upper, jungle),
+            c,
             &[kind],
             &[level],
             kind == Kind::Chimpanzee,

@@ -932,9 +932,24 @@ fn lay_line(
         }
         out.all.push(here);
         // a low vine every other station, to climb back up by (never a
-        // snake), off the braids' ribs
-        if station % 2 == 1 {
-            let off = dice.range(7, 9) * if dice.below(2) == 0 { -1 } else { 1 };
+        // snake), off the braids' ribs; and at every snake station, on the
+        // snake's side, under where a snapped ape lands (SECOND-ORDER RC7)
+        if station % 2 == 1 || snaky {
+            let side_of_snake = match snake_lane {
+                Some(0) if !snakes_both => -1,
+                Some(_) if !snakes_both => 1,
+                _ => 0,
+            };
+            let off = if station % 2 == 1 {
+                let off = dice.range(7, 9) * if dice.below(2) == 0 { -1 } else { 1 };
+                if side_of_snake == 0 {
+                    off
+                } else {
+                    off.abs() * side_of_snake
+                }
+            } else {
+                8 * side_of_snake
+            };
             let (b, _) = line.at(u + 7);
             let b = b.add(r.scale(int(off)));
             let (anchor, length, from) = match room_over(rooms, b) {
@@ -943,13 +958,13 @@ fn lay_line(
                     let roof = roof_at(&rm, b);
                     (
                         v3(b.x, roof, b.z),
-                        roof - land(b) - int(3) - cm(dice.range(0, 40)),
+                        roof - land(b) - int(3) - cm(if station % 2 == 1 { dice.range(0, 40) } else { 20 }),
                         HangFrom::Roof { room },
                     )
                 }
                 _ => (
                     v3(b.x, land(b) + int(27), b.z),
-                    int(24) + cm(dice.range(0, 40)),
+                    int(24) + cm(if station % 2 == 1 { dice.range(0, 40) } else { 20 }),
                     HangFrom::Ledge {
                         wall: if off < 0 { 0 } else { 1 },
                     },
@@ -958,7 +973,8 @@ fn lay_line(
             if !near_skull(b) {
                 out.put.push(anchor, length, int(s_here + 7), from, false);
             }
-        } else if station % 4 == 2 && !lanes.is_empty() {
+        }
+        if station % 4 == 2 && !lanes.is_empty() {
             // a bounce mushroom short of a side lane's vine
             let off = lanes[dice.below(lanes.len() as u32) as usize];
             let off = if off.abs() < 6 { 10 } else { off };

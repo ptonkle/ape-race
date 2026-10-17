@@ -49,6 +49,7 @@ fn main() {
                 }
                 Happening::Land => line += "L",
                 Happening::Bounce => line += "B",
+                Happening::Snapped => line += "S",
                 Happening::Grab => line += &format!("g{}", a.swinging().unwrap_or(0)),
                 _ => {}
             }
