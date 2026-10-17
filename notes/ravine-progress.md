@@ -15,7 +15,7 @@ The standard map-build steps (MAPS.md "Build steps"), one row each. Status is on
 | 9 | Lobby spot and flyover | Done | Lobby on a fallen log 46 m up over the start straight, looking down the canyon to the bridge and the arch (`ravine/lobby.rs`, `ravinescape/lobby.rs`); flyover down the slot under the bridges, past the skull, along the upper passage; Milky Way lifted; shots `notes/ravine-shots/lobby/`; SECOND-ORDER RL1–RL5 (RL1 asks you about the spot) |
 | 10 | AI validation | In progress | 16 layouts: Sloth 130.7 s (7 timeouts, accepted), Ape 96.8 s (all finish), King Kong 76.8 s (1 timeout, layout 1 at 1115 m; agent on `ravine-kk`) |
 | 11 | Medal times | Not started | |
-| 12 | Step and frame cost | In progress | Frame 4,900 of 5,500 shapes at the hairpin (before the Milky Way's +260); step cost not measured |
+| 12 | Performance test | In progress | Drawing: 4,900 of 5,500 shapes at the hairpin (before the Milky Way's +260); game tick time not measured yet |
 | 13 | Colourblind and JOJO MODE | In progress | Snake cue done; whole-map check on `ravine-cb` (with skull light, mesa wall ends) |
 | 14 | Map card | In progress | on `ravine-cb`; the card shows Canopy Run's picture now |
 | 15 | Screenshots at 1920×1080 | Not started | |
