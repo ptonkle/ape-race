@@ -63,18 +63,19 @@ pub const MOON_OFF: i32 = deg(24);
 
 /// The sky dome's radius (inside the far plane, as Mape's Tower's).
 const DOME: i32 = int(560);
-/// Stars scattered over the whole sky.
-pub const FIELD_STARS: u32 = 320;
-/// Small stars thick along the Milky Way.
-pub const BAND_STARS: u32 = 580;
-/// The Milky Way's soft haze blobs.
-pub const BAND_HAZE: u32 = 140;
-/// The Milky Way haze's strength: a sky glow (3 and up, unfogged) at a
-/// fifth of its colour; with 140 blobs (overlapping) and 580 small stars
-/// the band reads as a soft pale river of light in the strip of sky
-/// (80 blobs and 380 stars were lost, RA-8; brighter blobs read as
-/// clouds; RL3).
-pub const HAZE_GLOW: i32 = ONE * 3 + ONE / 5;
+/// Stars scattered over the whole sky (320 before the sky was cut to 600
+/// shapes, RA-15).
+pub const FIELD_STARS: u32 = 210;
+/// Small stars thick along the Milky Way, a third in clumps (580 before
+/// RA-15: the haze now carries the band's density).
+pub const BAND_STARS: u32 = 300;
+/// One haze streak's strength over a sky glow's 3 (unfogged) at the
+/// galaxy's centre (fading to a third at the band's ends). Streaks overlap
+/// five deep and add, so the band reads as a faint blue-white river
+/// (brighter round blobs read as purple clouds, RL3, RA-15).
+pub const HAZE_CORE: i32 = ONE / 28;
+/// The haze's passes (each streak overlaps its neighbours this deep).
+const HAZE_PASSES: i32 = 5;
 /// How far round the eye a glow's pool of light is drawn.
 pub const POOL_SEEN: i32 = int(110);
 
@@ -300,6 +301,137 @@ fn band_dir(f: (V3, V3, V3), t: i32, w: i32) -> V3 {
         .norm()
 }
 
+/// An angle in degrees as a share of a radian (the band's `w` across).
+const fn rad(d: i32) -> i32 {
+    d * ONE / 57
+}
+
+/// The dust lane (the Great Rift): along this stretch of the band its
+/// bright core splits in two either side of a dark gap.
+fn in_rift(t: i32) -> bool {
+    (deg(40)..deg(118)).contains(&t)
+}
+
+/// The star clouds along the band: where (degrees along, degrees across)
+/// a third of its small stars clump.
+const CLUMPS: [(i32, i32); 9] = [
+    (18, 1),
+    (34, -2),
+    (52, 4),
+    (66, -4),
+    (78, 0),
+    (96, 4),
+    (124, -1),
+    (142, 2),
+    (162, 0),
+];
+
+/// One streak of the Milky Way's haze at `t` along the band and `w`
+/// across: an ellipsoid `len` long along the band and `wide` across
+/// (degrees), `deep` toward the eye. The page draws glows with depth
+/// writes, so where streaks overlap the nearer face wins: all at one reach,
+/// the brighter middle of each is the nearer, and the band composes as the
+/// brightest streak at each point (no seams). Long (deep under half its
+/// length) the band stays even along; deep for its width, it fades softly
+/// to nothing across (round overlapping blobs read as lumpy purple puffs
+/// with outlines, RA-15).
+#[allow(clippy::too_many_arguments)]
+fn streak(
+    b: &mut Batch,
+    eye: V3,
+    f: (V3, V3, V3),
+    reach: i32,
+    t: i32,
+    w: i32,
+    len: i32,
+    wide: i32,
+    deep: i32,
+    c: Rgb,
+    glow: i32,
+) {
+    let dir = band_dir(f, t, w);
+    if dir.y < -ONE / 6 {
+        return;
+    }
+    let (u, v, _) = f;
+    let along = u.scale(-fx::sin(t)).add(v.scale(fx::cos(t))).norm();
+    let across = along.cross(dir).norm();
+    let size = |d: i32| fx::mul(reach, d * 1144);
+    let a = crate::geom::Affine {
+        c0: along.scale(size(len)),
+        // (the sphere's poles toward the eye: its rings lie round the view)
+        c1: dir.scale(size(deep)),
+        c2: across.scale(size(wide)),
+        t: eye.add(dir.scale(reach)),
+    };
+    b.push_halo(Mesh::Sphere, &a, c, glow);
+}
+
+/// The Milky Way's haze: long soft streaks every few degrees along the
+/// band, brightest (and a little warm) round the galaxy's centre, split by
+/// the dust lane into two streams with a dark gap between for part of its
+/// length.
+fn haze(b: &mut Batch, eye: V3, f: (V3, V3, V3)) {
+    let white = rgb(176, 190, 232);
+    let warm = rgb(208, 204, 222);
+    // how bright the band is at `t`: brightest round the centre (70°),
+    // with a slow swell and fade along it
+    let bright = |t: i32| {
+        let centre = ONE - ((t - deg(70)).abs() * 2 / 3 * ONE / deg(90)).min(ONE * 2 / 3);
+        let swell = ONE * 5 / 6 + fx::sin(t * 4 + deg(30)) / 6;
+        fx::mul(centre, swell)
+    };
+    // drawn in five passes, each nearer the eye than the last, so a
+    // streak is drawn over the ones it overlaps and their light adds
+    for pass in 0..HAZE_PASSES {
+        let reach = int(460) - pass * int(24);
+        let mut t = -deg(6) + pass * deg(5);
+        let mut i = pass as u32;
+        while t < deg(186) {
+            let g = fx::mul(HAZE_CORE, bright(t));
+            let c = if (t - deg(70)).abs() < deg(24) {
+                warm
+            } else {
+                white
+            };
+            let wob = pick(i, 52, -rad(1), rad(1));
+            if in_rift(t) {
+                // the two streams either side of the lane, one fainter
+                streak(
+                    b,
+                    eye,
+                    f,
+                    reach,
+                    t,
+                    -rad(4) + wob,
+                    28,
+                    6,
+                    12,
+                    c,
+                    ONE * 3 + g,
+                );
+                streak(
+                    b,
+                    eye,
+                    f,
+                    reach,
+                    t,
+                    rad(4) + wob,
+                    28,
+                    5,
+                    10,
+                    c,
+                    ONE * 3 + g * 3 / 4,
+                );
+            } else {
+                streak(b, eye, f, reach, t, wob, 30, 10, 18, c, ONE * 3 + g);
+            }
+            t += deg(5) * HAZE_PASSES;
+            i += HAZE_PASSES as u32;
+        }
+    }
+}
+
 /// The night sky round `eye`, drawn each frame: the dome, the Milky Way's
 /// haze and stars, the field stars twinkling, and the moon; and the glows'
 /// pools of light near the eye.
@@ -318,38 +450,28 @@ pub fn dynamic(b: &mut Batch, c: &Course, r: &RavineLayout, eye: V3, ticks: u32)
 /// The stars, the Milky Way and the moon round `eye`.
 pub fn sky(b: &mut Batch, eye: V3, moon: i32, ticks: u32) {
     let f = band_frame(moon);
-    // the haze: soft glows along the band (fading to nothing at their
-    // edges), a little warmer toward the galaxy's core
-    for i in 0..BAND_HAZE {
-        let t = pick(i, 31, deg(4), deg(176));
-        let w = pick(i, 32, -ONE / 12, ONE / 12);
-        let dir = band_dir(f, t, w);
-        if dir.y < ONE / 30 {
-            continue;
-        }
-        // (wholly inside the dome: where the dome cut a blob its edge
-        // showed as a crisp arc, RL3)
-        let s = int(pick(i, 33, 60, 100));
-        let at = eye.add(dir.scale(DOME - s / 2 - int(16)));
-        let core = (t - deg(70)).abs() < deg(30);
-        let c = if core {
-            rgb(170, 150, 210)
-        } else {
-            rgb(130, 140, 220)
-        };
-        // (a sky glow: strength 3 and up is unfogged; at a fogged 1/2 the
-        // haze 540 m off was lost in the night fog, RK5)
-        b.push_halo(
-            Mesh::Sphere,
-            &placed(at, pick(i, 34, 0, TURN), v3(s, s / 2, s)),
-            c,
-            HAZE_GLOW,
-        );
-    }
-    // the band's small stars, thick near its middle line
+    // the haze: long soft streaks laid end to end along the band, a broad
+    // faint one and a narrow brighter core split by the dust lane (RA-15)
+    haze(b, eye, f);
+    // the band's small stars, thick near its middle line, a third of them
+    // in clumps (the star clouds) and few in the dust lane
     for i in 0..BAND_STARS {
-        let t = pick(i, 41, 0, TURN / 2);
-        let w = (pick(i, 42, -ONE / 8, ONE / 8) + pick(i, 43, -ONE / 8, ONE / 8)) / 2;
+        let (t, w) = if i % 3 == 0 {
+            let k = (i / 3) % CLUMPS.len() as u32;
+            let (ct, cw) = CLUMPS[k as usize];
+            (
+                deg(ct) + (pick(i, 45, -deg(5), deg(5)) + pick(i, 46, -deg(5), deg(5))) / 2,
+                rad(cw) + (pick(i, 47, -rad(5), rad(5)) + pick(i, 48, -rad(5), rad(5))) / 4,
+            )
+        } else {
+            let t = pick(i, 41, 0, TURN / 2);
+            let mut w = (pick(i, 42, -ONE / 8, ONE / 8) + pick(i, 43, -ONE / 8, ONE / 8)) / 2;
+            // most stars that fall in the lane are pushed out to its banks
+            if in_rift(t) && w.abs() < rad(2) && i % 4 != 1 {
+                w = if w < 0 { w - rad(2) } else { w + rad(2) };
+            }
+            (t, w)
+        };
         let dir = band_dir(f, t, w);
         if dir.y < ONE / 40 {
             continue;
