@@ -16,7 +16,8 @@ quick options:
 A changed file is placed line by line where it can be (file_plan): a test
 file runs its own tests only; a line in a `#[cfg(test)] mod` runs its test; a
 [lines] pattern (a VERSION bump in app.rs) takes that rule's tags; a line in
-a function named in [functions] takes that function's tags; a line in a
+a function named in [functions] takes that function's tags (outside a fn, a
+struct, an enum or a one-line const is named the same way); a line in a
 browser step of a [steps] file runs that step. Any other line takes the
 file's [sources] tags.
 
@@ -293,12 +294,14 @@ def changed_files(base, rng):
 
 
 ITEM = re.compile(
-    r'^\s*(?:pub(?:\([^)]*\))?\s+)?(?:(?:const|async|unsafe|extern\s+"[^"]*")\s+)*(fn|mod)\s+(\w+)')
+    r'^\s*(?:pub(?:\([^)]*\))?\s+)?(?:(?:const|async|unsafe|extern\s+"[^"]*")\s+)*(fn|mod|struct|enum)\s+(\w+)')
+# a one-line `const`/`static` item: [functions] names it as it names a fn
+CONST = re.compile(r'^\s*(?:pub(?:\([^)]*\))?\s+)?(?:const|static)\s+(?:mut\s+)?([A-Z_][A-Z0-9_]*)\s*:')
 LEAD = re.compile(r"^\s*(//|#\[|#!\[)")
 
 
 def rust_items(text):
-    """The fn and mod items of a Rust file as (kind, name, first, last, attrs):
+    """The fn, mod, struct and enum items of a Rust file as (kind, name, first, last, attrs):
     1-based lines, `first` taking in the doc comments and attributes above
     the item. Braces are counted outside strings, chars and comments."""
     lines = text.split("\n")
@@ -534,6 +537,12 @@ def file_plan(cfg, path, base, rng, ids):
                 picks.add(pick)
                 continue
         fn = next((it[1] for it in chain if it[0] == "fn"), None)
+        if fn is None and funcs:
+            # outside any fn: the struct or enum holding it, or the const it
+            # declares, is named as a fn would be
+            fn = next((it[1] for it in chain if it[0] in ("struct", "enum")), None)
+            m = CONST.match(text) if fn is None and not chain else None
+            fn = m.group(1) if m else fn
         if fn and steps:
             m = re.fullmatch(steps, fn)
             if m and m.group(1) in cfg["browser"]:
