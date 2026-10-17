@@ -9,6 +9,8 @@
 #
 # The room-code path (public Nostr relays) is never run automatically; the
 # person checks it by hand on the game's Online screen or dist/nettest.html.
+# Print each browser step as it finishes, not all at the end when logged to a file.
+export PYTHONUNBUFFERED=1
 set -euo pipefail
 cd "$(dirname "$0")/.."
 

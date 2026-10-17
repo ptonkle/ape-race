@@ -13,6 +13,8 @@
 # The Check cell names the engines the browser and online checks ran in, and
 # for a quick check the tags it hit. A failing run also adds the names of
 # the failing tests and browser steps to notes/test-failures.md.
+# Print each browser step as it finishes, not all at the end when logged to a file.
+export PYTHONUNBUFFERED=1
 set -uo pipefail
 cd "$(dirname "$0")/.."
 LOG=notes/check-times.md

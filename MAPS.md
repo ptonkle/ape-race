@@ -17,7 +17,7 @@ Keep `notes/<key>-progress.md` with one row per step and a status of **Done**, *
 9. Lobby spot and flyover
 10. AI validation
 11. Medal times
-12. Step and frame cost
+12. Performance test
 13. Colourblind and JOJO MODE
 14. Map card
 15. Screenshots at 1920×1080
@@ -45,7 +45,7 @@ Gathered on 2026-10-17 from TRIAGE, SECOND-ORDER, the morning and progress notes
 11. **The lobby looks at the ground, or the ape sinks** (RS22, TL8, RS23). Plan the lobby spot on purpose and check host and joiner at three window sizes.
 12. **Shared moving things must be a pure function of the tick.** Cars use `car_at`, turtles `turtle_at`; anything that can be reset or tripped goes in the save points (RU1, RU2). One `*_at(i, tick)` serves the physics, the AI and the drawing.
 13. **Other maps change by accident.** Give new placement its own `Dice`, and keep `tests/maps_unchanged.rs` and `jungle_unchanged.rs` passing.
-14. **Step and frame cost.** The AI's copies made City steps spike to 6–7 ms (Y10). Index solids by place, reject with a cheap box first, measure with `examples/frame_cost.rs`, and stay inside the 5,500-shape budget.
+14. **Performance test** (how long each game tick takes to work out, and how many shapes each frame draws). The AI's copies made City steps spike to 6–7 ms (Y10). Index solids by place, reject with a cheap box first, measure with `examples/frame_cost.rs`, and stay inside the 5,500-shape budget.
 15. **Token burn.** A whole day went on art for a course the AI couldn't climb (see "Getting the AI round a new map"). Route first, art last, small time-boxed agents, ranged reads.
 16. **Failing tests left standing** (notes/test-failures.md). Fix the test or record it with the person's say-so; don't hand off red.
 
@@ -80,7 +80,7 @@ Gathered on 2026-10-17 from TRIAGE, SECOND-ORDER, the morning and progress notes
 - **Ground that moves you** (skiing): an ape on the snow glides downhill (`Ape::ski`; gravity along the slope, friction, a linear drag, WASD carve, W poles, S snowploughs), and a landing keeps its speed along the slope. Keep it a fallback: skiing alone takes about 146 s down the Ski Slope against 58–89 s swinging (King Kong by kind) and 88–142 s for the Sloth.
 - **`Course::floor`** is what the jaguar mode treats as the floor, and what the jaguar runs on. A map with a different floor (water, a bridge deck) changes only that function.
 - **The camera's start view:** the chase camera sits about 10 m behind the ape (`camera.rs` `BACK_REST`, for 2× apes). Keep any solid face at least 16 m behind `path[0]`, or the race opens inside a wall (City Y13).
-- **Watch the step cost**, not just the drawing: the City's first layout had a 6–7 ms stepping spike once a second (Y10). Measure with `examples/frame_cost.rs -- <map>`. The cause was the AI: each plan flies copies of the ape hundreds of ticks ahead, so anything per ape per tick is paid thousands of times. The City's bouncer search walked every car for every moving bouncer. Fix: skip it when the feet are above the tallest bouncer (`city::BOUNCER_TALLEST`, 5 m), and look moving cars up directly. Worst step 1.7 ms after.
+- **Performance-test the game ticks**, not just the drawing: the City's first layout had a 6–7 ms stepping spike once a second (Y10). Measure with `examples/frame_cost.rs -- <map>`. The cause was the AI: each plan flies copies of the ape hundreds of ticks ahead, so anything per ape per tick is paid thousands of times. The City's bouncer search walked every car for every moving bouncer. Fix: skip it when the feet are above the tallest bouncer (`city::BOUNCER_TALLEST`, 5 m), and look moving cars up directly. Worst step 1.7 ms after.
 - **The start camera fix** (Y13): the City's start street runs on 18 m behind the start (`START_BACK` in `city/layout.rs`) to the office closing it; the start's back rule still stops apes at 6 m.
 
 - **Gravity per map** (Sector Ape, 2026-10-13): `Course::gravity()` (and `Course::hang(i)`, the way vine `i` hangs) return the old constants on every other map, so the Jungle, City and Ski Slope stay byte-identical (`tests/maps_unchanged.rs`, `jungle_unchanged.rs`). Use them, never `rules::GRAVITY` or "straight down", in the swing (and its energy correction), the flight, items' arcs and the AI's sums. Anything new for one map is gated on its layout (`course.sector.is_some()`), and the other maps' code paths are kept as they were, not "proven equal".

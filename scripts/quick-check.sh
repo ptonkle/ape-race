@@ -12,6 +12,8 @@
 # cargo tests, browser steps (Chromium) and online steps whose tags meet the
 # changed files' tags. A file no glob matches runs everything. The full
 # scripts/check.sh is still the check before big merges.
+# Print each browser step as it finishes, not all at the end when logged to a file.
+export PYTHONUNBUFFERED=1
 set -euo pipefail
 cd "$(dirname "$0")/.."
 PY="${BUILDER_PYTHON:-}"

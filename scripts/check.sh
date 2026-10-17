@@ -5,6 +5,8 @@
 #   BUILDER_ENGINES=chromium ./scripts/check.sh   one engine while iterating
 #
 # Each step prints its name first, so a failure names the step that failed.
+# Print each browser step as it finishes, not all at the end when logged to a file.
+export PYTHONUNBUFFERED=1
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
