@@ -78,7 +78,9 @@ impl Sky {
     }
 }
 
-/// Clear, at the base and at the summit.
+/// Clear, at the base and at the summit. The fog ends short of the far
+/// plane and lets tower 2 stand, hazed, from tower 1 (T98: it was thick by
+/// 330 m and the towers stand ~380 m apart).
 const CLEAR: [Sky; 2] = [
     Sky {
         sky: rgb(150, 176, 230),
@@ -88,7 +90,7 @@ const CLEAR: [Sky; 2] = [
         ground: rgb(120, 104, 70),
         rim: [0; 3],
         cloud: rgb(255, 238, 214),
-        fog_range: (int(120), int(330)),
+        fog_range: (int(190), int(560)),
     },
     Sky {
         sky: rgb(136, 172, 236),
@@ -98,7 +100,7 @@ const CLEAR: [Sky; 2] = [
         ground: rgb(150, 136, 110),
         rim: [0; 3],
         cloud: rgb(255, 246, 230),
-        fog_range: (int(150), int(380)),
+        fog_range: (int(230), int(580)),
     },
 ];
 
@@ -112,7 +114,7 @@ const TWILIGHT: [Sky; 2] = [
         ground: rgb(64, 50, 96),
         rim: rgb(40, 24, 70),
         cloud: rgb(176, 136, 200),
-        fog_range: (int(90), int(300)),
+        fog_range: (int(190), int(560)),
     },
     Sky {
         sky: rgb(44, 34, 96),
@@ -122,7 +124,7 @@ const TWILIGHT: [Sky; 2] = [
         ground: rgb(36, 30, 70),
         rim: rgb(54, 40, 110),
         cloud: rgb(96, 84, 150),
-        fog_range: (int(110), int(340)),
+        fog_range: (int(220), int(575)),
     },
 ];
 
@@ -136,7 +138,7 @@ const DAWN: [Sky; 2] = [
         ground: rgb(120, 90, 96),
         rim: [0; 3],
         cloud: rgb(255, 214, 214),
-        fog_range: (int(120), int(320)),
+        fog_range: (int(190), int(560)),
     },
     Sky {
         sky: rgb(252, 204, 186),
@@ -146,7 +148,7 @@ const DAWN: [Sky; 2] = [
         ground: rgb(150, 120, 120),
         rim: [0; 3],
         cloud: rgb(255, 236, 228),
-        fog_range: (int(150), int(370)),
+        fog_range: (int(230), int(580)),
     },
 ];
 
@@ -615,5 +617,41 @@ mod tests {
         assert!(l.fog_range.1 <= int(110));
         eye.y = band.top + int(10);
         assert!(look_in(t, eye, Weather::Clear).fog_range.1 > int(300));
+    }
+
+    /// T98: tower 2 shows from tower 1, hazed but standing, whatever the
+    /// weather and height (outside the cloud band), even from tower 1's
+    /// far side; the fog still ends inside the far plane.
+    #[test]
+    fn tower_2_shows_from_tower_1_through_the_fog() {
+        let c = Map::Tower.course();
+        let t = c.tower.as_ref().unwrap();
+        let (t1, t2) = (&t.towers[0], &t.towers[1]);
+        let gap = v3(t2.centre.x - t1.centre.x, 0, t2.centre.z - t1.centre.z);
+        let dir = gap.norm();
+        for w in [Weather::Clear, Weather::Twilight, Weather::Dawn] {
+            for k in 0..=10 {
+                let y = t1.centre.y + t1.height * k / 10;
+                if in_cloud(t, y) > 0 {
+                    continue;
+                }
+                // from the near wall and from the far side of tower 1
+                for side in [ONE, -ONE] {
+                    let r = mul(t1.radius + int(5), side);
+                    let eye = v3(t1.centre.x + mul(dir.x, r), y, t1.centre.z + mul(dir.z, r));
+                    let wall = gap.len() - r - t2.radius;
+                    let l = look_in(t, eye, w);
+                    let fogged = fx::div(wall - l.fog_range.0, l.fog_range.1 - l.fog_range.0);
+                    assert!(
+                        fogged < ONE * 3 / 4,
+                        "{w:?} at {} m, side {side}: tower 2 {} m off is {}% fogged",
+                        (y - t1.centre.y) / ONE,
+                        wall / ONE,
+                        fogged * 100 / ONE
+                    );
+                    assert!(l.fog_range.1 < crate::render::FAR, "{w:?}");
+                }
+            }
+        }
     }
 }
