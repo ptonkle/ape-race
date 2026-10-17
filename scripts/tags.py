@@ -121,7 +121,18 @@ def test_tags(cfg, tid):
 
 
 def wanted(tags, hit):
-    return ALL in hit or bool(tags & hit)
+    """A test runs when its tags meet the hit ones. A map's test (one with a
+    maps-* tag) also needs one of its maps hit: a race-flow or menu change
+    doesn't run every map's AI races (the person, 2026-10-17). Physics and
+    AI changes reach every map, so they hit them all."""
+    if ALL in hit:
+        return True
+    maps = {t for t in tags if t.startswith("maps-")}
+    if maps:
+        reach = {t for t in hit if t.startswith("maps-")}
+        if not maps & reach and not hit & {"physics", "ai"}:
+            return False
+    return bool(tags & hit)
 
 
 # --------------------------------------------------------------------- steps
