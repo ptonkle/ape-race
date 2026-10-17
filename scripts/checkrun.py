@@ -296,7 +296,7 @@ def run_nextest(cmd, env):
     code, raw = run_tty(nextest_cmd(cmd), env)
     text = "\n".join(plain_lines(raw))
     failing = list(dict.fromkeys(f"{a}: {b}" for a, b in NEXTEST_FAIL.findall(text)))
-    runs = re.findall(r"Summary \[\s*[\d.]+s\] (\d+) tests? run: (\d+) passed(?:, (\d+) failed)?(?:.*?(\d+) skipped)?", text)
+    runs = re.findall(r"Summary \[[^\]]*\]\s+(\d+) tests? run: (\d+) passed(?:, (\d+) failed)?(?:[^\n]*?(\d+) skipped)?", text)
     detail = f"{runs[-1][1]} passed, {runs[-1][2] or 0} failed" + (f", {runs[-1][3]} skipped" if runs[-1][3] else "") if runs else ""
     if code == 0 and "--doc" not in cmd and not ("--lib" in cmd or "--tests" in cmd):
         # nextest does not run doctests; cargo test does (the workspace has none today)
