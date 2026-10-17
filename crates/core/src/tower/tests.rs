@@ -36,9 +36,18 @@ fn the_map_is_wired_by_its_key_and_name() {
     let strings: serde_json::Value =
         serde_json::from_str(include_str!("../../../../data/strings.json")).unwrap();
     assert_eq!(strings["map.tower"], "Mape's Tower");
-    // the other maps have no tower layout
+}
+
+/// The other maps have no tower layout, and keep their centreline on the
+/// ground and level: the 3D path is the tower's only (split out of the
+/// tower's own tests so a tower change does not build every map).
+#[test]
+fn the_other_maps_have_no_tower_and_a_flat_path() {
     for m in Map::ALL.into_iter().filter(|&m| m != Map::Tower) {
-        assert!(m.course().tower.is_none(), "{m:?}");
+        let c = m.course();
+        assert!(c.tower.is_none(), "{m:?}");
+        assert!(c.path.iter().all(|p| p.y == 0), "{m:?}");
+        assert!(c.heading.iter().all(|h| h.y == 0), "{m:?}");
     }
 }
 
@@ -379,17 +388,6 @@ fn a_climb_vine_lifts_a_rising_release_and_a_plain_one_does_not() {
     let not = rising(plain);
     assert_eq!(lifted, CLIMB_LIFT);
     assert_eq!(not, 0);
-}
-
-#[test]
-fn the_path_is_three_d_only_here() {
-    // every other map keeps its centreline on the ground and level
-    for m in Map::ALL.into_iter().filter(|&m| m != Map::Tower) {
-        let c = m.course();
-        assert!(c.path.iter().all(|p| p.y == 0), "{m:?}");
-        assert!(c.heading.iter().all(|h| h.y == 0), "{m:?}");
-    }
-    let _ = V3::ZERO;
 }
 
 /// A vine summoned high over the lower bridge is placed along the course

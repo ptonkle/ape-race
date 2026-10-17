@@ -404,7 +404,7 @@ pub struct App {
     /// the item key went down since the last tick
     item_pressed: bool,
     /// Ticks until the call button (Left Shift, TRIAGE T58) works again.
-    call_cooldown: u32,
+    call_clock: sound::CallClock,
     /// Ape calls for the page to play this frame: the sound key and the
     /// loudness, 0..=100 (full for the player's own or the followed ape,
     /// by distance for another's).
@@ -481,7 +481,7 @@ impl App {
             play: None,
             keys: BTreeSet::new(),
             item_pressed: false,
-            call_cooldown: 0,
+            call_clock: sound::CallClock::default(),
             calls: Vec::new(),
             mouse: (0, 0),
             pointer_locked: false,
@@ -788,7 +788,7 @@ impl App {
     /// character; the other players hear it too). Presses inside the
     /// cooldown do nothing; not while watching a replay, nor paused.
     fn call_pressed(&mut self) {
-        if self.call_cooldown > 0 {
+        if !self.call_clock.ready() {
             return;
         }
         match self.screen {
@@ -822,7 +822,7 @@ impl App {
             }
             _ => return,
         }
-        self.call_cooldown = sound::CALL_COOLDOWN;
+        self.call_clock.called();
     }
 
     /// Racer `who` calls: the page plays its kind's call at full loudness
@@ -833,13 +833,9 @@ impl App {
             return;
         };
         let f = &p.race.racers[p.focus.racer];
-        let gain = if who == p.focus.racer {
-            100
-        } else {
-            fx::mul(sound::call_gain(r.ape.pos.dist(f.ape.pos)), int(100)) / ONE
-        };
-        if gain > 0 {
-            self.calls.push((sound::call_key(r.ape.kind), gain));
+        let dist = r.ape.pos.dist(f.ape.pos);
+        if let Some(call) = sound::heard_call(r.ape.kind, dist, who == p.focus.racer) {
+            self.calls.push(call);
         }
     }
 
@@ -1485,7 +1481,7 @@ impl App {
             return;
         }
         self.ticks = self.ticks.wrapping_add(1);
-        self.call_cooldown = self.call_cooldown.saturating_sub(1);
+        self.call_clock.tick();
         let Some(mut p) = self.play.take() else {
             return;
         };

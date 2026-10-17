@@ -1018,6 +1018,41 @@ pub fn call_gain(dist: i32) -> i32 {
     gain_at_cm(d_cm) as i32
 }
 
+/// The call the page plays when an ape of `kind` calls `dist` (Q16 m)
+/// from the followed ape: its sound key and loudness in hundredths, full
+/// (100) when `own` (the followed ape itself), else `call_gain` of the
+/// distance; `None` when too far to hear.
+pub fn heard_call(kind: Kind, dist: i32, own: bool) -> Option<(String, i32)> {
+    let gain = if own {
+        100
+    } else {
+        fx::mul(call_gain(dist), fx::int(100)) / ONE
+    };
+    (gain > 0).then(|| (call_key(kind), gain))
+}
+
+/// One ape's call cooldown: `CALL_COOLDOWN` ticks after a call before the
+/// next, everywhere (the race, the setup screens, the lobby).
+#[derive(Debug, Clone, Copy, Default)]
+pub struct CallClock {
+    left: u32,
+}
+
+impl CallClock {
+    /// Whether a call may be given now.
+    pub fn ready(&self) -> bool {
+        self.left == 0
+    }
+    /// A call was given: the next waits `CALL_COOLDOWN` ticks.
+    pub fn called(&mut self) {
+        self.left = CALL_COOLDOWN;
+    }
+    /// One tick passes.
+    pub fn tick(&mut self) {
+        self.left = self.left.saturating_sub(1);
+    }
+}
+
 /// `call_gain` on a distance in centimetres.
 fn gain_at_cm(d: i64) -> i64 {
     let r2 = PASS_REF * PASS_REF * 10_000;
@@ -1133,6 +1168,34 @@ mod call_tests {
         let far = call_gain(fx::int(20));
         assert!(far < near / 10 && far > 0, "20 m: {far}");
         assert!(call_gain(fx::int(40)) * 100 <= ONE, "silent at 40 m");
+    }
+
+    #[test]
+    fn a_call_waits_two_seconds_after_the_last() {
+        let mut c = CallClock::default();
+        assert!(c.ready());
+        c.called();
+        assert!(!c.ready(), "at once: inside the cooldown");
+        for _ in 0..CALL_COOLDOWN - 1 {
+            c.tick();
+        }
+        assert!(!c.ready(), "just short of 2 s");
+        c.tick();
+        assert!(c.ready(), "after 2 s it calls again");
+        assert_eq!(CALL_COOLDOWN, 2 * crate::rules::TICKS_PER_SECOND as u32);
+    }
+
+    #[test]
+    fn another_racers_call_is_quieter_when_farther() {
+        let k = Kind::Gorilla;
+        assert_eq!(heard_call(k, fx::int(60), true), Some((call_key(k), 100)));
+        let near = heard_call(k, fx::int(5), false).unwrap();
+        assert_eq!(near.0, call_key(k));
+        let far = heard_call(k, fx::int(20), false).unwrap().1;
+        let near = near.1;
+        assert!(near < 100 && near > 30, "5 m: {near}");
+        assert!(far < near / 5 && far > 0, "20 m: {far} vs 5 m: {near}");
+        assert_eq!(heard_call(k, fx::int(60), false), None, "60 m: nothing");
     }
 
     /// A clip's length in ms and its mean zero-crossing rate in Hz (a
