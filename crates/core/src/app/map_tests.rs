@@ -286,10 +286,12 @@ fn random_picks_another_map_at_each_start_and_the_hud_names_it() {
     }
 }
 
+/// BX2: the see-through hole is on in a race, round the followed ape and
+/// just over its feet, and off in the menus. The hole does not depend on
+/// the map (it follows `Stage::Race`, which every map's race is), so one
+/// map's race checks it (it raced every map before, 2026-10-17).
 #[test]
-fn in_a_race_on_every_map_the_scenery_is_cut_round_the_followed_ape() {
-    // BX2: the see-through hole is on in every map's race, round the
-    // followed ape and just over its feet, and off in the menus
+fn in_a_race_the_scenery_is_cut_round_the_followed_ape() {
     use crate::render::VIEW_VALUES;
     use crate::see::{Hole, VALUES};
     let mut a = app();
@@ -299,29 +301,21 @@ fn in_a_race_on_every_map_the_scenery_is_cut_round_the_followed_ape() {
         [0; VALUES],
         "off in the menus"
     );
-    for map in Map::ALL {
-        a.act("menu.main", "");
-        a.act("menu.race", "");
-        a.act("setup.map", map.key());
-        a.act("menu.start", "");
-        for _ in 0..5 {
-            a.tick();
-        }
-        let p = a.play.as_ref().unwrap();
-        let at = p.race.racers[p.focus.racer].ape.pos;
-        let (view, _, _) = a.frame();
-        let hole = &view[VIEW_VALUES - VALUES..];
-        let want = Hole::on(at);
-        let focus = crate::geom::v3(hole[0], hole[1], hole[2]);
-        assert!(
-            focus.dist(want.focus) < crate::fx::ONE,
-            "{map:?}: {focus:?} not round the ape at {at:?}"
-        );
-        assert_eq!(
-            hole[3] - focus.y,
-            want.floor - want.focus.y,
-            "{map:?}: floor"
-        );
-        assert!(hole[4] > 0, "{map:?}: on");
+    a.act("menu.race", "");
+    a.act("menu.start", "");
+    for _ in 0..5 {
+        a.tick();
     }
+    let p = a.play.as_ref().unwrap();
+    let at = p.race.racers[p.focus.racer].ape.pos;
+    let (view, _, _) = a.frame();
+    let hole = &view[VIEW_VALUES - VALUES..];
+    let want = Hole::on(at);
+    let focus = crate::geom::v3(hole[0], hole[1], hole[2]);
+    assert!(
+        focus.dist(want.focus) < crate::fx::ONE,
+        "{focus:?} not round the ape at {at:?}"
+    );
+    assert_eq!(hole[3] - focus.y, want.floor - want.focus.y, "floor");
+    assert!(hole[4] > 0, "on");
 }
