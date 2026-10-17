@@ -632,6 +632,15 @@ fn the_pads_each_cover_part_of_the_width() {
     assert!(pad_covers(PadShape::Ring, r, r * 3 / 4, 0));
     assert!(!pad_covers(PadShape::Ring, r, 0, 0));
     assert!(!pad_covers(PadShape::Ring, r, r / 4, 0));
+    // the holed ring covers all but its hole, off the middle (TA2-4)
+    let holed = PadShape::Holed {
+        at: v3(int(7), 0, 0),
+        hole: int(6),
+    };
+    assert!(pad_covers(holed, r, 0, 0));
+    assert!(!pad_covers(holed, r, int(7), 0));
+    assert!(!pad_covers(holed, r, int(12), int(1)));
+    assert!(pad_covers(holed, r, -int(7), 0));
     // the quarters cover +x+z and -x-z, not the other two
     assert!(pad_covers(PadShape::Quarters, r, r / 2, r / 2));
     assert!(pad_covers(PadShape::Quarters, r, -r / 2, -r / 2));

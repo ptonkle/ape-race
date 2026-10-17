@@ -74,7 +74,7 @@ pub enum Ledge {
 /// A window opening's width and height, and the doorway's width.
 pub const WINDOW_W: i32 = int(9);
 pub const WINDOW_H: i32 = int(8);
-pub const DOOR_W: i32 = int(16);
+pub const DOOR_W: i32 = int(20);
 
 /// One section of a hollow tower, `h` tall from y 0: an octagonal drum
 /// whose outer faces stand `r_out` from the axis and inner faces `r_in`,
@@ -114,14 +114,17 @@ pub fn hollow_section(
             Cut::Window => Some((WINDOW_W, h / 2 - WINDOW_H / 2, h / 2 + WINDOW_H / 2)),
             Cut::Door => Some((DOOR_W, 0, h - int(2))),
         };
-        // the mortar through the wall's thickness
+        // the mortar through the wall's thickness, 20 cm short of each
+        // face: flush with the skins it fought them for the pixels, the
+        // stipple bands (TA2-8, TA2-11)
+        let core = (wall - cm(40)).max(cm(10));
         match hole {
             None => put(
                 b,
                 &g,
                 Mesh::Cube,
                 v3(0, h / 2, (r_out + r_in) / 2),
-                v3(side_in, h, wall),
+                v3(side_in, h, core),
                 MORTAR,
                 0,
             ),
@@ -135,7 +138,7 @@ pub fn hollow_section(
                         &g,
                         Mesh::Cube,
                         v3((x0 + x1) / 2, h / 2, (r_out + r_in) / 2),
-                        v3((x1 - x0).abs(), h, wall),
+                        v3((x1 - x0).abs(), h, core),
                         MORTAR,
                         0,
                     );
@@ -146,7 +149,7 @@ pub fn hollow_section(
                         &g,
                         Mesh::Cube,
                         v3(0, lo / 2, (r_out + r_in) / 2),
-                        v3(hw, lo, wall),
+                        v3(hw, lo, core),
                         MORTAR,
                         0,
                     );
@@ -156,7 +159,7 @@ pub fn hollow_section(
                     &g,
                     Mesh::Cube,
                     v3(0, (hi + h) / 2, (r_out + r_in) / 2),
-                    v3(hw, h - hi, wall),
+                    v3(hw, h - hi, core),
                     MORTAR,
                     0,
                 );
@@ -880,14 +883,35 @@ pub fn bridge_hangers(
     spacing: i32,
     k: u32,
 ) -> Vec<V3> {
-    let points = hanger_points(a, z, spacing);
+    bridge_hangers_dropped(b, f, a, z, w, spacing, HANGER_DROP, k)
+}
+
+/// `bridge_hangers` with the hooks `drop` under the deck (the chain
+/// longer), for a hook that must hang clear of a deep arch.
+#[allow(clippy::too_many_arguments)]
+pub fn bridge_hangers_dropped(
+    b: &mut Batch,
+    f: &Affine,
+    a: V3,
+    z: V3,
+    w: i32,
+    spacing: i32,
+    drop: i32,
+    k: u32,
+) -> Vec<V3> {
+    let deeper = v3(0, HANGER_DROP - drop, 0);
+    let points: Vec<V3> = hanger_points(a, z, spacing)
+        .into_iter()
+        .map(|p| p.add(deeper))
+        .collect();
     let d = z.sub(a);
     let g = f
         .then(&Affine::translate(a))
         .then(&Affine::looking(d, V3::UP));
     let iron = super::SLATE_DARK;
     for (i, p) in points.iter().enumerate() {
-        let zz = p.sub(a).len();
+        // (along the deck: the hook hangs `drop` straight under it)
+        let zz = p.add(v3(0, drop, 0)).sub(a).len();
         // the bracket under the deck
         put(
             b,
@@ -914,13 +938,13 @@ pub fn bridge_hangers(
             &g,
             Mesh::Hex,
             v3(0, -cm(80) - cm(60), zz),
-            v3(0, -HANGER_DROP + cm(70), zz),
+            v3(0, -drop + cm(70), zz),
             cm(14),
             iron,
             0,
         );
         // the hook: a half ring, open toward the near end
-        let tip = v3(0, -HANGER_DROP, zz);
+        let tip = v3(0, -drop, zz);
         put_turned(
             b,
             &g,

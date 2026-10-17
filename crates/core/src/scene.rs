@@ -2184,6 +2184,13 @@ fn leaves(b: &mut Batch, a: V3, end: V3, t: u32) {
 fn speed_lines(b: &mut Batch, f: &Frame) {
     let Some(i) = f.local else { return };
     let ape = &f.race.racers[i].ape;
+    // (none inside tower 1's hollow: they floated there among the beams,
+    // TA2-8; the rest of the tower keeps them)
+    if let Some(t) = &f.race.course.tower {
+        if t.inside_tower_1(ape.pos) {
+            return;
+        }
+    }
     let speed = ape.speed();
     // Sector Ape runs about twice as fast: its lines start later, come
     // thicker and stretch longer
@@ -2567,6 +2574,52 @@ mod tests {
             "the ape is gone: {eating} of {running}"
         );
         assert!(gone < eating - 60, "and the jaguar: {gone}");
+    }
+
+    /// TA2-8: no speed lines inside Mape's Tower's hollow; outside it,
+    /// at the same speed, the lines as ever.
+    #[test]
+    fn no_speed_lines_inside_tower_1() {
+        let e = crate::race::Entry {
+            name: "P".into(),
+            kind: crate::rules::Kind::Gorilla,
+            driver: crate::race::Driver::Local,
+            palette: 0,
+            costume: crate::costume::Costume::Own,
+        };
+        let mut race = Race::new(crate::map::Map::Tower.course(), &[e], false, 1);
+        let t1 = &race.course.tower.as_ref().unwrap().towers[0];
+        let inside = t1.centre.add(v3(0, int(60), 0));
+        let outside = inside.add(v3(t1.radius + int(20), 0, 0));
+        let lines = |race: &Race, at: V3| {
+            let cam = Camera {
+                eye: at,
+                fwd: v3(0, 0, ONE),
+                fov: deg(70),
+            };
+            let mut b = Batch::new();
+            speed_lines(
+                &mut b,
+                &Frame {
+                    race,
+                    cam: &cam,
+                    apes: &[],
+                    local: Some(0),
+                    tick: 10,
+                    chains: &[],
+                    vivid: false,
+                    gear: None,
+                    flashes: &[],
+                    storm: false,
+                },
+            );
+            b.count()
+        };
+        race.racers[0].ape.vel = v3(0, int(40), 0);
+        race.racers[0].ape.pos = inside;
+        assert_eq!(lines(&race, inside), 0, "lines in the hollow");
+        race.racers[0].ape.pos = outside;
+        assert!(lines(&race, outside) > 0, "no lines outside");
     }
 
     /// The vines batch for a frame looking at `at` from 20 m back.

@@ -321,11 +321,15 @@ pub fn framing(key: &str) -> (V3, i32) {
         "hollowtop" => (v3(0, int(4), 0), int(70)),
         "tower2" => (v3(0, int(82), 0), int(120)),
         "longbridge" => (v3(0, -int(2), 0), int(140)),
-        "towers" => (v3(int(170), int(120), 0), int(360)),
+        // (the pair is drawn centred on the turn, `towers_scene`: both
+        // in view all the way round, TA2-4)
+        "towers" => (v3(0, int(130), 0), int(250)),
         "portal" => (v3(0, int(25), 0), int(36)),
         "tube" => (v3(0, -int(60), 0), int(80)),
         "voidpads" => (v3(0, 0, 0), int(60)),
-        "tunnelmouth" => (v3(0, 0, int(20)), int(40)),
+        // (the camera 75 m off the mouth: outside the ring and past the
+        // 40 m of tunnel whichever way it turns, TA2-4)
+        "tunnelmouth" => (V3::ZERO, int(44)),
         "keep" => (v3(0, int(56), 0), int(84)),
         "keepsection" => (v3(0, int(6), 0), int(14)),
         "turret" => (v3(0, int(9), 0), int(9)),
@@ -489,7 +493,7 @@ pub fn gallery(b: &mut Batch, key: &str, f: &Affine, tick: u32) {
         }
         "tunnelmouth" => {
             tunnel_mouth(b, f, TUBE_RADIUS, tick, 1);
-            tunnel(b, f, TUBE_RADIUS, int(60), 1);
+            tunnel(b, f, TUBE_RADIUS, int(40), 1);
         }
         "keep" => keep(b, f, int(10), 8, 7),
         "keepsection" => keep_section(b, f, int(10), int(12), 3, Detail::Near),
@@ -700,8 +704,11 @@ pub fn gallery(b: &mut Batch, key: &str, f: &Affine, tick: u32) {
 /// both, the portal beside tower 1's top on its far side with the mad
 /// wizard before it. About 5,400 shapes: for the gallery only.
 fn towers_scene(b: &mut Batch, f: &Affine, tick: u32) {
-    let at = |x: i32, y: i32, z: i32| f.then(&Affine::translate(v3(x, y, z)));
     let gap = BRIDGE_LENGTH + TOWER1_OUT + TOWER2_RADIUS;
+    // (tower 1 at -gap/2, tower 2 at +gap/2: the pair turns about its
+    // middle)
+    let f = &f.then(&Affine::translate(v3(-gap / 2, 0, 0)));
+    let at = |x: i32, y: i32, z: i32| f.then(&Affine::translate(v3(x, y, z)));
     // the doorway faces +x (face 2)
     tower1(
         b,

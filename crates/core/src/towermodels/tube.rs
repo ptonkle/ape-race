@@ -62,14 +62,47 @@ pub fn tube(
     portholes: &[Porthole],
     k: u32,
 ) -> Vec<Affine> {
+    tube_with_door(b, f, r, len, portholes, None, k)
+}
+
+/// A doorway through the tube's wall at its foot, where the tunnel's
+/// mouth opens: its bearing (0 is +z), its half width and its height
+/// over the foot.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TubeDoor {
+    pub bearing: i32,
+    pub half: i32,
+    pub height: i32,
+}
+
+/// `tube`, and with a `door` the foot's bands open round it (no panel
+/// and no rib across it) and a floor disc under the foot: the tube's
+/// last segment over the tunnel's mouth.
+pub fn tube_with_door(
+    b: &mut Batch,
+    f: &Affine,
+    r: i32,
+    len: i32,
+    portholes: &[Porthole],
+    door: Option<TubeDoor>,
+    k: u32,
+) -> Vec<Affine> {
     let bands = (len / BAND).max(1);
     let bh = len / bands;
     let panel_w = mul(2 * r, crate::fx::ratio(268, 1000)) + cm(40); // 2 r tan 15°, overlapping
     for j in 0..bands {
         let y0 = -bh * j;
         let y1 = -bh * (j + 1);
+        // the door's bearings in this band, if it reaches up into it
+        let open = door
+            .filter(|d| y1 < -len + d.height)
+            .map(|d| (d.bearing, crate::fx::atan2(d.half, r) + TURN / 24));
+        let shut = |a: i32| open.is_none_or(|(at, half)| !angle_near(a, at, half));
         for i in 0..PANELS {
             let a = TURN * i / PANELS;
+            if !shut(a) {
+                continue;
+            }
             let g = f.then(&Affine::rot_y(a));
             // a porthole on this panel in this band cuts it in two
             let hole = portholes.iter().find(|p| {
@@ -130,15 +163,42 @@ pub fn tube(
             }
         }
         // the rib between bands: a glowing ring, dim and bright in turn
+        // (round a door, a bar a panel, none across it)
         let c = if j % 3 == 0 { RING } else { RING_DIM };
-        ring(
+        let glow = if j % 3 == 0 { ONE * 3 / 4 } else { ONE / 3 };
+        if open.is_none() {
+            ring(b, f, r + cm(40), y1 + cm(10), cm(30), c, glow);
+        } else {
+            for i in 0..PANELS {
+                let a = TURN * i / PANELS;
+                if shut(a) {
+                    let g = f.then(&Affine::rot_y(a));
+                    let (x, y, z) = (panel_w / 2, y1 + cm(10), r + cm(40));
+                    bar(
+                        b,
+                        &g,
+                        Mesh::Cube,
+                        v3(-x, y, z),
+                        v3(x, y, z),
+                        cm(30),
+                        c,
+                        glow,
+                    );
+                }
+            }
+        }
+    }
+    if door.is_some() {
+        // the floor the tunnel's floor runs on from
+        let d = 2 * r + int(2);
+        put(
             b,
             f,
-            r + cm(40),
-            y1 + cm(10),
-            cm(30),
-            c,
-            if j % 3 == 0 { ONE * 3 / 4 } else { ONE / 3 },
+            Mesh::Cyl,
+            v3(0, -len - int(1), 0),
+            v3(d, int(2), d),
+            WALL_DEEP,
+            0,
         );
     }
     let mut out = Vec::new();
@@ -236,6 +296,10 @@ pub enum PadShape {
     Ring,
     /// two opposite quarters: +x+z and -x-z
     Quarters,
+    /// a ring whose hole, of radius `hole`, is at `at` (in the pad's
+    /// plane, from the axis): the physics' ring (`tower::PadShape::Ring`,
+    /// its hole off the middle at the weave's offset)
+    Holed { at: V3, hole: i32 },
 }
 
 impl PadShape {
@@ -265,6 +329,7 @@ pub fn pad_covers(shape: PadShape, r: i32, x: i32, z: i32) -> bool {
             d2 >= (hole as i64 * hole as i64) >> 16
         }
         PadShape::Quarters => (x >= 0 && z >= 0) || (x <= 0 && z <= 0),
+        PadShape::Holed { at, hole } => v3(x - at.x, 0, z - at.z).longer_than(hole),
     }
 }
 
@@ -380,6 +445,40 @@ pub fn void_pad(
             arc_rim(b, &g, r, 0, QUARTER, 5, rim, tick, k);
             arc_rim(b, &g, r, HALF, HALF + QUARTER, 5, rim, tick, k + 3);
         }
+        PadShape::Holed { at, hole } => {
+            // a fan of film strips from the hole's rim out to the wall
+            // (each wide enough to close the fan at the wall), a rim
+            // round both
+            let n = 24;
+            let deep = mix(film, FILM_DEEP, ONE / 3);
+            for i in 0..n {
+                let a = TURN * i / n;
+                let dir = v3(sin(a), 0, cos(a));
+                let c = if (i + k as i32) % 2 == 0 { film } else { deep };
+                bar(
+                    b,
+                    &g,
+                    Mesh::Cube,
+                    at.add(dir.scale(hole)),
+                    dir.scale(r),
+                    int(5),
+                    c,
+                    ONE / 2,
+                );
+            }
+            arc_rim(b, &g, r, 0, TURN, 12, rim, tick, k);
+            arc_rim(
+                b,
+                &g.then(&Affine::translate(at)),
+                hole,
+                0,
+                TURN,
+                8,
+                rim,
+                tick,
+                k + 7,
+            );
+        }
     }
     let d = mul(2 * r, breathe);
     halo_ball(b, &g, v3(0, cm(20), 0), d, FILM_DEEP, ONE / 4 + sq / 2);
@@ -494,12 +593,12 @@ pub fn tunnel_mouth(b: &mut Batch, f: &Affine, r: i32, tick: u32, k: u32) -> (V3
     (a, z)
 }
 
-/// The tube's foot joined to the tunnel's mouth: the tube's last band
-/// has no floor, the tunnel starts at its axis height `r` under the
-/// foot. The frame for `tunnel_mouth` and `tunnel` under a tube whose
-/// foot is at `foot` (the tube's frame), the tunnel running off along
-/// bearing `a`: its axis `r` under the foot.
+/// The tube's foot joined to the tunnel's mouth: the tube's floor is
+/// the tunnel's floor (its last segment drawn `tube_with_door`). The
+/// frame for `tunnel` beside a tube whose foot (its floor, on its axis)
+/// is at `foot`, the tunnel running off along bearing `a`: its axis `r`
+/// over the floor, its mouth at the tube's wall (`r` out along `a`).
 pub fn tunnel_frame(foot: &Affine, r: i32, a: i32) -> Affine {
-    foot.then(&Affine::translate(v3(0, -r, 0)))
-        .then(&Affine::rot_y(a))
+    foot.then(&Affine::rot_y(a))
+        .then(&Affine::translate(v3(0, r, r)))
 }
