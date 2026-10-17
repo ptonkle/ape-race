@@ -123,7 +123,9 @@ use crate::snow::Weather;
 /// could not read in a Roster or a Start.
 /// 14: ape calls (TRIAGE T58): `LobbyCall` (a lobby ape's call, by kind)
 /// and `Call` (a racer's call, heard by distance).
-pub const PROTOCOL: u32 = 14;
+/// 15: Rattlesnake Ravine (2026-10-17): the map `ravine`, which a client
+/// of 14 could not read in a Roster or a Start.
+pub const PROTOCOL: u32 = 15;
 /// The most apes in a race, humans and AI together.
 pub const MAX_APES: usize = 4;
 /// The most AI apes the host may add.

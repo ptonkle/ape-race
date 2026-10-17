@@ -207,6 +207,10 @@ pub struct Course {
     /// and vine casters (`tower.rs`); `None` on the other maps. On this map
     /// alone `path` and `heading` are 3D (TW1).
     pub tower: Option<Box<crate::tower::TowerLayout>>,
+    /// Rattlesnake Ravine's walls, rooms, decks, hangers (snake vines),
+    /// lizards, mine tracks and carts, T-rex skull, passage split and finish
+    /// set (`ravine.rs`); `None` on the other maps
+    pub ravine: Option<Box<crate::ravine::RavineLayout>>,
 }
 
 /// A straight street of a course with sharp corners (the City). The
@@ -850,6 +854,7 @@ pub(crate) fn centreline(name: &'static str, legs: &[Leg]) -> Course {
         ruins: None,
         bay: None,
         tower: None,
+        ravine: None,
     }
 }
 

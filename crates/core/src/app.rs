@@ -638,8 +638,11 @@ impl App {
     /// joiner's lobby) shows the host's pick and lets no card be pressed.
     /// A card sends the grid's id with its map's key, or `random`.
     pub(crate) fn map_tiles(&self, id: &str, chosen: Map, random: bool, read_only: bool) -> Value {
+        // a held map (`Map::held`) is not offered, unless it is already the
+        // pick (a setting or a host's choice made by key)
         let mut options: Vec<Value> = Map::ALL
             .iter()
+            .filter(|m| !m.held() || (!random && **m == chosen))
             .map(|m| {
                 json!({ "id": format!("{id}.{}", m.key()), "value": m.key(),
                   "text": self.map_name(*m), "picture": m.picture(),

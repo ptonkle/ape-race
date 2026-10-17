@@ -25,6 +25,7 @@ fn main() {
                 (Map::Ruins, s) => tool_core::ruins::ruins_seeded(0x2B1_5E75_0001 + s * 7919),
                 (Map::Bay, s) => tool_core::bay::bay_seeded(0xBA7_BA77_0001 + s * 7919),
                 (Map::Tower, s) => tool_core::tower::tower_seeded(0x70E5_0000_0001 + s * 7919),
+                (Map::Ravine, s) => tool_core::ravine::ravine_seeded(0x5A4E_C0DE_0001 + s * 7919),
             };
             let t = trial_at(course, &[k], &[level], false, 150 * TICKS_PER_SECOND as u32);
             row.push(match t[0].finish {

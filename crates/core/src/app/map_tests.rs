@@ -77,11 +77,21 @@ fn race_setup_and_time_trial_offer_every_map_as_a_grid_of_pictures() {
         assert_eq!(grid["read_only"], false);
         assert_eq!(grid["value"], "jungle");
         let (all, chosen) = cards(&grid);
-        let mut keys: Vec<&str> = Map::ALL.iter().map(|m| m.key()).collect();
+        // every map but a held one (`Map::held`: a stand-in not yet real)
+        let mut keys: Vec<&str> = Map::offered().map(|m| m.key()).collect();
         keys.push("random");
-        assert_eq!(all, keys, "every map, then Random (TRIAGE T64)");
+        assert_eq!(all, keys, "every offered map, then Random (TRIAGE T64)");
+        assert!(
+            !all.iter().any(|k| k == "ravine"),
+            "Rattlesnake Ravine is held"
+        );
         assert_eq!(chosen, ["jungle"]);
-        for (o, m) in grid["options"].as_array().unwrap().iter().zip(Map::ALL) {
+        for (o, m) in grid["options"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .zip(Map::offered())
+        {
             assert_eq!(o["picture"], format!("data/maps/{}.webp", m.key()));
             assert_eq!(o["id"], format!("setup.map.{}", m.key()));
             assert_eq!(o["text"], a.map_name(m));
