@@ -29,7 +29,7 @@
 use crate::ape::{Ape, Controls, Happening, Mode};
 use crate::course::Course;
 use crate::fx::{cm, int, Dice, ONE};
-use crate::geom::{pitch_of, v3, yaw_of, V3};
+use crate::geom::{pitch_of, right_of, v3, yaw_of, V3};
 use crate::race::{Driver, Entry, Item, Race};
 use crate::rules::{
     Kind, BODY_DROP, BOOST_GAIN, HOOK_RANGE, JUMP_SPEED, STICK_RANGE, TICKS_PER_SECOND,
@@ -328,6 +328,10 @@ const TOWER_HESITATE: [u32; 4] = [6, 3, 1, 0];
 const TOWER_JITTER: [u32; 4] = [6, 3, 1, 0];
 const TOWER_DRIVE: [u32; 4] = [2, 3, 5, DUTY];
 const TOWER_NOISE: [i32; 4] = [int(6), int(4), int(2), 0];
+/// Mape's Tower: a beam whose bottom hangs more than this over the top a
+/// swing's speed could carry the ape (the climb lift and the arms' reach)
+/// is out of its reach.
+const TOWER_OVERHEAD: i32 = int(6);
 /// Sunset Ruins' handicaps, easiest level first (see
 /// [`Difficulty::tuning_on`]). With the Jungle's, the Monkey was no faster
 /// than the Sloth and the Ape barely 6 s behind King Kong: the levels lose
@@ -843,6 +847,23 @@ pub fn think(race: &Race, who: usize, brain: &mut Brain) -> Controls {
     c
 }
 
+/// The level way along the course at `s`: the heading, except on Mape's
+/// Tower, where the heading climbs and falls: there its plan direction,
+/// and up tower 1's axis (no plan direction at all) the way the course
+/// goes on at the top, the left of `Course.right` (TW2-9).
+fn way_at(course: &Course, s: i32) -> V3 {
+    let h = course.heading_at(s);
+    if h.y == 0 {
+        return h;
+    }
+    let flat = v3(h.x, 0, h.z);
+    if flat.longer_than(ONE / 10) {
+        return flat.norm();
+    }
+    let i = (s / crate::course::STEP).clamp(0, course.right.len() as i32 - 1) as usize;
+    right_of(course.right[i]).neg()
+}
+
 /// How far along the course an ape is.
 fn progress(course: &Course, a: &Ape) -> i32 {
     course.progress(a.pos, a.hint).0
@@ -855,7 +876,7 @@ fn ahead(course: &Course, a: &Ape, from: i32, tick: u32, tune: Tuning) -> Vec<us
     let dir = if v.len() > int(5) {
         v.norm()
     } else {
-        course.heading_at(from)
+        way_at(course, from)
     };
     // how high its speed could carry it
     let top = a.pos.y + (a.vel.dot64(a.vel) / (2 * course.gravity() as i64)) as i32;
@@ -911,6 +932,14 @@ fn ahead_from_cached(
         let an = anchor_cached(course, i, tick, anchors.as_deref_mut());
         let bottom = bottom_from(course, i, an);
         let low = bottom - course.terrain(an.x, an.z) < int(5);
+        // (Mape's Tower: inside tower 1 the beams hang at every height
+        // over the ape; one whose bottom is above anything a release
+        // from this swing can reach is no candidate at all, or the
+        // candidates are the highest beams and the ape whirls on its
+        // vine for want of a flight that reaches one, TW2-10)
+        if course.tower.is_some() && bottom > origin.y + TOWER_OVERHEAD {
+            continue;
+        }
         if v.at >= from + int(12) && !low {
             // off the line costs three times as much as a hop longer or
             // shorter than the ideal
@@ -1003,7 +1032,7 @@ fn after_cached(
     let dir = if dir.len() > int(2) {
         dir.norm()
     } else {
-        course.heading_at(course.vines[target].at)
+        way_at(course, course.vines[target].at)
     };
     ahead_from_cached(
         course,
@@ -1320,7 +1349,7 @@ fn fly_ahead(
                     // (a swing keeps its heading)
                     let on = match after_cached(course, a, v, tick, tune, anchors.as_deref_mut()) {
                         Some(n) => aim_point(course, n, tick).flat().sub(a.pos.flat()),
-                        None => course.heading_at(course.vines[v].at),
+                        None => way_at(course, course.vines[v].at),
                     };
                     let useful = a.vel.flat().dot(on.norm()).max(0);
                     return Some((v, tick, useful, rope));
@@ -1432,7 +1461,7 @@ fn on_vine(a: &Ape, course: &Course, tick: u32, vine: usize, brain: &mut Brain) 
     }
     if brain.cands.is_empty() {
         // nothing ahead: the finish. Swing on and let go forward.
-        let h = course.heading_at(progress(course, a));
+        let h = way_at(course, progress(course, a));
         let mut c = swing_controls(a, course, tick, vine, false, tune);
         c.yaw = yaw_of(h);
         c.grab = !(a.vel.y > 0 && a.vel.flat().dot(h) > 0);
@@ -1604,7 +1633,7 @@ fn on_vine(a: &Ape, course: &Course, tick: u32, vine: usize, brain: &mut Brain) 
     let held = brain.plan.is_some();
     if held && (whirl || (overdue && best.is_none())) {
         // no way on from here: let go moving forward, and run for it
-        let h = course.heading_at(progress(course, a));
+        let h = way_at(course, progress(course, a));
         if a.vel.flat().dot(h) > a.vel.len() / 2 && a.vel.y >= 0 {
             c.grab = false;
             brain.plan = None;
@@ -1758,7 +1787,7 @@ fn on_ground(a: &Ape, course: &Course, tick: u32, brain: &mut Brain) -> Controls
     brain.target = target;
     let mut c = Controls {
         fwd: 1,
-        yaw: yaw_of(course.heading_at(prog)),
+        yaw: yaw_of(way_at(course, prog)),
         ..Controls::default()
     };
     let Some(t) = target else {

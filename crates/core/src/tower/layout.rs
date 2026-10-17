@@ -6,10 +6,10 @@
 //! lower bridge (two old spirals long), a corner onto the spiral round
 //! tower 2 (one full turn at `R2`, plus the quarter corners either end:
 //! a turn and a half of turning in all), a corner off it under the upper
-//! bridge back to tower 1's doorway, in and a corner onto a loose coil up
-//! tower 1's hollow (three turns at `R1_COIL`, what progress measures;
-//! the beams inside do not follow it), a corner out over the rim and
-//! sideways through the tear, straight down the tube (the heading is
+//! bridge back to tower 1's doorway and on to its axis, then a straight
+//! line up the axis (progress inside is height, TW2-9; the beams inside
+//! do not follow it), straight on out over the far rim and sideways
+//! through the tear, straight down the tube (the heading is
 //! straight down: `Course.right` there is the right of the way through
 //! the portal), a bend into the tunnel's mouth and the tunnel to the
 //! finish.
@@ -59,20 +59,19 @@ pub const LEGS: &[(Leg, Climb)] = &[
     (Leg::Tower2, Climb(390, 360, 100)),     // 3 round tower 2
     (Leg::Tower2, Climb(50, -90, 8)),        // 4 the corner off it
     (Leg::UpperBridge, Climb(250, 0, 4)),    // 5 under the upper bridge
-    (Leg::Inside, Climb(100, 0, 6)),         // 6 on to and through the doorway
-    (Leg::Inside, Climb(50, -90, 8)),        // 7 the corner onto the coil
-    (Leg::Inside, Climb(472, -1080, 150)),   // 8 the coil up the hollow
-    (Leg::Portal, Climb(50, 90, 10)),        // 9 the corner out over the rim
-    (Leg::Portal, Climb(40, 0, 10)),         // 10 through the tear to the tube
-    (Leg::Tube, Climb(280, 0, -280)),        // 11 straight down the tube
-    (Leg::Sling, Climb(40, 0, -24)),         // 12 the bend into the mouth
-    (Leg::Tunnel, Climb(70, 0, 0)),          // 13 the tunnel to the finish
+    (Leg::Inside, Climb(100, 0, 6)),         // 6 on through the doorway to the axis
+    (Leg::Inside, Climb(150, 0, 150)),       // 7 straight up tower 1's axis
+    (Leg::Portal, Climb(90, 0, 20)),         // 8 straight out over the far rim, through the tear
+    (Leg::Tube, Climb(280, 0, -280)),        // 9 straight down the tube
+    (Leg::Sling, Climb(40, 0, -24)),         // 10 the bend into the mouth
+    (Leg::Tunnel, Climb(70, 0, 0)),          // 11 the tunnel to the finish
 ];
 /// The legs' indices.
 const SPIRAL: usize = 3;
-const COIL: usize = 8;
-const TUBE: usize = 11;
-const BEND: usize = 12;
+const SHAFT: usize = 7;
+const PORTAL: usize = 8;
+const TUBE: usize = 9;
+const BEND: usize = 10;
 /// The start faces −x (toward tower 2).
 const START_YAW: i32 = -TURN / 4;
 
@@ -81,7 +80,7 @@ const START_YAW: i32 = -TURN / 4;
 const R2: i32 = crate::towermodels::TOWER2_RADIUS;
 
 /// Tower 1's outer radius (1.25× the old keep's) and its wall's
-/// thickness; the coil's radius inside it.
+/// thickness.
 const R1: i32 = int(51);
 const WALL_THICK: i32 = int(6);
 /// Tower 1's height: about twice the old keep's.
@@ -325,9 +324,10 @@ pub fn tower_seeded(seed: u64) -> Course {
         hangs.push(DOWN);
     }
 
-    // the towers: tower 2 round the spiral, tower 1 round the coil
+    // the towers: tower 2 round the spiral, tower 1 round the line up
+    // its axis
     let (c2, _) = turn_centre(&c, SPIRAL);
-    let (c1, _) = turn_centre(&c, COIL);
+    let c1 = c.point(leg_at(SHAFT));
     let t2_centre = v3(c2.x, 0, c2.z);
     let t1_centre = v3(c1.x, 0, c1.z);
     let t2_radius = R2;
@@ -337,7 +337,7 @@ pub fn tower_seeded(seed: u64) -> Course {
     // the doorway: where the upper bridge's line meets tower 1's wall
     let door_at = {
         let from = leg_at(5);
-        let to = leg_at(COIL);
+        let to = leg_at(SHAFT);
         let mut s = from;
         while s < to && c.point(s).flat().sub(t1_centre.flat()).longer_than(R1) {
             s += ONE;
@@ -523,7 +523,7 @@ pub fn tower_seeded(seed: u64) -> Course {
     // (two entry beams just inside the doorway, over the line as the
     // bridge's, so the climb inside can be started from the swing in)
     for k in [1, 2] {
-        let at = door_at + int(10) * k;
+        let at = door_at + int(12) * k;
         let r = right_of(flat(c.heading_at(at)));
         for lane in [-4, 4] {
             let base = c.point(at).add(r.scale(int(lane)));
@@ -569,11 +569,14 @@ pub fn tower_seeded(seed: u64) -> Course {
                 };
                 (a, DOWN, hanger)
             };
-            let bottom = anchor.add(hang.scale(INSIDE_BEAM));
+            // (placed along the course by its middle: progress inside is
+            // height, and the AI takes a beam whose middle is not under
+            // it, grabbing it short, TW2-9)
+            let middle = anchor.add(hang.scale(INSIDE_BEAM / 2));
             // (in 3D: `Course.tower` is not set until the layout is done,
             // so the course's own search would be in plan)
-            let hint = c.nearest_anywhere_3d(bottom);
-            let (at, _) = c.progress_3d(bottom, hint);
+            let hint = c.nearest_anywhere_3d(middle);
+            let (at, _) = c.progress_3d(middle, hint);
             c.vines.push(Vine {
                 anchor,
                 length: INSIDE_BEAM,
@@ -590,7 +593,7 @@ pub fn tower_seeded(seed: u64) -> Course {
 
     // the portal's beams: the corner out over the rim and through the
     // tear, cast by dragons
-    let portal_from = leg_at(9);
+    let portal_from = leg_at(PORTAL);
     let tube_from = leg_at(TUBE);
     let mut s = portal_from + int(8);
     while s < tube_from - int(10) {
@@ -827,7 +830,7 @@ pub fn tower_seeded(seed: u64) -> Course {
         layout.pads.push(pad);
     }
     // inside: a ledge just inside the doorway, then one on the inner wall
-    // every 40 m of height at the coil's angle there, facing the middle
+    // every 40 m of height, stepping round the wall, facing the middle
     {
         let sill = doorway.at.sub(doorway.out.scale(WALL_THICK + int(3)));
         let pad = pad_at(
@@ -840,11 +843,13 @@ pub fn tower_seeded(seed: u64) -> Course {
         );
         layout.pads.push(pad);
     }
-    let coil_from = leg_at(COIL);
-    let mut s = coil_from + int(20);
-    while s < leg_at(COIL + 1) - int(20) {
+    let shaft_from = leg_at(SHAFT);
+    let mut s = shaft_from + int(20);
+    let mut ledge = 0;
+    while s < leg_at(SHAFT + 1) - int(20) {
         let p = c.point(s);
-        let out = p.flat().sub(t1_centre.flat()).norm();
+        let out = facing(yaw_of(doorway.out) + ledge * TURN * 3 / 8, 0);
+        ledge += 1;
         let wall = t1_centre.add(out.scale(inner - int(3)));
         let pad = pad_at(
             &mut c,
@@ -855,7 +860,7 @@ pub fn tower_seeded(seed: u64) -> Course {
             int(5),
         );
         layout.pads.push(pad);
-        s += int(120);
+        s += int(40);
     }
     // the portal's: at the tear's foot, throwing an ape on into the tube
     {

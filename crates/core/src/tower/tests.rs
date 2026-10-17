@@ -126,31 +126,40 @@ fn the_centreline_runs_the_legs_in_order_and_climbs_then_falls() {
     assert!(c.path.iter().all(|p| p.y > int(10)));
 }
 
+/// Inside tower 1 progress is height (TW2-9): a point anywhere across
+/// the hollow at a sample's height is found at that sample, and one 3 m
+/// higher 3 m further on; round tower 2 the spiral's turn is told from
+/// the corner under it by height.
 #[test]
-fn along_the_course_tells_the_coils_apart_by_height() {
+fn along_the_course_tells_the_climbs_apart_by_height() {
     let c = tower();
     let t = c.tower.as_deref().unwrap();
-    // the coil inside tower 1: a point 3 m over a sample of its second
-    // turn, right above a sample of the first (the nearest in plan), is
-    // found on its own turn
-    let from = (t.leg_start(Leg::Inside, c.length) / STEP) as usize + 60;
+    let t1 = &t.towers[0];
+    let from = (t.leg_start(Leg::Inside, c.length) / STEP) as usize + 80;
     let to = (t.leg_start(Leg::Portal, c.length) / STEP) as usize - 10;
-    let under_of = |k: usize| {
-        (from..k - 50)
-            .min_by_key(|&j| c.path[j].flat().sub(c.path[k].flat()).len())
-            .unwrap()
-    };
-    let k = (from + 100..to)
-        .find(|&k| c.path[under_of(k)].flat().sub(c.path[k].flat()).len() < int(2))
-        .expect("the coil passes over itself");
-    let under = under_of(k);
-    let p = v3(c.path[under].x, c.path[k].y + int(3), c.path[under].z);
+    for k in [from, (from + to) / 2, to] {
+        // (the sample is on the axis)
+        assert!(c.path[k].flat().sub(t1.centre.flat()).len() < int(1), "sample {k} on the axis");
+        for off in [-int(30), int(20)] {
+            let p = c.path[k].add(v3(off, int(3), off / 2));
+            let i = c.nearest_anywhere(p);
+            assert!((i as i32 - k as i32).abs() <= 2, "sample {k} off {}: nearest {i}", off / ONE);
+            let (s, _) = c.progress(p, i);
+            assert!((s - (k as i32 * STEP + int(3))).abs() < int(1), "sample {k}: {} m", s / ONE);
+            assert!((c.nearest(p, k) as i32 - k as i32).abs() <= 2);
+        }
+    }
+    // the spiral round tower 2: a point over its last quarter, right
+    // above its first, is found on its own turn
+    let s0 = t.leg_start(Leg::Tower2, c.length) + int(80);
+    let p0 = c.point(s0);
+    let k = ((s0 / STEP) as usize..(t.leg_start(Leg::UpperBridge, c.length) / STEP) as usize)
+        .skip(60)
+        .min_by_key(|&k| c.path[k].flat().sub(p0.flat()).len())
+        .unwrap();
+    let p = v3(p0.x, c.path[k].y + int(3), p0.z);
     let i = c.nearest_anywhere(p);
-    assert!((i as i32 - k as i32).abs() <= 2, "sample {k}: nearest {i}");
-    let (s, _) = c.progress(p, i);
-    assert!((s - k as i32 * STEP).abs() < int(3), "sample {k}: {} m", s / ONE);
-    // and the windowed search from the ape's last place agrees
-    assert!((c.nearest(p, k) as i32 - k as i32).abs() <= 2);
+    assert!((i as i32 - k as i32).abs() <= 3, "spiral sample {k}: nearest {i}");
 }
 
 #[test]
@@ -200,13 +209,21 @@ fn resets_inside_go_to_a_ledge_and_resets_on_the_sling_go_to_the_portal() {
     let t1 = &t.towers[0];
     let mut r = Race::new(c, &entries(1), false, 1);
     r.phase = Phase::Running;
-    // on tower 1's floor, in the middle, 100 m under the coil
-    let coil = t.leg_start(Leg::Inside, r.course.length) + int(200);
-    let p = v3(t1.centre.x, BODY_DROP + int(1), t1.centre.z);
+    // down on tower 1's floor, in the middle, off a beam 100 m up the
+    // shaft (progress inside is height, so the fall has taken its
+    // progress to the leg's start: the pad is by the beam it held, TW2-9)
+    let shaft = t.leg_start(Leg::Inside, r.course.length) + int(100);
+    let held = (0..r.course.vines.len())
+        .filter(|&i| matches!(t.hangers[i], Hanger::Window { .. }))
+        .min_by_key(|&i| (r.course.vines[i].at - shaft).abs())
+        .unwrap();
+    let p = v3(t1.centre.x, BODY_DROP, t1.centre.z);
     let a = &mut r.racers[0].ape;
     a.pos = p;
-    a.hint = r.course.nearest_anywhere(r.course.point(coil));
-    a.mode = Mode::Flying;
+    // (its hint followed it down the shaft)
+    a.hint = r.course.nearest_anywhere(r.course.point(t.leg_start(Leg::Inside, r.course.length) + int(60)));
+    a.mode = Mode::Grounded;
+    a.last_vine = Some((held, 30));
     r.step(&[Default::default()]);
     let Some(Event::Reset { pad, .. }) = r.events.iter().find(|e| matches!(e, Event::Reset { .. })) else {
         panic!("no reset off tower 1's floor");
@@ -223,10 +240,16 @@ fn resets_inside_go_to_a_ledge_and_resets_on_the_sling_go_to_the_portal() {
         r.racers[0].progress / ONE
     );
     assert!(r.racers[0].ape.vel.y > 0, "boosted up");
+    assert!(
+        chosen.at > r.course.vines[held].at - int(45) && chosen.at < r.course.vines[held].at,
+        "the ledge under the beam it held ({} m, beam at {} m)",
+        chosen.at / ONE,
+        r.course.vines[held].at / ONE
+    );
     // out under the tunnel's mouth (on the sling leg, far under its line)
     // (on the open ground under the sling leg's line, under the tube's
     // floor)
-    let sling = t.leg_start(Leg::Sling, r.course.length) + int(20);
+    let sling = t.leg_start(Leg::Sling, r.course.length) + int(4);
     let q = r.course.point(sling);
     let q = v3(q.x, BODY_DROP, q.z);
     let a = &mut r.racers[0].ape;
