@@ -32,7 +32,9 @@ fn every_difficulty_climbs_falls_and_finishes() {
         println!(
             "{:<10} {}  reached {} m  legs: {}",
             level.key(),
-            finish.map(|f| format!("{:.1} s", secs(f))).unwrap_or("-".into()),
+            finish
+                .map(|f| format!("{:.1} s", secs(f)))
+                .unwrap_or("-".into()),
             progress / ONE,
             legs.join(", ")
         );
@@ -42,7 +44,11 @@ fn every_difficulty_climbs_falls_and_finishes() {
         .filter(|(_, (f, _, _))| f.is_none())
         .map(|(level, (_, p, _))| format!("{} (stuck at {} m)", level.key(), p / ONE))
         .collect();
-    assert!(stuck.is_empty(), "every level finishes Mape's Tower: {}", stuck.join(", "));
+    assert!(
+        stuck.is_empty(),
+        "every level finishes Mape's Tower: {}",
+        stuck.join(", ")
+    );
     let times: Vec<u32> = all.iter().map(|(_, (f, _, _))| f.unwrap()).collect();
     assert!(
         times.windows(2).all(|w| w[0] > w[1]),

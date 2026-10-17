@@ -205,7 +205,10 @@ fn both_towers_and_the_tube_are_solid() {
         25,
     );
     assert!(hit, "the tube: no wall hit");
-    assert!(flat_dist(end, tube.axis) <= tube.radius, "the tube: went out");
+    assert!(
+        flat_dist(end, tube.axis) <= tube.radius,
+        "the tube: went out"
+    );
 }
 
 /// Tower 1's doorway lets an ape through: flown in at it, it ends up

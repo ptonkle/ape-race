@@ -83,43 +83,82 @@ fn the_centreline_runs_the_legs_in_order_and_climbs_then_falls() {
     ] {
         let p = mid(leg, next);
         let deck = c.platforms[b.deck.unwrap()];
-        assert!(c.support(v3(p.x, deck.top + BODY_DROP, p.z)) == deck.top, "{leg:?}: a deck over the line");
-        assert!(deck.top - p.y > int(20) && deck.top - p.y < int(38), "{leg:?}: the deck {} m over the line", (deck.top - p.y) / ONE);
+        assert!(
+            c.support(v3(p.x, deck.top + BODY_DROP, p.z)) == deck.top,
+            "{leg:?}: a deck over the line"
+        );
+        assert!(
+            deck.top - p.y > int(20) && deck.top - p.y < int(38),
+            "{leg:?}: the deck {} m over the line",
+            (deck.top - p.y) / ONE
+        );
         let k = (at(leg) / STEP) as usize + 5;
         assert!(c.heading[k].y.abs() < ONE / 20, "{leg:?} is level");
     }
     // round tower 2, outside its wall, rising
     let p = mid(Leg::Tower2, Leg::UpperBridge);
     let off = p.flat().sub(t2.centre.flat()).len() - t2.radius;
-    assert!(off > int(8) && off < int(20), "round tower 2: {} m off its wall", off / ONE);
+    assert!(
+        off > int(8) && off < int(20),
+        "round tower 2: {} m off its wall",
+        off / ONE
+    );
     assert!(c.point(at(Leg::UpperBridge)).y - c.point(at(Leg::Tower2)).y > int(80));
     // the doorway on tower 1's wall at the upper bridge's end, half way up
     let d = t.doorway;
     let r = d.at.flat().sub(t1.centre.flat()).len();
-    assert!((r - t1.radius).abs() < int(2), "the doorway {} m from the axis (wall {})", r / ONE, t1.radius / ONE);
+    assert!(
+        (r - t1.radius).abs() < int(2),
+        "the doorway {} m from the axis (wall {})",
+        r / ONE,
+        t1.radius / ONE
+    );
     let half = fx::div(d.at.y - t1.centre.y, t1.height);
-    assert!(half > ONE * 4 / 10 && half < ONE * 6 / 10, "the doorway {}% up", half * 100 / ONE);
+    assert!(
+        half > ONE * 4 / 10 && half < ONE * 6 / 10,
+        "the doorway {}% up",
+        half * 100 / ONE
+    );
     // inside tower 1 up to the rim, then out over it
     let p = mid(Leg::Inside, Leg::Portal);
-    assert!(!p.flat().sub(t1.centre.flat()).longer_than(t1.inner - int(5)), "inside the hollow");
+    assert!(
+        !p.flat()
+            .sub(t1.centre.flat())
+            .longer_than(t1.inner - int(5)),
+        "inside the hollow"
+    );
     let out = c.point(at(Leg::Tube));
-    assert!(out.flat().sub(t1.centre.flat()).longer_than(t1.radius + int(10)), "out past the wall");
+    assert!(
+        out.flat()
+            .sub(t1.centre.flat())
+            .longer_than(t1.radius + int(10)),
+        "out past the wall"
+    );
     assert!(out.y > t1.top(), "over the rim");
     assert!(t.in_void(out) && !t.in_void(p));
     // straight down the tube to its bottom, inside its wall
     let k = (at(Leg::Tube) / STEP) as usize + 10;
     assert_eq!(c.heading[k], v3(0, -ONE, 0), "straight down");
-    assert!(c.right[k].flat().longer_than(ONE / 2), "a level right down the tube");
+    assert!(
+        c.right[k].flat().longer_than(ONE / 2),
+        "a level right down the tube"
+    );
     let p = mid(Leg::Tube, Leg::Sling);
     assert!(t.tube.holds(p));
-    assert!(c.point(at(Leg::Tube)).y - c.point(at(Leg::Sling)).y > int(250), "a long fall");
+    assert!(
+        c.point(at(Leg::Tube)).y - c.point(at(Leg::Sling)).y > int(250),
+        "a long fall"
+    );
     // the tunnel: level, the finish part way along, the floor under it
     let k = (at(Leg::Tunnel) / STEP) as usize + 5;
     assert_eq!(c.heading[k].y, 0);
     let end = c.point(c.length);
     assert!(t.tunnel.finish > int(40) && t.tunnel.finish < t.tunnel.length);
     let floor = c.platforms[t.tunnel.floor];
-    assert!(c.support(v3(end.x, floor.top + BODY_DROP, end.z)) == floor.top, "the tunnel's floor");
+    assert!(
+        c.support(v3(end.x, floor.top + BODY_DROP, end.z)) == floor.top,
+        "the tunnel's floor"
+    );
     // the top of the course is the tube's top; nothing is below the ground
     let top = c.path.iter().map(|p| p.y).max().unwrap();
     assert_eq!(top, t.tube.top);
@@ -139,13 +178,24 @@ fn along_the_course_tells_the_climbs_apart_by_height() {
     let to = (t.leg_start(Leg::Portal, c.length) / STEP) as usize - 10;
     for k in [from, (from + to) / 2, to] {
         // (the sample is on the axis)
-        assert!(c.path[k].flat().sub(t1.centre.flat()).len() < int(1), "sample {k} on the axis");
+        assert!(
+            c.path[k].flat().sub(t1.centre.flat()).len() < int(1),
+            "sample {k} on the axis"
+        );
         for off in [-int(30), int(20)] {
             let p = c.path[k].add(v3(off, int(3), off / 2));
             let i = c.nearest_anywhere(p);
-            assert!((i as i32 - k as i32).abs() <= 2, "sample {k} off {}: nearest {i}", off / ONE);
+            assert!(
+                (i as i32 - k as i32).abs() <= 2,
+                "sample {k} off {}: nearest {i}",
+                off / ONE
+            );
             let (s, _) = c.progress(p, i);
-            assert!((s - (k as i32 * STEP + int(3))).abs() < int(1), "sample {k}: {} m", s / ONE);
+            assert!(
+                (s - (k as i32 * STEP + int(3))).abs() < int(1),
+                "sample {k}: {} m",
+                s / ONE
+            );
             assert!((c.nearest(p, k) as i32 - k as i32).abs() <= 2);
         }
     }
@@ -159,7 +209,10 @@ fn along_the_course_tells_the_climbs_apart_by_height() {
         .unwrap();
     let p = v3(p0.x, c.path[k].y + int(3), p0.z);
     let i = c.nearest_anywhere(p);
-    assert!((i as i32 - k as i32).abs() <= 3, "spiral sample {k}: nearest {i}");
+    assert!(
+        (i as i32 - k as i32).abs() <= 3,
+        "spiral sample {k}: nearest {i}"
+    );
 }
 
 #[test]
@@ -221,11 +274,15 @@ fn resets_inside_go_to_a_ledge_and_resets_on_the_sling_go_to_the_portal() {
     let a = &mut r.racers[0].ape;
     a.pos = p;
     // (its hint followed it down the shaft)
-    a.hint = r.course.nearest_anywhere(r.course.point(t.leg_start(Leg::Inside, r.course.length) + int(60)));
+    a.hint = r.course.nearest_anywhere(
+        r.course
+            .point(t.leg_start(Leg::Inside, r.course.length) + int(60)),
+    );
     a.mode = Mode::Grounded;
     a.last_vine = Some((held, 30));
     r.step(&[Default::default()]);
-    let Some(Event::Reset { pad, .. }) = r.events.iter().find(|e| matches!(e, Event::Reset { .. })) else {
+    let Some(Event::Reset { pad, .. }) = r.events.iter().find(|e| matches!(e, Event::Reset { .. }))
+    else {
         panic!("no reset off tower 1's floor");
     };
     let pl = r.course.platforms[*pad];
@@ -258,16 +315,25 @@ fn resets_inside_go_to_a_ledge_and_resets_on_the_sling_go_to_the_portal() {
     a.mode = Mode::Flying;
     a.vel = V3::ZERO;
     r.events.clear();
-    assert!(r.course.tower_out(q, r.racers[0].ape.hint), "under the tube is out");
+    assert!(
+        r.course.tower_out(q, r.racers[0].ape.hint),
+        "under the tube is out"
+    );
     r.step(&[Default::default()]);
     let portal = t.pads[t.portal_pad];
     assert!(
-        r.events.contains(&Event::Reset { who: 0, pad: portal.platform }),
+        r.events.contains(&Event::Reset {
+            who: 0,
+            pad: portal.platform
+        }),
         "the sling's reset goes to the portal's pad: {:?}",
         r.events
     );
     let a = &r.racers[0].ape;
-    assert!(a.vel.dot(t.portal.through) > int(3), "thrown on through the tear");
+    assert!(
+        a.vel.dot(t.portal.through) > int(3),
+        "thrown on through the tear"
+    );
 }
 
 #[test]
@@ -395,7 +461,9 @@ fn inside_beams_fill_the_hollow_each_within_a_swing_of_two_others() {
     for &i in &inside {
         let b = bottom(i);
         assert!(
-            !b.flat().sub(t1.centre.flat()).longer_than(t1.inner - int(4)),
+            !b.flat()
+                .sub(t1.centre.flat())
+                .longer_than(t1.inner - int(4)),
             "vine {i}'s bottom is {} m from the axis",
             b.flat().sub(t1.centre.flat()).len() / ONE
         );
@@ -480,7 +548,10 @@ fn the_tubes_air_is_thick_and_its_steering_strong() {
     assert_eq!(b.air_now(&c), fx::mul(a.phys.air, TUBE_AIR));
     b.vel = v3(0, -int(60), 0);
     b.tube_air(&c);
-    assert!(b.vel.y > -int(60), "thick air slows a fall faster than terminal");
+    assert!(
+        b.vel.y > -int(60),
+        "thick air slows a fall faster than terminal"
+    );
 }
 
 /// The measurement (TW2-5, `MEASUREMENTS.md`): a human-like weave (steer
@@ -495,8 +566,15 @@ fn a_weave_steered_for_each_gap_falls_the_tube_touching_no_pad() {
     let tube = &t.tube;
     for (name, start) in [
         ("the axis", v3(tube.axis.x, tube.top - int(1), tube.axis.z)),
-        ("8 m off", v3(tube.axis.x, tube.top - int(1), tube.axis.z + int(8))),
-        ("the portal's throw", c.point(t.leg_start(Leg::Portal, c.length) + int(70)).add(v3(0, int(6), 0))),
+        (
+            "8 m off",
+            v3(tube.axis.x, tube.top - int(1), tube.axis.z + int(8)),
+        ),
+        (
+            "the portal's throw",
+            c.point(t.leg_start(Leg::Portal, c.length) + int(70))
+                .add(v3(0, int(6), 0)),
+        ),
     ] {
         let mut a = Ape::new(Kind::Chimpanzee, true, start, 0);
         a.mode = Mode::Flying;
@@ -536,7 +614,9 @@ fn a_weave_steered_for_each_gap_falls_the_tube_touching_no_pad() {
         );
         assert_eq!(bounces, 0, "from {name}: {bounces} bounces");
         assert_eq!(passed, tube.pads.len(), "from {name}: {passed} pads passed");
-        assert!(ticks < (10 * TICKS_PER_SECOND) as u32, "from {name}: too slow");
+        assert!(
+            ticks < (10 * TICKS_PER_SECOND) as u32,
+            "from {name}: too slow"
+        );
     }
 }
-

@@ -5,7 +5,7 @@ The standard map-build steps (MAPS.md "Build steps"), one row each. Status is on
 | # | Step | Status | Notes |
 | --- | --- | --- | --- |
 | 1 | Brief and answers | Done | `briefs/mapes-tower-v2.md`, drawing `briefs/mapes-tower-v2.png` |
-| 2 | Skeleton and contract | In progress (agent, started 2026-10-16) | New `TowerLayout`: two towers, two bridges, the doorway, the interior, the tube, the tunnel; the tube's rules |
+| 2 | Skeleton and contract | In progress (agent, started 2026-10-16) | New `TowerLayout`: two towers, two bridges, the doorway, the interior, the tube, the tunnel; the tube's rules. Branch `tower2-ai`: a straight shaft up tower 1's axis; Monkey, Ape and King Kong finish the stand-in (135.7, 130.6, 90.0 s), the Sloth runs out of time in the tube (TW2-9..12) |
 | 3 | Ape costumes | Done (v1) | Unchanged: wizard and witch mixes |
 | 4 | Models | Done (unseen in the browser) | `towermodels/towers.rs`, `tube.rs`, `portal.rs` (TM2 rows); gallery keys `towers`, `tower1`, `tower2`, `longbridge`, `portal`, `tube`, `voidpads`, `tunnelmouth`; the art agent shoots them first |
 | 5 | Sky and lighting | Done (v1) | Unchanged: Clear, Twilight, Dawn; the void past the portal |
@@ -13,7 +13,7 @@ The standard map-build steps (MAPS.md "Build steps"), one row each. Status is on
 | 7 | Map rules | Not started | The tube: no vines, bounce pads as obstacles, air control, the bottom row's sling |
 | 8 | Art placed on the course | Not started | |
 | 9 | Lobby spot and flyover | Not started | |
-| 10 | AI validation | Not started | The AI must climb a free interior and fall the tube |
+| 10 | AI validation | In progress | Three of four levels finish the stand-in in order; the Sloth is 10 s over the limit; the inside climb and the portal hand-over are the slow legs (TW2-12) |
 | 11 | Medal times | Not started | |
 | 12 | Step and frame cost | Not started | |
 | 13 | Colourblind and JOJO MODE | Not started | |
