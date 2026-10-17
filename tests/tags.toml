@@ -116,7 +116,7 @@ tags = ["boundary"]
 "crates/core/src/snow.rs" = ["weather", "maps-ski"]
 # the app: the hub of screens. Its own file touches most features but not
 # the bodies, the AI or a map's build
-"crates/core/src/app.rs" = ["menus", "race", "items", "camera", "replay", "costumes", "weather", "sound", "online"]
+"crates/core/src/app.rs" = ["menus", "race", "items", "camera", "replay", "online"]
 "crates/core/src/app/online_play.rs" = ["online"]
 "crates/core/src/app/online_play_tests.rs" = ["online"]
 "crates/core/src/app/call_tests.rs" = ["sound", "race", "menus", "replay"]
@@ -134,6 +134,21 @@ tags = ["boundary"]
 "crates/core/src/app/ski_camera_tests.rs" = ["camera"]
 "crates/core/src/app/spectate_tests.rs" = ["camera"]
 "crates/core/src/app/weather_tests.rs" = ["weather"]
+# app.rs's domains, split out (2026-10-17): app.rs keeps the struct, input,
+# screens, `act`, the clock and `ui`
+"crates/core/src/app/audio.rs" = ["sound"]
+"crates/core/src/app/costumes.rs" = ["costumes", "menus"]
+"crates/core/src/app/hud.rs" = ["menus", "race", "items"]
+"crates/core/src/app/items.rs" = ["items", "race", "menus"]
+"crates/core/src/app/menus.rs" = ["menus"]
+"crates/core/src/app/notes.rs" = ["notes", "menus"]
+"crates/core/src/app/race.rs" = ["race", "items", "replay", "costumes", "camera", "sound"]
+"crates/core/src/app/replays.rs" = ["replay", "camera"]
+"crates/core/src/app/results.rs" = ["race", "menus"]
+"crates/core/src/app/setup.rs" = ["menus"]
+"crates/core/src/app/spectate.rs" = ["camera"]
+"crates/core/src/app/view.rs" = ["render", "weather", "replay"]
+"crates/core/src/app/weather.rs" = ["weather", "menus"]
 
 # maps
 "crates/core/src/course.rs" = ["maps-jungle"]
