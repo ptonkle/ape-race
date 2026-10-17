@@ -20,15 +20,14 @@
 //! walls, the tents and the campfire. Bridge and log decks (`Deck`) are
 //! floors you land, stand and walk on, not walls.
 //!
-//! **The agreed rules** (the rules agent writes them; nothing here does
-//! yet):
+//! **The agreed rules** (written in `rules.rs` and `solids.rs`):
 //! - **Snake vines** (`Hanger.snake`, about 15% of the vines, from a fixed
 //!   list, more on the upper passage): grabbing one snaps it in half; the
 //!   ape drops with its momentum killed (velocity zeroed, falling). The
 //!   snap is shared and deterministic; when it happened is
 //!   `Hanger.snapped_at`, kept in the save points (`snake_state` /
-//!   `put_snake_state`, already wired into `replay::SavePoint`). Whether a
-//!   snapped vine comes back, and when, is the rules agent's call.
+//!   `put_snake_state`, already wired into `replay::SavePoint`). A snapped
+//!   vine hangs whole again `SNAKE_REGROW` (10 s) after (SECOND-ORDER RR1).
 //! - **The T-rex teeth** (`Skull::brushes`): brushing a tooth puts the ape
 //!   on the canyon floor right under the jaw (`Skull.floor_spot`) with zero
 //!   speed; it carries on the long way round. With Floor is Lava it is the
@@ -44,8 +43,15 @@
 //! random at runtime.
 
 pub mod layout;
+mod rules;
+#[cfg(test)]
+mod rules_tests;
+pub mod solids;
 #[cfg(test)]
 mod tests;
+
+pub use rules::{SNAKE_NO_GRAB, SNAKE_REGROW};
+pub use solids::{Solid, SolidKind, Solids, SolidsCache, ROOF_THICK};
 
 pub use layout::{ravine, ravine_seeded, ravine_upper_seeded};
 

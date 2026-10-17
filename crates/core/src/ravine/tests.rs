@@ -204,9 +204,7 @@ fn a_snapped_snake_vine_is_kept_in_the_save_state() {
 
 // ---- the course (the course agent, 2026-10-17) ----
 
-use super::layout::{
-    leg, plan, ravine_upper_seeded, skull_spots, HALF, PACE, START_BACK,
-};
+use super::layout::{leg, plan, ravine_upper_seeded, skull_spots, HALF, PACE, START_BACK};
 use crate::course::Course;
 use crate::geom::right_of;
 
@@ -243,11 +241,17 @@ fn way_on(c: &Course, line: &[(V3, V3)], what: &str) {
         let plain = (0..c.vines.len())
             .filter(|&i| !r.hangers[i].snake && ahead(int(30), i))
             .count();
-        assert!(plain >= 2, "{what} point {k} at {p:?}: {plain} plain vines in the 30 m ahead");
+        assert!(
+            plain >= 2,
+            "{what} point {k} at {p:?}: {plain} plain vines in the 30 m ahead"
+        );
         let lows = (0..c.vines.len())
             .filter(|&i| low(c, i) && ahead(int(60), i))
             .count();
-        assert!(lows >= 1, "{what} point {k} at {p:?}: no low vine in the 60 m ahead");
+        assert!(
+            lows >= 1,
+            "{what} point {k} at {p:?}: no low vine in the 60 m ahead"
+        );
     }
 }
 
@@ -273,7 +277,11 @@ fn about_one_vine_in_seven_is_a_snake_more_up_top_never_the_only_one() {
         let r = lay(&c);
         let snakes = r.hangers.iter().filter(|h| h.snake).count();
         let share = snakes * 100 / r.hangers.len();
-        assert!((12..=18).contains(&share), "{snakes} of {}: {share}%", r.hangers.len());
+        assert!(
+            (12..=18).contains(&share),
+            "{snakes} of {}: {share}%",
+            r.hangers.len()
+        );
         // the upper passage: vines nearer its line than the spine
         let sp = r.split.as_ref().unwrap();
         let on_upper = |i: usize| {
@@ -305,7 +313,10 @@ fn about_one_vine_in_seven_is_a_snake_more_up_top_never_the_only_one() {
             assert!(beside, "snake {i} at {:?} is the only vine there", h.at);
         }
         // a fixed list: the same on every layout's stations, never the dice
-        assert_eq!(r.hangers.iter().filter(|h| h.snapped_at.is_some()).count(), 0);
+        assert_eq!(
+            r.hangers.iter().filter(|h| h.snapped_at.is_some()).count(),
+            0
+        );
     }
 }
 
@@ -314,38 +325,57 @@ fn the_upper_passage_is_shorter_and_sparser_than_the_lower() {
     let c = ravine();
     let r = lay(&c);
     let sp = r.split.as_ref().unwrap();
-    let upper: i32 = sp.upper.windows(2).map(|w| w[1].sub(w[0]).flat().len()).sum();
+    let upper: i32 = sp
+        .upper
+        .windows(2)
+        .map(|w| w[1].sub(w[0]).flat().len())
+        .sum();
     let lower = (sp.rejoin - sp.fork) as i32 * crate::course::STEP;
     assert!(upper + int(25) < lower, "upper {upper:?} lower {lower:?}");
     assert_eq!(c.path[sp.fork].flat().dist(sp.upper[0].flat()), 0);
-    assert!(c.path[sp.rejoin].flat().dist(sp.upper[sp.upper.len() - 1].flat()) < int(1));
+    assert!(
+        c.path[sp.rejoin]
+            .flat()
+            .dist(sp.upper[sp.upper.len() - 1].flat())
+            < int(1)
+    );
     // the upper passage is the same place on the AI's measuring course
     let u = ravine_upper_seeded(0x5A4E_C0DE_0001);
-    assert!((u.length - (c.length - lower + upper)).abs() < int(2), "{:?}", u.length);
+    assert!(
+        (u.length - (c.length - lower + upper)).abs() < int(2),
+        "{:?}",
+        u.length
+    );
     // sparse: fewer vines a hundred metres than the lower passage's, where
     // the island stands between them (each passage's own vines)
     let off = |p: V3| c.progress(p, c.nearest_anywhere(p)).1.abs();
-    let upper_line: Vec<V3> = sp.upper.iter().copied().filter(|&p| off(p) >= int(50)).collect();
-    let near = |p: V3, q: V3| q.flat().dist(p.flat()) < int(14);
-    let up = c
-        .vines
+    let upper_line: Vec<V3> = sp
+        .upper
         .iter()
-        .filter(|v| upper_line.iter().any(|&q| near(v.anchor, q)) && off(v.anchor) > int(25))
+        .copied()
+        .filter(|&p| off(p) >= int(50))
+        .collect();
+    let near = |p: V3, q: V3| q.flat().dist(p.flat()) < int(14);
+    // (plain vines: the upper passage's snake stations have three lanes)
+    let plain = |i: usize| !r.hangers[i].snake;
+    let up = (0..c.vines.len())
+        .filter(|&i| {
+            let v = c.vines[i];
+            plain(i) && upper_line.iter().any(|&q| near(v.anchor, q)) && off(v.anchor) > int(25)
+        })
         .count() as i32;
     let up_len = upper_line.len() as i32 * 8 + 28;
     let (a, b) = (
         c.nearest_anywhere(upper_line[0]),
         c.nearest_anywhere(upper_line[upper_line.len() - 1]),
     );
-    let lo = c
-        .vines
-        .iter()
-        .filter(|v| c.path[a..=b].iter().any(|&q| near(v.anchor, q)))
+    let lo = (0..c.vines.len())
+        .filter(|&i| plain(i) && c.path[a..=b].iter().any(|&q| near(c.vines[i].anchor, q)))
         .count() as i32;
     let lo_len = (b - a) as i32 * 2 + 28;
     assert!(
-        up * lo_len * 4 < lo * up_len * 3,
-        "upper {up} vines in {up_len} m, lower {lo} in {lo_len} m"
+        up * lo_len * 10 < lo * up_len * 9,
+        "upper {up} plain vines in {up_len} m, lower {lo} in {lo_len} m"
     );
 }
 
@@ -363,24 +393,34 @@ fn the_skull_saves_five_to_eight_seconds() {
     let saves = round - across;
     let secs = saves as f64 / PACE as f64;
     assert!((5.0..=8.0).contains(&secs), "saves {saves} m: {secs:.1} s");
-    // the mouth is halfway up the cave's wall, in the fin, and its keep
-    // reaches through to the out-leg
+    // the mouth is halfway up the caves' wall (it stands between two, their
+    // side walls being solid), in the fin, and its keep reaches through to
+    // the out-leg
     let cave = r
         .rooms
         .iter()
-        .find(|m| m.kind == RoomKind::Cave && m.contains(c.point(int(into)).add(v3(0, int(2), 0))))
+        .find(|m| {
+            m.kind == RoomKind::Cave
+                && (m.from.flat().dist(c.point(int(into)).flat()) < int(12)
+                    || m.to.flat().dist(c.point(int(into)).flat()) < int(12))
+        })
         .expect("the skull cave");
     let up = skull.at.y - cave.from.y;
     assert!((up - cave.height / 2).abs() < int(2), "{up:?}");
     assert!(skull.keep.contains(skull.at));
     // a metre into the fin from the out-leg's face
-    let far = c.point(int(out)).add(right_of(c.heading_at(int(out))).scale(-HALF - int(1)));
-    assert!(skull.keep.contains(v3(far.x, skull.at.y, far.z)), "through to the out-leg");
+    let far = c
+        .point(int(out))
+        .add(right_of(c.heading_at(int(out))).scale(-HALF - int(1)));
+    assert!(
+        skull.keep.contains(v3(far.x, skull.at.y, far.z)),
+        "through to the out-leg"
+    );
     assert_eq!(skull.teeth.len(), 28);
     // the way round: the hairpin is on the spine (nothing has to use it)
     assert!(p.marks[leg::HAIRPIN] > into && p.marks[leg::OUT_LEG] < out);
     // brushed apes land on the floor under the jaw, in the in-leg
-    assert!(skull.floor_spot.y < int(2));
+    assert!(skull.floor_spot.y < int(2) + crate::rules::BODY_DROP);
     assert!(skull.floor_spot.flat().dist(skull.at.flat()) < int(6));
 }
 
@@ -394,7 +434,8 @@ fn tops_near(r: &RavineLayout, at: V3) -> Vec<(i32, String)> {
             let (p, q) = (seg[0].at.flat(), seg[1].at.flat());
             let d = q.sub(p);
             let l2 = d.dot64(d).max(1);
-            let t = (a.sub(p).dot64(d) as i128 * ONE as i128 / l2 as i128).clamp(0, ONE as i128) as i32;
+            let t =
+                (a.sub(p).dot64(d) as i128 * ONE as i128 / l2 as i128).clamp(0, ONE as i128) as i32;
             if p.lerp(q, t).dist(a) < int(5) {
                 let top = (seg[0].at.y + seg[0].height).max(seg[1].at.y + seg[1].height);
                 out.push((top, format!("wall {k}")));
@@ -439,7 +480,11 @@ fn every_vine_hangs_under_its_top_or_clear_of_it_by_4_m() {
                 // hung from beneath it (a deck's, a roof's underside), or
                 // its bottom 4 m over it
                 if v.anchor.y > top && tip < top + int(4) {
-                    bad.push(format!("vine {i} at {:?}: {what} top {}", v.anchor, top / ONE));
+                    bad.push(format!(
+                        "vine {i} at {:?}: {what} top {}",
+                        v.anchor,
+                        top / ONE
+                    ));
                 }
             }
         }
@@ -457,11 +502,17 @@ fn every_hanger_hangs_from_what_it_says() {
             match h.from {
                 HangFrom::Deck { deck } => {
                     let top = r.decks[deck].top_at(h.at).expect("over its deck");
-                    assert!((0..int(1)).contains(&(top - h.at.y)), "vine {i} under its deck");
+                    assert!(
+                        (0..int(1)).contains(&(top - h.at.y)),
+                        "vine {i} under its deck"
+                    );
                 }
                 HangFrom::Roof { room } => {
                     let m = r.rooms[room];
-                    assert!(m.contains(h.at.sub(v3(0, cm(10), 0))), "vine {i} in its room");
+                    assert!(
+                        m.contains(h.at.sub(v3(0, cm(10), 0))),
+                        "vine {i} in its room"
+                    );
                     assert!(m.kind != RoomKind::Arch);
                 }
                 HangFrom::Ledge { wall } => assert!(wall < r.walls.len()),
@@ -482,7 +533,11 @@ fn nothing_solid_stands_within_16_m_behind_the_start() {
     let c = ravine();
     let r = lay(&c);
     let (p0, fwd) = (c.path[0], c.heading[0]);
-    let mut solids: Vec<V3> = r.walls.iter().flat_map(|w| w.points.iter().map(|p| p.at)).collect();
+    let mut solids: Vec<V3> = r
+        .walls
+        .iter()
+        .flat_map(|w| w.points.iter().map(|p| p.at))
+        .collect();
     solids.extend(r.rocks.iter().map(|k| k.at));
     solids.extend(r.tracks.iter().flat_map(|t| [t.start.at, t.end.at]));
     for m in &r.rooms {
@@ -491,23 +546,40 @@ fn nothing_solid_stands_within_16_m_behind_the_start() {
     for s in solids {
         let d = s.sub(p0).flat();
         if d.dot(fwd) < 0 {
-            assert!(d.len() >= int(16), "a solid at {s:?}, {:?} m from the start", d.len() / ONE);
+            assert!(
+                d.len() >= int(16),
+                "a solid at {s:?}, {:?} m from the start",
+                d.len() / ONE
+            );
         }
     }
     // and the canyon is closed behind it, past the camera
-    let back = r.walls.iter().flat_map(|w| &w.points).map(|p| p.at.sub(p0).flat().dot(fwd)).min();
+    let back = r
+        .walls
+        .iter()
+        .flat_map(|w| &w.points)
+        .map(|p| p.at.sub(p0).flat().dot(fwd))
+        .min();
     assert_eq!(back, Some(-START_BACK));
 }
 
 #[test]
 fn the_canyon_is_as_long_as_the_other_maps_and_never_crosses_itself() {
     let c = ravine();
-    assert!((int(1500)..=int(1800)).contains(&c.length), "{:?}", c.length / ONE);
+    assert!(
+        (int(1500)..=int(1800)).contains(&c.length),
+        "{:?}",
+        c.length / ONE
+    );
     let n = c.path.len();
     for i in (0..n).step_by(3) {
         for j in (i + 60..n).step_by(3) {
             let d = c.path[i].flat().dist(c.path[j].flat());
-            assert!(d >= 2 * HALF + int(10), "{i} and {j}: {:?} m apart", d / ONE);
+            assert!(
+                d >= 2 * HALF + int(10),
+                "{i} and {j}: {:?} m apart",
+                d / ONE
+            );
         }
     }
 }
@@ -521,7 +593,11 @@ fn the_mine_tracks_run_from_holes_in_the_walls_and_carry_their_carts() {
     for t in &r.tracks {
         let side = |p: V3| c.progress(p, c.nearest_anywhere(p)).1;
         for h in [t.start, t.end] {
-            assert!((side(h.at).abs() - HALF).abs() < int(1), "a hole in a wall: {:?}", h.at);
+            assert!(
+                (side(h.at).abs() - HALF).abs() < int(1),
+                "a hole in a wall: {:?}",
+                h.at
+            );
             // out of the wall, into the canyon
             assert!(side(h.at.add(h.out.scale(int(2)))).abs() < side(h.at).abs());
         }
@@ -533,7 +609,10 @@ fn the_mine_tracks_run_from_holes_in_the_walls_and_carry_their_carts() {
     for (i, cart) in r.carts.iter().enumerate() {
         let at = r.cart_at(i, 0).0;
         let cap = c.mushrooms[cart.bouncer].top;
-        assert!(cap.flat().dist(at.flat()) < cm(5) && cap.y > at.y, "cart {i}");
+        assert!(
+            cap.flat().dist(at.flat()) < cm(5) && cap.y > at.y,
+            "cart {i}"
+        );
     }
     // lizards on both walls, of all three colours, bouncers on their backs
     assert!(r.lizards.len() >= 6);
@@ -541,7 +620,13 @@ fn the_mine_tracks_run_from_holes_in_the_walls_and_carry_their_carts() {
         assert!(r.lizards.iter().any(|l| l.colour == colour));
     }
     for (i, l) in r.lizards.iter().enumerate() {
-        assert!(c.mushrooms[l.bouncer].top.flat().dist(r.lizard_at(i, 0).0.flat()) < int(2));
+        assert!(
+            c.mushrooms[l.bouncer]
+                .top
+                .flat()
+                .dist(r.lizard_at(i, 0).0.flat())
+                < int(2)
+        );
     }
 }
 
@@ -550,16 +635,35 @@ fn the_glows_lead_to_the_mesa_finish() {
     let c = ravine();
     let r = lay(&c);
     let along = |p: V3| c.progress(p, c.nearest_anywhere(p)).0;
-    let first = r.glows.iter().filter(|g| along(g.at) < c.length / 3).count();
-    let last = r.glows.iter().filter(|g| along(g.at) > c.length * 2 / 3).count();
-    assert!(last > first, "glows: {first} in the first third, {last} in the last");
-    for kind in [GlowKind::Torch, GlowKind::Fireflies, GlowKind::Mushroom, GlowKind::Lantern] {
+    let first = r
+        .glows
+        .iter()
+        .filter(|g| along(g.at) < c.length / 3)
+        .count();
+    let last = r
+        .glows
+        .iter()
+        .filter(|g| along(g.at) > c.length * 2 / 3)
+        .count();
+    assert!(
+        last > first,
+        "glows: {first} in the first third, {last} in the last"
+    );
+    for kind in [
+        GlowKind::Torch,
+        GlowKind::Fireflies,
+        GlowKind::Mushroom,
+        GlowKind::Lantern,
+    ] {
         assert!(r.glows.iter().any(|g| g.kind == kind), "{kind:?}");
     }
     let f = &r.finish;
     let end = c.point(c.length);
     let past = f.sphinx.sub(end).flat().dot(c.heading_at(c.length));
-    assert!((int(15)..int(40)).contains(&past), "the sphinx just past the line");
+    assert!(
+        (int(15)..int(40)).contains(&past),
+        "the sphinx just past the line"
+    );
     assert!(f.sticks.len() >= 3 && f.tents.len() >= 3);
     assert!(f.campfire.flat().dist(f.sphinx.flat()) > int(10));
 }

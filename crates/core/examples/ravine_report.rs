@@ -20,7 +20,9 @@ fn main() {
     let limit = 150 * TICKS_PER_SECOND as u32;
     let rows: Vec<_> = Difficulty::ALL
         .into_iter()
-        .map(|level| std::thread::spawn(move || (level, row_for(level, kind, seeds, limit, upper, jungle))))
+        .map(|level| {
+            std::thread::spawn(move || (level, row_for(level, kind, seeds, limit, upper, jungle)))
+        })
         .collect();
     let mut means = Vec::new();
     for r in rows {

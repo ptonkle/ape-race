@@ -215,6 +215,7 @@ fn on_the_ski_slope_the_racers_wear_their_gear_and_elsewhere_none() {
             Map::Bay => models::Gear::Pirate,
             Map::City => models::Gear::Tourist,
             Map::Tower => models::Gear::Wizard,
+            Map::Ravine => models::Gear::Cowboy,
             _ => models::Gear::None,
         };
         assert_eq!(pose.gear, want, "{map:?}");

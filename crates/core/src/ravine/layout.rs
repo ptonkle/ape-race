@@ -31,6 +31,7 @@
 //! New placement draws from dice of its own (`seed ^ DICE`), so no other
 //! map changes.
 
+use super::solids::{WALL_ABOVE, WALL_BELOW};
 use super::*;
 use crate::course::{
     banana_arcs, centreline, ground, Course, Leg, Mushroom, Platform, Vine, START_HEIGHT,
@@ -68,8 +69,8 @@ pub const SKULL_SHORT: i32 = 75;
 /// King Kong's (1,742 m in a mean 72.6 s over six layouts, SECOND-ORDER
 /// RC4).
 pub const PACE: i32 = 24;
-/// The braids' rock ribs: how high.
-pub const RIB_HEIGHT: i32 = int(8);
+/// The braids' boulders: how high (their tops are floors).
+pub const RIB_HEIGHT: i32 = int(5);
 /// A cart's bouncer stands this high over its rails.
 const CART_TOP: i32 = cm(200);
 
@@ -156,10 +157,10 @@ pub(crate) fn plan(upper: bool) -> Plan {
 }
 
 /// The mine tunnel's mouths on the lower passage: the swing's middle
-/// 130 m, where the island between the passages is wide enough.
+/// 120 m, where the island between the passages is wide enough.
 fn tunnel_span(marks: &[i32]) -> (i32, i32) {
     let mid = (marks[leg::SWING] + marks[leg::SWING + 1]) / 2;
-    (mid - 65, mid + 65)
+    (mid - 60, mid + 60)
 }
 
 /// Where the skull stands along the spine, and where its hole comes out.
@@ -287,7 +288,7 @@ fn stations(from: i32, to: i32, pins: &[i32], hop: i32, dice: &mut Dice) -> Vec<
 fn snake_station(kind: Kind, k: usize) -> bool {
     match kind {
         Kind::Upper => k % 2 == 1,
-        _ => k % 3 == 1,
+        _ => k % 5 == 1 || k % 5 == 3,
     }
 }
 
@@ -330,11 +331,15 @@ fn build(seed: u64, upper_spine: bool) -> Course {
         rooms.push(room(&c, RoomKind::Arch, a - 7, a + 7, ARCH_HEIGHT));
     }
     // the first cave, on the bend right (in short straight boxes, so the
-    // camera keeps inside), and the skull cave on the in-leg
+    // camera keeps inside), and the skull caves on the in-leg
     let mut roofed = Vec::new();
     let cave_spans = [
         (m(leg::BEND_RIGHT) + 50, m(leg::BEND_RIGHT) + 100),
-        (skull_s - 22, skull_s + 30),
+        // either side of the skull: a cave's side walls are solid, and
+        // the mouth must open through the fin (the skull stands in the
+        // gap between the two, halfway up their wall)
+        (skull_s - 40, skull_s - 8),
+        (skull_s + 8, skull_s + 40),
     ];
     for &(a, b) in &cave_spans {
         let mut s = a;
@@ -427,16 +432,18 @@ fn build(seed: u64, upper_spine: bool) -> Course {
         let dir = b.sub(a).flat().norm();
         let chord_len = b.sub(a).flat().len() / ONE;
         let chord = Chord { from: a, dir };
-        // (only where the passages are 36 m apart: nearer, the spine's
+        // (from where the passages are 24 m apart: nearer, the spine's
         // stations serve both, and the decks would cross)
         let apart = |u: i32| {
             let p = chord.at(u).0;
-            c.progress(p, c.nearest_anywhere(p)).1.abs() >= int(36)
+            c.progress(p, c.nearest_anywhere(p)).1.abs() >= int(24)
         };
-        let at_u: Vec<i32> = stations(0, chord_len, &[], 27, &mut dice)
-            .into_iter()
-            .filter(|&u| apart(u))
-            .collect();
+        let u0 = (0..chord_len).find(|&u| apart(u)).unwrap_or(0);
+        let u1 = (0..chord_len)
+            .rev()
+            .find(|&u| apart(u))
+            .unwrap_or(chord_len);
+        let at_u = stations(u0, u1, &[], 27, &mut dice);
         let sp: Vec<i32> = at_u
             .iter()
             .map(|&u| {
@@ -497,10 +504,17 @@ fn build(seed: u64, upper_spine: bool) -> Course {
             .add(right_of(c.heading_at(int(s))).scale(off));
         v3(p.x, land(p) + up, p.z)
     };
-    let side_out = |c: &Course, s: i32, sign: i32| right_of(c.heading_at(int(s))).scale(-sign);
+    let side_out = |c: &Course, s: i32, sign: i32| {
+        let r = right_of(c.heading_at(int(s)));
+        if sign > 0 {
+            r.neg()
+        } else {
+            r
+        }
+    };
 
     // ---- the walls and the skull ----
-    let walls = walls(&c, &plan, split.as_ref(), &spine_at, has_skull);
+    let walls = walls(&c, &plan, split.as_ref(), has_skull);
     let skull = has_skull.then(|| skull(&c, skull_s, exit_s));
 
     // ---- lizards walking the walls (bouncers that move) ----
@@ -619,8 +633,22 @@ fn build(seed: u64, upper_spine: bool) -> Course {
         track(&mut c, pts, outs, 800, 1);
     }
 
-    // ---- large rocks (solid) by the walls, clear of every vine ----
+    // ---- large rocks (solid) by the walls, clear of every vine; and the
+    // braids: boulders down the middle between stations, on the first
+    // straight and the bend after the rejoin, the strands either side ----
     let mut rocks = Vec::new();
+    let braids = [(50, 180), (m(leg::MESA_BEND), m(leg::ARCH))];
+    for w in spine_at.windows(2) {
+        let (a, b) = (w[0] + 9, w[1] - 7);
+        if b - a < 6 || !braids.iter().any(|&(x, y)| a >= x && b <= y) {
+            continue;
+        }
+        rocks.push(Rock {
+            at: side_pt(&c, (a + b) / 2, 0, 0),
+            radius: int(3),
+            height: RIB_HEIGHT,
+        });
+    }
     let mut s = 70;
     let mut k = 0;
     while s < len - 40 {
@@ -786,12 +814,18 @@ fn lay_line(
         let first = station == 0 && !upper_line;
         // a snake station has all three lanes, the snake on a side one
         // (never the middle, never the only vine there)
-        let snaky = !first && snake_station(kind, station);
+        // (and by the skull: no left lane there, and no snake)
+        let by_skull = near_skull(p.sub(r.scale(int(10))));
+        let snaky = !first && !by_skull && snake_station(kind, station);
         let snake_lane = snaky.then_some(if (station / 3) % 2 == 0 { 0 } else { 2 });
+        // (the upper passage's snake stations: both side lanes, the middle
+        // and the low vine plain)
+        let snakes_both = snaky && kind == Kind::Upper;
         // which lanes: two of three, now and then all three (the upper
         // passage: the middle and one side, sparse)
         let skip = match kind {
             _ if snaky => 3,
+            _ if by_skull => 0,
             Kind::Upper => {
                 if station % 4 == 0 {
                     0
@@ -806,8 +840,8 @@ fn lay_line(
         let mut lanes = Vec::new();
         // an open station's vines hang from a bridge or a log across the
         // canyon two times in three, else from ledges on the walls
-        let deck_i = (!first && matches!(kind, Kind::Open | Kind::Upper) && station % 3 != 2)
-            .then(|| {
+        let deck_i =
+            (!first && matches!(kind, Kind::Open | Kind::Upper) && station % 3 != 2).then(|| {
                 let skew = int(dice.range(-3, 3));
                 let lo = int(dice.range(38, 50));
                 let hi = int(dice.range(38, 50));
@@ -845,7 +879,7 @@ fn lay_line(
                 (lane - 1) * spread + dice.range(-2, 2)
             };
             let base = p.add(r.scale(int(off)));
-            if near_skull(base) && off < 0 {
+            if near_skull(base) && off < -5 {
                 continue;
             }
             let (anchor, length, from) = match (kind, deck_i) {
@@ -861,7 +895,10 @@ fn lay_line(
                         HangFrom::Deck { deck: d },
                     )
                 }
-                (Kind::Cave { room } | Kind::Tunnel { room }, None) => {
+                (Kind::Cave { .. } | Kind::Tunnel { .. }, None)
+                    if room_over(rooms, base).is_some() =>
+                {
+                    let room = room_over(rooms, base).unwrap_or(0);
                     let rm = rooms[room];
                     let roof = roof_at(&rm, base);
                     let length = if matches!(kind, Kind::Tunnel { .. }) {
@@ -886,7 +923,7 @@ fn lay_line(
                     )
                 }
             };
-            let snake = snake_lane == Some(lane);
+            let snake = snake_lane == Some(lane) || (snakes_both && lane != 1);
             let i = out.put.push(anchor, length, int(s_here), from, snake);
             if !snake {
                 here.push(i);
@@ -900,8 +937,8 @@ fn lay_line(
             let off = dice.range(7, 9) * if dice.below(2) == 0 { -1 } else { 1 };
             let (b, _) = line.at(u + 7);
             let b = b.add(r.scale(int(off)));
-            let (anchor, length, from) = match kind_of(u + 7) {
-                Kind::Cave { room } | Kind::Tunnel { room } => {
+            let (anchor, length, from) = match room_over(rooms, b) {
+                Some(room) => {
                     let rm = rooms[room];
                     let roof = roof_at(&rm, b);
                     (
@@ -933,6 +970,14 @@ fn lay_line(
             });
         }
     }
+}
+
+/// The cave or tunnel room over `p`, if any.
+fn room_over(rooms: &[Room], p: V3) -> Option<usize> {
+    rooms.iter().position(|m| {
+        matches!(m.kind, RoomKind::Cave | RoomKind::Tunnel)
+            && m.contains(v3(p.x, land(p) + int(1), p.z))
+    })
 }
 
 /// The underside of room `m`'s roof over `p` (its floor slopes from one
@@ -980,7 +1025,8 @@ fn skull(c: &Course, s: i32, exit: i32) -> Skull {
         yaw: yaw_of(left),
         teeth,
         keep,
-        floor_spot: on_ground(face.add(left.scale(-int(3)))),
+        // (the hands' place: `BODY_DROP` over the floor, SECOND-ORDER RR2)
+        floor_spot: on_ground(face.add(left.scale(-int(3)))).add(v3(0, BODY_DROP, 0)),
         floor_yaw: yaw_of(h),
     }
 }
@@ -1000,16 +1046,10 @@ const WALL_STEP: i32 = 6;
 
 /// The canyon's walls: the left and right faces at `HALF` (the corridor),
 /// from 24 m behind the start to the mesa (opening out past the finish);
-/// the back wall behind the start; the island between the passages; the
-/// braids' rock ribs between stations; the hole through the fin at the
+/// the back wall behind the start and the far end past the mesa; the
+/// island between the passages; the hole through the fin at the
 /// skull (the fin's face split under and over the mouth on both sides).
-fn walls(
-    c: &Course,
-    plan: &Plan,
-    split: Option<&Split>,
-    stations: &[i32],
-    has_skull: bool,
-) -> Vec<Wall> {
+fn walls(c: &Course, plan: &Plan, split: Option<&Split>, has_skull: bool) -> Vec<Wall> {
     let len = c.length / ONE;
     let end = len + crate::course::OUTRO / ONE;
     let (fork, rejoin) = (plan.marks[leg::FORK], plan.marks[leg::REJOIN]);
@@ -1056,8 +1096,8 @@ fn walls(
             k * WALL_STEP
         };
         vec![
-            (snap(a - 6, false), snap(a + 6, true)),
-            (snap(b - 6, false), snap(b + 6, true)),
+            (snap(a - 7, false), snap(a + 7, true)),
+            (snap(b - 7, false), snap(b + 7, true)),
         ]
     } else {
         Vec::new()
@@ -1082,7 +1122,10 @@ fn walls(
         walls.push(Wall {
             points: inside
                 .iter()
-                .map(|&(_, at, _)| WallPoint { at, height: lo })
+                .map(|&(_, at, _)| WallPoint {
+                    at,
+                    height: lo - WALL_ABOVE,
+                })
                 .collect(),
             side: Side::Left,
             depth,
@@ -1091,8 +1134,8 @@ fn walls(
             points: inside
                 .iter()
                 .map(|&(_, at, h)| WallPoint {
-                    at: at.add(v3(0, hi, 0)),
-                    height: h - hi,
+                    at: at.add(v3(0, hi + WALL_BELOW, 0)),
+                    height: h - hi - WALL_BELOW,
                 })
                 .collect(),
             side: Side::Left,
@@ -1153,27 +1196,16 @@ fn walls(
             depth: int(3),
         });
     }
-    // the braids: low rock ribs down the middle between stations, on the
-    // first straight and the bend after the rejoin
-    let braids = [(50, 180), (plan.marks[leg::MESA_BEND], plan.marks[leg::ARCH])];
-    for w in stations.windows(2) {
-        let (a, b) = (w[0] + 11, w[1] - 7);
-        if b - a < 8 || !braids.iter().any(|&(x, y)| a >= x && b <= y) {
-            continue;
-        }
-        let mid = (a + b) / 2;
-        let points = [(a, 0), (mid, 3), (b, 0), (mid, -3), (a, 0)]
-            .iter()
-            .map(|&(t, x)| WallPoint {
-                at: face(t, int(x)),
-                height: RIB_HEIGHT,
+    // the far end, past the mesa's campfire (rock beyond it)
+    walls.push(Wall {
+        points: (-4..=4)
+            .map(|k| WallPoint {
+                at: face(end, k * open(end) / 4),
+                height: rim(end, 1, len),
             })
-            .collect();
-        walls.push(Wall {
-            points,
-            side: Side::Left,
-            depth: int(3),
-        });
-    }
+            .collect(),
+        side: Side::Left,
+        depth: int(10),
+    });
     walls
 }

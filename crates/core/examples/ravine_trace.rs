@@ -80,7 +80,9 @@ fn main() {
     }
     println!(
         "finish {:?}, walls {walls}, rescues {}, give-ups {}",
-        race.racers[0].finish.map(|f| f as f64 / TICKS_PER_SECOND as f64),
+        race.racers[0]
+            .finish
+            .map(|f| f as f64 / TICKS_PER_SECOND as f64),
         brain.rescues,
         brain.give_ups
     );

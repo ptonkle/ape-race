@@ -1393,6 +1393,11 @@ impl App {
             let temple = crate::camera::Temple::of(r);
             chase = chase.with_temple(at, Some(std::sync::Arc::new(temple)));
         }
+        // on Rattlesnake Ravine the eye keeps inside the rooms and out of
+        // the rock
+        if let Some(k) = crate::camera::Keeps::of(&race.course) {
+            chase = chase.with_keeps(at, Some(std::sync::Arc::new(k)));
+        }
         // on Banana Bay Battle the eye keeps out of the ships (BP1)
         if let Some(h) = crate::camera::Hulls::of(&race.course) {
             chase = chase.with_hulls(at, Some(std::sync::Arc::new(h)));
@@ -2666,7 +2671,8 @@ fn restore(p: &mut Play, save: replay::SavePoint) {
     p.chase = Chase::new(f.ape.pos, p.chase.yaw, p.race.course.terrain)
         .with_crowns(f.ape.pos, p.chase.crowns.clone())
         .with_temple(f.ape.pos, p.chase.temple.clone())
-        .with_hulls(f.ape.pos, p.chase.hulls.clone());
+        .with_hulls(f.ape.pos, p.chase.hulls.clone())
+        .with_keeps(f.ape.pos, p.chase.keeps.clone());
 }
 
 /// The course's way forward a little ahead of centreline sample `hint`.
@@ -2688,7 +2694,8 @@ fn refocus(p: &mut Play, from: Camera, ticks: u32) {
     p.chase = Chase::new(f.ape.pos, p.chase.yaw, p.race.course.terrain)
         .with_crowns(f.ape.pos, p.chase.crowns.clone())
         .with_temple(f.ape.pos, p.chase.temple.clone())
-        .with_hulls(f.ape.pos, p.chase.hulls.clone());
+        .with_hulls(f.ape.pos, p.chase.hulls.clone())
+        .with_keeps(f.ape.pos, p.chase.keeps.clone());
     p.prev[p.focus.racer] = f.ape.pos;
     p.out_for = 0;
     p.danced = 0;
@@ -2998,6 +3005,8 @@ fn cue_for(e: &Event, local: usize) -> Option<Cue> {
             // its sound comes with the reward
             Happening::Launched => return None,
             Happening::Wall => return None,
+            // (Rattlesnake Ravine; the art may give them their own sounds)
+            Happening::Snapped | Happening::Bitten => Cue::Hit,
         }),
         Event::Countdown { .. } => Some(Cue::Beep),
         Event::Go => Some(Cue::Go),
