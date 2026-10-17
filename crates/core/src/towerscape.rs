@@ -187,11 +187,11 @@ fn light_dir(w: Weather, zipper: bool) -> V3 {
 /// the tear's middle (or the summit deck, if lower) up: the sky reaches
 /// its top colours where the apes fly through the tear (TA8).
 pub fn height_share(t: &TowerLayout, y: i32) -> i32 {
-    let top = t.summit.tear.y.min(t.summit.deck.y) - t.keep.centre.y;
+    let top = t.portal.tear.y - t.towers[0].centre.y;
     if top <= 0 {
         return 0;
     }
-    fx::div(y - t.keep.centre.y, top).clamp(0, ONE)
+    fx::div(y - t.towers[0].centre.y, top).clamp(0, ONE)
 }
 
 /// The sky for weather `w` a share `h` of the way up (out of the zipper).
@@ -207,7 +207,7 @@ pub fn sky_of(w: Weather, h: i32) -> Sky {
 /// The sky round an eye: the zipper's whatever the weather, else the
 /// weather's at the eye's height.
 pub fn sky_at(t: &TowerLayout, eye: V3, w: Weather) -> Sky {
-    if t.in_zipper(eye) {
+    if t.in_void(eye) {
         ZIPPER
     } else {
         sky_of(w, height_share(t, eye.y))
@@ -253,7 +253,7 @@ pub fn look() -> Look {
 /// eye's height (or the zipper's), its fog closed in to the cloud's colour
 /// inside the cloud band.
 pub fn look_in(t: &TowerLayout, eye: V3, w: Weather) -> Look {
-    let zipper = t.in_zipper(eye);
+    let zipper = t.in_void(eye);
     let s = sky_at(t, eye, w);
     let mut l = look_from(s, w, zipper);
     let k = if zipper { 0 } else { in_cloud(t, eye.y) };
@@ -303,7 +303,7 @@ fn pick(k: u32, salt: u32, lo: i32, hi: i32) -> i32 {
 /// colour a multiple of the sky's), then the zipper's motes, Twilight's
 /// stars, or Dawn's or Clear's sun and streaks, and the cloud sea.
 pub fn dynamic(b: &mut Batch, t: &TowerLayout, eye: V3, ticks: u32, w: Weather) {
-    let zipper = t.in_zipper(eye);
+    let zipper = t.in_void(eye);
     let s = sky_at(t, eye, w);
     let deep = [0, 1, 2].map(|k| fx::div(s.zenith[k], s.sky[k].max(1)).min(ONE));
     b.push(
@@ -397,8 +397,8 @@ fn streaks(b: &mut Batch, eye: V3, sun_yaw: i32, c: Rgb) {
 fn cloud_sea(b: &mut Batch, t: &TowerLayout, eye: V3, c: Rgb) {
     let cell = int(32);
     let reach = int(320);
-    let clear = t.keep.radius + int(50);
-    let keep = t.keep.centre.flat();
+    let clear = t.towers[1].radius + int(50);
+    let keep = t.towers[1].centre.flat();
     let (x0, x1) = (
         (eye.x - reach).div_euclid(cell),
         (eye.x + reach).div_euclid(cell),
@@ -419,7 +419,7 @@ fn cloud_sea(b: &mut Batch, t: &TowerLayout, eye: V3, c: Rgb) {
                     pick(k, 33, band.bottom, band.top),
                     cz * cell + pick(k, 34, 0, cell),
                 );
-                if p.x > t.zipper.mirror_x
+                if t.in_void(p)
                     || !p.flat().sub(keep).longer_than(clear)
                     || p.flat().sub(eye.flat()).longer_than(reach)
                 {
@@ -456,10 +456,10 @@ mod tests {
     /// An eye a share `h` of the way up the keep, outside it on the
     /// climb's side of the mirror plane.
     fn eye_at(t: &TowerLayout, h: i32) -> V3 {
-        let k = t.keep.centre;
+        let k = t.towers[0].centre;
         v3(
-            k.x - t.keep.radius - int(20),
-            k.y + mul(t.keep.height, h),
+            k.x - t.towers[0].radius - int(20),
+            k.y + mul(t.portal.tear.y - k.y, h),
             k.z,
         )
     }
@@ -491,8 +491,8 @@ mod tests {
         );
         assert!(star_count(height_share(t, high.y)) > 3 * star_count(height_share(t, low.y)));
         // (the top colours where the apes fly through the tear, TA8)
-        assert_eq!(height_share(t, t.summit.tear.y), ONE);
-        assert!(height_share(t, t.summit.tear.y - int(10)) < ONE);
+        assert_eq!(height_share(t, t.portal.tear.y), ONE);
+        assert!(height_share(t, t.portal.tear.y - int(10)) < ONE);
         let dawn = (
             look_in(t, low, Weather::Dawn),
             look_in(t, high, Weather::Dawn),
@@ -515,8 +515,8 @@ mod tests {
         let c = Map::Tower.course();
         let t = c.tower.as_ref().unwrap();
         let out = eye_at(t, ONE / 2);
-        let inside = v3(t.zipper.mirror_x + int(30), out.y, out.z);
-        assert!(t.in_zipper(inside) && !t.in_zipper(out));
+        let inside = t.portal.tear.add(t.portal.through.scale(int(30)));
+        assert!(t.in_void(inside) && !t.in_void(out));
         for w in [Weather::Clear, Weather::Twilight, Weather::Dawn] {
             let l = look_in(t, inside, w);
             assert_eq!((l.sky, l.fog, l.rim), (ZIPPER.sky, ZIPPER.fog, ZIPPER.rim));

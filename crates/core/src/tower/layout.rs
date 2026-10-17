@@ -1,107 +1,102 @@
-//! Mape's Tower's course: the 3D centreline (a climb of legs, then its
-//! mirror) and its placement (steps 6 and 7, 2026-10-15).
+//! Mape's Tower's course (the second design's stand-in, 2026-10-16): the
+//! 3D centreline leg by leg and its placement.
 //!
-//! The climb (`CLIMB`, 674 m): a level run-in from the start deck, then
-//! four spirals up and round the keep (`RADIUS` from its middle, 70° or
-//! 60° each), broken by three branches out to little sub-towers. Each
-//! branch rises gently and runs straight (no dizzying all-spiral): a bridge
-//! off the spiral's tangent, 90° round the sub-tower to the left and a
-//! bridge back onto the tangent further round, landing on the same circle
-//! (`RADIUS - r` each way). The second branch goes in by the trampoline
-//! room's door, up across the room on its trampolines and the orb mage's
-//! beams, and out through its roof. The third spiral rises through the
-//! cloud band. Off the last spiral the climb turns 90° right, out from the
-//! keep, and runs level heading +x (yaw 90°) to the tear, so the keep and
-//! its sub-towers stay well behind the mirror (TC5: a tangent summit run
-//! put the mirror plane through the keep, and the zipper crossed the
-//! climb). Then the zipper, the climb mirrored and run backwards.
-
-//! Vines: a station every `GAP` m, two beams a station (sparse, so the view
-//! is the tower, not vines): on the spirals two of three lanes 7 m apart,
-//! on the branches the two outer lanes 8 m apart (a choice either side of
-//! the bridge). One beam in five leans in from outside (`LEAN`). Reset pads
-//! a few metres under the centreline every 50 m, each throwing an ape up
-//! and on to the next station (`boost`). The zipper's beams are the
-//! climb's (the start row's too) mirrored, hung longer (`ZIP_LONGER`).
+//! The legs (`LEGS`), each a straight or a turn with its rise, start
+//! facing −x off the start deck at tower 1's foot: the run under the
+//! lower bridge (two old spirals long), a corner onto the spiral round
+//! tower 2 (one full turn at `R2`, plus the quarter corners either end:
+//! a turn and a half of turning in all), a corner off it under the upper
+//! bridge back to tower 1's doorway, in and a corner onto a loose coil up
+//! tower 1's hollow (three turns at `R1_COIL`, what progress measures;
+//! the beams inside do not follow it), a corner out over the rim and
+//! sideways through the tear, straight down the tube (the heading is
+//! straight down: `Course.right` there is the right of the way through
+//! the portal), a bend into the tunnel's mouth and the tunnel to the
+//! finish.
+//!
+//! Vines: under the bridges a station every `GAP` m, two of three lanes,
+//! hung from the deck's underside (`Hanger::Bridge`); round tower 2 the
+//! same from balcony mages, dragons and the cloud band; inside tower 1
+//! rings of beams every `LAYER_RISE` m of height, from windows and inner
+//! balconies leaning in (`LEAN_IN`) and from conjured anchors floating
+//! in the middle, scattered round the hollow by the dice (no helix);
+//! the sling row at the bottom of the tube, five beams hung from the
+//! tunnel mouth's top edge `SLING_DIP` under level. The tube's pads:
+//! `TUBE_PADS` across it, their gaps a sine weave of `WEAVE_AMPLITUDE`
+//! over `WEAVE_PERIOD` pads, measured reachable (TW2-5). Reset pads a few
+//! metres under the centreline every other station (ledges on tower 1's
+//! inner wall inside), each throwing an ape up and on to the next beam
+//! (`boost`); the portal's pad is where a reset in the tube goes.
 //!
 //! Placement draws from `Dice(seed ^ 0x70E5)`.
 
 use super::*;
-use crate::course::{centreline, Course, Mushroom, Platform, Vine, STEP};
-use crate::fx::{self, deg, mul, Dice, ONE};
-use crate::geom::{facing, right_of, yaw_of};
-use crate::rules::{BODY_DROP, GRAVITY, MUSHROOM_RADIUS};
+use crate::course::{centreline, Course, Platform, Vine, STEP};
+use crate::fx::{self, cos, deg, mul, sin, Dice, TURN};
+use crate::geom::{facing, yaw_of};
+use crate::rules::{BODY_DROP, GRAVITY};
 use crate::sector::DOWN;
 
 const SEED: u64 = 0x70E5_0000_0001;
 
-/// The start deck's top, and so the centreline's height at the start and
-/// at the finish (the zipper ends where the climb began, mirrored).
+/// The start deck's top, and so the centreline's height at the start.
 pub const START_TOP: i32 = int(16);
-/// How far the tear's middle stands over the line's top (TA8).
-const TEAR_RISE: i32 = int(13);
+/// How far the tear's middle stands over the line (the apes fly high).
+const TEAR_RISE: i32 = int(8);
 
-/// A leg of the climb: metres along the path (3D; even), the turn over it
-/// in degrees (positive to the left), and the metres it rises.
+/// A leg of the course: metres along the path (3D; even), the turn over
+/// it in degrees (positive to the left), and the metres it rises
+/// (negative: falls).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Climb(pub i32, pub i32, pub i32);
 
-/// The spirals' radius round the keep's middle (the keep's wall is
-/// `WALL_GAP` inside). 38 m kept turning the line under a flying ape (TC4).
-const RADIUS: i32 = 55;
-const WALL_GAP: i32 = 14;
-/// The climb: spirals at `RADIUS`, and three branches, each a straight
-/// bridge off the spiral's tangent, 90° round a sub-tower (radius about
-/// 20 m) and a straight bridge back onto the tangent further round
-/// (`RADIUS - r` each way, so it lands on the circle again).
-pub const CLIMB: &[Climb] = &[
-    Climb(24, 0, 0),   // 0 run-in
-    Climb(68, 70, 12), // 1 spiral A
-    Climb(36, 0, 6),   // 2 branch 1: bridge out
-    Climb(32, 90, 0),  // 3 round the sub-tower
-    Climb(36, 0, 6),   // 4 bridge back
-    Climb(68, 70, 12), // 5 spiral B
-    Climb(12, 0, 0),   // 6 branch 2: bridge to the room's door
-    Climb(30, 0, 18),  // 7 up across the trampoline room
-    Climb(32, 90, 0),  // 8 out of its roof, round
-    Climb(36, 0, 4),   // 9 bridge back
-    Climb(68, 70, 12), // 10 spiral C, through the clouds
-    Climb(36, 0, 6),   // 11 branch 3: bridge out
-    Climb(32, 90, 0),  // 12 round the sub-tower
-    Climb(36, 0, 6),   // 13 bridge back
-    Climb(58, 60, 10), // 14 spiral D
-    Climb(40, -90, 0), // 15 off the keep, out to the summit
-    Climb(30, 0, 0),   // 16 the summit run to the tear
+/// The course's legs, in order, each tagged with the leg of the race it
+/// belongs to.
+pub const LEGS: &[(Leg, Climb)] = &[
+    (Leg::Start, Climb(30, 0, 0)),           // 0 the run-in off the start deck
+    (Leg::LowerBridge, Climb(250, 0, 4)),    // 1 under the lower bridge
+    (Leg::Tower2, Climb(50, -90, 8)),        // 2 the corner onto the spiral
+    (Leg::Tower2, Climb(390, 360, 100)),     // 3 round tower 2
+    (Leg::Tower2, Climb(50, -90, 8)),        // 4 the corner off it
+    (Leg::UpperBridge, Climb(250, 0, 4)),    // 5 under the upper bridge
+    (Leg::Inside, Climb(100, 0, 6)),         // 6 on to and through the doorway
+    (Leg::Inside, Climb(50, -90, 8)),        // 7 the corner onto the coil
+    (Leg::Inside, Climb(472, -1080, 150)),   // 8 the coil up the hollow
+    (Leg::Portal, Climb(50, 90, 10)),        // 9 the corner out over the rim
+    (Leg::Portal, Climb(40, 0, 10)),         // 10 through the tear to the tube
+    (Leg::Tube, Climb(280, 0, -280)),        // 11 straight down the tube
+    (Leg::Sling, Climb(40, 0, -24)),         // 12 the bend into the mouth
+    (Leg::Tunnel, Climb(70, 0, 0)),          // 13 the tunnel to the finish
 ];
-/// The legs off the keep out to the tear: their beams further than
-/// `SUMMIT_REACH` from the keep's wall are cast by dragons, not by mages
-/// on the crown (TA5: up to 54 m of beam).
-const SUMMIT_RUN: usize = 15;
-const SUMMIT_REACH: i32 = int(24);
-/// The keep's crown stands this far over its highest balcony, so the
-/// summit's balconies are on its wall, not in the air (TA5).
-const CROWN_OVER: i32 = int(8);
-/// The spiral legs.
-const SPIRALS: [usize; 4] = [1, 5, 10, 14];
-/// Each branch's legs: out (the first), round, back.
-const BRANCHES: [[usize; 3]; 3] = [[2, 3, 4], [6, 8, 9], [11, 12, 13]];
-/// The leg across the trampoline room (branch 2's second leg out).
-const ROOM_LEG: usize = 7;
+/// The legs' indices.
+const SPIRAL: usize = 3;
+const COIL: usize = 8;
+const TUBE: usize = 11;
+const BEND: usize = 12;
+/// The start faces −x (toward tower 2).
+const START_YAW: i32 = -TURN / 4;
 
-/// A sub-tower's radius is its turn's less this: the inner lane's beams
-/// hang 5 m in from the line, so 8 m clear of its wall, and a swing
-/// on a bridge toward it clears it too (TW12; it was 6).
-const SUB_CLEAR: i32 = int(13);
-/// A sub-tower's top stands this far over its turn (was 12 m: the
-/// balconies, 22 m over the line, were in the air above it, TW12).
-const SUB_OVER: i32 = int(25);
-/// The room's roof hole's radius, the orb mage's beam's length and how far
-/// under the roof its anchor is (TW12).
-const ROOF_HOLE: i32 = int(8);
-const ORB_BEAM: i32 = int(6);
-const ROOF_UNDER: i32 = cm(150);
-/// The beam over the roof hole hangs to this far over the roof.
-const EXIT_OVER: i32 = int(4);
+/// Tower 2's radius (the old keep's, `towermodels::TOWER2_RADIUS`) and how far outside its wall
+/// the spiral runs (the old keep's gap).
+const R2: i32 = crate::towermodels::TOWER2_RADIUS;
+
+/// Tower 1's outer radius (1.25× the old keep's) and its wall's
+/// thickness; the coil's radius inside it.
+const R1: i32 = int(51);
+const WALL_THICK: i32 = int(6);
+/// Tower 1's height: about twice the old keep's.
+const H1: i32 = int(300);
+/// Tower 2's top stands this far over the upper bridge's deck.
+const CROWN_OVER: i32 = int(3);
+/// The bridges: half width, the deck's thickness (the beams hang from
+/// its underside).
+const BRIDGE_HALF: i32 = int(8);
+const BRIDGE_THICK: i32 = int(3);
+/// The beams' anchors hang this far under a deck's underside.
+const DECK_CLEAR: i32 = int(2);
+/// The doorway's half width and height.
+const DOOR_HALF: i32 = int(10);
+const DOOR_HEIGHT: i32 = int(22);
 
 /// A balcony's depth out from its wall.
 const BALCONY_DEPTH: i32 = int(3);
@@ -112,22 +107,48 @@ const GAP: i32 = 22;
 /// far over it.
 const ANCHOR_OVER: i32 = int(26);
 const BOTTOM_OVER: i32 = int(2);
-/// How far a leaning beam leans (sideways per metre down).
-const LEAN: i32 = cm(35);
-/// The zipper's beams lean along the way this much more (alternately):
-/// none for now, as the AI wandered on them (TC rows).
-const TOPSY: i32 = cm(0);
-/// The zipper's beams' bottoms hang this much lower than the climb's.
-const ZIP_DROP: i32 = int(4);
-/// The zipper's beams are this much longer than the climb's, their anchors
-/// high over the line: a falling ape flies about 20 m over it, so at the
-/// climb's length it caught them by the anchor and whirled (TC5).
-const ZIP_LONGER: i32 = int(22);
+/// Inside tower 1: a ring of beams every this many metres of height, this
+/// many round, their length. A beam cast from a window or an inner
+/// balcony is anchored out in the hollow, `CAST_IN` from the axis (the
+/// caster's spell reaches to it), so a swing on it stays clear of the
+/// wall (the audit); a floating one within `FLOAT_IN` of the axis.
+pub const LAYER_RISE: i32 = int(7);
+const LAYER_BEAMS: usize = 8;
+/// The rings go on this far over the rim, so the last swings inside reach
+/// the portal's beams over the top.
+const RINGS_OVER_RIM: i32 = int(20);
+const INSIDE_BEAM: i32 = int(22);
+const CAST_IN: (i32, i32) = (14, 22);
+const FLOAT_IN: i32 = 10;
 /// Reset pads stand this far under the centreline: under the swings, and
 /// in a jump's reach of the vines.
 const PAD_UNDER: i32 = int(5);
 /// Reset pads stand this far short of their station.
 const PAD_BEFORE: i32 = int(10);
+
+/// The tube: its inside radius (2/3 of an old spiral's width), its wall,
+/// the pads' count and the sine weave of their gaps (TW2-5), the pads'
+/// gap's radius.
+const TUBE_RADIUS: i32 = int(17) + cm(50);
+const TUBE_WALL: i32 = int(4);
+pub const TUBE_PADS: usize = 22;
+pub const WEAVE_AMPLITUDE: i32 = int(7);
+pub const WEAVE_PERIOD: i32 = 12;
+const HOLE: i32 = int(6);
+/// The first pad this far under the tube's top, the last this far over
+/// the sling row's anchors.
+const PADS_FROM_TOP: i32 = int(30);
+const PADS_OVER_SLING: i32 = int(24);
+/// The tunnel: its mouth's height (the sling anchors on its top edge),
+/// its half width, its length past the mouth, the sling row's dip under
+/// level, its beams' length and lanes.
+const MOUTH_HEIGHT: i32 = int(30);
+const TUNNEL_HALF: i32 = int(16);
+const TUNNEL_LEN: i32 = int(250);
+const SLING_DIP: i32 = deg(10);
+const SLING_LEN: i32 = int(24);
+/// The tunnel's floor is this far under the tube leg's end less the bend.
+const FLOOR_UNDER_LINE: i32 = int(6);
 
 /// A reset's boost from the hands at `from` to a beam's bottom `to`: the
 /// throw that tops out a metre over it, right at it.
@@ -149,19 +170,19 @@ pub fn tower() -> Course {
     tower_seeded(SEED)
 }
 
-/// Where leg `k` of the climb begins, in metres along (fixed point).
+/// Where leg `k` begins, in metres along (fixed point).
 fn leg_at(k: usize) -> i32 {
-    CLIMB[..k].iter().map(|l| l.0 * ONE / STEP * STEP).sum()
+    LEGS[..k].iter().map(|l| l.1 .0 * ONE / STEP * STEP).sum()
 }
 
-/// The climb's centreline from `legs`, starting at `start` facing yaw 0:
-/// samples `STEP` apart in 3D and their 3D unit headings, as `centreline`
-/// does in plan (each step's yaw is the leg's turn at the step's middle).
-fn climb_path(legs: &[Climb], start: V3) -> (Vec<V3>, Vec<V3>) {
+/// The centreline from `legs`, starting at `start` facing `yaw`: samples
+/// `STEP` apart in 3D and their 3D unit headings, as `centreline` does in
+/// plan (each step's yaw is the leg's turn at the step's middle).
+fn climb_path(legs: &[Climb], start: V3, yaw: i32) -> (Vec<V3>, Vec<V3>) {
     let mut path = Vec::new();
     let mut heading = Vec::new();
     let mut p = start;
-    let mut yaw = 0;
+    let mut yaw = yaw;
     for leg in legs {
         let steps = leg.0 * ONE / STEP;
         let turn = deg(leg.1);
@@ -187,25 +208,6 @@ fn climb_path(legs: &[Climb], start: V3) -> (Vec<V3>, Vec<V3>) {
     (path, heading)
 }
 
-/// The whole centreline: the climb, then the climb mirrored across
-/// `x = mirror_x` (its last point's x) and run backwards.
-fn full_path(legs: &[Climb], start: V3) -> (Vec<V3>, Vec<V3>, i32) {
-    let (cp, ch) = climb_path(legs, start);
-    let n = cp.len();
-    let mx = cp[n - 1].x;
-    let mut path = cp.clone();
-    let mut heading = ch[..n - 1].to_vec();
-    // the joint: the way on is the climb's last step mirrored
-    heading.push(TowerLayout::mirror_dir(ch[n - 2]));
-    for k in 1..n {
-        let q = cp[n - 1 - k];
-        path.push(v3(2 * mx - q.x, q.y, q.z));
-        let h = if k + 1 < n { ch[n - 2 - k] } else { ch[0] };
-        heading.push(TowerLayout::mirror_dir(h));
-    }
-    (path, heading, mx)
-}
-
 fn flat(h: V3) -> V3 {
     v3(h.x, 0, h.z).norm()
 }
@@ -213,13 +215,16 @@ fn flat(h: V3) -> V3 {
 /// The middle of the circle leg `k` turns round (in plan, at the leg's
 /// start height): left of its start by its plan radius.
 fn turn_centre(c: &Course, k: usize) -> (V3, i32) {
-    let leg = CLIMB[k];
+    let leg = LEGS[k].1;
     let at = leg_at(k);
-    let run = fx::sqrt(mul(int(leg.0), int(leg.0)) - mul(int(leg.2), int(leg.2)));
-    // (plan radius: the run over the turn in radians)
-    let r = (run as i64 * 360 * 10_000 / (62_832 * leg.1.abs() as i64)) as i32;
+    // (the run in plan, in metres: in fixed point the squares of these
+    // legs overflow, TW2-3; then the plan radius, the run over the turn in
+    // radians)
+    let run = ((leg.0 as i64).pow(2) - (leg.2 as i64).pow(2)).isqrt();
+    let r = (run * 3_600_000 * ONE as i64 / (62_832 * leg.1.abs() as i64)) as i32;
     let left = right_of(flat(c.heading_at(at))).neg();
-    (c.point(at).add(left.scale(r)), r)
+    let side = if leg.1 > 0 { left } else { left.neg() };
+    (c.point(at).add(side.scale(r)), r)
 }
 
 /// A beam's layout: its lowest point (`bottom`), its way down (`hang`,
@@ -233,16 +238,45 @@ fn beam(bottom: V3, hang: V3, length: i32, at: i32) -> Vine {
     }
 }
 
-/// `DOWN` leaning `by` along `side` (per metre down), unit.
-fn lean(side: V3, by: i32) -> V3 {
-    DOWN.add(side.scale(by)).norm()
+/// The pad `k` of `n` down the tube: its gap's offset from the axis (a
+/// sine weave across z) and its shape (a ring round the gap, a slab open
+/// past it, or quarters where the weave crosses the middle).
+fn tube_pad(k: usize, y: i32) -> TubePad {
+    let phase = (k as i64 * TURN as i64 / WEAVE_PERIOD as i64) as i32;
+    let off = mul(WEAVE_AMPLITUDE, sin(phase));
+    let across = v3(0, 0, ONE);
+    let gap = across.scale(off);
+    let shape = match k % 3 {
+        0 => PadShape::Ring { at: gap, hole: HOLE },
+        1 if off.abs() > HOLE => PadShape::Slab {
+            open: across.scale(ONE * off.signum()),
+            edge: off.abs() - HOLE,
+        },
+        1 => PadShape::Ring { at: gap, hole: HOLE },
+        _ if off.abs() < int(2) => PadShape::Quarters {
+            axis: v3(ONE, 0, 0),
+        },
+        _ => PadShape::Ring { at: gap, hole: HOLE },
+    };
+    TubePad { y, shape, gap }
 }
 
 /// Mape's Tower from another seed (the beams shift a little).
 pub fn tower_seeded(seed: u64) -> Course {
     let mut c = centreline("tower", &[]);
-    let (path, heading, mirror_x) = full_path(CLIMB, v3(0, START_TOP, 0));
-    c.right = heading.iter().map(|&h| right_of(h)).collect();
+    let legs: Vec<Climb> = LEGS.iter().map(|l| l.1).collect();
+    let (path, heading) = climb_path(&legs, v3(0, START_TOP, 0), START_YAW);
+    // (down the tube the heading has no plan direction: the right stays
+    // the last level one)
+    let mut right = Vec::with_capacity(heading.len());
+    let mut last = right_of(facing(START_YAW, 0));
+    for h in &heading {
+        if h.flat().longer_than(ONE / 10) {
+            last = right_of(*h);
+        }
+        right.push(last);
+    }
+    c.right = right;
     c.spacing = path
         .windows(2)
         .map(|w| w[1].dist(w[0]) + 1)
@@ -252,7 +286,6 @@ pub fn tower_seeded(seed: u64) -> Course {
     c.path = path;
     c.heading = heading;
     c.half_width = int(20);
-    let half = split(c.length);
     let mut dice = Dice(seed ^ 0x70E5);
 
     let mut hangers = Vec::new();
@@ -274,15 +307,16 @@ pub fn tower_seeded(seed: u64) -> Course {
         let at = c.point(int(2)).add(right.scale(int(-6) + k * int(4)));
         c.starts[k as usize] = v3(at.x, START_TOP + BODY_DROP, at.z);
     }
-    c.start_yaw = 0;
+    c.start_yaw = START_YAW;
     // the start row, as the Jungle's: just past the deck's edge, to a
     // metre over it
+    // (hung from the lower bridge's underside: TW2-4)
     for k in -2..=2 {
         let at = int(15);
         let base = c.point(at).add(right.scale(int(3) * k));
         c.vines.push(Vine {
-            anchor: v3(base.x, START_TOP + int(30), base.z),
-            length: int(29),
+            anchor: v3(base.x, START_TOP + ANCHOR_OVER, base.z),
+            length: ANCHOR_OVER - int(1),
             slide: None,
             at,
         });
@@ -291,85 +325,102 @@ pub fn tower_seeded(seed: u64) -> Course {
         hangs.push(DOWN);
     }
 
-    // the keep: the spirals' middle, left of the way in where they begin
-    let in_at = leg_at(1);
-    let left0 = right_of(flat(c.heading_at(in_at))).neg();
-    let mid = c.point(in_at).add(left0.scale(int(RADIUS)));
-    let keep_centre = v3(mid.x, 0, mid.z);
-    let keep_radius = int(RADIUS - WALL_GAP);
-    let top = c.path[(half / STEP) as usize].y;
+    // the towers: tower 2 round the spiral, tower 1 round the coil
+    let (c2, _) = turn_centre(&c, SPIRAL);
+    let (c1, _) = turn_centre(&c, COIL);
+    let t2_centre = v3(c2.x, 0, c2.z);
+    let t1_centre = v3(c1.x, 0, c1.z);
+    let t2_radius = R2;
+    let upper_end = c.point(leg_at(5 + 1));
+    let t2_height = upper_end.y + ANCHOR_OVER + BRIDGE_THICK + CROWN_OVER;
 
-    // the sub-towers: round the branches' turns (the room's is the room)
-    let room_from = c.point(leg_at(ROOM_LEG));
-    let room_to = c.point(leg_at(ROOM_LEG + 1));
-    // the room's middle is under where the line crosses its roof's plane
-    // (3 m under the line's top across it), so the hole there is the way
-    // out, and the doorway is where the line meets its wall (TW12)
-    let r0 = leg_at(ROOM_LEG);
-    let room_len = leg_at(ROOM_LEG + 1) - r0;
-    let roof = room_to.y - int(3);
-    let room_leg = CLIMB[ROOM_LEG];
-    let cross_at = r0 + room_len * (room_leg.2 - 3) / room_leg.2;
-    let cross = c.point(cross_at);
-    let room_mid = v3(cross.x, room_from.y - int(5), cross.z);
-    let room_radius = int(14);
-    // (metres along the leg per metre in plan)
-    let room_run = fx::sqrt(int(room_leg.0 * room_leg.0 - room_leg.2 * room_leg.2));
-    let door_at = cross_at - mul(room_radius, fx::div(int(room_leg.0), room_run));
-    let mut subs = Vec::new();
-    for (b, legs) in BRANCHES.iter().enumerate() {
-        let sub = if b == 1 {
-            SubTower {
-                centre: v3(room_mid.x, 0, room_mid.z),
-                radius: room_radius,
-                top: roof,
-            }
-        } else {
-            let (o, r) = turn_centre(&c, legs[1]);
-            // (its foot stands over any lower coil passing under it, out
-            // of reach of that coil's beams: on a corbel, not the ground,
-            // TW12; the third sub-tower stood in spiral A's way)
-            let own = (leg_at(legs[0]) - int(10), leg_at(legs[2] + 1) + int(10));
-            let foot = c.path[..=(half / STEP) as usize]
-                .iter()
-                .enumerate()
-                .filter(|&(k, p)| {
-                    let at = k as i32 * STEP;
-                    (at < own.0 || at > own.1)
-                        && p.y < o.y
-                        && p.flat().sub(o.flat()).len() < r - SUB_CLEAR + int(16)
-                })
-                .map(|(_, p)| p.y + ANCHOR_OVER + int(4))
-                .max()
-                .unwrap_or(0);
-            SubTower {
-                centre: v3(o.x, foot, o.z),
-                // (well inside the inner lane's beams, `r - 8`, TW12)
-                radius: r - SUB_CLEAR,
-                // (tall enough for its balconies, 22 m over the line)
-                top: o.y + SUB_OVER,
-            }
-        };
-        subs.push(sub);
+    // the doorway: where the upper bridge's line meets tower 1's wall
+    let door_at = {
+        let from = leg_at(5);
+        let to = leg_at(COIL);
+        let mut s = from;
+        while s < to && c.point(s).flat().sub(t1_centre.flat()).longer_than(R1) {
+            s += ONE;
+        }
+        s
+    };
+    let door_p = c.point(door_at);
+    let door_out = door_p.flat().sub(t1_centre.flat()).norm();
+    let doorway = Doorway {
+        at: v3(door_p.x, door_p.y - PAD_UNDER, door_p.z),
+        out: door_out,
+        half_width: DOOR_HALF,
+        height: DOOR_HEIGHT,
+    };
+
+    // the bridges: from tower 1's wall to tower 2's and back, their decks
+    // over the line (the beams hang from the underside)
+    // (where a level ray from `p` along `dir` meets a tower's wall, at
+    // `p`'s height; `p` itself if it never does)
+    let wall_hit = |p: V3, dir: V3, centre: V3, r: i32| -> V3 {
+        let to = centre.flat().sub(p.flat());
+        let along = to.dot(dir);
+        let perp = to.sub(dir.scale(along));
+        if perp.longer_than(r) || along <= 0 {
+            return p;
+        }
+        let in_by = fx::sqrt(mul(r, r) - perp.dot(perp));
+        p.add(dir.scale(along - in_by))
+    };
+    // (the deck's underside a body's clearance over the anchors)
+    let deck_over = ANCHOR_OVER + BRIDGE_THICK + DECK_CLEAR;
+    let lower_dir = flat(c.heading_at(leg_at(1)));
+    let lower_from = wall_hit(c.point(int(4)), lower_dir.neg(), t1_centre, R1);
+    let lower_to = wall_hit(c.point(leg_at(1)), lower_dir, t2_centre, t2_radius);
+    let upper_dir = flat(c.heading_at(leg_at(5)));
+    let upper_from = wall_hit(door_p, upper_dir.neg(), t2_centre, t2_radius);
+    let mut bridges = Vec::new();
+    let lower_end = c.point(leg_at(2));
+    for (from, to, high) in [
+        (lower_from, lower_to, lower_end.y),
+        (upper_from, door_p, door_p.y),
+    ] {
+        // (level, over the higher end of the line under it)
+        let deck = from.y.max(to.y).max(high) + deck_over;
+        let (from, to) = (v3(from.x, deck, from.z), v3(to.x, deck, to.z));
+        let mid = from.add(to).scale(ONE / 2);
+        c.platforms.push(Platform {
+            centre: mid,
+            fwd: flat(to.sub(from)),
+            half_len: from.dist(to) / 2,
+            half_width: BRIDGE_HALF,
+            top: mid.y,
+        });
+        bridges.push(Bridge {
+            from,
+            to,
+            half_width: BRIDGE_HALF,
+            thick: BRIDGE_THICK,
+            deck: Some(c.platforms.len() - 1),
+        });
     }
 
-    // the balconies and their mages: one on the nearest tower's wall
-    // facing each station, a few metres under its beams
+    // the balconies and their mages: one on tower 2's wall facing each
+    // station of the spiral, a few metres under its beams; inside tower 1
+    // the inner balconies the inside beams are cast from
     let mut balconies: Vec<Balcony> = Vec::new();
-    let mut balcony_for = |p: V3, y: i32| -> usize {
-        // (a sub-tower only where it stands at that height)
-        let towers = std::iter::once((keep_centre, keep_radius)).chain(
-            subs.iter()
-                .filter(|s| y >= s.centre.y && y <= s.top + int(3))
-                .map(|s| (s.centre, s.radius)),
-        );
-        let (o, r) = towers
-            .min_by_key(|&(o, r)| p.flat().sub(o.flat()).len() - r)
-            .expect("the keep");
-        let out = p.flat().sub(o.flat()).norm();
-        // (its floor's outer edge: it stands out from the wall, its mage
-        // outside the stone, TW12)
-        let at = o.add(out.scale(r + BALCONY_DEPTH));
+    let mut balcony_for = |p: V3, y: i32, tower: usize, inside: bool| -> usize {
+        let (o, r) = if tower == 1 {
+            (t2_centre, t2_radius)
+        } else {
+            (t1_centre, R1 - WALL_THICK)
+        };
+        let out = if inside {
+            o.flat().sub(p.flat()).norm()
+        } else {
+            p.flat().sub(o.flat()).norm()
+        };
+        let wall = if inside {
+            o.add(out.neg().scale(r))
+        } else {
+            o.add(out.scale(r))
+        };
+        let at = wall.add(out.scale(BALCONY_DEPTH));
         balconies.push(Balcony {
             at: v3(at.x, y, at.z),
             out,
@@ -377,285 +428,350 @@ pub fn tower_seeded(seed: u64) -> Course {
             depth: BALCONY_DEPTH,
             mage: true,
             deck: None,
+            tower,
+            inside,
         });
         balconies.len() - 1
     };
     let leg_of = |s: i32| -> usize {
-        (0..CLIMB.len())
+        (0..LEGS.len())
             .rev()
             .find(|&k| leg_at(k) <= s)
             .unwrap_or(0)
     };
-    let off_keep = |p: V3| p.flat().sub(keep_centre.flat()).len() - keep_radius;
     let clouds = CloudBand {
-        bottom: START_TOP + int(56),
-        top: START_TOP + int(80),
+        bottom: t2_height - int(50),
+        top: t2_height - int(26),
     };
 
-    // the climb's stations
-    let room = (leg_at(ROOM_LEG) - int(8), leg_at(ROOM_LEG + 1) + int(4));
+    // the stations under the bridges and round tower 2
     let mut s = 36;
     let mut station = 0;
-    let mut stations = Vec::new();
-    while int(s) < half - int(12) {
+    // (the last station a swing short of the doorway's wall)
+    while int(s) < door_at - int(24) {
         let at0 = int(s);
         s += GAP;
-        if at0 > room.0 && at0 < room.1 {
-            continue;
-        }
         station += 1;
         let leg = leg_of(at0);
-        let branch = BRANCHES.iter().any(|b| b.contains(&leg)) || leg == ROOM_LEG;
+        let tag = LEGS[leg].0;
         let h = c.heading_at(at0);
         let r = right_of(h);
-        let lanes: [i32; 2] = if branch {
-            // (the inner lane 5 m in, not 8: its swing on toward the
-            // sub-tower or the keep ran into the wall, TW12)
-            [-5, 8]
-        } else if leg >= SUMMIT_RUN {
-            // (off the keep: no lane on its side, whose swing back ran
-            // into its wall, TW12)
-            [0, 7]
-        } else {
-            match dice.below(3) {
-                0 => [0, 7],
-                1 => [-7, 7],
-                _ => [-7, 0],
-            }
+        let lanes: [i32; 2] = match dice.below(3) {
+            0 => [0, 7],
+            1 => [-7, 7],
+            _ => [-7, 0],
         };
-        for (n, &lane) in lanes.iter().enumerate() {
+        for &lane in lanes.iter() {
             let along = at0 + int(dice.range(-2, 2));
             let base = c.point(along).add(r.scale(int(lane)));
             let bottom = v3(base.x, base.y + BOTTOM_OVER, base.z);
-            // one beam in five leans in from outside (the spell's way)
-            // (only an outer lane's: an inner lane's leaned its anchor
-            // into the keep's or a sub-tower's stone, TW12)
-            let leaning = lane > 0 && (station * 2 + n) % 5 == 2;
-            let hang = if leaning {
-                lean(r.scale(-lane.signum()), LEAN)
-            } else {
-                DOWN
-            };
-            let v = beam(bottom, hang, ANCHOR_OVER - BOTTOM_OVER, along);
-            let hanger = if v.anchor.y >= clouds.bottom && v.anchor.y <= clouds.top + int(10) {
+            let mut v = beam(bottom, DOWN, ANCHOR_OVER - BOTTOM_OVER, along);
+            // (a beam whose anchor would be in a deck hangs from the
+            // deck's underside instead: the bridges run on over the
+            // spiral's first and last stations, TW2-4)
+            let in_deck = bridges.iter().position(|b| {
+                let run = b.to.sub(b.from).flat();
+                let fwd = run.norm();
+                let rel = v.anchor.sub(b.from).flat();
+                let along = rel.dot(fwd);
+                along > -int(2)
+                    && along < run.len() + int(2)
+                    && rel.dot(right_of(fwd)).abs() < b.half_width + int(2)
+                    && v.anchor.y > b.from.y.min(b.to.y) - b.thick - int(2)
+                    && v.anchor.y < b.from.y.max(b.to.y) + int(12)
+            });
+            if let Some(n) = in_deck {
+                let b = &bridges[n];
+                let under = b.from.y.min(b.to.y) - b.thick - DECK_CLEAR;
+                v.length -= v.anchor.y - under;
+                v.anchor.y = under;
+            }
+            let under_bridge = in_deck.is_some()
+                || matches!(tag, Leg::LowerBridge | Leg::UpperBridge | Leg::Start)
+                || (tag == Leg::Inside && along < door_at);
+            let hanger = if under_bridge {
+                Hanger::Bridge {
+                    bridge: in_deck.unwrap_or(if along < leg_at(SPIRAL) { 0 } else { 1 }),
+                }
+            } else if v.anchor.y >= clouds.bottom && v.anchor.y <= clouds.top + int(10) {
                 Hanger::Cloud { band: 0 }
-            } else if (!branch && lane > 0 && station % 3 == 0)
-                || (leg >= SUMMIT_RUN && off_keep(v.anchor) > SUMMIT_REACH)
-            {
-                // a dragon outside the spiral; on the summit run, out past
-                // a beam's reach from the keep's crown (TA5), dragons too
-                // a dragon outside the spiral
+            } else if lane > 0 && station % 3 == 0 || leg != SPIRAL {
+                // a dragon outside the spiral, and on the corners
                 Hanger::Dragon {
                     at: v.anchor.add(r.scale(int(9))).add(v3(0, int(4), 0)),
                 }
             } else {
                 Hanger::Mage {
-                    balcony: balcony_for(bottom, v.anchor.y - int(4)),
+                    balcony: balcony_for(bottom, v.anchor.y - int(4), 1, false),
                 }
             };
-            if n == 0 || lane == 0 {
-                // (the pads aim at the station's middlemost beam)
-                if n == 1 {
-                    stations.pop();
-                }
-                stations.push((along, bottom));
-            }
             c.vines.push(v);
             hangers.push(hanger);
-            // (only the spirals' beams lift: on the level branches and the
-            // summit run a lift only carries an ape over the next beams)
-            lifts.push(SPIRALS.contains(&leg));
-            hangs.push(hang);
+            // (only the spiral's beams lift: under the level bridges a
+            // lift only carries an ape over the next beams)
+            lifts.push(tag == Leg::Tower2);
+            hangs.push(DOWN);
         }
     }
 
-    // the trampoline room: a trampoline on the bridge's end before its
-    // doorway, one inside, one under the roof hole; the orb mage's beam
-    // hung from the roof inside, and a beam down into the hole (TW12)
-    let mut trampolines = Vec::new();
-    let right_in = right_of(flat(c.heading_at(r0)));
-    for (k, under, aside) in [
-        (int(2), int(5), 0),
-        (int(12), int(5), 0),
-        (cross_at - r0 - int(5), int(10), int(3)),
-    ] {
-        let p = c.point(r0 + k).add(right_in.scale(aside));
-        c.mushrooms.push(Mushroom {
-            top: v3(p.x, p.y - under, p.z),
-            radius: MUSHROOM_RADIUS,
-        });
-        trampolines.push(c.mushrooms.len() - 1);
+    // inside tower 1: rings of beams every LAYER_RISE of height, from
+    // windows and inner balconies leaning in and from anchors floating
+    // in the middle, scattered round by the dice
+    let mut windows: Vec<Window> = Vec::new();
+    let inner = R1 - WALL_THICK;
+    let rim = t1_centre.y + H1;
+    // (two entry beams just inside the doorway, over the line as the
+    // bridge's, so the climb inside can be started from the swing in)
+    for k in [1, 2] {
+        let at = door_at + int(10) * k;
+        let r = right_of(flat(c.heading_at(at)));
+        for lane in [-4, 4] {
+            let base = c.point(at).add(r.scale(int(lane)));
+            let bottom = v3(base.x, base.y + BOTTOM_OVER, base.z);
+            let v = beam(bottom, DOWN, ANCHOR_OVER - BOTTOM_OVER, at);
+            hangers.push(Hanger::Floating { at: v.anchor });
+            c.vines.push(v);
+            lifts.push(true);
+            hangs.push(DOWN);
+        }
     }
-    let hole_tramp = c.mushrooms[trampolines[2]].top;
-    let orb = (v3(room_mid.x, room_from.y + int(6), room_mid.z), int(3));
-    {
-        let k = int(15);
-        let p = c.point(r0 + k);
-        let anchor = v3(p.x, roof - ROOF_UNDER, p.z);
-        c.vines.push(Vine {
-            anchor,
-            length: ORB_BEAM,
-            slide: None,
-            at: r0 + k,
-        });
-        hangers.push(Hanger::Orb);
-        lifts.push(true);
-        hangs.push(DOWN);
+    // the rings: the first's anchors a beam's length over the entry line
+    let mut y = doorway.at.y + PAD_UNDER + ANCHOR_OVER;
+    let mut ring = 0u32;
+    while y < rim + RINGS_OVER_RIM {
+        let base_yaw = dice.range(0, TURN);
+        for n in 0..LAYER_BEAMS {
+            let yaw = base_yaw + (TURN / LAYER_BEAMS as i32) * n as i32 + dice.range(-TURN / 24, TURN / 24);
+            let out = facing(yaw, 0);
+            let floating = (ring as usize + n) % 4 == 3;
+            let (anchor, hang, hanger) = if floating {
+                let rad = int(dice.range(0, FLOAT_IN));
+                let a = t1_centre.add(out.scale(rad)).add(v3(0, y, 0));
+                (a, DOWN, Hanger::Floating { at: a })
+            } else {
+                let wall = t1_centre.add(out.scale(inner - int(1))).add(v3(0, y, 0));
+                let rad = int(dice.range(CAST_IN.0, CAST_IN.1));
+                let a = t1_centre.add(out.scale(rad)).add(v3(0, y, 0));
+                let hanger = if n % 2 == 0 {
+                    windows.push(Window {
+                        at: v3(wall.x, wall.y - int(2), wall.z),
+                        into: out.neg(),
+                        half_width: cm(150),
+                        height: int(4),
+                    });
+                    Hanger::Window {
+                        window: windows.len() - 1,
+                    }
+                } else {
+                    Hanger::Mage {
+                        balcony: balcony_for(wall, wall.y - int(4), 0, true),
+                    }
+                };
+                (a, DOWN, hanger)
+            };
+            let bottom = anchor.add(hang.scale(INSIDE_BEAM));
+            // (in 3D: `Course.tower` is not set until the layout is done,
+            // so the course's own search would be in plan)
+            let hint = c.nearest_anywhere_3d(bottom);
+            let (at, _) = c.progress_3d(bottom, hint);
+            c.vines.push(Vine {
+                anchor,
+                length: INSIDE_BEAM,
+                slide: None,
+                at,
+            });
+            hangers.push(hanger);
+            lifts.push(true);
+            hangs.push(hang);
+        }
+        y += LAYER_RISE;
+        ring += 1;
     }
-    let exit_at = cross_at + int(3);
-    let exit = c.point(exit_at);
-    c.vines.push(beam(
-        // (its bottom over the roof: grabbed from under it, in the hole,
-        // the swing pressed the ape into the roof's edge, TW12)
-        v3(exit.x, roof + EXIT_OVER, exit.z),
-        DOWN,
-        int(14),
-        exit_at,
-    ));
-    hangers.push(Hanger::Orb);
-    lifts.push(true);
-    hangs.push(DOWN);
-    // (the start row too: the zipper's last beams, a swing onto the zone)
-    let climb_vines = 0..c.vines.len();
 
-    // a trampoline at each spiral's start, under the line
-    for &k in &SPIRALS {
-        let p = c.point(leg_at(k) + int(10));
-        c.mushrooms.push(Mushroom {
-            top: v3(p.x, p.y - int(5), p.z),
-            radius: MUSHROOM_RADIUS,
-        });
+    // the portal's beams: the corner out over the rim and through the
+    // tear, cast by dragons
+    let portal_from = leg_at(9);
+    let tube_from = leg_at(TUBE);
+    let mut s = portal_from + int(8);
+    while s < tube_from - int(10) {
+        let h = c.heading_at(s);
+        let r = right_of(h);
+        for lane in [-6, 6] {
+            let base = c.point(s).add(r.scale(int(lane)));
+            let bottom = v3(base.x, base.y + BOTTOM_OVER, base.z);
+            let v = beam(bottom, DOWN, ANCHOR_OVER - BOTTOM_OVER, s);
+            hangers.push(Hanger::Dragon {
+                at: v.anchor.add(r.scale(int(9) * lane.signum())).add(v3(0, int(4), 0)),
+            });
+            c.vines.push(v);
+            lifts.push(false);
+            hangs.push(DOWN);
+        }
+        s += GAP * ONE;
     }
 
-    // the keep rises to its highest balcony and on (the summit's stand
-    // above the line's top)
-    let keep_height = balconies
-        .iter()
-        .map(|b| b.at.y + CROWN_OVER)
-        .fold(top - int(6), i32::max);
-    // the tear: giant (50 m tall, 56 m wide), its middle over the line's
-    // top where the apes fly through it (they cross up to 24 m above the
-    // line and 20 m aside on the summit run, TA8)
+    // the tear: giant, its middle over the line where the apes fly
+    // through it, the wizard beside its left edge
+    let tear_at = portal_from + int(60);
     let tear_half = (int(25), int(28));
-    let tear = c.point(half).add(v3(0, TEAR_RISE, 0));
-    let tear_left = right_of(flat(c.heading_at(half - int(2)))).neg();
-    // the mad wizard (drawn 2.5 times life) beside its left edge, his
-    // hands about level with its middle
+    let tear = c.point(tear_at).add(v3(0, TEAR_RISE, 0));
+    let through = flat(c.heading_at(tear_at));
+    let tear_left = right_of(through).neg();
     let wizard = tear
         .add(tear_left.scale(tear_half.1 + int(5)))
         .sub(v3(0, int(8), 0));
+
+    // the tube: down from the portal leg's end; its pads
+    let tube_top_p = c.point(tube_from);
+    let bend_from = leg_at(BEND);
+    let bend_to = leg_at(BEND + 1);
+    let floor = c.point(bend_to).y - FLOOR_UNDER_LINE;
+    let axis = v3(tube_top_p.x, 0, tube_top_p.z);
+    let mouth_top = floor + MOUTH_HEIGHT;
+    let mut pads = Vec::new();
+    let first = tube_top_p.y - PADS_FROM_TOP;
+    let last = mouth_top + PADS_OVER_SLING;
+    for k in 0..TUBE_PADS {
+        let y = first - (first - last) * k as i32 / (TUBE_PADS as i32 - 1);
+        pads.push(tube_pad(k, y));
+    }
+    let tube = Tube {
+        axis,
+        top: tube_top_p.y,
+        bottom: floor,
+        radius: TUBE_RADIUS,
+        wall: TUBE_WALL,
+        pads,
+    };
+
+    // the tunnel off the tube's bottom, its floor from the tube's far
+    // wall to its end, the sling row hung from its mouth's top edge
+    let along = flat(c.heading_at(bend_to));
+    let mouth = axis.add(along.scale(TUBE_RADIUS)).add(v3(0, floor, 0));
+    let floor_from = axis.sub(along.scale(TUBE_RADIUS));
+    let floor_to = mouth.add(along.scale(TUNNEL_LEN));
+    let floor_mid = floor_from.add(floor_to).scale(ONE / 2);
+    c.platforms.push(Platform {
+        centre: v3(floor_mid.x, floor, floor_mid.z),
+        fwd: along,
+        half_len: floor_from.dist(floor_to) / 2,
+        half_width: TUNNEL_HALF,
+        top: floor,
+    });
+    let floor_platform = c.platforms.len() - 1;
+    let finish = c.point(c.length).sub(mouth).dot(along);
+    let tunnel = Tunnel {
+        mouth,
+        along,
+        half_width: TUNNEL_HALF,
+        height: MOUTH_HEIGHT,
+        length: TUNNEL_LEN,
+        finish,
+        floor: floor_platform,
+        sling_dip: SLING_DIP,
+    };
+    let sling_hang = along
+        .neg()
+        .scale(cos(SLING_DIP))
+        .add(v3(0, -sin(SLING_DIP), 0))
+        .norm();
+    let sling_at = bend_from + int(8);
+    for k in -2..=2 {
+        let anchor = v3(mouth.x, mouth_top, mouth.z).add(right_of(along).scale(int(3) * k));
+        c.vines.push(Vine {
+            anchor,
+            length: SLING_LEN,
+            slide: None,
+            at: sling_at,
+        });
+        hangers.push(Hanger::Sling);
+        lifts.push(false);
+        hangs.push(sling_hang);
+    }
+
+    // the legs' spans (the inside begins at the doorway)
+    let mut legs: Vec<LegSpan> = Vec::new();
+    for (k, (leg, _)) in LEGS.iter().enumerate() {
+        let from = if *leg == Leg::Inside && legs.last().is_none_or(|l| l.leg != Leg::Inside) {
+            door_at
+        } else {
+            leg_at(k)
+        };
+        if legs.last().is_none_or(|l| l.leg != *leg) {
+            legs.push(LegSpan { leg: *leg, from });
+        }
+    }
+
     let mut layout = TowerLayout {
-        keep: Keep {
-            centre: keep_centre,
-            radius: keep_radius,
-            height: keep_height,
-            levels: (1..(keep_height / int(12))).map(|k| int(12) * k).collect(),
-        },
-        branches: Vec::new(),
+        towers: [
+            Tower {
+                centre: t1_centre,
+                radius: R1,
+                inner,
+                height: H1,
+                levels: (1..(H1 / int(12))).map(|k| int(12) * k).collect(),
+            },
+            Tower {
+                centre: t2_centre,
+                radius: t2_radius,
+                inner: 0,
+                height: t2_height,
+                levels: (1..(t2_height / int(12))).map(|k| int(12) * k).collect(),
+            },
+        ],
+        bridges: [bridges.remove(0), bridges.remove(0)],
+        doorway,
         balconies,
-        room: Room {
-            centre: room_mid,
-            radius: room_radius,
-            height: roof - room_mid.y,
-            door: c.point(door_at),
-            roof_exit: (v3(cross.x, roof, cross.z), ROOF_HOLE),
-            trampolines,
-            orb,
-        },
+        windows,
         clouds: vec![clouds],
-        summit: Summit {
-            deck: v3(keep_centre.x, keep_height, keep_centre.z),
-            radius: keep_radius + int(4),
+        portal: Portal {
             wizard,
             // facing the apes coming up, arms flung along the tear
-            wizard_yaw: yaw_of(v3(-ONE, 0, 0)),
+            wizard_yaw: yaw_of(through.neg()),
             tear,
             tear_half,
-            through: v3(ONE, 0, 0),
-            banana: v3(tear.x + ONE / 2, tear.y, tear.z),
+            through,
+            banana: tear.add(through.scale(ONE / 2)),
             banana_len: int(30),
         },
-        zipper: Zipper {
-            mirror_x,
-            axis: V3::ZERO,
-            top,
-            bottom: 0,
-        },
+        tube,
+        tunnel,
         banana_zone: BananaZone {
             centre: V3::ZERO,
             radius: int(40),
-            platform: 0,
+            platform: floor_platform,
         },
+        legs,
         pads: Vec::new(),
+        portal_pad: 0,
         hangers: Vec::new(),
         lifts: Vec::new(),
         hangs: Vec::new(),
         lobby: (c.starts[0], 0),
         stone: Vec::new(),
     };
-    layout.zipper.axis = layout.mirror(keep_centre);
-
-    // the branches' bridges: decks a few metres under the line
-    for (b, legs) in BRANCHES.iter().enumerate() {
-        for &leg in &[legs[0], legs[2]] {
-            let (from, to) = (c.point(leg_at(leg)), c.point(leg_at(leg + 1)));
-            let deck = {
-                let mid = v3((from.x + to.x) / 2, from.y - PAD_UNDER, (from.z + to.z) / 2);
-                c.platforms.push(Platform {
-                    centre: mid,
-                    fwd: flat(to.sub(from)),
-                    half_len: from.dist(to) / 2,
-                    half_width: int(3),
-                    top: mid.y,
-                });
-                Some(c.platforms.len() - 1)
-            };
-            layout.branches.push(Branch {
-                from: v3(from.x, from.y - PAD_UNDER, from.z),
-                to: v3(to.x, to.y - PAD_UNDER, to.z),
-                half_width: if deck.is_some() { int(3) } else { 0 },
-                deck,
-                sub: subs[b],
-            });
-        }
-    }
-
-    // the zipper: every climb beam mirrored, along the descent, leaning
-    // the climb's leaning ones mirrored (`TOPSY` more, alternately)
-    for (n, i) in climb_vines.enumerate() {
-        let v = c.vines[i];
-        let h = hangs[i];
-        let bottom = layout
-            .mirror(v.anchor.add(h.scale(v.length)))
-            .sub(v3(0, ZIP_DROP, 0));
-        let at = c.length - v.at;
-        let mh = v3(-h.x, h.y, h.z);
-        let way = flat(c.heading_at(at));
-        let tilt = if n % 2 == 0 { TOPSY } else { -TOPSY };
-        let hang = mh.add(way.scale(tilt)).norm();
-        let w = beam(bottom, hang, v.length + ZIP_LONGER, at);
-        hangers.push(Hanger::Monster { at: w.anchor });
-        c.vines.push(w);
-        lifts.push(false);
-        hangs.push(hang);
-    }
-    // (no trampolines in the zipper: going down, a bounce only throws an
-    // ape back up the way it came)
 
     // item crates: a row across the course every 240 m, on every beam of
-    // the station nearest each place, never on the start row (the
-    // fallback put one on the first start vine alone: one starter got an
-    // item, TI1)
+    // the station nearest each place, never on the start row or the
+    // sling (TI1)
+    // (not the sling, not the start row, and not the scattered beams
+    // inside tower 1: a row is a station's beams, and theirs cluster)
+    let carries = |h: Hanger| {
+        matches!(
+            h,
+            Hanger::Bridge { .. } | Hanger::Dragon { .. } | Hanger::Cloud { .. }
+        ) || matches!(h, Hanger::Mage { balcony } if !layout.balconies[balcony].inside)
+    };
     let mut row = 150;
     while int(row) < c.length - int(60) {
         let si = int(row);
         let near = (0..c.vines.len())
-            .filter(|&i| hangers[i] != Hanger::Start && hangers[i] != Hanger::Orb)
+            .filter(|&i| carries(hangers[i]))
             .min_by_key(|&i| (c.vines[i].at - si).abs());
         if let Some(n) = near {
             let at = c.vines[n].at;
             for i in 0..c.vines.len() {
-                if hangers[i] != Hanger::Start && (c.vines[i].at - at).abs() <= int(4) {
+                if carries(hangers[i]) && (c.vines[i].at - at).abs() <= int(4) {
                     c.crates.push(c.vines[i].anchor);
                 }
             }
@@ -663,80 +779,120 @@ pub fn tower_seeded(seed: u64) -> Course {
         row += 240;
     }
 
-    // the reset pads: the start deck, the room's floor, then one every
-    // 50 m each way, each throwing an ape up to the next station's beams
+    // the reset pads: the start deck, then one every other station under
+    // the bridges and round tower 2, ledges on tower 1's inner wall
+    // inside, the portal's at the tear's foot; each throws an ape up to
+    // the next beam's bottom
     layout.pads.push(Pad {
         platform: 0,
         at: 0,
         boost: V3::ZERO,
     });
-    let pad_at = |c: &mut Course, at: i32, to: V3, half_len: i32, half_width: i32| -> Pad {
-        let p = c.point(at);
-        let fwd = flat(c.heading_at(at));
-        let top = p.y - PAD_UNDER;
+    // (the nearest beam's bottom ahead of the pad along the course and
+    // not under it, by distance: by `at` alone a ledge inside tower 1
+    // aimed at a beam 100 m up and threw an ape 70 m/s, TW2-6)
+    let next_bottom = |c: &Course, at: i32, from: V3| -> V3 {
+        (0..c.vines.len())
+            .filter(|&i| {
+                c.vines[i].at >= at + int(4) && hangers[i] != Hanger::Start && hangers[i] != Hanger::Sling
+            })
+            .map(|i| c.vines[i].anchor.add(hangs[i].scale(c.vines[i].length)))
+            .filter(|b| b.y >= from.y - int(2))
+            .min_by_key(|b| b.sub(from).len())
+            .unwrap_or_else(|| c.point(at + int(20)))
+    };
+    let pad_at = |c: &mut Course, at: i32, centre: V3, fwd: V3, half_len: i32, half_width: i32| -> Pad {
+        let top = centre.y;
         c.platforms.push(Platform {
-            centre: v3(p.x, top, p.z),
+            centre,
             fwd,
             half_len,
             half_width,
             top,
         });
+        let to = next_bottom(c, at, v3(centre.x, top + BODY_DROP, centre.z));
         Pad {
             platform: c.platforms.len() - 1,
             at,
-            boost: boost(v3(p.x, top + BODY_DROP, p.z), to),
+            boost: boost(v3(centre.x, top + BODY_DROP, centre.z), to),
         }
     };
-    // a pad `PAD_BEFORE` short of every second station, each half (the
-    // zipper's stations are the climb's mirrored)
-    let mirror = |(at, b): (i32, V3)| (c.length - at, v3(2 * mirror_x - b.x, b.y, b.z));
-    let mut every: Vec<(i32, V3)> = stations
-        .iter()
-        .step_by(2)
-        .copied()
-        .chain(stations.iter().skip(1).step_by(2).copied().map(mirror))
-        .collect();
-    every.sort_by_key(|s| s.0);
-    for (st, bottom) in every {
-        let at = st - PAD_BEFORE;
-        if (at - half).abs() < int(16) || at < int(30) || (at > room.0 && at < room.1) {
-            continue;
-        }
-        let pad = pad_at(&mut c, at, bottom, int(4), int(5));
+    let mut s = 36 + GAP;
+    while int(s) < door_at - int(16) {
+        let at = int(s) - PAD_BEFORE;
+        s += 2 * GAP;
+        let p = c.point(at);
+        let fwd = flat(c.heading_at(at));
+        let pad = pad_at(&mut c, at, v3(p.x, p.y - PAD_UNDER, p.z), fwd, int(4), int(5));
         layout.pads.push(pad);
     }
-    // the room's floor (a wide pad): a reset in the room throws an ape
-    // onto the trampoline under the roof hole
-    c.platforms.push(Platform {
-        centre: room_mid,
-        fwd: flat(c.heading_at(r0)),
-        half_len: room_radius - int(4),
-        half_width: room_radius - int(4),
-        top: room_mid.y,
-    });
-    layout.pads.push(Pad {
-        platform: c.platforms.len() - 1,
-        at: r0 + int(1),
-        boost: boost(room_mid.add(v3(0, BODY_DROP, 0)), hole_tramp),
-    });
+    // inside: a ledge just inside the doorway, then one on the inner wall
+    // every 40 m of height at the coil's angle there, facing the middle
+    {
+        let sill = doorway.at.sub(doorway.out.scale(WALL_THICK + int(3)));
+        let pad = pad_at(
+            &mut c,
+            door_at + int(2),
+            v3(sill.x, doorway.at.y, sill.z),
+            doorway.out.neg(),
+            int(3),
+            int(5),
+        );
+        layout.pads.push(pad);
+    }
+    let coil_from = leg_at(COIL);
+    let mut s = coil_from + int(20);
+    while s < leg_at(COIL + 1) - int(20) {
+        let p = c.point(s);
+        let out = p.flat().sub(t1_centre.flat()).norm();
+        let wall = t1_centre.add(out.scale(inner - int(3)));
+        let pad = pad_at(
+            &mut c,
+            s,
+            v3(wall.x, p.y - PAD_UNDER, wall.z),
+            out.neg(),
+            int(3),
+            int(5),
+        );
+        layout.pads.push(pad);
+        s += int(120);
+    }
+    // the portal's: at the tear's foot, throwing an ape on into the tube
+    {
+        let at = tear_at - int(10);
+        let p = c.point(at);
+        let centre = v3(p.x, p.y - PAD_UNDER, p.z);
+        c.platforms.push(Platform {
+            centre,
+            fwd: through,
+            half_len: int(4),
+            half_width: int(5),
+            top: centre.y,
+        });
+        layout.pads.push(Pad {
+            platform: c.platforms.len() - 1,
+            at,
+            boost: boost(
+                v3(centre.x, centre.y + BODY_DROP, centre.z),
+                v3(axis.x, tube_top_p.y + int(2), axis.z),
+            ),
+        });
+    }
     layout.pads.sort_by_key(|p| p.at);
+    layout.portal_pad = layout
+        .pads
+        .iter()
+        .position(|p| p.at == tear_at - int(10))
+        .expect("the portal's pad");
 
-    // the banana zone: a wide floor from the last vines to the end and on
-    // past it (where the mirrored start deck would be)
+    // the banana zone: the tunnel's floor past the finish
     let end = c.point(c.length);
     let out = flat(c.heading_at(c.length));
-    let zone = end.add(out.scale(int(10)));
-    c.platforms.push(Platform {
-        centre: v3(zone.x, end.y - int(1), zone.z),
-        fwd: out,
-        half_len: int(50),
-        half_width: int(30),
-        top: end.y - int(1),
-    });
+    let zone = end.add(out.scale(int(40)));
     layout.banana_zone = BananaZone {
-        centre: v3(zone.x, end.y - int(1), zone.z),
+        centre: v3(zone.x, floor, zone.z),
         radius: int(40),
-        platform: c.platforms.len() - 1,
+        platform: floor_platform,
     };
     layout.lobby = (c.starts[1], yaw_of(fwd));
     layout.hangers = hangers;

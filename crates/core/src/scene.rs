@@ -1578,7 +1578,7 @@ pub fn dynamic(f: &Frame) -> (Batch, Batch) {
             continue;
         }
         if let (Some(deep), Some(t)) = (deep, &c.tower) {
-            if deep != matches!(t.hangers.get(i), Some(crate::tower::Hanger::Monster { .. })) {
+            if deep != matches!(t.hangers.get(i), Some(crate::tower::Hanger::Sling)) {
                 continue;
             }
         }

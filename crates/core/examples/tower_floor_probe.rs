@@ -64,9 +64,9 @@ fn main() {
         return;
     }
     let mut spots: Vec<(String, V3)> = Vec::new();
-    let room = &t.room;
-    // (a) the room: a 2 m grid over its whole floor, dropped from 6 m up
-    // and from 1.5 m up (under the trampolines' tops)
+    let room = &t.towers[0];
+    // (a) tower 1's floor (the open ground inside its hollow): a 2 m grid,
+    // dropped from 6 m up and from 1.5 m up
     for dy in [6, 1] {
         for dx in (-14..=14).step_by(2) {
             for dz in (-14..=14).step_by(2) {
@@ -122,30 +122,15 @@ fn main() {
                     }
                 }
             }
-            Solid::Pillar { .. } => {}
         }
     }
-    // the keep's foot and the sub-towers' feet (as before)
-    let k = &t.keep;
-    for dx in (-60..=60).step_by(10) {
-        for dz in (-60..=60).step_by(10) {
-            spots.push((
-                "keep foot".into(),
-                v3(k.centre.x + int(dx), int(4), k.centre.z + int(dz)),
-            ));
-        }
-    }
-    for br in &t.branches {
-        let s = br.sub;
-        for dx in (-12..=12).step_by(6) {
-            for dz in (-12..=12).step_by(6) {
+    // the towers' feet (as before)
+    for k in &t.towers {
+        for dx in (-60..=60).step_by(10) {
+            for dz in (-60..=60).step_by(10) {
                 spots.push((
-                    "sub foot".into(),
-                    v3(
-                        s.centre.x + int(dx),
-                        s.centre.y + int(4),
-                        s.centre.z + int(dz),
-                    ),
+                    "tower foot".into(),
+                    v3(k.centre.x + int(dx), int(4), k.centre.z + int(dz)),
                 ));
             }
         }

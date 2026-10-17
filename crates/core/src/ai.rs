@@ -1182,6 +1182,15 @@ fn flight_controls(
     cands: &[usize],
     last_grab: bool,
 ) -> Controls {
+    // (Mape's Tower: down the tube it weaves for the pads' gaps, the
+    // same steering the measurement used, TW2-5; the sling row at the
+    // bottom is grabbed as any beam in reach)
+    if let Some(t) = course.tower.as_deref() {
+        if let Some(mut c) = t.tube_controls(a) {
+            c.grab = !last_grab && a.vine_in_reach(course, tick).is_some();
+            return c;
+        }
+    }
     let grab = !last_grab
         && (in_reach(a, course, tick, cands, GRAB_MARGIN, aim_at(course, target)).is_some()
             // (Mape's Tower: any beam in reach not behind it will do; the

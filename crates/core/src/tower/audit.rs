@@ -10,24 +10,11 @@ use crate::geom::right_of;
 use crate::rules::{Kind, BODY_DROP};
 use crate::sector::DOWN;
 
-/// Where vine `i` is, for a listing: its half, leg and metres along.
+/// Where vine `i` is, for a listing: its leg and metres along.
 fn place(c: &Course, i: usize) -> String {
     let v = c.vines[i];
-    let half = split(c.length);
-    let (side, s) = if v.at <= half {
-        ("climb", v.at)
-    } else {
-        ("zipper", c.length - v.at)
-    };
-    let mut leg = 0;
-    let mut at = 0;
-    for (k, l) in CLIMB.iter().enumerate() {
-        if at <= s {
-            leg = k;
-        }
-        at += int(l.0);
-    }
-    format!("vine {i} ({side}, leg {leg}, {} m along)", v.at / ONE)
+    let t = c.tower.as_deref().expect("the tower");
+    format!("vine {i} ({:?}, {} m along)", t.leg_at(v.at), v.at / ONE)
 }
 
 /// Every problem with the vines' placement against the stone, one line
@@ -53,7 +40,11 @@ fn audit(c: &Course) -> Vec<String> {
         for k in 0..=20 {
             let p = v.anchor.add(h.scale(v.length * k / 20));
             if let Some(s) = t.point_in_stone(p) {
-                bad.push(format!("{at}: beam in stone {s} at {}/20", k));
+                bad.push(format!(
+                    "{at}: beam in stone {s} at {}/20 (anchor {:?})",
+                    k,
+                    v.anchor.scale(100).scale(ONE / 100)
+                ));
                 break;
             }
         }
@@ -61,7 +52,13 @@ fn audit(c: &Course) -> Vec<String> {
             bad.push(format!("{at}: an ape at its bottom is in stone {s}"));
         }
         // (2) the swing: out to 55° both ways along the course and 20°
-        // either side of that
+        // either side of that (not for a beam hung near level, the sling
+        // row: a swing along the course is along the beam itself there,
+        // and the swing that matters, under the anchor into the tunnel,
+        // is the mouth's width, TW2-4)
+        if h.y.abs() < ONE / 2 {
+            continue;
+        }
         let way = {
             let f = c.heading_at(v.at);
             v3(f.x, 0, f.z).norm()
@@ -162,98 +159,98 @@ fn flat_dist(a: V3, b: V3) -> i32 {
     a.sub(b).flat().len()
 }
 
-/// Flown at the keep, at a sub-tower and at the room's wall from outside,
-/// an ape is pushed back: it ends no nearer the axis than the wall (and
-/// its radius), with a `Wall` hit.
+/// Flown at tower 2, at tower 1 from outside and at tower 1's inner wall
+/// from inside, an ape is pushed back: it ends no nearer the wall than
+/// its face (and its radius), with a `Wall` hit; flown at the tube's wall
+/// from inside, the same.
 #[test]
-fn the_keep_the_sub_towers_and_the_rooms_wall_are_solid() {
+fn both_towers_and_the_tube_are_solid() {
     let c = tower();
     let t = c.tower.as_deref().unwrap();
-    let k = &t.keep;
-    let sub = t.branches[0].sub;
-    let room = &t.room;
-    let wall_y = room.centre.y + room.height / 2;
-    // (the room from the side away from its doorway)
-    let back = room
-        .centre
-        .sub(room.door.sub(room.centre).flat().norm().scale(int(30)));
-    let cases = [
-        ("the keep", k.centre, k.radius, int(30)),
-        ("a sub-tower", sub.centre, sub.radius, sub.top / 2),
-        ("the room's wall", room.centre, room.radius, wall_y),
-    ];
-    for (what, centre, radius, y) in cases {
-        let axis = v3(centre.x, y, centre.z);
-        // (a sub-tower from the side away from the keep, clear of its
-        // bridges)
-        let away = axis.sub(k.centre).flat().norm();
-        let from = match what {
-            "the room's wall" => v3(back.x, y, back.z),
-            "a sub-tower" => axis.add(away.scale(radius + int(15))),
-            _ => axis.add(v3(radius + int(15), 0, 0)),
-        };
-        let (end, hit) = fly(&c, from, axis, 25);
-        assert!(hit, "{what}: no wall hit");
-        assert!(
-            flat_dist(end, axis) >= radius,
-            "{what}: the ape went through to {} m from its axis (wall at {} m)",
-            flat_dist(end, axis) / ONE,
-            radius / ONE
-        );
-    }
+    let [t1, t2] = &t.towers;
+    let tube = &t.tube;
+    let (end, hit) = fly(
+        &c,
+        v3(t2.centre.x + t2.radius + int(15), int(60), t2.centre.z),
+        v3(t2.centre.x, int(60), t2.centre.z),
+        25,
+    );
+    assert!(hit, "tower 2: no wall hit");
+    assert!(flat_dist(end, t2.centre) >= t2.radius, "tower 2: went in");
+    let y = t1.top() - int(40);
+    let (end, hit) = fly(
+        &c,
+        v3(t1.centre.x, y, t1.centre.z + t1.radius + int(15)),
+        v3(t1.centre.x, y, t1.centre.z),
+        25,
+    );
+    assert!(hit, "tower 1 from outside: no wall hit");
+    assert!(flat_dist(end, t1.centre) >= t1.radius, "tower 1: went in");
+    let (end, hit) = fly(
+        &c,
+        v3(t1.centre.x, y, t1.centre.z + t1.inner - int(15)),
+        v3(t1.centre.x, y, t1.centre.z + t1.inner),
+        25,
+    );
+    assert!(hit, "tower 1 from inside: no wall hit");
+    assert!(
+        flat_dist(end, t1.centre) <= t1.inner,
+        "tower 1 from inside: went into the wall"
+    );
+    let y = tube.top - int(100);
+    let (end, hit) = fly(
+        &c,
+        v3(tube.axis.x, y, tube.axis.z),
+        v3(tube.axis.x, y, tube.axis.z + tube.radius),
+        25,
+    );
+    assert!(hit, "the tube: no wall hit");
+    assert!(flat_dist(end, tube.axis) <= tube.radius, "the tube: went out");
 }
 
-/// The room's doorway and its roof hole let an ape through: flown in at
-/// the door it ends up inside; thrown up under the hole it ends up over
-/// the roof; thrown up away from the hole it is stopped by the roof.
+/// Tower 1's doorway lets an ape through: flown in at it, it ends up
+/// inside the hollow; flown at the wall beside it, it is stopped.
 #[test]
-fn the_rooms_door_and_roof_hole_let_an_ape_through() {
+fn the_doorway_lets_an_ape_in_and_the_wall_beside_it_does_not() {
     let c = tower();
     let t = c.tower.as_deref().unwrap();
-    let room = &t.room;
-    let out = room.door.sub(room.centre).flat().norm();
-    let roof = room.centre.y + room.height;
-    let at_door = v3(room.door.x, room.centre.y + int(6), room.door.z);
-    // (half a second: on, it would reach the trampoline under the hole)
+    let d = &t.doorway;
+    let t1 = &t.towers[0];
+    let at = v3(d.at.x, d.at.y + int(5), d.at.z);
     let (end, hit) = fly_for(
         &c,
-        at_door.add(out.scale(int(4))),
-        at_door.sub(out.scale(int(10))),
+        at.add(d.out.scale(int(6))),
+        at.sub(d.out.scale(int(12))),
         16,
-        crate::rules::TICKS_PER_SECOND as u32 / 2,
+        crate::rules::TICKS_PER_SECOND as u32,
     );
     assert!(!hit, "the doorway is open");
     assert!(
-        flat_dist(end, room.centre) < room.radius,
-        "flown in at the door it is inside the room"
+        flat_dist(end, t1.centre) < t1.inner,
+        "flown in at the door it is inside tower 1"
     );
-    let (hole, _) = room.roof_exit;
-    let under = v3(hole.x, roof - int(6), hole.z);
-    let (end, hit) = fly(&c, under, under.add(v3(0, ONE, 0)), 22);
-    assert!(!hit, "the roof hole is open");
-    assert!(
-        end.y > roof + BODY_DROP,
-        "thrown up under the hole it is out over the roof"
+    let aside = right_of(d.out).scale(d.half_width + int(6));
+    let (end, hit) = fly_for(
+        &c,
+        at.add(d.out.scale(int(6))).add(aside),
+        at.sub(d.out.scale(int(12))).add(aside),
+        16,
+        crate::rules::TICKS_PER_SECOND as u32 / 2,
     );
-    let aside = room.centre.add(out.scale(room.radius - int(3)));
-    let under = v3(aside.x, roof - int(6), aside.z);
-    let (end, hit) = fly(&c, under, under.add(v3(0, ONE, 0)), 22);
-    assert!(hit, "the roof stops it");
-    assert!(
-        end.y < roof,
-        "thrown up away from the hole it stays under the roof"
-    );
+    assert!(hit, "the wall beside the doorway stops it");
+    assert!(flat_dist(end, t1.centre) >= t1.radius - int(1));
 }
 
-/// The tops are ground: an ape stands on the keep's crown, and on a
+/// The tops are ground: an ape stands on tower 2's crown, and on a
 /// bridge's deck at its drawn height at both ends (TL1).
 #[test]
 fn the_crown_and_the_bridge_decks_are_stood_on_where_drawn() {
     let c = tower();
     let t = c.tower.as_deref().unwrap();
-    let crown = v3(t.keep.centre.x, t.keep.height + BODY_DROP, t.keep.centre.z);
-    assert_eq!(c.support(crown), t.keep.height, "the crown holds an ape");
-    let br = &t.branches[0];
+    let t2 = &t.towers[1];
+    let crown = v3(t2.centre.x, t2.top() + BODY_DROP, t2.centre.z);
+    assert_eq!(c.support(crown), t2.top(), "the crown holds an ape");
+    let br = &t.bridges[0];
     for (u, end) in [(ONE / 10, br.from), (ONE * 9 / 10, br.to)] {
         let p = br.from.add(br.to.sub(br.from).scale(u));
         let deck = br.from.y + crate::fx::mul(br.to.y - br.from.y, u);
