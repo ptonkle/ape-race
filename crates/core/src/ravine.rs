@@ -470,6 +470,11 @@ impl RavineLayout {
         self.carts.iter().position(|c| c.bouncer == m)
     }
 
+    /// Whether vine `i` is a snake vine (drawn as a snake, not a vine).
+    pub fn is_snake(&self, i: usize) -> bool {
+        self.hangers.get(i).is_some_and(|h| h.snake)
+    }
+
     /// Every room the chase camera keeps inside (the arches, caves, the
     /// tunnel and the skull's mouth).
     pub fn keeps(&self) -> impl Iterator<Item = &Room> {

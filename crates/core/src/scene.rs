@@ -1611,6 +1611,11 @@ pub fn dynamic(f: &Frame) -> (Batch, Batch) {
         if c.ruins.as_ref().is_some_and(|r| r.vine_up(i, tick)) {
             continue;
         }
+        // Rattlesnake Ravine: a snake vine is drawn as a snake
+        // (`ravinescape::course::dynamic`)
+        if c.ravine.as_ref().is_some_and(|r| r.is_snake(i)) {
+            continue;
+        }
         let look = vine_look_on(map, Some(i) == reach, f.vivid, f.tick);
         // Mape's Tower: each vine is a spell beam in its caster's colour
         let look = match &c.tower {
@@ -1665,6 +1670,9 @@ pub fn dynamic(f: &Frame) -> (Batch, Batch) {
     }
     if let Some(r) = &c.ruins {
         crate::ruinsscape::dynamic(&mut b, c, r, eye, f.tick, tick);
+    }
+    if let Some(r) = &c.ravine {
+        crate::ravinescape::course::dynamic(&mut b, c, r, eye, f.tick, tick, f.vivid);
     }
     if let Some(bay) = &c.bay {
         // in the colourblind mode the flags, barrels and fire are muted as
@@ -2424,6 +2432,9 @@ pub fn backdrop(b: &mut Batch, c: &Course, eye: V3, tick: u32) {
     if let Some(r) = &c.ruins {
         crate::ruinsscape::dynamic(b, c, r, eye, tick, tick);
     }
+    if let Some(r) = &c.ravine {
+        crate::ravinescape::course::dynamic(b, c, r, eye, tick, tick, false);
+    }
     // the fleet's flags, crews, fire and barrels round the dock
     if let Some(bay) = &c.bay {
         crate::bayscape::fleet::dynamic(b, c, bay, eye, tick, tick, false);
@@ -2451,6 +2462,9 @@ pub fn flyover_dynamic(c: &Course, tick: u32, vivid: bool, eye: V3) -> (Batch, B
     if let Some(r) = &c.ruins {
         crate::ruinsscape::dynamic(&mut rest, c, r, eye, tick, tick);
     }
+    if let Some(r) = &c.ravine {
+        crate::ravinescape::course::dynamic(&mut rest, c, r, eye, tick, tick, vivid);
+    }
     if let Some(bay) = &c.bay {
         crate::bayscape::fleet::dynamic(&mut rest, c, bay, eye, tick, tick, false);
     }
@@ -2469,7 +2483,10 @@ pub fn vines_where(
     let map = Map::of(c);
     let look = vine_look_on(map, false, vivid, tick);
     for i in 0..c.vines.len() {
-        if c.ruins.as_ref().is_some_and(|r| r.vine_up(i, tick)) || !keep(i) {
+        if c.ruins.as_ref().is_some_and(|r| r.vine_up(i, tick))
+            || c.ravine.as_ref().is_some_and(|r| r.is_snake(i))
+            || !keep(i)
+        {
             continue;
         }
         let a = c.anchor(i, tick);

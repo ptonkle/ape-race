@@ -28,12 +28,31 @@ pub fn bridge_sag(len: i32, t: i32) -> i32 {
 /// little with `tick`: planks (one in nine missing), two hand ropes, a
 /// rope under each plank end, and verticals every 2 m.
 pub fn rope_bridge_span(b: &mut Batch, f: &Affine, len: i32, w: i32, tick: u32, k: u32) {
-    let sway = mul(wave(tick, 5, pick(k, 1, 0, TURN)), cm(10));
+    rope_bridge(b, f, len, w, true, tick, k);
+}
+
+/// The same bridge with its deck straight from end to end (no sag, no
+/// sway): the course's bridges, whose solid deck is the straight line
+/// between its ends (`ravine::Deck::top_at`), so feet stand on the planks.
+/// Lighter for the course's frame budget: planks a little further apart,
+/// longer rope pieces, a vertical every 4 m (about 2.3 shapes a metre).
+pub fn rope_bridge_level(b: &mut Batch, f: &Affine, len: i32, w: i32, k: u32) {
+    rope_bridge(b, f, len, w, false, 0, k);
+}
+
+fn rope_bridge(b: &mut Batch, f: &Affine, len: i32, w: i32, sags: bool, tick: u32, k: u32) {
+    let sway = if sags {
+        mul(wave(tick, 5, pick(k, 1, 0, TURN)), cm(10))
+    } else {
+        0
+    };
     let at = |t: i32, x: i32, y: i32| {
         let bulge = mul(t, ONE - t) * 4;
-        v3(x + mul(sway, bulge), y - bridge_sag(len, t), mul(len, t))
+        let sag = if sags { bridge_sag(len, t) } else { 0 };
+        v3(x + mul(sway, bulge), y - sag, mul(len, t))
     };
-    let n = (len / (ONE * 6 / 10)).max(2);
+    let pitch = if sags { ONE * 6 / 10 } else { ONE * 9 / 10 };
+    let n = (len / pitch).max(2);
     for i in 0..=n {
         let s = k.wrapping_mul(71).wrapping_add(i as u32);
         if i > 0 && i < n && pick(s, 2, 0, 8) == 0 {
@@ -51,7 +70,7 @@ pub fn rope_bridge_span(b: &mut Batch, f: &Affine, len: i32, w: i32, tick: u32, 
             0,
         );
     }
-    let segs = (len / int(3)).max(2);
+    let segs = (len / if sags { int(3) } else { int(6) }).max(2);
     for j in 0..segs {
         let (t0, t1) = (ONE * j / segs, ONE * (j + 1) / segs);
         for sx in [-1, 1] {
@@ -78,7 +97,7 @@ pub fn rope_bridge_span(b: &mut Batch, f: &Affine, len: i32, w: i32, tick: u32, 
             );
         }
     }
-    let posts = (len / int(2)).max(1);
+    let posts = (len / if sags { int(2) } else { int(4) }).max(1);
     for j in 0..=posts {
         let t = ONE * j / posts;
         for sx in [-1, 1] {

@@ -22,7 +22,7 @@
 //! (`bayscape::follow`, called by the frame), and the walls and ground are
 //! static scenery the shader recolours (as Sunset Ruins, 1.10.1).
 //!
-//! The scenery itself is still the STAND-IN (the Jungle's) until step 8.
+//! The canyon itself (walls, roofs, decks, the movers) is `course.rs`.
 
 use crate::course::Course;
 use crate::fx::{self, cm, deg, int, ONE, TURN};
@@ -68,7 +68,10 @@ pub const FIELD_STARS: u32 = 320;
 /// Small stars thick along the Milky Way.
 pub const BAND_STARS: u32 = 380;
 /// The Milky Way's soft haze blobs.
-pub const BAND_HAZE: u32 = 60;
+pub const BAND_HAZE: u32 = 80;
+/// The Milky Way haze's strength: a sky glow (3 and up, unfogged) at a
+/// third of its colour, so the band reads as a soft pale river of light.
+pub const HAZE_GLOW: i32 = ONE * 3 + ONE / 3;
 /// How far round the eye a glow's pool of light is drawn.
 pub const POOL_SEEN: i32 = int(110);
 
@@ -288,18 +291,20 @@ pub fn sky(b: &mut Batch, eye: V3, moon: i32, ticks: u32) {
             continue;
         }
         let at = eye.add(dir.scale(DOME - int(20)));
-        let s = int(pick(i, 33, 30, 56));
+        let s = int(pick(i, 33, 40, 72));
         let core = (t - deg(70)).abs() < deg(30);
         let c = if core {
             rgb(170, 150, 210)
         } else {
             rgb(130, 140, 220)
         };
+        // (a sky glow: strength 3 and up is unfogged; at a fogged 1/2 the
+        // haze 540 m off was lost in the night fog, RK5)
         b.push_halo(
             Mesh::Sphere,
             &placed(at, pick(i, 34, 0, TURN), v3(s, s * 2 / 3, s)),
             c,
-            ONE / 2,
+            HAZE_GLOW,
         );
     }
     // the band's small stars, thick near its middle line
@@ -412,11 +417,13 @@ pub fn pools(b: &mut Batch, r: &RavineLayout, eye: V3, ticks: u32) {
     }
 }
 
-/// Rattlesnake Ravine's scenery and ground, chunked. STAND-IN: the
-/// Jungle's (step 8 places the canyon's art).
-pub fn scenery(c: &Course, _r: &RavineLayout) -> Scenery {
-    crate::scene::jungle_scenery(c)
+/// Rattlesnake Ravine's scenery and ground, chunked: the canyon drawn from
+/// its layout (`course.rs`).
+pub fn scenery(c: &Course, r: &RavineLayout) -> Scenery {
+    course::scenery(c, r)
 }
+
+pub mod course;
 
 #[cfg(test)]
 mod tests;

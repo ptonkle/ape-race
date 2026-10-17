@@ -279,16 +279,18 @@ pub fn rex_skull(b: &mut Batch, f: &Affine, gap: i32, teeth: &[Tooth]) {
             BONE_DARK,
             0,
         );
-        // the lower jaw dropped open: a deep plate each side, its top
-        // edge sloping up from the chin to the hinge at the back, and
-        // its long tapering lower edge
-        let (top, foot) = (gum - m(cm(30)), -gum - m(cm(60)));
+        // the lower jaw dropped open: a deep, thick plate each side, its
+        // top edge sloping gently up from the chin to the hinge at the
+        // back (only to the gap's middle: a plate up to the upper gum
+        // read as a strut beside the mouth, RA-3), and its long tapering
+        // lower edge
+        let (top, foot) = (m(cm(10)), -gum - m(cm(70)));
         put(
             b,
             f,
             Mesh::Wedge,
-            v3(m(sx * cm(295)), (top + foot) / 2, -m(cm(270))),
-            v3(m(cm(70)), top - foot, m(cm(700))),
+            v3(m(sx * cm(310)), (top + foot) / 2, -m(cm(250))),
+            v3(m(cm(120)), top - foot, m(cm(800))),
             BONE,
             0,
         );

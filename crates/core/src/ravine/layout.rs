@@ -1067,9 +1067,16 @@ fn rim(s: i32, side: i32, len: i32) -> i32 {
     tall - (tall - int(14)) * to_mesa / 220
 }
 
+/// The canyon's half width on its left at `s` m along a spine `len` m
+/// long: `HALF`, opening out onto the mesa past the finish (the scene's
+/// floor reaches the walls by it).
+pub(crate) fn open_half(len: i32, s: i32) -> i32 {
+    HALF + int((s - (len - 20)).clamp(0, 200)) / 4
+}
+
 /// Wall points are this far apart along the spine (and a hole's ends are
 /// snapped to them).
-const WALL_STEP: i32 = 6;
+pub(crate) const WALL_STEP: i32 = 6;
 
 /// The canyon's walls: the left and right faces at `HALF` (the corridor),
 /// from 24 m behind the start to the mesa (opening out past the finish);
@@ -1108,7 +1115,7 @@ fn walls(c: &Course, plan: &Plan, split: Option<&Split>, has_skull: bool) -> Vec
         )
     };
     // the mesa: the canyon opens out past the finish
-    let open = |s: i32| HALF + int((s - (len - 20)).clamp(0, 200)) / 4;
+    let open = |s: i32| open_half(len, s);
     let mut left_pts = Vec::new();
     let mut right_pts = Vec::new();
     let mut s = -START_BACK / ONE;

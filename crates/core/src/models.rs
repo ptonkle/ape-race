@@ -3008,7 +3008,13 @@ fn head(rig: &mut Rig, kind: Kind, l: &Look, h: &Frame, pose: &Pose) {
                 let bottom = h.at(side * pct(d, 28), -pct(d, 12), pct(d, 42));
                 rig.blade(top, bottom, h.x, pct(d, 34), pct(d, 12), BLACK);
                 let base = h.at(side * pct(d, 30), pct(d, 28), -pct(d, 4));
-                let tip = h.at(side * pct(d, 54), pct(d, 72), -pct(d, 10));
+                // (under a cowboy hat the ears stick out sideways below its
+                // brim: pricked, their tips poked through it, RA-4)
+                let tip = if pose.gear == Gear::Cowboy {
+                    h.at(side * pct(d, 66), pct(d, 34), -pct(d, 8))
+                } else {
+                    h.at(side * pct(d, 54), pct(d, 72), -pct(d, 10))
+                };
                 rig.blade(base, tip, h.x, pct(d, 36), pct(d, 12), l.fur);
                 rig.blade(
                     base.add(h.z.scale(pct(d, 4))),

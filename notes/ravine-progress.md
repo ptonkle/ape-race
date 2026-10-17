@@ -11,7 +11,7 @@ The standard map-build steps (MAPS.md "Build steps"), one row each. Status is on
 | 5 | Sky and lighting | Done (merged) | `ravinescape.rs`: starry sky, Milky Way (faint, to lift in the art pass), moon, night fog; shots on the journal |
 | 6 | Course layout | Waiting on you (Sloth question) | The real 1,754 m route (`ravine/layout.rs`): braids, two arches, caves, a hairpin round a fin (48 m corners, round 10 m tip) with the T-rex skull shortcut (saves 185 m, 7.7 s), four tight corners, the split (upper passage shorter, sparser, more snakes; lower through the mine tunnel), 4 mine tracks, 8 lizards, glows to the mesa finish. Snakes about 15%, each with a low vine past it. 14 layout tests (SECOND-ORDER RC1–RC9). **AI (6 layouts):** Sloth 127.4 s, King Kong 76.2 s, Ape 98.3 s, all finish (before: Sloth 3 DNF, King Kong 1). Over 12 layouts the Sloth still misses the 150 s cap 5 times (scattered snaps and swings, no single blocker, RC9) |
 | 7 | Map rules | Done (merged) | Snake vines snap and drop the ape (regrow after 10 s, saved, synced); teeth reset to the floor (lava: the kill); walls, roofs, cave/tunnel sides, holes, skull bone, sphinx and rocks solid, swept and indexed; decks and solid tops are floors; camera keeps inside rooms and out of rock; lizard/cart bounce tested; AI avoids most snakes (Sloth least). Tested alone on bare courses (`ravine/rules_tests.rs`); SECOND-ORDER RR1–RR8 |
-| 8 | Art placed on the course | Not started | |
+| 8 | Art placed on the course | Done (on `ravine`) | `ravinescape/course.rs`: walls (3 sandstone bands to the solids' extents, fin pieces too, moss, lichen, fossils, dinosaur bones, boulders), roofs, decks (level rope bridges, logs), junipers/pegs/knots for hangers, tracks and wall holes, rocks, skull, sphinx, tents, far buttes, tunnel gear and digs; moving: snakes (snapped from `snapped_at`, warning glow, black/white in colourblind), lizards, carts, torches, lanterns, mushrooms, fireflies, campfire. Worst frame 3,909 still + 991 moving = 4,900 (sky ~770 apart). Fixed: skull jaw plates, lemur ears under the hat, Milky Way haze (still faint). Shots `notes/ravine-shots/course/`. SECOND-ORDER RA-1–RA-8 |
 | 9 | Lobby spot and flyover | Not started | |
 | 10 | AI validation | Not started | |
 | 11 | Medal times | Not started | |
@@ -30,18 +30,18 @@ Stages: Model, Gameplay (or n/a), Placed in course, Tested.
 
 | Feature | Source | Model | Gameplay | Placed | Tested |
 | --- | --- | --- | --- | --- | --- |
-| Slot-canyon walls as barriers (moss, lichen, fossils, bones) | brief | – | Done | Done (solids) | Done |
+| Slot-canyon walls as barriers (moss, lichen, fossils, bones) | brief | Done | Done | Done | Done |
 | Starry sky, soft night light | brief | Done | n/a | Done | Done |
-| Torches, fireflies, glowing mushrooms leading to the finish | brief | Done | n/a | – | – |
-| Rope bridges and logs with vines of varying length | brief | Done | – | – | – |
-| Snake vines (~15%; snap, drop) | brief | Done | Done | Done (solids/route) | Done |
+| Torches, fireflies, glowing mushrooms leading to the finish | brief | Done | n/a | Done | Done (budget) |
+| Rope bridges and logs with vines of varying length | brief | Done | – | Done | Done (budget) |
+| Snake vines (~15%; snap, drop) | brief | Done | Done | Done (drawn, snapped state, colourblind cue) | Done |
 | Braided winding route | brief | n/a | Done | Done | Done |
 | Upper passage (short, sparse vines, more snakes) | brief | n/a | Done | Done | Done |
-| Lower passage: mine tunnel, equipment, digs | brief | Done | – | – | – |
+| Lower passage: mine tunnel, equipment, digs | brief | Done | – | Done | – |
 | Caves, archways, long jumps, tight corners | brief | – | Done | Done | Done |
-| T-rex mouth shortcut (teeth reset to the floor) | brief | Done | Done | Done (route) | Done |
+| T-rex mouth shortcut (teeth reset to the floor) | brief | Done | Done | Done | Done |
 | Wild West gear, palette per ape | brief | Done | n/a | n/a | Done |
-| Wall lizards (bouncers, like the turtles) | brief | Done | Done | – | – |
-| Mine-cart tracks from wall holes; carts like the City's cars | brief | Done | Done | – | – |
+| Wall lizards (bouncers, like the turtles) | brief | Done | Done | Done | – |
+| Mine-cart tracks from wall holes; carts like the City's cars | brief | Done | Done | Done | – |
 | Spider-jaguar (Floor is Lava) | brief | Done | Done | n/a | – |
-| Mesa finish: proboscis sphinx, campfire, roasting bananas, tents | brief | Done | n/a | – | – |
+| Mesa finish: proboscis sphinx, campfire, roasting bananas, tents | brief | Done | n/a | Done | Done (sphinx frame) |
