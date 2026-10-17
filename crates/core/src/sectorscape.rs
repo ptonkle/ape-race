@@ -1,7 +1,7 @@
 //! Drawing Sector Ape (2026-10-13, `briefs/space-map.md`, the art agent's
 //! SECOND-ORDER SA rows).
 //!
-//! **The light first** (MAPS "Art lessons"): there is no time of day. A
+//! **The light first** (maps-archive "Art lessons"): there is no time of day. A
 //! blazing orange-white sun hangs far below the track, a little ahead and
 //! to the left of the way the course runs, and lights everything from
 //! underneath: hull bellies glow warm orange-white, their tops fall into

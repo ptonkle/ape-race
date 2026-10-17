@@ -869,7 +869,7 @@ pub const BRIDGE_RAIL: i32 = cm(130);
 /// A rope bridge segment `len` metres long from the origin along +z, its
 /// deck at y 0 and centred on x 0: slatted planks on two foot ropes, two
 /// sagging hand ropes and a few V suspenders, all thin and pale so the
-/// map's vines stand out above them (MAPS Art lessons).
+/// map's vines stand out above them (maps-archive Art lessons).
 pub fn rope_bridge(b: &mut Batch, f: &Affine, len: i32) {
     let half = BRIDGE_WIDTH / 2;
     let n = (len / cm(55)).max(1);

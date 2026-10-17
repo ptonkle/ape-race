@@ -20,7 +20,7 @@ The standard map-build steps (MAPS.md "Build steps"), one row each. Status is on
 | 14 | Map card | Done | `data/maps/bay.webp` from the flyover: navy frigate, pirate line, a hull hit |
 | 15 | Screenshots at 1920×1080 | Done | Models, outfits, sky, in-game rounds, lobby, flyover; the overhaul in `notes/bay-shots/overhaul/` (start, mid-course, overhead; no stairs close-up yet, BO9) |
 | 16 | Other maps unchanged | Done | `jungle_unchanged`, `maps_unchanged`, `sector_unchanged` and the Ruins tests pass on final main |
-| 17 | Docs | Done | README, MAPS.md (what the bay taught), TRIAGE T87, HANDOFF; Settings weather select fixed (BW1) |
+| 17 | Docs | Done | README, notes/maps-archive.md (what the bay taught), TRIAGE T87, HANDOFF; Settings weather select fixed (BW1) |
 | 18 | Full checks | Done | Overhaul branch (after merging main): `BUILDER_ENGINES=chromium ./scripts/check.sh` passed in 542 s; debug `cargo test --workspace` passed |
 | 19 | Deploy | Not started | The overhaul is not deployed (live: v1.12.0, v1.12.1 before it) |
 

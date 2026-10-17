@@ -99,6 +99,6 @@ python3 scripts/serve.py    # http://127.0.0.1:8000/
 | `crates/shim` | the `wasm-bindgen` layer: one call into the core per method, Q16 → `f32` for WebGL |
 | `web/` | the static page: WebGL 2 renderer (`gl.js`), menus and HUD (`app.js`), the WebRTC transport (`online.js`) |
 | `data/` | on-screen words (`strings.json`) and the shaders |
-| `crates/core/examples/` | measuring tools: `frame_cost`, `scenery_cost`, `swing_time`, `corner_swing`, `city_trace`, `city_report`, `city_map` (MAPS.md says when to use each) |
+| `crates/core/examples/` | measuring tools: `frame_cost`, `scenery_cost`, `swing_time`, `corner_swing`, `city_trace`, `city_report`, `city_map` (notes/maps-archive.md says when to use each) |
 | `scripts/tiles.py` | the home page's action shots (21: 15 Jungle, 6 City) |
 | `tests/browser/` | the three-engine browser check, the game's interactions, and the online checks |

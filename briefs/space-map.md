@@ -1,6 +1,6 @@
 # Brief: the space map (Star Fox–inspired)
 
-Given by the person on 2026-10-13, to be built in a later session (after their usage resets). Their words are kept exactly below; the notes after them are the integrator's, for the session that builds it. Read `MAPS.md` first (especially "Establish the time of day and the weather first" and "Be visually distinct from the first iteration").
+Given by the person on 2026-10-13, to be built in a later session (after their usage resets). Their words are kept exactly below; the notes after them are the integrator's, for the session that builds it. Read `MAPS.md` first (and notes/maps-archive.md "Art lessons", especially "Establish the time of day and the weather first" and "Be visually distinct from the first iteration").
 
 ## The person's description (verbatim)
 
@@ -45,7 +45,7 @@ Given by the person on 2026-10-13, to be built in a later session (after their u
 
 ## Integrator's notes and open questions (for the building session)
 
-- **Lobby zone:** design where your ape stands behind the menus as a showpiece (MAPS.md checklist): e.g. on a ship's deck with the sun below and the Great Fox–type mothership behind, with room for the lineup of every player's ape (T76).
+- **Lobby zone:** design where your ape stands behind the menus as a showpiece (MAPS.md step 9; archive "Checklist for a new map"): e.g. on a ship's deck with the sun below and the Great Fox–type mothership behind, with room for the lineup of every player's ape (T76).
 - **Lighting first** (MAPS.md rule): space has no time of day. Decide the light source before any art: the far sun or a star below, plus rim light from the planet. Make the palette distinct from the other three maps (deep black-blue space, neon wireframe and laser colours, Sector X's purple-green haze?).
 - **Physics, new for this map only:**
   - Today gravity is a constant `rules::GRAVITY` pointing down.

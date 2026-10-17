@@ -1,5 +1,5 @@
 //! Smoke tests: every model builds, draws something, and stays within its
-//! share of the map's scenery budget (MAPS.md: about 20k shapes on a map,
+//! share of the map's scenery budget (maps-archive "Art lessons": about 20k shapes on a map,
 //! 6–7k drawn at once).
 
 use super::*;

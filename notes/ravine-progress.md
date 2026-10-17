@@ -20,7 +20,7 @@ The standard map-build steps (MAPS.md "Build steps"), one row each. Status is on
 | 14 | Map card | Done | `data/maps/ravine.webp` from the flyover at 520 m: the torch-lit skull and the canyon beyond (was Canopy Run's picture); `map_cards.py --only ravine` shoots a held map; text "Rattlesnake Ravine"; grid shot `polish/map-grid.png` (RA-14) |
 | 15 | Screenshots at 1920×1080 | Not started | |
 | 16 | Other maps unchanged | In progress | Pass after every merge (last 14:35, after the colourblind merge) |
-| 17 | Docs | Done | README How to Play row (marked held), cyan catch-up colour, code table; MAPS.md "What Rattlesnake Ravine taught"; TRIAGE T107; HANDOFF; no in-game text needed (strings has only the map name); SECOND-ORDER RD1 |
+| 17 | Docs | Done | README How to Play row (marked held), cyan catch-up colour, code table; notes/maps-archive.md "What Rattlesnake Ravine taught"; TRIAGE T107; HANDOFF; no in-game text needed (strings has only the map name); SECOND-ORDER RD1 |
 | 18 | Full checks | Done | 15:2x: check.sh passed in chromium, firefox, webkit (6.3 min) and the online check passed |
 | 19 | Deploy | Done (1.15.0) | Held until you say. At release: drop `Map::Ravine` from `Map::held`, add the patch note, README intro to eight maps (RD1). Patch-note draft (not yet in `data/patch-notes.json`): "New map: Rattlesnake Ravine." |
 

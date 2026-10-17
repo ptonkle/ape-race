@@ -72,7 +72,7 @@ impl Map {
     }
 
     /// Whether the map is held back from the map choice and from Random
-    /// until it is real (MAPS.md "Hold the selector": a selectable
+    /// until it is real (maps-archive "Hold the selector": a selectable
     /// stand-in that looks like another map confuses players). A held map
     /// is still in `ALL`: it builds, has its caches, and is reached by its
     /// key (settings, replays, online, the tests).

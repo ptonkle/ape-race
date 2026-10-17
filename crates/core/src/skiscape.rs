@@ -1,5 +1,5 @@
 //! Drawing the Ski Slope (2026-10-13, group B): **noon, clear, not
-//! snowing.** The hour and the weather come first (MAPS "Art lessons"):
+//! snowing.** The hour and the weather come first (maps-archive "Art lessons"):
 //! the sun stands high (about 65°) behind the skiers' backs, the light is
 //! a crisp white, the sky a deep saturated blue paling to a hazy blue at
 //! the horizon, the air clear (the fog is pale blue and far out), the snow

@@ -902,7 +902,7 @@ mod tests {
     use super::*;
     use crate::map::Map;
 
-    /// The scenery budget (MAPS.md): about 20k shapes, and at most about
+    /// The scenery budget (maps-archive "Art lessons"): about 20k shapes, and at most about
     /// as many at once as the first design's worst (4,896, TA3).
     const MOST_AT_ONCE: usize = 5_500;
     const MOST: usize = 20_000;

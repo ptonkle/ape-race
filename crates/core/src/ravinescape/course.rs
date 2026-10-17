@@ -36,7 +36,7 @@ use crate::ravinemodels as m;
 use crate::render::{placed, rgb, Batch, Rgb};
 use crate::scene::{assemble, chunk_count, chunk_of, push_ground, Scenery, CHUNK};
 
-/// This art's own dice (MAPS "Layout lessons").
+/// This art's own dice (maps-archive "Layout lessons").
 pub const ART_DICE: u64 = 0x5241_5641_5254_0008;
 /// A roof is drawn in pieces this long, as its solid (`solids.rs`).
 const ROOF_PIECE: i32 = int(8);

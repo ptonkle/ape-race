@@ -1,6 +1,6 @@
 //! Rattlesnake Ravine's course (the course agent, 2026-10-17): a winding
 //! slot canyon 1.74 km long, laid only from spacings the AI already climbs
-//! (MAPS "Getting the AI round a new map"): a station every 22–28 m, two or
+//! (maps-archive "Getting the AI round a new map"): a station every 22–28 m, two or
 //! three vines across the lanes, a low vine every other station, a
 //! station 14 m short of each tight corner and 5 m past it (the Ruins'
 //! corner pins), roofed stretches hung as the Ruins' corridor.
@@ -42,7 +42,7 @@ use crate::geom::{right_of, yaw_of, Affine};
 use crate::rules::{MUSHROOM_HEIGHT, MUSHROOM_RADIUS};
 
 const SEED: u64 = 0x5A4E_C0DE_0001;
-/// This map's own dice (MAPS "Layout lessons": no other map's draws move).
+/// This map's own dice (maps-archive "Layout lessons": no other map's draws move).
 const DICE: u64 = 0x5241_5649_4E45;
 
 /// The canyon's half width (the corridor's: `Course.half_width`).

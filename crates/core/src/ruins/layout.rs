@@ -537,7 +537,7 @@ pub fn ruins_seeded(seed: u64) -> Course {
         }
         station += 1;
         let mut next = s + dice.range(22, 26);
-        // a station 14 m short of each bend and one 5 m past it (MAPS.md:
+        // a station 14 m short of each bend and one 5 m past it (maps-archive.md:
         // without them the AI swung to and fro at the chamber's door and
         // at the turn in, RT1)
         for pin in CORNER_PINS {
