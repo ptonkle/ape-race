@@ -70,6 +70,9 @@ const PEG: Rgb = rgb(70, 66, 64);
 /// colourblind mode's: orange reads apart from every vine look).
 const SNAKE_GLOW: Rgb = rgb(255, 120, 40);
 const SNAKE_GLOW_VIVID: Rgb = rgb(255, 150, 0);
+/// The colourblind mode's glow round a wall lizard (a bouncer): white,
+/// apart from the snakes' orange and the vines' green by hue and brightness.
+pub const LIZARD_GLOW_VIVID: Rgb = rgb(240, 240, 255);
 
 fn into_rock(side: Side, fwd: V3) -> V3 {
     match side {
@@ -186,6 +189,13 @@ fn walls(b: &mut [Batch], chunk: &dyn Fn(V3) -> usize, r: &RavineLayout, dice: &
                     col,
                     0,
                 );
+            }
+            // the canyon mouth (RA-11, RA-12): where the rims fall to the
+            // mesa a stretch stands a storey over the next; rock heaped
+            // on the step and sloping away outside, so the walls end as a
+            // canyon mouth, not as flat slabs
+            if (a.height - z.height).abs() > MOUTH_STEP {
+                mouth_rock(bk, (a, z), fwd, into, w.depth, (foot, top), seg);
             }
             // only on faces apes see: stretches standing on the floor
             if top - bottom < int(18) || bottom > foot {
@@ -310,6 +320,77 @@ fn walls(b: &mut [Batch], chunk: &dyn Fn(V3) -> usize, r: &RavineLayout, dice: &
                 _ => {}
             }
         }
+    }
+}
+
+/// A stretch whose ends' rims differ by more than this is a step of the
+/// canyon mouth (the slot's rims ease down 1.5 m a stretch at most; past
+/// the finish they fall some 9 m a stretch to the mesa's low rims).
+pub const MOUTH_STEP: i32 = int(4);
+
+/// The rock of one canyon-mouth step (`a`, `z` the stretch's ends, `foot`
+/// and `top` its drawn extent): a talus heaped over the step down onto the
+/// next stretch's top, and three shoulders falling away outside it, each
+/// lower and further out, so the rock slopes down to the mesa top. Drawing
+/// only: all of it is outside the canyon or on the wall's own rock.
+fn mouth_rock(
+    bk: &mut Batch,
+    (a, z): (crate::ravine::WallPoint, crate::ravine::WallPoint),
+    fwd: V3,
+    into: V3,
+    depth: i32,
+    (foot, top): (i32, i32),
+    seg: u32,
+) {
+    let drop = (a.height - z.height).abs();
+    let (hi, lo) = if a.height > z.height { (a, z) } else { (z, a) };
+    let down = lo.at.sub(hi.at).flat().norm();
+    let mid_rock = |p: V3| p.add(into.scale(depth / 2));
+    // the talus: a big rock over the cut end, a smaller one past it
+    for (k, (on, up, size, along)) in [
+        (cm(150), drop * 11 / 20, drop * 13 / 10, int(10)),
+        (int(6), drop + cm(50), drop * 4 / 5, int(7)),
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        let p = mid_rock(lo.at).add(down.scale(on));
+        bk.push(
+            Mesh::Rock,
+            &placed(
+                v3(p.x, top - up, p.z),
+                yaw_of(fwd) + (seg as i32 * 37 + k as i32 * 90) % 40 * TURN / 360,
+                v3(depth * 23 / 20, size, along),
+            ),
+            if k == 0 {
+                ROCK_BAND
+            } else {
+                ROCK_MID[(seg % 3) as usize]
+            },
+            0,
+        );
+    }
+    // the shoulders outside: lower and further out each time
+    let mid = a.at.lerp(z.at, ONE / 2);
+    let tall = top - foot;
+    let len = z.at.sub(a.at).flat().len();
+    for k in 1..=3 {
+        let h = tall * (4 - k) / 4;
+        let p = mid.add(into.scale(depth + int(7) * k - int(2)));
+        bk.push(
+            Mesh::Rock,
+            &block(
+                v3(p.x, foot + h / 2 - int(1), p.z),
+                fwd,
+                v3(int(10), h, len * 7 / 5),
+            ),
+            match k {
+                1 => ROCK_MID[((seg + 1) % 3) as usize],
+                2 => ROCK_BAND,
+                _ => m::SANDSTONE_DARK,
+            },
+            0,
+        );
     }
 }
 
@@ -913,7 +994,23 @@ pub fn dynamic(
             ONE * 3 / 2,
             ONE * 3 / 2,
         )));
-        m::lizard(b, &f, m::lizard_phase(tick, i as u32), hue(l.colour));
+        if vivid {
+            // the colourblind mode: the lizard (a bouncer) goes pale and
+            // wears a white glow, so it reads off the greyed wall by
+            // brightness whatever its hue (step 13, RA-13)
+            let mut own = Batch::new();
+            m::lizard(&mut own, &f, m::lizard_phase(tick, i as u32), hue(l.colour));
+            own.restyle(|col, g| (col.map(|c| c / 2 + ONE / 2), g));
+            b.append(own);
+            b.push_halo(
+                Mesh::Sphere,
+                &placed(at.add(l.out.scale(cm(60))), 0, v3(int(3), int(3), int(3))),
+                LIZARD_GLOW_VIVID,
+                ONE / 3,
+            );
+        } else {
+            m::lizard(b, &f, m::lizard_phase(tick, i as u32), hue(l.colour));
+        }
     }
     for (i, _) in r.carts.iter().enumerate() {
         let (at, yaw) = r.cart_at(i, tick);
@@ -973,6 +1070,9 @@ pub fn dynamic(
             }
         }
     }
+    if let Some(s) = r.skull.as_ref().filter(|s| near(s.at, GLOWS_SEEN)) {
+        skull_lights(b, s, t);
+    }
     if near(r.finish.campfire, MOVERS_SEEN) {
         let at = r.finish.campfire;
         let toward = yaw_of(r.finish.sphinx.sub(at));
@@ -994,6 +1094,53 @@ pub fn dynamic(
         }
     }
 }
+
+/// The torches round the T-rex skull's mouth (the place is dark: the fin's
+/// hairpin, far from the moon): `SKULL_TORCHES` big torches on the fin's
+/// face either side of the skull, each with its pool of light, and a warm
+/// glow deep in the mouth and the hole behind it, so the teeth and the gap
+/// read from the approach (`ravinescape::skull_look` lights the bone).
+pub fn skull_lights(b: &mut Batch, s: &crate::ravine::Skull, t: u32) {
+    let out = crate::geom::facing(s.yaw, 0).neg();
+    let across = right_of(out);
+    for (k, &(side, up)) in SKULL_TORCHES.iter().enumerate() {
+        let wall = s.at.add(across.scale(side)).add(v3(0, up, 0));
+        let f = Affine::translate(wall.add(out.scale(cm(40))))
+            .then(&Affine::looking(out, V3::UP))
+            .then(&Affine::rot_x(-deg(25)))
+            .then(&Affine::scale(v3(ONE * 2, ONE * 2, ONE * 2)));
+        m::torch(b, &f, t, 900 + k as u32);
+        b.push_halo(
+            Mesh::Sphere,
+            &placed(
+                wall.add(out.scale(int(2))).add(v3(0, int(3), 0)),
+                0,
+                v3(int(8), int(8), int(8)),
+            ),
+            SKULL_FIRE,
+            ONE / 4,
+        );
+    }
+    for (deep, size, strength) in [(int(1), int(6), ONE / 3), (-int(10), int(5), ONE / 3)] {
+        b.push_halo(
+            Mesh::Sphere,
+            &placed(s.at.add(out.scale(deep)), 0, v3(size, size * 3 / 4, size)),
+            SKULL_FIRE,
+            strength,
+        );
+    }
+}
+
+/// The skull's torches: across the fin's face from the mouth's middle
+/// (past the skull's 6.5 m half width) and up from it.
+pub const SKULL_TORCHES: [(i32, i32); 4] = [
+    (-int(9), int(1)),
+    (int(9), int(1)),
+    (-int(10), -int(12)),
+    (int(10), -int(12)),
+];
+/// The torchlight's colour round the skull.
+const SKULL_FIRE: Rgb = rgb(255, 160, 70);
 
 #[cfg(test)]
 mod tests;
