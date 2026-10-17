@@ -216,8 +216,20 @@ def default_base():
         kind = cells[5] if len(cells) > 8 else ""
         ran_all = kind.startswith("quick") and re.search(r"tags [^)]*\ball\b", kind)
         if len(cells) > 8 and (kind.split(" ")[0] == "check" or ran_all) and cells[8] == "pass":
-            return cells[3].rstrip("+")
+            return newer_live(cells[3].rstrip("+"))
     sys.exit("no passing check row in notes/check-times.md: run the full check")
+
+
+def newer_live(passed):
+    """What is live (origin/main) when it comes after the last passing full
+    check: it was checked when it was deployed, so a deploy with an accepted
+    failure doesn't leave every later quick check diffing from before it and
+    running everything (2026-10-17)."""
+    live = subprocess.run(["git", "rev-parse", "--verify", "-q", "origin/main"], cwd=ROOT,
+                          capture_output=True, text=True).stdout.strip()
+    if live and subprocess.run(["git", "merge-base", "--is-ancestor", passed, live], cwd=ROOT).returncode == 0:
+        return live[:7]
+    return passed
 
 
 def changed_files(base, rng):

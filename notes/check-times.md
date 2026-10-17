@@ -49,3 +49,4 @@ One row per run of `scripts/timed-checks.sh`, newest last. Seconds per step; `lo
 | 2026-10-17 01:17 | 1.14.0 | 9192d6e | 7.68 | online (chromium+firefox+webkit) | release=6.1 transport=16.6 a=106.6 | 129.3 | pass |
 | 2026-10-17 09:17 | 1.14.0 | 8b79781 | 3.08 | check (chromium+firefox+webkit) | (stopped early) | - | FAIL (exit 101) |
 | 2026-10-17 09:18 | 1.14.0 | 8b79781 | 7.97 | online (chromium+firefox+webkit) | release=6.7 transport=17.6 a=128.0 | 152.3 | pass |
+| 2026-10-17 09:57 | 1.14.2 | 4b4b3cc | 11.59 | quick (chromium; tags ai, all, boundary, camera, costumes, items, maps-tower, menus, notes, online, page, physics, race, render, replay, sound, weather) | format=2.4 lint=11.3 list=29.8 core=4.9 | - | FAIL (exit 101) |
