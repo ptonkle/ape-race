@@ -11,14 +11,14 @@ The standard map-build steps (MAPS.md "Build steps"), one row each. Status is on
 | 5 | Sky and lighting | Done (v1) | Unchanged: Clear, Twilight, Dawn; the void past the portal |
 | 6 | Course layout | In progress (course agent, branch `tower2-course`) | the real vines, pads and lanes on the contract |
 | 7 | Map rules | In progress | Tube air (terminal 38 m/s, 3× control), pads, walls, resets per leg in `tower/rules.rs`, `stone.rs`; the sling untested until an AI finishes |
-| 8 | Art placed on the course | In progress (agent, branch `tower2-art`) | committed 19:33: all v2 models placed from the contract (TA2-1..); shots not taken yet |
-| 9 | Lobby spot and flyover | In progress (same agent) | lobby on the lower deck looking at tower 2; the flyover a closed lap over tower 1's top; tests not yet reported |
+| 8 | Art placed on the course | Done (on the stand-in) | merged `tower2-art`: every v2 model placed from the contract (TA2-1); the inside's sharing/caps can go once the course thins the rings (TA2-3); stipple bands on the walls and the void fog for the person to judge (TA2-8) |
+| 9 | Lobby spot and flyover | Done | lobby mid lower bridge looking to tower 2 (both towers can't fit one view: 380 m apart, fog at 330 m); flyover a closed stadium lap, no jump (TA2-5, TA2-6) |
 | 10 | AI validation | In progress (course agent, branch `tower2-course`) | Three of four levels finish in order; the Sloth 10 s short; the inside climb and the portal hand-over are the slow, fragile legs (TW2-12) |
 | 11 | Medal times | Not started | |
-| 12 | Step and frame cost | Not started | |
+| 12 | Step and frame cost | In progress | worst frame 5,355 shapes (v1 4,896; budget 5,500), driven by the stand-in's inside density (TA2-2); step cost not measured |
 | 13 | Colourblind and JOJO MODE | Not started | |
 | 14 | Map card | Not started | New card from the new flyover |
-| 15 | Screenshots at 1920×1080 | Not started | |
+| 15 | Screenshots at 1920×1080 | Done (first pass) | `notes/tower2-shots/` 21 shots: gallery, play, lobby, flyover; on the journal; retake after the course lands |
 | 16 | Other maps unchanged | Not started | |
 | 17 | Docs | Not started | |
 | 18 | Full checks | Not started | |
