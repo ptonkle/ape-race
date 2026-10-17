@@ -47,7 +47,7 @@ pub mod layout;
 #[cfg(test)]
 mod tests;
 
-pub use layout::{ravine, ravine_seeded};
+pub use layout::{ravine, ravine_seeded, ravine_upper_seeded};
 
 use crate::course::{Course, Mushroom};
 use crate::fx::{self, cm, ONE};
