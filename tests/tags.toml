@@ -178,6 +178,7 @@ tags = ["boundary"]
 "crates/core/tests/maps_unchanged.rs" = ["maps-city", "maps-ski", "maps-jungle"]
 # tools: clippy (always run) compiles them; no test runs them
 "crates/core/examples/**" = []
+"crates/core/examples/ravine_*.rs" = ["maps-ravine"]
 
 # data
 "data/strings.json" = ["menus"]

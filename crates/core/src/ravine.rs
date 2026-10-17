@@ -53,7 +53,7 @@ mod tests;
 pub use rules::{SNAKE_NO_GRAB, SNAKE_REGROW};
 pub use solids::{Solid, SolidKind, Solids, SolidsCache, ROOF_THICK};
 
-pub use layout::{ravine, ravine_seeded};
+pub use layout::{ravine, ravine_seeded, ravine_upper_seeded};
 
 use crate::course::{Course, Mushroom};
 use crate::fx::{self, cm, ONE};
