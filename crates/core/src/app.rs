@@ -441,6 +441,12 @@ pub struct App {
     replay_exit: Screen,
     /// Sector Ape's model gallery (`gallery.rs`), shown instead of all else
     gallery: Option<gallery::Gallery>,
+    /// The browser checks' fast mode (`?fast` on the page, `flag.fast`):
+    /// an offline race's start countdown is run through in one frame, so
+    /// a check need not sit through it. The same ticks run with the same
+    /// inputs, so the race and its replay are unchanged; only the wait
+    /// goes. Never on unless the page's address asks.
+    pub fast_mode: bool,
 }
 
 fn s(map: &BTreeMap<String, String>, key: &str) -> String {
@@ -494,6 +500,7 @@ impl App {
             stash: None,
             replay_exit: Screen::Title,
             gallery: None,
+            fast_mode: false,
         };
         // only the map the title flies over is built now; the others when
         // first chosen
@@ -761,6 +768,10 @@ impl App {
             self.preview_map(value);
             return;
         }
+        if id == "flag.fast" {
+            self.fast_mode = true;
+            return;
+        }
         if id == "flag.fly_at" {
             self.fly_from = int(value.parse::<i32>().unwrap_or(0).clamp(0, 5000));
             return;
@@ -839,6 +850,9 @@ impl App {
         if n == MAX_CATCH_UP {
             self.acc = 0;
         }
+        if self.fast_mode {
+            self.run_through_countdown();
+        }
         self.now_ms = now_us / 1000;
         self.online_frame();
         self.alpha = ((self.acc * ONE as i64) / TICK_COST) as i32;
@@ -854,6 +868,26 @@ impl App {
                 -dy * k
             };
             p.chase.turn(-dx * k, dpitch);
+        }
+    }
+
+    /// Fast mode: the rest of an offline race's countdown runs now, tick by
+    /// tick as it would have in real time (an online race keeps its shared
+    /// start, a replay and a paused race their own pace).
+    fn run_through_countdown(&mut self) {
+        let counting = |a: &App| {
+            a.play.as_ref().is_some_and(|p| {
+                matches!(p.race.phase, crate::race::Phase::Countdown(_))
+                    && p.replay.is_none()
+                    && !p.online
+                    && !p.paused
+                    && p.still.is_none()
+            })
+        };
+        let mut n = 0;
+        while counting(self) && n <= crate::race::COUNTDOWN {
+            self.tick();
+            n += 1;
         }
     }
 

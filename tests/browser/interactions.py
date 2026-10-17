@@ -10,6 +10,7 @@ import json
 import os
 import pathlib
 import time
+import urllib.parse
 
 STRINGS = json.loads((pathlib.Path(__file__).resolve().parents[2] / "data" / "strings.json").read_text())
 
@@ -38,6 +39,18 @@ def canvas_drawn(page):
         done(seen.size > 4);
     }))"""
     )
+
+
+def fast(page):
+    """Whether the page runs in the core's fast mode (`?fast`, check.py):
+    a race's start countdown is run through at once."""
+    return "fast" in urllib.parse.parse_qs(urllib.parse.urlparse(page.url).query, keep_blank_values=True)
+
+
+def seconds(clock):
+    """The HUD's race clock, "m:ss.cc", in seconds."""
+    m, s = clock.strip().split(":")
+    return int(m) * 60 + float(s)
 
 
 def chosen_map(page):
@@ -187,14 +200,29 @@ def step_time_trial(page, check):
     check("1:40.00" in text(page, "#hud-best"), "the HUD aims for Bronze first")
 
     # R twice quickly restarts (TRIAGE T7): the clock goes back to the countdown
-    page.wait_for_function(
-        "() => document.querySelector('#hud-time .v').innerText.trim() !== '0:00.00'",
-        timeout=30000,
-    )
-    page.keyboard.press("KeyR")
-    page.keyboard.press("KeyR")
-    page.wait_for_timeout(200)
-    check(text(page, "#hud-time .v") == "0:00.00", "R R restarts the Time Trial")
+    if fast(page):
+        # fast mode runs the new countdown through at once, so the clock is
+        # seen going back from a second in to the start, not resting there
+        page.wait_for_function(
+            "() => { const [m, s] = document.querySelector('#hud-time .v').innerText.trim().split(':');"
+            " return m * 60 + +s >= 1; }",
+            timeout=30000,
+        )
+        before = seconds(text(page, "#hud-time .v"))
+        page.keyboard.press("KeyR")
+        page.keyboard.press("KeyR")
+        page.wait_for_timeout(200)
+        after = seconds(text(page, "#hud-time .v"))
+        check(after < 0.5 <= before - 0.5, f"R R restarts the Time Trial (the clock {before} s -> {after} s, fast mode)")
+    else:
+        page.wait_for_function(
+            "() => document.querySelector('#hud-time .v').innerText.trim() !== '0:00.00'",
+            timeout=30000,
+        )
+        page.keyboard.press("KeyR")
+        page.keyboard.press("KeyR")
+        page.wait_for_timeout(200)
+        check(text(page, "#hud-time .v") == "0:00.00", "R R restarts the Time Trial")
     check(page.evaluate("document.body.dataset.screen") == "race", "without leaving the race")
     page.keyboard.press("Escape")
     page.wait_for_selector("[id='menu.quit']", timeout=5000)

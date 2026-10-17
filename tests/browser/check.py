@@ -42,6 +42,9 @@ ROOT = pathlib.Path(__file__).resolve().parents[2]
 DIST = ROOT / "dist"
 ENGINES = os.environ.get("BUILDER_ENGINES", "chromium firefox webkit").split()
 IDLE_MS = int(float(os.environ.get("BUILDER_IDLE", "10")) * 1000)
+# The page opens in the core's fast mode (`?fast`: no wait through a race's
+# start countdown) unless BUILDER_FAST=0 asks for the players' timing.
+FAST = "" if os.environ.get("BUILDER_FAST") == "0" else "?fast"
 
 failures = []
 report = None  # tests/browser/progress.py: the bars or the plain lines
@@ -115,7 +118,7 @@ def run_engine(p, engine, base, interactions):
     page.on("worker", lambda w: seen["workers"].append(w.url))
     page.on("popup", lambda pg: seen["popups"].append(pg.url))
 
-    page.goto(base + "/index.html")
+    page.goto(base + "/index.html" + FAST)
     page.wait_for_selector("body[data-ready='true']", timeout=20000)
     check(True, "page reported ready")
     print(f"  WebGL: {engines.renderer(page)}")

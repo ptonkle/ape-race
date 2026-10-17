@@ -878,6 +878,8 @@ async function start() {
   if (map) game.act("flag.map", map);
   const at = new URLSearchParams(location.search).get("at");
   if (at) game.act("flag.fly_at", at);
+  // `?fast`: the browser checks' fast mode (the core's `fast_mode`), never set for players
+  if (new URLSearchParams(location.search).has("fast")) game.act("flag.fast", "");
   // `?tile=<spec>`: a home-page screenshot, held still (scripts/tiles.py)
   const tile = new URLSearchParams(location.search).get("tile");
   if (tile) game.act("screen.tile", tile);

@@ -148,3 +148,69 @@ fn r_twice_quickly_restarts_but_once_or_slowly_does_not() {
     let p = a.play.as_ref().unwrap();
     assert!(p.trial && p.race.tick == 0);
 }
+
+/// A race started, then `frames` 60 Hz frames with W held throughout.
+fn raced(fast: bool, frames: i64) -> App {
+    let mut a = app();
+    if fast {
+        a.act("flag.fast", "");
+    }
+    a.act("menu.race", "");
+    a.act("setup.opponents", "2");
+    a.act("menu.start", "");
+    a.key("KeyW", true);
+    a.advance(0);
+    for k in 1..=frames {
+        a.advance(k * 16_667);
+    }
+    a
+}
+
+#[test]
+fn fast_mode_is_off_unless_asked() {
+    assert!(!app().fast_mode);
+    let a = raced(false, 1);
+    assert!(matches!(
+        a.play.unwrap().race.phase,
+        crate::race::Phase::Countdown(_)
+    ));
+}
+
+#[test]
+fn fast_mode_runs_through_the_countdown_and_leaves_the_race_unchanged() {
+    // one frame in, the countdown is over: no wait for Go
+    let a = raced(true, 1);
+    assert_eq!(
+        a.play.as_ref().unwrap().race.phase,
+        crate::race::Phase::Running
+    );
+    // the same ticks in real time give the same race, tick for tick
+    let slow = raced(false, 600);
+    let go = crate::race::COUNTDOWN as u32;
+    let mut fast = raced(true, 1);
+    let at = slow.play.as_ref().unwrap().race.tick;
+    let mut k = 2;
+    while fast.play.as_ref().unwrap().race.tick < at {
+        fast.advance(k * 16_667);
+        k += 1;
+    }
+    let (s, f) = (
+        &slow.play.as_ref().unwrap().race,
+        &fast.play.as_ref().unwrap().race,
+    );
+    assert!(at > go + 240, "{at}");
+    assert_eq!(s.tick, f.tick);
+    for (x, y) in s.racers.iter().zip(&f.racers) {
+        assert_eq!((x.ape.pos, x.ape.vel), (y.ape.pos, y.ape.vel), "{}", x.name);
+    }
+    let rec = |a: &App| {
+        a.play
+            .as_ref()
+            .unwrap()
+            .record
+            .as_ref()
+            .map(|r| r.controls.clone())
+    };
+    assert!(rec(&slow).is_some());
+    assert_eq!(rec(&slow), rec(&fast));
+}
