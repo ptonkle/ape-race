@@ -38,6 +38,7 @@ maps-ruins = "Sunset Ruins"
 maps-bay = "Banana Bay Battle"
 maps-tower = "Mape's Tower (the wizard tower)"
 maps-ravine = "Rattlesnake Ravine (the slot canyon)"
+art-ravine = "Rattlesnake Ravine's art alone (its sky and light: ravinescape's own files)"
 
 # Tags whose tests always run in a quick check.
 [always]
@@ -154,6 +155,7 @@ tags = ["boundary"]
 "crates/core/src/ravinemodels.rs" = ["maps-ravine", "render"]
 "crates/core/src/ravinemodels/**" = ["maps-ravine", "render"]
 "crates/core/src/ravinescape.rs" = ["maps-ravine", "render"]
+"crates/core/src/ravinescape/**" = ["art-ravine"]
 "crates/core/src/towermodels.rs" = ["maps-tower", "render"]
 "crates/core/src/towermodels/**" = ["maps-tower", "render"]
 
@@ -329,6 +331,7 @@ tags = ["boundary"]
 "lib:replay::" = ["replay", "race"]
 "lib:ravine::" = ["maps-ravine", "physics", "race", "camera", "maps-jungle"]
 "lib:ravinemodels::" = ["maps-ravine", "render"]
+"lib:ravinescape::" = ["art-ravine", "maps-ravine", "render"]
 "lib:ruins::" = ["maps-ruins", "physics"]
 "lib:ruinsmodels::" = ["maps-ruins", "render"]
 "lib:ruinsscape::" = ["maps-ruins", "render"]

@@ -147,15 +147,19 @@ pub fn look_of(c: &Course) -> Look {
         Map::Bay => crate::bayscape::look_for(c),
         // a golden late afternoon (the frame takes `look_in`: by height)
         Map::Tower => crate::towerscape::look(),
-        // STAND-IN (Rattlesnake Ravine's skeleton): a plain night
-        Map::Ravine => crate::ravinescape::look(),
+        // a moonlit night, the moon low ahead of the start
+        Map::Ravine => crate::ravinescape::look_for(c),
     }
 }
 
 /// The look for an eye at `eye` on a course: `look_of`, except on Sunset
 /// Ruins, where it darkens past the temple's mouth and is skylit in the
-/// chamber.
+/// chamber, and on Rattlesnake Ravine, lit warm in the mine tunnel, teal in
+/// the caves and opening out on the mesa.
 pub fn look_at(c: &Course, eye: V3) -> Look {
+    if let Some(r) = &c.ravine {
+        return crate::ravinescape::look_at(c, r, eye);
+    }
     match &c.ruins {
         Some(r) => crate::ruinsscape::look_at(c, r, eye),
         None => look_of(c),
@@ -1529,6 +1533,22 @@ pub fn vine_look_on(map: Map, in_reach: bool, vivid: bool, tick: u32) -> VineLoo
             glow: crate::bayscape::fleet::ROPE_GLOW_VIVID,
             ..look
         },
+        // Rattlesnake Ravine's vines: a pale moss green, glowing softly
+        // against the red-orange walls under the moon (step 5)
+        (Map::Ravine, false, false) => VineLook {
+            colour: crate::ravinescape::VINE,
+            glow: ONE / 2,
+            halo: look.width * crate::ravinescape::VINE_HALO,
+            ..look
+        },
+        (Map::Ravine, false, true) => VineLook {
+            halo: look.width * crate::ravinescape::VINE_HALO,
+            ..look
+        },
+        (Map::Ravine, true, _) => VineLook {
+            halo: look.width * crate::ravinescape::VINE_HALO,
+            ..look
+        },
         // Mape's Tower: spell beams with a soft glow (their colour is the
         // caster's spell, `towerscape::beam_vine`)
         (Map::Tower, false, false) => VineLook {
@@ -1967,9 +1987,8 @@ pub fn catch_up_colour(map: Map, vivid: bool) -> Rgb {
         // Mape's Tower: a deep crimson, apart from every spell beam (the
         // stand-in's hot orange was the fire beam's colour, TL3)
         (Map::Tower, false) => rgb(230, 20, 30),
-        // STAND-IN (Rattlesnake Ravine's skeleton): a bright cyan against
-        // its Jungle-green vines; the art agent chooses against its real
-        // vines and the night
+        // Rattlesnake Ravine: a bright cyan against its pale moss-green
+        // vines, the red walls and the night
         (Map::Ravine, false) => rgb(40, 230, 255),
         // the colourblind mode (TRIAGE T33): told from the map's vivid
         // vine by brightness, not hue alone, and kept off the item flowers'

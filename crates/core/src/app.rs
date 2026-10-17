@@ -1807,6 +1807,16 @@ impl App {
                     );
                     batch.append(own);
                 }
+                // Rattlesnake Ravine's night: its dome, stars, Milky Way,
+                // moon and the glows' pools of light
+                if let Some(r) = &c.ravine {
+                    let mut own = Batch::new();
+                    crate::ravinescape::dynamic(&mut own, c, r, cam.eye, self.ticks);
+                    crate::bayscape::follow(
+                        &mut own, colours.0, look.sky, world.0, world.1[0], vivid,
+                    );
+                    batch.append(own);
+                }
             }
         }
         if self.snowing() {
