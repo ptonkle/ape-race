@@ -2,7 +2,9 @@
 //! 3D centreline leg by leg and its placement.
 //!
 //! The legs (`LEGS`), each a straight or a turn with its rise, start
-//! facing −x off the start deck at tower 1's foot: the run under the
+//! off the start deck at tower 1's foot on its side away from tower 2:
+//! half a turn round tower 1's outside, rising (T97, from balcony mages
+//! as round tower 2), on past its side facing −x, then the run under the
 //! lower bridge (two old spirals long), a corner onto the spiral round
 //! tower 2 (one full turn at `R2`, plus the quarter corners either end:
 //! a turn and a half of turning in all), a corner off it under the upper
@@ -54,27 +56,47 @@ pub struct Climb(pub i32, pub i32, pub i32);
 /// The course's legs, in order, each tagged with the leg of the race it
 /// belongs to.
 pub const LEGS: &[(Leg, Climb)] = &[
-    (Leg::Start, Climb(30, 0, 0)),        // 0 the run-in off the start deck
-    (Leg::LowerBridge, Climb(250, 0, 4)), // 1 under the lower bridge
-    (Leg::Tower2, Climb(50, -90, 8)),     // 2 the corner onto the spiral
-    (Leg::Tower2, Climb(390, 360, 100)),  // 3 round tower 2
-    (Leg::Tower2, Climb(50, -90, 8)),     // 4 the corner off it
-    (Leg::UpperBridge, Climb(250, 0, 4)), // 5 under the upper bridge
-    (Leg::Inside, Climb(100, 0, 6)),      // 6 on through the doorway to the axis
-    (Leg::Inside, Climb(150, 0, 150)),    // 7 straight up tower 1's axis
-    (Leg::Portal, Climb(105, 0, 23)), // 8 straight out over the far rim, through the tear (T100: 15 m longer, so the wider tube stands wholly past the tear)
-    (Leg::Tube, Climb(280, 0, -280)), // 9 straight down the tube
-    (Leg::Sling, Climb(40, 0, -24)),  // 10 the bend into the mouth
-    (Leg::Tunnel, Climb(70, 0, 0)),   // 11 the tunnel to the finish
+    (Leg::Start, Climb(20, 0, 0)), // 0 the run-in off the start deck, square to tower 1
+    (Leg::Tower1, Climb(166, 135, 24)), // 1 3/8 of a turn up round tower 1 (T97)
+    (Leg::Tower1, Climb(98, -90, 4)), // 2 the corner off it onto the lower bridge
+    (Leg::LowerBridge, Climb(LOWER_RUN, 0, 4)), // 3 under the lower bridge
+    (Leg::Tower2, Climb(50, -90, 8)), // 4 the corner onto the spiral
+    (Leg::Tower2, Climb(390, 360, 100)), // 5 round tower 2
+    (Leg::Tower2, Climb(50, -90, 8)), // 6 the corner off it
+    (Leg::UpperBridge, Climb(250, 0, 4)), // 7 under the upper bridge
+    (Leg::Inside, Climb(100, 0, 6)), // 8 on through the doorway to the axis
+    (Leg::Inside, Climb(150 - T1_RISE, 0, 150 - T1_RISE)), // 9 straight up tower 1's axis (shorter by the opening's rise: the rim stays put)
+    (Leg::Portal, Climb(105, 0, 23)), // 10 straight out over the far rim, through the tear (T100: 15 m longer, so the wider tube stands wholly past the tear)
+    (Leg::Tube, Climb(280, 0, -280)), // 11 straight down the tube
+    (Leg::Sling, Climb(40, 0, -24)),  // 12 the bend into the mouth
+    (Leg::Tunnel, Climb(70, 0, 0)),   // 13 the tunnel to the finish
 ];
+/// The opening round tower 1's outside rises this many metres (T97: its
+/// spiral and corner); the shaft up its axis is that much shorter, so its
+/// rim stays at `H1`.
+const T1_RISE: i32 = 28;
+/// The run under the lower bridge from the corner off tower 1: the line
+/// joins it 63 m along from tower 1's side (the first design's run-in and
+/// lower leg were 280 m from tower 1's foot), so tower 1's axis stays the
+/// opening's turning centre.
+const LOWER_RUN: i32 = 218;
 /// The legs' indices.
-const SPIRAL: usize = 3;
-const SHAFT: usize = 7;
-const PORTAL: usize = 8;
-const TUBE: usize = 9;
-const BEND: usize = 10;
-/// The start faces −x (toward tower 2).
-const START_YAW: i32 = -TURN / 4;
+const T1_SPIRAL: usize = 1;
+const LOWER: usize = 3;
+const SPIRAL: usize = 5;
+const UPPER: usize = 7;
+const SHAFT: usize = 9;
+const PORTAL: usize = 10;
+const TUBE: usize = 11;
+const BEND: usize = 12;
+/// The start faces along tower 1's wall (tower 1 on its left), on the side
+/// away from tower 2 and short of the tube (T97). The tube stands 12 m off
+/// tower 1's wall on its far side (T100), so the opening cannot pass it:
+/// it goes round the side away from the bridges and tower 2's (3/8 of a
+/// turn, 70 m from the axis, 19 m off the wall as round tower 2), then a
+/// corner the other way (63 m radius: the lower bridge runs 63 m off
+/// tower 1's axis) puts it under the lower bridge facing −x.
+const START_YAW: i32 = -TURN * 3 / 8;
 
 /// Tower 2's radius (the old keep's, `towermodels::TOWER2_RADIUS`) and how far outside its wall
 /// the spiral runs (the old keep's gap).
@@ -363,7 +385,6 @@ pub fn tower_seeded(seed: u64) -> Course {
     c.start_yaw = START_YAW;
     // the start row, as the Jungle's: just past the deck's edge, to a
     // metre over it
-    // (hung from the lower bridge's underside: TW2-4)
     for k in -2..=2 {
         let at = int(15);
         let base = c.point(at).add(right.scale(int(3) * k));
@@ -385,12 +406,12 @@ pub fn tower_seeded(seed: u64) -> Course {
     let t2_centre = v3(c2.x, 0, c2.z);
     let t1_centre = v3(c1.x, 0, c1.z);
     let t2_radius = R2;
-    let upper_end = c.point(leg_at(5 + 1));
+    let upper_end = c.point(leg_at(UPPER + 1));
     let t2_height = upper_end.y + ANCHOR_OVER + BRIDGE_THICK + CROWN_OVER;
 
     // the doorway: where the upper bridge's line meets tower 1's wall
     let door_at = {
-        let from = leg_at(5);
+        let from = leg_at(UPPER);
         let to = leg_at(SHAFT);
         let mut s = from;
         while s < to && c.point(s).flat().sub(t1_centre.flat()).longer_than(R1) {
@@ -423,13 +444,21 @@ pub fn tower_seeded(seed: u64) -> Course {
     };
     // (the deck's underside a body's clearance over the anchors)
     let deck_over = ANCHOR_OVER + BRIDGE_THICK + DECK_CLEAR;
-    let lower_dir = flat(c.heading_at(leg_at(1)));
-    let lower_from = wall_hit(c.point(int(4)), lower_dir.neg(), t1_centre, R1);
-    let lower_to = wall_hit(c.point(leg_at(1)), lower_dir, t2_centre, t2_radius);
-    let upper_dir = flat(c.heading_at(leg_at(5)));
+    let lower_dir = flat(c.heading_at(leg_at(LOWER)));
+    // (from beside tower 1, abreast of its axis: the line under the deck
+    // runs past its side 12 m off the wall, and the corner off the opening
+    // comes under the deck's far end)
+    let lower_from = {
+        let p = c.point(leg_at(LOWER));
+        let back = lower_dir.neg();
+        let foot = p.add(back.scale(t1_centre.flat().sub(p.flat()).dot(back)));
+        wall_hit(foot, lower_dir.neg(), t1_centre, R1)
+    };
+    let lower_to = wall_hit(c.point(leg_at(LOWER)), lower_dir, t2_centre, t2_radius);
+    let upper_dir = flat(c.heading_at(leg_at(UPPER)));
     let upper_from = wall_hit(door_p, upper_dir.neg(), t2_centre, t2_radius);
     let mut bridges = Vec::new();
-    let lower_end = c.point(leg_at(2));
+    let lower_end = c.point(leg_at(LOWER + 1));
     for (from, to, high) in [
         (lower_from, lower_to, lower_end.y),
         (upper_from, door_p, door_p.y),
@@ -455,14 +484,17 @@ pub fn tower_seeded(seed: u64) -> Course {
     }
 
     // the balconies and their mages: one on tower 2's wall facing each
-    // station of the spiral, a few metres under its beams; inside tower 1
-    // the inner balconies the inside beams are cast from
+    // station of the spiral, a few metres under its beams, and on tower
+    // 1's outside facing each of the opening's (T97); inside tower 1 the
+    // inner balconies the inside beams are cast from
     let mut balconies: Vec<Balcony> = Vec::new();
     let mut balcony_for = |p: V3, y: i32, tower: usize, inside: bool| -> usize {
         let (o, r) = if tower == 1 {
             (t2_centre, t2_radius)
-        } else {
+        } else if inside {
             (t1_centre, R1 - WALL_THICK)
+        } else {
+            (t1_centre, R1)
         };
         let out = if inside {
             o.flat().sub(p.flat()).norm()
@@ -544,21 +576,22 @@ pub fn tower_seeded(seed: u64) -> Course {
                 }
             } else if v.anchor.y >= clouds.bottom && v.anchor.y <= clouds.top + int(10) {
                 Hanger::Cloud { band: 0 }
-            } else if lane > 0 && station % 3 == 0 || leg != SPIRAL {
-                // a dragon outside the spiral, and on the corners
+            } else if lane > 0 && station % 3 == 0 || (leg != SPIRAL && leg != T1_SPIRAL) {
+                // a dragon outside the spirals, and on the corners
                 Hanger::Dragon {
                     at: v.anchor.add(r.scale(int(9))).add(v3(0, int(4), 0)),
                 }
             } else {
+                let tower = if leg == T1_SPIRAL { 0 } else { 1 };
                 Hanger::Mage {
-                    balcony: balcony_for(bottom, v.anchor.y - int(4), 1, false),
+                    balcony: balcony_for(bottom, v.anchor.y - int(4), tower, false),
                 }
             };
             c.vines.push(v);
             hangers.push(hanger);
-            // (only the spiral's beams lift: under the level bridges a
+            // (only the spirals' beams lift: under the level bridges a
             // lift only carries an ape over the next beams)
-            lifts.push(tag == Leg::Tower2);
+            lifts.push(tag == Leg::Tower2 || leg == T1_SPIRAL);
             hangs.push(DOWN);
         }
     }

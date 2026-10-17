@@ -117,6 +117,9 @@ pub const CLIMB_LIFT: i32 = int(3);
 pub enum Leg {
     /// the run-in off the start deck at tower 1's foot
     Start,
+    /// half a turn up round the outside of tower 1, then on past its side
+    /// to the lower bridge (T97)
+    Tower1,
     /// under the lower bridge, tower 1 to tower 2
     LowerBridge,
     /// up and round the outside of tower 2

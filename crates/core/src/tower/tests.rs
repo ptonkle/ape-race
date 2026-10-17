@@ -63,6 +63,7 @@ fn the_centreline_runs_the_legs_in_order_and_climbs_then_falls() {
         order,
         vec![
             Leg::Start,
+            Leg::Tower1,
             Leg::LowerBridge,
             Leg::Tower2,
             Leg::UpperBridge,
@@ -174,7 +175,13 @@ fn along_the_course_tells_the_climbs_apart_by_height() {
     let c = tower();
     let t = c.tower.as_deref().unwrap();
     let t1 = &t.towers[0];
-    let from = (t.leg_start(Leg::Inside, c.length) / STEP) as usize + 80;
+    // (from 40 m up the axis: the shaft's length follows the opening's
+    // rise, T97)
+    let inside = (t.leg_start(Leg::Inside, c.length) / STEP) as usize;
+    let on_axis = (inside..)
+        .find(|&k| c.path[k].flat().sub(t1.centre.flat()).len() < int(1))
+        .unwrap();
+    let from = on_axis + 20;
     let to = (t.leg_start(Leg::Portal, c.length) / STEP) as usize - 10;
     for k in [from, (from + to) / 2, to] {
         // (the sample is on the axis)
@@ -954,4 +961,70 @@ fn the_portal_beams_by_the_wall_hang_clear_over_the_rim() {
             }
         }
     }
+}
+
+/// T97: "the spawn should be moved so that you climb around tower 1 at the
+/// beginning a bit". Before the lower bridge the line goes round tower 1's
+/// outside, the tower on the inside of the turn: from the start deck it
+/// sweeps over a third of a turn round tower 1's axis, between 12 and 25 m
+/// off its wall, rising over 20 m, under beams cast from mages on balconies
+/// on tower 1's outside; the start deck and its row stand by tower 1.
+#[test]
+fn the_course_climbs_round_tower_1_before_the_lower_bridge() {
+    let c = tower();
+    let t = c.tower.as_deref().unwrap();
+    let t1 = &t.towers[0];
+    let order: Vec<Leg> = t.legs.iter().take(3).map(|l| l.leg).collect();
+    assert_eq!(order, [Leg::Start, Leg::Tower1, Leg::LowerBridge]);
+    let from = t.leg_start(Leg::Tower1, c.length);
+    let to = t.leg_start(Leg::LowerBridge, c.length);
+    let off = |s: i32| c.point(s).flat().sub(t1.centre.flat());
+    // the sweep round the axis while the line hugs the wall
+    let (mut swept, mut last, mut top) = (0i64, None, 0);
+    let mut s = from;
+    while s < to {
+        let d = off(s);
+        let gap = d.len() - t1.radius;
+        if gap < int(25) {
+            assert!(
+                gap > int(12),
+                "{} m along: {} m off tower 1's wall",
+                s / ONE,
+                gap / ONE
+            );
+            let yaw = crate::geom::yaw_of(d);
+            if let Some(y) = last {
+                swept += (yaw.wrapping_sub(y) as i64 + fx::TURN as i64 / 2)
+                    .rem_euclid(fx::TURN as i64)
+                    - fx::TURN as i64 / 2;
+            }
+            last = Some(yaw);
+            top = s;
+        }
+        s += STEP;
+    }
+    let swept = swept.abs() * 360 / fx::TURN as i64;
+    assert!(swept >= 120, "the line goes {swept} deg round tower 1");
+    let rise = c.point(top).y - c.point(from).y;
+    assert!(rise > int(20), "it rises {} m round tower 1", rise / ONE);
+    // the start deck by tower 1's foot, the starters on it
+    let deck = c.platforms[0];
+    let gap = deck.centre.flat().sub(t1.centre.flat()).len() - t1.radius;
+    assert!(
+        gap > int(12) && gap < int(30),
+        "the start deck {} m off tower 1",
+        gap / ONE
+    );
+    for p in c.starts {
+        assert_eq!(c.support(p), deck.top, "a starter off the deck");
+    }
+    // its beams cast by mages on tower 1's outside
+    let mages = (0..c.vines.len())
+        .filter(|&i| {
+            t.leg_at(c.vines[i].at) == Leg::Tower1
+                && matches!(t.hangers[i], Hanger::Mage { balcony }
+                    if t.balconies[balcony].tower == 0 && !t.balconies[balcony].inside)
+        })
+        .count();
+    assert!(mages >= 6, "{mages} beams cast from tower 1's outside");
 }
