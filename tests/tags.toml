@@ -22,7 +22,24 @@ items = "item crates, thrown things, summoned vines, boosts"
 menus = "screens, settings, Race Setup, the HUD and speedometer, strings"
 notes = "What's New: the patch notes and their screen"
 camera = "the race camera, focus, spectating, the lobby camera"
-render = "meshes, models, scenery, sky, shaders: what is drawn"
+render = "the drawing's core: mesh.rs, render.rs, scene.rs, shaders, gl.js. Hitting it hits models, gear, sky and scenery too ([implies])"
+models = "ape and animal meshes and poses (models.rs, the jaguars, the dance)"
+gear = "outfit meshes: each map's gear and the costumes' clothes (tourist, wizard, explorer, pirate, space, ski)"
+sky = "sky, light, fog and each look's colours (sky.rs)"
+hud = "the race HUD: place, time, best, minimap, flashes, the speedometer"
+setup = "the Race Setup and Time Trial setup screens"
+settings = "the Settings screen and the title's secret"
+results = "the pause menu, the results, the medal table"
+hype = "the hype meter and its calls"
+trial = "Time Trial's rules and targets"
+medals = "each map's medal times (app/medals.rs)"
+lava = "Floor is Lava: the jaguar's timings and eating"
+vines = "the drawn vines' bending (vinesim.rs: drawing only, no race reads it)"
+icon = "the tab icon"
+dock = "the menus' dock beside the previewed ape and its camera"
+gallery = "the model gallery (a viewer for pictures)"
+tiles = "the home page's tiles (?tile=)"
+scenery = "a map's drawn scenery and props (*scape.rs, *models.rs of a map); its maps-* tag carries it too"
 sound = "the synthesiser and its cues"
 replay = "replays, ghosts, saved runs"
 online = "online play: lobby, protocol, transport"
@@ -38,7 +55,21 @@ maps-ruins = "Sunset Ruins"
 maps-bay = "Banana Bay Battle"
 maps-tower = "Mape's Tower (the wizard tower)"
 maps-ravine = "Rattlesnake Ravine (the slot canyon)"
+# a map's art: its scenery and model files. Carried by that map's drawing,
+# scene and scenery tests, not its AI, physics or course tests (a mesh
+# change cannot move a racer). Narrow: it runs a map's test on its own.
+art-city = "the City's scenery and vehicles (cityscape.rs, vehicles.rs)"
+art-ski = "the Ski Slope's scenery (skiscape.rs; vehicles.rs's snowcats)"
+art-sector = "Sector Ape's scenery and craft (sectorscape.rs, spacecraft.rs's drawing)"
+art-ruins = "Sunset Ruins' scenery and models (ruinsscape.rs, ruinsmodels.rs)"
+art-bay = "Banana Bay Battle's scenery and ships (bayscape/, baymodels.rs)"
+art-tower = "Mape's Tower's scenery and models (towerscape/, towermodels/)"
 art-ravine = "Rattlesnake Ravine's art alone (its sky and light: ravinescape's own files)"
+
+# A hit tag on the left also hits the tags on the right: a change to the
+# drawing's core can break any drawn thing.
+[implies]
+render = ["models", "gear", "sky", "scenery", "vines"]
 
 # Tags whose tests always run in a quick check.
 [always]
@@ -73,16 +104,18 @@ tags = ["boundary"]
 # core modules
 "crates/core/src/ape.rs" = ["physics"]
 "crates/core/src/ape/tests.rs" = ["physics"]
-"crates/core/src/ape/space.rs" = ["physics", "maps-sector"]
+"crates/core/src/ape/space.rs" = ["maps-sector"]
 "crates/core/src/ape/ski_tests.rs" = ["physics", "maps-ski"]
-"crates/core/src/vinesim.rs" = ["physics", "render"]
+"crates/core/src/vinesim.rs" = ["vines"]
 "crates/core/src/rules.rs" = ["physics", "race"]
 "crates/core/src/ai.rs" = ["ai"]
 "crates/core/src/race.rs" = ["race"]
-"crates/core/src/trial.rs" = ["race"]
-"crates/core/src/hype.rs" = ["race", "sound"]
-"crates/core/src/dance.rs" = ["race", "render"]
-"crates/core/src/jaguar.rs" = ["race", "render"]
+"crates/core/src/trial.rs" = ["trial"]
+"crates/core/src/hype.rs" = ["hype"]
+# the dance and the flame jaguar are drawn, not raced: a mesh change cannot
+# break a race's flow (the jaguar's timings are race rules, so it keeps race)
+"crates/core/src/dance.rs" = ["models"]
+"crates/core/src/jaguar.rs" = ["lava", "models"]
 "crates/core/src/items.rs" = ["items"]
 "crates/core/src/items/**" = ["items"]
 "crates/core/src/camera.rs" = ["camera"]
@@ -92,15 +125,15 @@ tags = ["boundary"]
 "crates/core/src/render.rs" = ["render"]
 "crates/core/src/see.rs" = ["camera", "render"]
 "crates/core/src/mesh.rs" = ["render"]
-"crates/core/src/models.rs" = ["render"]
-"crates/core/src/models/tourist.rs" = ["render", "costumes", "maps-city"]
-"crates/core/src/models/wizard.rs" = ["render", "costumes"]
-"crates/core/src/models/flame.rs" = ["render", "race"]
-"crates/core/src/models/cowboy.rs" = ["render", "costumes"]
-"crates/core/src/models/spider.rs" = ["render", "race"]
-"crates/core/src/sky.rs" = ["render"]
-"crates/core/src/icon.rs" = ["menus"]
-"crates/core/src/speedo.rs" = ["menus"]
+"crates/core/src/models.rs" = ["models"]
+"crates/core/src/models/tourist.rs" = ["gear"]
+"crates/core/src/models/wizard.rs" = ["gear"]
+"crates/core/src/models/cowboy.rs" = ["gear"]
+"crates/core/src/models/spider.rs" = ["models"]
+"crates/core/src/models/flame.rs" = ["models"]
+"crates/core/src/sky.rs" = ["sky"]
+"crates/core/src/icon.rs" = ["icon"]
+"crates/core/src/speedo.rs" = ["hud"]
 "crates/core/src/patch_notes.rs" = ["notes"]
 "crates/core/src/sound.rs" = ["sound"]
 "crates/core/src/replay.rs" = ["replay"]
@@ -109,14 +142,14 @@ tags = ["boundary"]
 "crates/core/src/snow.rs" = ["weather", "maps-ski"]
 # the app: the hub of screens. Its own file touches most features but not
 # the bodies, the AI or a map's build
-"crates/core/src/app.rs" = ["menus", "race", "items", "camera", "replay", "costumes", "weather", "sound", "online"]
+"crates/core/src/app.rs" = ["menus", "race", "items", "camera", "replay", "online"]
 "crates/core/src/app/online_play.rs" = ["online"]
 "crates/core/src/app/online_play_tests.rs" = ["online"]
 "crates/core/src/app/call_tests.rs" = ["sound", "race", "menus", "replay"]
-"crates/core/src/app/menu_dock.rs" = ["menus", "camera"]
-"crates/core/src/app/gallery.rs" = ["menus", "render"]
-"crates/core/src/app/medals.rs" = ["race", "menus"]
-"crates/core/src/app/tile.rs" = ["menus", "render"]
+"crates/core/src/app/menu_dock.rs" = ["dock", "camera"]
+"crates/core/src/app/gallery.rs" = ["gallery"]
+"crates/core/src/app/medals.rs" = ["medals"]
+"crates/core/src/app/tile.rs" = ["tiles"]
 "crates/core/src/app/costume_tests.rs" = ["costumes"]
 "crates/core/src/app/items_hype_tests.rs" = ["items"]
 "crates/core/src/app/lava_tests.rs" = ["race"]
@@ -127,45 +160,67 @@ tags = ["boundary"]
 "crates/core/src/app/ski_camera_tests.rs" = ["camera"]
 "crates/core/src/app/spectate_tests.rs" = ["camera"]
 "crates/core/src/app/weather_tests.rs" = ["weather"]
+"crates/core/src/app/race_tests.rs" = ["race"]
+"crates/core/src/app/sound_tests.rs" = ["sound"]
+"crates/core/src/app/settings_tests.rs" = ["settings"]
+"crates/core/src/app/hud_tests.rs" = ["hud"]
+"crates/core/src/app/view_tests.rs" = ["render"]
+"crates/core/src/app/trial_tests.rs" = ["trial"]
+"crates/core/src/app/replay_tests.rs" = ["replay"]
+# app.rs's domains, split out (2026-10-17): app.rs keeps the struct, input,
+# screens, `act`, the clock and `ui`
+"crates/core/src/app/audio.rs" = ["sound"]
+"crates/core/src/app/costumes.rs" = ["costumes"]
+"crates/core/src/app/hud.rs" = ["hud"]
+"crates/core/src/app/items.rs" = ["items"]
+"crates/core/src/app/menus.rs" = ["menus"]
+"crates/core/src/app/notes.rs" = ["notes"]
+"crates/core/src/app/race.rs" = ["race"]
+"crates/core/src/app/replays.rs" = ["replay", "camera"]
+"crates/core/src/app/results.rs" = ["results"]
+"crates/core/src/app/setup.rs" = ["setup"]
+"crates/core/src/app/spectate.rs" = ["camera"]
+"crates/core/src/app/view.rs" = ["render"]
+"crates/core/src/app/weather.rs" = ["weather"]
 
 # maps
 "crates/core/src/course.rs" = ["maps-jungle"]
 "crates/core/src/city.rs" = ["maps-city"]
 "crates/core/src/city/**" = ["maps-city"]
-"crates/core/src/cityscape.rs" = ["maps-city", "render"]
-"crates/core/src/vehicles.rs" = ["maps-city", "render"]
+"crates/core/src/cityscape.rs" = ["art-city", "scenery"]
+"crates/core/src/vehicles.rs" = ["art-city", "art-ski", "scenery"]
 "crates/core/src/ski.rs" = ["maps-ski"]
 "crates/core/src/ski/**" = ["maps-ski"]
-"crates/core/src/skiscape.rs" = ["maps-ski", "render"]
+"crates/core/src/skiscape.rs" = ["art-ski", "scenery"]
 "crates/core/src/sector.rs" = ["maps-sector"]
 "crates/core/src/sector/**" = ["maps-sector"]
-"crates/core/src/sectorscape.rs" = ["maps-sector", "render"]
-"crates/core/src/spacecraft.rs" = ["maps-sector", "render"]
+"crates/core/src/sectorscape.rs" = ["art-sector", "scenery"]
+"crates/core/src/spacecraft.rs" = ["art-sector", "scenery"]
 "crates/core/src/ruins.rs" = ["maps-ruins"]
 "crates/core/src/ruins/**" = ["maps-ruins"]
-"crates/core/src/ruinsmodels.rs" = ["maps-ruins", "render"]
-"crates/core/src/ruinsscape.rs" = ["maps-ruins", "render"]
+"crates/core/src/ruinsmodels.rs" = ["art-ruins", "scenery"]
+"crates/core/src/ruinsscape.rs" = ["art-ruins", "scenery"]
 "crates/core/src/bay.rs" = ["maps-bay"]
 "crates/core/src/bay/**" = ["maps-bay"]
-"crates/core/src/baymodels.rs" = ["maps-bay", "render"]
-"crates/core/src/bayscape.rs" = ["maps-bay", "render"]
-"crates/core/src/bayscape/**" = ["maps-bay", "render"]
+"crates/core/src/baymodels.rs" = ["art-bay", "scenery"]
+"crates/core/src/bayscape.rs" = ["art-bay", "scenery"]
+"crates/core/src/bayscape/**" = ["art-bay", "scenery"]
+"crates/core/src/towermodels.rs" = ["art-tower", "scenery"]
+"crates/core/src/towermodels/**" = ["art-tower", "scenery"]
 "crates/core/src/ravine.rs" = ["maps-ravine"]
 "crates/core/src/ravine/**" = ["maps-ravine"]
-"crates/core/src/ravinemodels.rs" = ["maps-ravine", "render"]
-"crates/core/src/ravinemodels/**" = ["maps-ravine", "render"]
-"crates/core/src/ravinescape.rs" = ["maps-ravine", "render"]
+"crates/core/src/ravinemodels.rs" = ["maps-ravine", "scenery"]
+"crates/core/src/ravinemodels/**" = ["maps-ravine", "scenery"]
+"crates/core/src/ravinescape.rs" = ["maps-ravine", "scenery", "sky"]
 "crates/core/src/ravinescape/**" = ["art-ravine"]
-"crates/core/src/towermodels.rs" = ["maps-tower", "render"]
-"crates/core/src/towermodels/**" = ["maps-tower", "render"]
 
 # integration tests: a change to one runs it
 "crates/core/tests/ai.rs" = ["ai", "maps-jungle"]
 "crates/core/tests/bay_ai.rs" = ["ai", "maps-bay"]
 "crates/core/src/tower.rs" = ["maps-tower"]
 "crates/core/src/tower/**" = ["maps-tower"]
-"crates/core/src/towerscape.rs" = ["maps-tower", "weather", "render"]
-"crates/core/src/towerscape/**" = ["maps-tower", "render"]
+"crates/core/src/towerscape.rs" = ["art-tower", "scenery", "sky", "weather"]
+"crates/core/src/towerscape/**" = ["art-tower", "scenery", "sky"]
 "crates/core/tests/tower_ai.rs" = ["ai", "maps-tower"]
 "crates/core/tests/city_ai.rs" = ["ai", "maps-city"]
 "crates/core/tests/ruins_ai.rs" = ["ai", "maps-ruins"]
@@ -230,6 +285,120 @@ tags = ["boundary"]
 "crates/core/src/app.rs" = { patterns = ['^pub const VERSION: &str = "[^"]*";$'], tags = ["notes"] }
 
 # ---------------------------------------------------------------------------
+# Function -> tags, for a big file whose functions belong to different
+# features: per file, Python regular expressions over the name of the
+# outermost `fn` (or `def`) holding a changed line (its doc comments and
+# attributes count as part of it). Every matching regex adds its tags; a
+# changed line in no named function, or in one no regex names, takes the
+# file's [sources] tags. Outside any fn, a struct or enum holding the line,
+# or a one-line `const`/`static` it declares, is named the same way.
+[functions]
+
+# A map's art feeds its logic in a few named places: those keep the map's
+# tag (and the weather looks keep weather). Everything else in an art file
+# is drawing (art-<map>, scenery).
+[functions."crates/core/src/spacecraft.rs"]
+'^(pose|tumble|halves|wreck_halves|clamp_gap|wreck_passage|joint|mech_pose|mech_frame|mech_anchors|mech_anchor|Passage|MechKind|Gait|Mech|MechAnchors|MechPose|RECESS|WRECK_GAP|MECH_HEIGHT|BREAK|PASSAGE_Z|HULL_W|HULL_H|MOTHERSHIP_LENGTH)$' = ["maps-sector", "art-sector", "scenery"]
+
+[functions."crates/core/src/sectorscape.rs"]
+'^(flash_of|FLASH_TICKS)$' = ["maps-sector", "art-sector", "race"]
+'^route_lines$' = ["art-sector", "hud"]
+
+[functions."crates/core/src/skiscape.rs"]
+'^crowns$' = ["maps-ski", "art-ski", "camera"]
+
+[functions."crates/core/src/bayscape.rs"]
+'^squall$' = ["art-bay", "weather", "sky"]
+
+[functions."crates/core/src/towerscape.rs"]
+'^(twilight|dawn)$' = ["art-tower", "weather", "sky"]
+
+[functions."crates/core/src/towerscape/art.rs"]
+'^casters$' = ["maps-tower", "art-tower", "scenery"]
+
+[functions."crates/core/src/towermodels/portal.rs"]
+'^portal_clear$' = ["maps-tower", "art-tower", "scenery"]
+
+[functions."crates/core/src/towermodels/towers.rs"]
+'^(TOWER2_RADIUS|V1_KEEP_RADIUS)$' = ["maps-tower", "art-tower", "scenery"]
+
+# the jaguar's timings and Eaten::new are race rules; its pose is only drawn
+[functions."crates/core/src/jaguar.rs"]
+'^(jaguar|size|whole|gait|fwd)$' = ["models"]
+'^(new|ago|feet)$' = ["lava"]
+
+[functions."crates/core/src/app/menus.rs"]
+'^(settings_act|settings_panels|title_click)$' = ["settings"]
+
+[functions."crates/core/src/app/results.rs"]
+'^race_panels$' = ["results", "online", "replay", "trial", "medals", "camera"]
+'^best_row$' = ["results", "race", "replay"]
+'^results_table$' = ["results", "camera"]
+'^medal_table$' = ["results", "medals", "trial"]
+'^results_due$' = ["results", "lava", "camera"]
+
+[functions."crates/core/src/app/items.rs"]
+'^hype_tick$' = ["hype"]
+'^(item_toggles|tick_item)$' = ["items", "setup"]
+
+[functions."crates/core/src/app/setup.rs"]
+'^lava_toggle$' = ["setup", "lava"]
+
+# the dance: `dancing` frames the spectate camera; the rest is the pose
+# (spectate's dance-watching test carries models, so a change to `of`'s
+# weight still runs it)
+[functions."crates/core/src/dance.rs"]
+'^dancing$' = ["camera", "models"]
+
+# app/race.rs: starting a race, showing it, its tick. Only `step_race`, the
+# race's tick, reaches every concern; a line outside the five fns is a `use`
+[functions."crates/core/src/app/race.rs"]
+'^start_race$' = ["race", "setup", "items", "replay", "trial", "lava", "costumes"]
+'^begin$' = ["race", "camera", "ai", "replay"]
+'^step_race$' = ["race", "items", "replay", "costumes", "camera", "sound"]
+'^follow_speed$' = ["hud", "hype", "settings"]
+'^step_chains$' = ["vines", "items"]
+
+[functions."crates/core/src/app/view.rs"]
+'^(resize|aspect)$' = ["render", "camera"]
+'^(scene_version|scenery|static_scene)$' = ["render", "menus"]
+'^frame$' = ["render", "weather", "replay", "camera", "lava"]
+'^ghost_draws$' = ["replay", "render"]
+
+# app.rs keeps the hub: `new`, `act`, `tick`, `ui`, `go`, `key` and the
+# structs take the file's tags; these belong to one domain
+[functions."crates/core/src/app.rs"]
+'^(best|best_mut)$' = ["race", "trial", "medals", "replay"]
+'^(t|map_name)$' = ["menus"]
+'^(decimal|ordinal|clock_text)$' = ["hud", "results", "menus"]
+'^(mouse_move|pointer_lock|blur)$' = ["camera", "race"]
+'^(held|controls|mouse_button)$' = ["race", "camera", "items"]
+'^quick_restart$' = ["race", "replay", "results"]
+'^escape$' = ["race", "results", "menus", "replay"]
+'^(GRAB_BUTTON|DOUBLE_TAP|MAX_CATCH_UP|TICK_COST)$' = ["race"]
+'^CALL_KEY$' = ["sound"]
+'^(KEEP_AFTER_FINISH|KEEP_AGAIN)$' = ["replay"]
+'^(SPECTATE_AFTER|DANCE_SHOWN|FINISH_WATCH_MOST|EATEN_SPECTATE_AFTER)$' = ["camera", "results", "lava"]
+'^TITLE_CLICKS$' = ["settings"]
+
+# models.rs: the outfits are gear; the rest (bodies, poses, the dance moves,
+# which outfit a map wears) stays models
+[functions."crates/core/src/models.rs"]
+'^(gear_colours|ski_frames|board|skis|helmet|metal_side|eye_spot|metal_arm|jacket_cut|jacket|shades|safari_hem|safari_jacket|pith_helmet|spectacles|pirate_kit|pirate|tricorn|bandana|eyepatch|hoop|garment|sleeves|captains_coat|striped_shirt|loose_shirt|waistcoat|sash|bandolier|cutlass|parrot|hook|peg_leg|navy_coat|bicorne|bubble_helmet)$' = ["gear"]
+
+# A changed line inside `def step_<name>` of these files runs browser step
+# <name> alone (it must be a step in [browser]); any other line keeps the
+# file's [sources] tags. The regex's group 1 is the step.
+[steps]
+"tests/browser/interactions.py" = '^step_(\w+)$'
+
+# Test files run their own tests, not every test of their topic: a changed
+# crates/core/tests/<file>.rs runs test:<file>; a changed *tests.rs under
+# crates/core/src runs its module's tests; a changed line inside a
+# `#[cfg(test)] mod` runs the test it sits in (or that module's tests, for a
+# helper). Their [sources] tags apply only when no such test exists.
+
+# ---------------------------------------------------------------------------
 # Cargo tests -> tags. A key is `<target>:<name prefix>`: `lib:` for the
 # core's own tests by module path, `test:<file>` for an integration test file
 # (crates/core/tests/<file>.rs), optionally with `:<name prefix>`. The
@@ -240,124 +409,138 @@ tags = ["boundary"]
 "lib:ai::tests::on_the_tower_" = ["ai", "maps-tower"]
 "lib:ai::tests::on_rattlesnake_ravine_" = ["ai", "maps-ravine"]
 "lib:api::" = ["page", "menus"]
-"lib:app::tests::" = ["menus", "race"]
-"lib:app::tests::a_best_of_an_older_layout" = ["replay", "race"]
-"lib:app::tests::a_faster_finish_becomes_the_saved_best" = ["race", "replay"]
-"lib:app::tests::a_reset_and_the_door_have_their_own_sounds" = ["sound", "menus"]
-"lib:app::tests::a_summoned_vine_adds_a_chain" = ["items", "physics", "render"]
-"lib:app::tests::a_time_trial_is_solo" = ["race", "items", "menus"]
-"lib:app::tests::finished_runs_are_kept" = ["replay"]
-"lib:app::tests::the_best_time_trial_races_as_a_ghost" = ["replay", "race"]
-"lib:app::tests::the_chosen_ai_difficulty" = ["ai", "menus"]
-"lib:app::tests::the_citys_wire_glows" = ["render", "maps-city", "maps-jungle"]
-"lib:app::tests::the_colourblind_mode" = ["render", "menus"]
-"lib:app::tests::the_frame_carries_its_maps_light" = ["render"]
-"lib:app::tests::the_ski_slopes_minimap" = ["menus", "maps-ski"]
-"lib:app::tests::speed_colours" = ["render", "menus"]
-"lib:app::tests::ten_clicks_on_the_title" = ["render", "menus"]
-"lib:app::tests::watching_the_replay" = ["replay", "camera"]
-"lib:app::tests::when_storage_is_full" = ["replay"]
-"lib:app::call_tests::" = ["sound", "race", "menus", "replay", "online"]
-"lib:app::costume_tests::" = ["costumes", "menus", "online"]
+# app.rs's tests, moved to one file per domain (tags3, 2026-10-17)
+"lib:app::race_tests::" = ["race", "setup", "menus"]
+"lib:app::race_tests::a_summoned_vine_adds_a_chain" = ["items", "physics", "render", "vines", "race"]
+"lib:app::race_tests::the_chosen_ai_difficulty" = ["ai", "menus", "race"]
+"lib:app::race_tests::escape_pauses" = ["race", "results", "menus", "setup"]
+"lib:app::race_tests::r_twice_quickly" = ["race", "results", "menus", "setup", "replay"]
+"lib:app::sound_tests::" = ["sound", "menus"]
+"lib:app::settings_tests::" = ["render", "models", "menus", "settings"]
+"lib:app::settings_tests::settings_round_trip" = ["menus", "setup", "settings", "costumes", "weather"]
+"lib:app::hud_tests::" = ["hud", "results"]
+"lib:app::hud_tests::the_minimap_is_seen" = ["menus", "race", "setup", "hud"]
+"lib:app::hud_tests::the_ski_slopes_minimap" = ["menus", "maps-ski", "hud"]
+"lib:app::view_tests::every_screen_has" = ["menus", "race", "setup", "results", "hud", "settings", "notes", "costumes", "weather", "replay", "camera"]
+"lib:app::view_tests::the_citys_wire_glows" = ["render", "scenery", "maps-city", "maps-jungle", "art-city"]
+"lib:app::view_tests::the_colourblind_mode" = ["render", "models", "sky", "scenery", "menus", "hud", "settings"]
+"lib:app::view_tests::the_frame_carries_its_maps_light" = ["render", "sky"]
+"lib:app::trial_tests::" = ["race", "items", "menus", "hud", "trial", "medals", "setup", "results"]
+"lib:app::replay_tests::" = ["replay"]
+"lib:app::replay_tests::a_best_of_an_older_layout" = ["replay", "race", "results"]
+"lib:app::replay_tests::a_faster_finish_becomes_the_saved_best" = ["race", "replay", "trial", "medals", "results"]
+"lib:app::replay_tests::the_best_time_trial_races_as_a_ghost" = ["replay", "race", "trial", "medals"]
+"lib:app::replay_tests::watching_the_replay" = ["replay", "camera", "results"]
+"lib:app::replay_tests::finished_runs_are_kept" = ["replay", "results"]
+"lib:app::costume_tests::" = ["costumes", "menus", "online", "setup", "results", "trial", "medals"]
+"lib:app::costume_tests::every_costume_draws_on_every_map" = ["costumes", "gear", "models", "menus", "setup", "online"]
 "lib:app::costume_tests::beating_concrete_jungles" = ["costumes", "menus", "maps-city"]
-"lib:app::gallery::" = ["menus", "render", "camera"]
-"lib:app::items_hype_tests::" = ["items", "race", "sound"]
-"lib:app::lava_tests::" = ["race", "camera", "replay", "menus"]
-"lib:app::look_tests::" = ["costumes", "render", "menus", "replay"]
-"lib:app::map_tests::" = ["menus", "replay", "race"]
-"lib:app::map_tests::in_a_race_on_every_map_the_scenery_is_cut_round_the_followed_ape" = ["camera", "render", "race", "maps-jungle", "maps-city", "maps-ski", "maps-sector", "maps-ruins", "maps-bay", "maps-tower"]
-"lib:app::medals::" = ["race", "menus"]
-"lib:app::menu_dock::" = ["menus", "camera", "maps-bay", "maps-ruins", "maps-city", "maps-jungle"]
+"lib:app::gallery::" = ["menus", "render", "models", "gear", "camera", "gallery", "art-sector", "art-ruins", "art-bay", "art-tower"]
+"lib:app::items_hype_tests::" = ["items", "race", "sound", "setup", "hud", "hype"]
+"lib:app::lava_tests::" = ["race", "camera", "replay", "menus", "setup", "results", "hud", "lava"]
+"lib:app::look_tests::" = ["costumes", "render", "models", "menus", "replay", "setup", "results", "hud", "settings"]
+"lib:app::map_tests::" = ["menus", "replay", "race", "setup", "hud", "trial", "medals"]
+"lib:app::medals::" = ["medals", "trial", "race", "menus"]
 "lib:app::notes_tests::" = ["notes", "menus"]
-"lib:app::online_play::" = ["online", "menus", "race"]
-"lib:app::setup_tests::" = ["menus"]
-"lib:app::ski_camera_tests::" = ["camera", "maps-ski"]
-"lib:app::spectate_tests::" = ["camera", "race"]
-"lib:app::tile::" = ["menus", "render", "costumes"]
-"lib:app::weather_tests::" = ["weather", "menus", "render"]
+"lib:app::online_play::" = ["online", "menus", "race", "setup", "results", "hud"]
+"lib:app::setup_tests::" = ["menus", "setup"]
+"lib:app::ski_camera_tests::" = ["camera", "maps-ski", "art-ski"]
+"lib:app::spectate_tests::" = ["camera", "race", "setup", "results", "hud", "lava"]
+"lib:app::spectate_tests::after_the_finish_the_camera_pans" = ["camera", "race", "setup", "results", "hud", "lava", "models"]
+"lib:app::tile::" = ["menus", "render", "scenery", "costumes", "hud", "tiles"]
+"lib:app::tile::tests::a_tile_can_dress_the_racers" = ["menus", "render", "gear", "costumes"]
+"lib:app::weather_tests::" = ["weather", "menus", "render", "sky", "scenery", "setup", "settings"]
+"lib:app::weather_tests::on_the_ski_slope_the_racers_wear_their_gear" = ["weather", "gear", "models", "menus", "setup", "race"]
 "lib:bay::" = ["maps-bay"]
 "lib:bay::course_tests::" = ["maps-bay", "physics"]
-"lib:baymodels::" = ["maps-bay", "render"]
-"lib:bayscape::" = ["maps-bay", "render"]
-"lib:towermodels::" = ["maps-tower", "render"]
-"lib:towerscape::" = ["maps-tower", "weather", "render"]
-"lib:tower::" = ["maps-tower", "physics", "race", "maps-jungle", "maps-city", "maps-ski", "maps-sector", "maps-ruins", "maps-bay"]
-"lib:tower::audit::" = ["maps-tower", "physics"]
+"lib:baymodels::" = ["maps-bay", "art-bay", "scenery", "gallery"]
+"lib:bayscape::" = ["maps-bay", "art-bay", "scenery"]
+"lib:towermodels::" = ["maps-tower", "art-tower", "scenery", "gallery"]
+"lib:towerscape::" = ["maps-tower", "art-tower", "weather", "scenery", "sky"]
+"lib:tower::" = ["maps-tower", "physics"]
+"lib:tower::tests::the_map_is_wired_by_its_key_and_name" = ["maps-tower", "menus", "maps-jungle", "maps-city", "maps-ski", "maps-sector", "maps-ruins", "maps-bay"]
+"lib:tower::tests::with_floor_is_lava" = ["maps-tower", "physics", "race", "lava"]
+"lib:tower::tests::item_crates_hang" = ["maps-tower", "items"]
+"lib:tower::tests::a_summoned_vine_is_placed" = ["maps-tower", "physics", "items"]
+"lib:tower::audit::" = ["maps-tower", "art-tower", "physics"]
 "lib:camera::" = ["camera"]
 "lib:camera::hulls::" = ["camera", "maps-bay"]
 "lib:city::" = ["maps-city", "physics"]
-"lib:cityscape::" = ["maps-city", "render"]
+"lib:cityscape::" = ["maps-city", "art-city", "scenery"]
 "lib:costume::" = ["costumes"]
 "lib:course::" = ["maps-jungle"]
-"lib:dance::" = ["race", "render"]
+"lib:dance::" = ["race", "models", "lava"]
 "lib:focus::" = ["camera", "race"]
 "lib:fx::" = ["all"]
 "lib:geom::" = ["all"]
-"lib:hype::" = ["race", "sound"]
-"lib:icon::" = ["menus"]
+"lib:hype::" = ["hype", "race", "sound"]
+"lib:icon::" = ["icon"]
 "lib:items::" = ["items", "physics", "race"]
-"lib:jaguar::" = ["race", "render"]
+"lib:items::tests::every_item_has_its_own_svg_icon" = ["items", "physics", "race", "icon"]
+"lib:jaguar::" = ["lava", "race", "models"]
 "lib:map::" = ["all"]
 "lib:mesh::" = ["render"]
-"lib:models::" = ["render", "costumes"]
-"lib:models::tests::every_kind_dances" = ["render", "race"]
-"lib:models::tests::a_dancer" = ["render", "race"]
-"lib:models::tests::on_skis_a_dancer" = ["render", "race", "maps-ski"]
-"lib:models::tests::slowing_into_the_dance" = ["render", "race"]
-"lib:models::tests::on_the_ski_slope" = ["render", "maps-ski"]
-"lib:models::tests::on_skis" = ["render", "maps-ski"]
-"lib:models::tests::skis_go" = ["render", "maps-ski"]
-"lib:models::tests::in_the_air_the_skis" = ["render", "maps-ski"]
-"lib:models::tests::only_the_space_jaguar" = ["render", "maps-sector"]
-"lib:models::tests::in_space" = ["render", "maps-sector"]
-"lib:models::tests::the_sunglasses" = ["render", "maps-sector"]
-"lib:models::tests::the_metal_arm" = ["render", "maps-sector"]
-"lib:models::tests::only_the_sunset_ruins" = ["render", "maps-ruins"]
-"lib:models::tests::on_sunset_ruins" = ["render", "maps-ruins"]
-"lib:models::tests::on_banana_bay" = ["render", "maps-bay"]
-"lib:models::tests::the_pirate_outfits" = ["render", "maps-bay", "maps-ruins"]
-"lib:models::tests::only_the_banana_bay" = ["render", "maps-bay"]
-"lib:models::tourist::" = ["render", "costumes", "maps-city"]
-"lib:models::tests::on_mapes_tower" = ["render", "costumes"]
-"lib:models::tests::the_wizard_outfits" = ["render", "costumes", "maps-ruins"]
-"lib:models::tests::only_mapes_towers" = ["render", "race"]
-"lib:models::tests::only_rattlesnake_ravines" = ["render", "race"]
-"lib:models::cowboy::" = ["render", "costumes"]
+"lib:models::" = ["models", "costumes"]
+"lib:models::tests::every_kind_dances" = ["models", "race"]
+"lib:models::tests::a_dancer" = ["models", "race"]
+"lib:models::tests::on_skis_a_dancer" = ["models", "race", "maps-ski"]
+"lib:models::tests::slowing_into_the_dance" = ["models", "race"]
+"lib:models::tests::on_the_ski_slope" = ["gear", "models", "maps-ski"]
+"lib:models::tests::on_skis" = ["gear", "models", "maps-ski"]
+"lib:models::tests::skis_go" = ["gear", "models", "maps-ski"]
+"lib:models::tests::in_the_air_the_skis" = ["gear", "models", "maps-ski"]
+"lib:models::tests::only_the_space_jaguar" = ["gear", "models", "maps-sector"]
+"lib:models::tests::in_space" = ["gear", "models", "maps-sector"]
+"lib:models::tests::the_sunglasses" = ["gear", "models", "maps-sector"]
+"lib:models::tests::the_metal_arm" = ["gear", "models", "maps-sector"]
+"lib:models::tests::only_the_sunset_ruins" = ["gear", "models", "maps-ruins"]
+"lib:models::tests::on_sunset_ruins" = ["gear", "models", "maps-ruins"]
+"lib:models::tests::on_banana_bay" = ["gear", "models", "maps-bay"]
+"lib:models::tests::the_pirate_outfits" = ["gear", "models", "maps-bay", "maps-ruins"]
+"lib:models::tests::only_the_banana_bay" = ["gear", "models", "maps-bay"]
+"lib:models::tourist::" = ["gear", "models", "costumes", "maps-city"]
+"lib:models::tests::on_mapes_tower" = ["gear", "models", "costumes", "maps-tower"]
+"lib:models::tests::the_wizard_outfits" = ["gear", "models", "costumes", "maps-ruins"]
+"lib:models::tests::only_mapes_towers" = ["models", "race"]
+"lib:models::tests::only_rattlesnake_ravines" = ["models", "race"]
+"lib:models::cowboy::" = ["gear", "models", "costumes"]
 "lib:online::" = ["online"]
 "lib:patch_notes::" = ["notes"]
-"lib:race::" = ["race", "physics", "items"]
+"lib:race::" = ["race", "physics", "items", "lava"]
 "lib:render::" = ["render"]
 "lib:see::" = ["camera", "render"]
 "lib:replay::" = ["replay", "race"]
-"lib:ravine::" = ["maps-ravine", "physics", "race", "camera", "maps-jungle"]
-"lib:ravinemodels::" = ["maps-ravine", "render"]
-"lib:ravinescape::" = ["art-ravine", "maps-ravine", "render"]
 "lib:ruins::" = ["maps-ruins", "physics"]
-"lib:ruinsmodels::" = ["maps-ruins", "render"]
-"lib:ruinsscape::" = ["maps-ruins", "render"]
+"lib:ruinsmodels::" = ["maps-ruins", "art-ruins", "scenery", "gallery"]
+"lib:ruinsscape::" = ["maps-ruins", "art-ruins", "scenery"]
+"lib:ravine::" = ["maps-ravine", "physics", "race", "camera", "maps-jungle"]
+"lib:ravinemodels::" = ["maps-ravine", "scenery"]
+"lib:ravinescape::" = ["art-ravine", "maps-ravine", "scenery", "sky"]
 "lib:rules::" = ["physics", "race"]
-"lib:scene::" = ["render", "maps-city", "maps-jungle", "maps-ski"]
+"lib:scene::" = ["render", "maps-city", "maps-jungle", "maps-ski", "lava", "vines", "art-city", "art-ski", "art-sector", "art-ruins", "art-bay", "art-tower"]
 "lib:sector::" = ["maps-sector", "physics"]
-"lib:sectorscape::" = ["maps-sector", "render"]
+"lib:sectorscape::" = ["maps-sector", "art-sector", "scenery", "gallery"]
 "lib:ski::" = ["maps-ski", "physics"]
-"lib:skiscape::" = ["maps-ski", "render"]
-"lib:sky::" = ["render"]
+"lib:ski::layout::tests::" = ["maps-ski", "physics"]
+"lib:ski::layout::tests::the_jaguar_comes_in" = ["maps-ski", "physics", "lava"]
+"lib:skiscape::" = ["maps-ski", "art-ski", "scenery"]
+"lib:sky::" = ["sky"]
 "lib:snow::" = ["weather", "maps-ski"]
-"lib:sound::" = ["sound"]
-"lib:spacecraft::" = ["maps-sector", "render"]
-"lib:speedo::" = ["menus", "maps-sector"]
-"lib:trial::" = ["race", "ai"]
-"lib:vehicles::" = ["maps-city", "render"]
-"lib:vinesim::" = ["physics", "render"]
+"lib:sound::" = ["sound", "hype"]
+"lib:spacecraft::" = ["maps-sector", "art-sector", "scenery"]
+"lib:speedo::" = ["hud", "hype", "maps-sector"]
+"lib:trial::" = ["trial", "medals", "race", "ai"]
+"lib:vehicles::" = ["maps-city", "art-city", "art-ski", "scenery"]
+"lib:vinesim::" = ["vines"]
 
 # integration tests: whole races, so they carry every concern a race has
-"test:ai" = ["ai", "physics", "race", "items", "maps-jungle"]
-"test:bay_ai" = ["ai", "physics", "race", "items", "maps-bay"]
-"test:tower_ai" = ["ai", "physics", "race", "camera", "maps-tower"]
-"test:city_ai" = ["ai", "physics", "race", "items", "maps-city"]
-"test:ruins_ai" = ["ai", "physics", "race", "items", "maps-ruins"]
-"test:sector_ai" = ["ai", "physics", "race", "items", "maps-sector"]
-"test:ski_ai" = ["ai", "physics", "race", "items", "maps-ski"]
+"test:ai" = ["ai", "physics", "race", "items", "maps-jungle", "trial", "medals"]
+"test:bay_ai" = ["ai", "physics", "race", "items", "maps-bay", "trial", "medals"]
+"test:tower_ai" = ["ai", "physics", "race", "camera", "maps-tower", "trial", "medals"]
+"test:city_ai" = ["ai", "physics", "race", "items", "maps-city", "trial", "medals"]
+"test:ruins_ai" = ["ai", "physics", "race", "items", "maps-ruins", "trial", "medals"]
+"test:sector_ai" = ["ai", "physics", "race", "items", "maps-sector", "trial", "medals"]
+"test:ski_ai" = ["ai", "physics", "race", "items", "maps-ski", "trial", "medals"]
 "test:sector_finish" = ["ai", "physics", "race", "maps-sector"]
 "test:jungle_unchanged" = ["ai", "physics", "race", "items", "maps-jungle"]
 "test:sector_unchanged" = ["ai", "physics", "race", "items", "maps-sector"]
@@ -372,18 +555,35 @@ tags = ["boundary"]
 # off-origin request...) always run when the browser check runs at all.
 # The browser check runs when any tag below (or `page`) is hit; `page` runs
 # every step.
+# Smaller tests (small-tests, 2026-10-17): each checks one thing through
+# the smallest piece of code, so it carries one or two tags.
+"lib:app::call_tests::" = ["sound", "menus"]
+"lib:app::call_tests::a_call_in_a_race" = ["sound", "replay"]
+"lib:app::map_tests::in_a_race_the_scenery_is_cut" = ["render", "camera"]
+"lib:app::menu_dock::" = ["menus", "camera", "dock"]
+"lib:app::menu_dock::tests::the_lobby" = ["menus"]
+"lib:app::menu_dock::tests::the_app_docks" = ["menus"]
+"lib:app::menu_dock::tests::screens_without_the_ape" = ["menus"]
+"lib:app::menu_dock::tests::the_jungle_preview_camera" = ["camera", "render"]
+"lib:app::menu_dock::tests::on_the_city" = ["camera", "maps-city"]
+"lib:app::menu_dock::tests::on_sunset_ruins" = ["camera", "maps-ruins", "art-ruins"]
+"lib:app::menu_dock::tests::on_banana_bay_battle" = ["camera", "maps-bay", "art-bay"]
+"lib:app::menu_dock::tests::on_mapes_tower" = ["camera", "maps-tower", "art-tower"]
+"lib:tower::tests::the_map_is_wired" = ["maps-tower", "menus"]
+"lib:tower::tests::the_other_maps_have_no_tower" = ["maps-jungle", "maps-city", "maps-ski", "maps-sector", "maps-ruins", "maps-bay"]
+
 [browser]
-boot = ["page", "render"]
-settings = ["menus", "sound"]
-race = ["menus", "race", "items", "physics", "ai", "render", "replay", "camera", "maps-jungle"]
-secret = ["menus", "render"]
-time_trial = ["race", "menus", "items", "maps-jungle"]
+boot = ["page", "render", "icon"]
+settings = ["menus", "sound", "settings"]
+race = ["menus", "race", "items", "physics", "ai", "render", "models", "gear", "replay", "camera", "maps-jungle", "hud", "setup", "results"]
+secret = ["menus", "settings"]
+time_trial = ["race", "menus", "items", "maps-jungle", "trial", "medals", "hud", "setup", "results"]
 replays_list = ["replay", "menus"]
 whats_new = ["notes", "menus"]
-city_map = ["menus", "maps-city", "maps-ski", "maps-jungle", "render"]
-weather = ["weather", "maps-ski", "menus", "render"]
-setup_layout = ["menus", "costumes", "weather"]
-random_map = ["menus", "race", "maps-city", "maps-jungle", "maps-sector", "maps-ruins", "maps-bay", "maps-tower"]
+city_map = ["menus", "maps-city", "maps-ski", "maps-jungle", "art-city", "art-ski", "render", "scenery", "hud", "setup", "results"]
+weather = ["weather", "maps-ski", "art-ski", "menus", "render", "sky", "scenery", "settings", "setup"]
+setup_layout = ["menus", "costumes", "weather", "setup", "dock", "items"]
+random_map = ["menus", "race", "setup", "hud", "results"]
 
 # Online check steps (scripts/check-online.sh) -> tags. They run only on
 # these tags (or `all`), never for `page` alone.

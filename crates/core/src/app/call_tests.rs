@@ -6,8 +6,6 @@
 use serde_json::Value;
 
 use super::{App, Screen};
-use crate::fx::int;
-use crate::geom::v3;
 use crate::rules::Kind;
 use crate::sound;
 
@@ -57,35 +55,6 @@ fn race(a: &mut App, kind: &str) {
 }
 
 #[test]
-fn the_key_calls_once_and_not_again_inside_two_seconds() {
-    let mut a = app();
-    race(&mut a, "gorilla");
-    for _ in 0..10 {
-        a.tick();
-    }
-    press(&mut a);
-    assert_eq!(calls(&mut a), vec![("call-gorilla".to_string(), 100)]);
-    // held down or pressed again at once: nothing
-    press(&mut a);
-    assert!(
-        calls(&mut a).is_empty(),
-        "a second press inside the cooldown"
-    );
-    for _ in 0..sound::CALL_COOLDOWN - 1 {
-        a.tick();
-    }
-    press(&mut a);
-    assert!(calls(&mut a).is_empty(), "just short of 2 s");
-    a.tick();
-    press(&mut a);
-    assert_eq!(calls(&mut a).len(), 1, "after 2 s it calls again");
-    // both calls are in the recording, at their ticks
-    let rec = a.play.as_ref().unwrap().record.as_ref().unwrap();
-    assert_eq!(rec.calls, vec![(10, 0), (10 + sound::CALL_COOLDOWN, 0)]);
-    assert_eq!(&a.sound("call-gorilla")[0..4], b"RIFF");
-}
-
-#[test]
 fn the_setup_screens_play_the_chosen_kind() {
     let mut a = app();
     a.act("menu.race", "");
@@ -116,30 +85,12 @@ fn the_setup_screens_play_the_chosen_kind() {
     assert!(calls(&mut a).is_empty());
 }
 
+/// In a race the key calls at full loudness once per cooldown, each call
+/// is in the recording at its tick, and the replay plays them back. (The
+/// cooldown's own count is `sound::CallClock`'s test, the loudness by
+/// distance `sound::heard_call`'s.)
 #[test]
-fn another_racers_call_is_quieter_when_farther() {
-    let mut a = app();
-    race(&mut a, "gorilla");
-    let mut p = a.play.take().unwrap();
-    let me = p.race.racers[0].ape.pos;
-    let other = p.race.racers[1].ape.kind;
-    let mut heard = Vec::new();
-    for m in [5, 20, 60] {
-        p.race.racers[1].ape.pos = me.add(v3(int(m), 0, 0));
-        a.hear_call(&p, 1);
-        heard.push(calls(&mut a));
-    }
-    a.play = Some(p);
-    assert_eq!(heard[0].len(), 1, "5 m: {:?}", heard[0]);
-    assert_eq!(heard[0][0].0, sound::call_key(other));
-    let (near, far) = (heard[0][0].1, heard[1][0].1);
-    assert!(near < 100 && near > 30, "5 m: {near}");
-    assert!(far < near / 5 && far > 0, "20 m: {far} vs 5 m: {near}");
-    assert!(heard[2].is_empty(), "60 m: nothing: {:?}", heard[2]);
-}
-
-#[test]
-fn a_replay_plays_the_call_back() {
+fn a_call_in_a_race_is_recorded_and_the_replay_plays_it_back() {
     let mut a = app();
     race(&mut a, "gibbon");
     a.key("KeyW", true);
@@ -147,16 +98,29 @@ fn a_replay_plays_the_call_back() {
         a.tick();
     }
     press(&mut a);
-    assert_eq!(calls(&mut a).len(), 1);
+    assert_eq!(calls(&mut a), vec![("call-gibbon".to_string(), 100)]);
+    press(&mut a);
+    assert!(
+        calls(&mut a).is_empty(),
+        "a second press inside the cooldown"
+    );
+    for _ in 0..sound::CALL_COOLDOWN {
+        a.tick();
+    }
+    press(&mut a);
+    assert_eq!(calls(&mut a).len(), 1, "after 2 s it calls again");
+    let rec = a.play.as_ref().unwrap().record.as_ref().unwrap();
+    assert_eq!(rec.calls, vec![(30, 0), (30 + sound::CALL_COOLDOWN, 0)]);
+    assert_eq!(&a.sound("call-gibbon")[0..4], b"RIFF");
     for _ in 0..300 {
         a.tick();
     }
     a.act("menu.replay", "");
     assert!(a.play.as_ref().unwrap().replay.is_some());
     let mut played = Vec::new();
-    for _ in 0..200 {
+    for _ in 0..400 {
         a.tick();
         played.extend(calls(&mut a));
     }
-    assert_eq!(played, vec![("call-gibbon".to_string(), 100)]);
+    assert_eq!(played, vec![("call-gibbon".to_string(), 100); 2]);
 }
