@@ -20,7 +20,9 @@
 //! rings of beams every `LAYER_RISE` m of height, from windows and inner
 //! balconies leaning in (`LEAN_IN`) and from conjured anchors floating
 //! in the middle, scattered round the hollow by the dice (no helix);
-//! the sling row at the bottom of the tube, five beams hung from the
+//! out over the rim the portal's lane beams, longer and lower than the
+//! bridges' and lifting, for an ape coming off the field's top rising
+//! or falling (TC5, TC2-1); the sling row at the bottom of the tube, five beams hung from the
 //! tunnel mouth's top edge `SLING_DIP` under level. The tube's pads:
 //! `TUBE_PADS` across it, their gaps a sine weave of `WEAVE_AMPLITUDE`
 //! over `WEAVE_PERIOD` pads, measured reachable (TW2-5). Reset pads a few
@@ -119,6 +121,11 @@ const RINGS_OVER_RIM: i32 = int(20);
 const INSIDE_BEAM: i32 = int(22);
 const CAST_IN: (i32, i32) = (14, 22);
 const FLOAT_IN: i32 = 10;
+/// The portal leg's beams hang this much longer than the bridges' and
+/// their bottoms this far under the line (TC5: falling apes need longer
+/// beams).
+const PORTAL_LONGER: i32 = int(10);
+const PORTAL_DROP: i32 = int(2);
 /// Reset pads stand this far under the centreline: under the swings, and
 /// in a jump's reach of the vines.
 const PAD_UNDER: i32 = int(5);
@@ -526,6 +533,9 @@ pub fn tower_seeded(seed: u64) -> Course {
     let rim = t1_centre.y + H1;
     // (two entry beams just inside the doorway, over the line as the
     // bridge's, so the climb inside can be started from the swing in)
+    // (their swing back runs into the wall beside the doorway, the
+    // audit's finding: from 20 m in it clears it, but the AI's portal
+    // hand-over re-rolls with any change here, TW2-13, TC2-3)
     for k in [1, 2] {
         let at = door_at + int(12) * k;
         let r = right_of(flat(c.heading_at(at)));
@@ -601,14 +611,16 @@ pub fn tower_seeded(seed: u64) -> Course {
     // tear, cast by dragons
     let portal_from = leg_at(PORTAL);
     let tube_from = leg_at(TUBE);
+    // (longer and lower than the bridges' beams, and lifting: an ape
+    // coming off the field's top is rising or falling, not level, TC5)
     let mut s = portal_from + int(8);
     while s < tube_from - int(10) {
         let h = c.heading_at(s);
         let r = right_of(h);
         for lane in [-6, 6] {
             let base = c.point(s).add(r.scale(int(lane)));
-            let bottom = v3(base.x, base.y + BOTTOM_OVER, base.z);
-            let v = beam(bottom, DOWN, ANCHOR_OVER - BOTTOM_OVER, s);
+            let bottom = v3(base.x, base.y - PORTAL_DROP, base.z);
+            let v = beam(bottom, DOWN, ANCHOR_OVER + PORTAL_LONGER, s);
             hangers.push(Hanger::Dragon {
                 at: v
                     .anchor
@@ -616,7 +628,7 @@ pub fn tower_seeded(seed: u64) -> Course {
                     .add(v3(0, int(4), 0)),
             });
             c.vines.push(v);
-            lifts.push(false);
+            lifts.push(true);
             hangs.push(DOWN);
         }
         s += GAP * ONE;

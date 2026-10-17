@@ -605,14 +605,17 @@ fn a_weave_steered_for_each_gap_falls_the_tube_touching_no_pad() {
                 break;
             }
         }
-        println!(
-            "weave from {name}: terminal {:.1} m/s, {:.1} s to the sling's height, {} pads passed, worst miss {:.1} m, {bounces} bounces",
-            fastest as f64 / ONE as f64,
-            ticks as f64 / TICKS_PER_SECOND as f64,
-            passed,
-            worst as f64 / ONE as f64
+        // (the numbers, in MEASUREMENTS.md: terminal 39.8 m/s, about
+        // 7.5 s to the sling's height, worst miss 1.8 m; the core prints
+        // nothing, so they are carried in the failure messages)
+        assert_eq!(
+            bounces,
+            0,
+            "from {name}: {bounces} bounces (terminal {} m/s, {} ticks, worst miss {} cm)",
+            fastest / ONE,
+            ticks,
+            worst * 100 / ONE
         );
-        assert_eq!(bounces, 0, "from {name}: {bounces} bounces");
         assert_eq!(passed, tube.pads.len(), "from {name}: {passed} pads passed");
         assert!(
             ticks < (10 * TICKS_PER_SECOND) as u32,

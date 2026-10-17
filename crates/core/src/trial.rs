@@ -151,17 +151,19 @@ pub const BAY: [u32; 4] = [
     secs(BAY_AUTHOR),
 ];
 
-/// Mape's Tower's target times in hundredths of a second (2026-10-16, set
-/// as the others' were: King Kong alone as a Time Trial runs finishes in
-/// 61.9–76.4 s by kind, the Lemur best, the Gorilla slowest, with the
-/// item crates (TI1) and the solid stone (TW12); `tests/tower_ai.rs`
-/// `tower_time_trial_report`, SECOND-ORDER TM1). Author just under the
-/// best kind, then the Jungle's steps of 7, 10 and 15 s. Re-measure if the
-/// course changes.
-pub const TOWER_AUTHOR: u32 = 6_100;
-pub const TOWER_GOLD: u32 = 6_800;
-pub const TOWER_SILVER: u32 = 7_800;
-pub const TOWER_BRONZE: u32 = 9_300;
+/// Mape's Tower's target times in hundredths of a second (the second
+/// design, 2026-10-16, set as the others' were: King Kong alone as a Time
+/// Trial runs finishes in 95.6–132.8 s by kind, the Gibbon best, the
+/// Proboscis a second behind, the Chimpanzee slowest; the Gorilla and the
+/// Lemur do not finish inside 150 s, lost at the portal hand-over;
+/// `tests/tower_ai.rs` `tower_time_trial_report`, SECOND-ORDER TC2-4).
+/// Author just under the best kind, then the Jungle's steps of 7, 10 and
+/// 15 s. Provisional: the hand-over is still a lottery (TC2-1); re-measure
+/// once it is settled. (The first design's were 61 / 68 / 78 / 93 s.)
+pub const TOWER_AUTHOR: u32 = 9_450;
+pub const TOWER_GOLD: u32 = 10_150;
+pub const TOWER_SILVER: u32 = 11_150;
+pub const TOWER_BRONZE: u32 = 12_650;
 
 /// Mape's Tower's target times, in race ticks, slowest first.
 pub const TOWER: [u32; 4] = [

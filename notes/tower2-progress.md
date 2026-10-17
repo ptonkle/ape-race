@@ -9,12 +9,12 @@ The standard map-build steps (MAPS.md "Build steps"), one row each. Status is on
 | 3 | Ape costumes | Done (v1) | Unchanged: wizard and witch mixes |
 | 4 | Models | Done (unseen in the browser) | `towermodels/towers.rs`, `tube.rs`, `portal.rs` (TM2 rows); gallery keys `towers`, `tower1`, `tower2`, `longbridge`, `portal`, `tube`, `voidpads`, `tunnelmouth`; the art agent shoots them first |
 | 5 | Sky and lighting | Done (v1) | Unchanged: Clear, Twilight, Dawn; the void past the portal |
-| 6 | Course layout | In progress (course agent, branch `tower2-course`) | the real vines, pads and lanes on the contract |
+| 6 | Course layout | In progress | merged `tower2-course`: portal lane beams longer, lower and lifting; the rest still the stand-in; the hand-over from the inside rings to the portal beams is a lottery, 4–34 s (TC2-1); the two entry beams still swing into the wall (TC2-3) |
 | 7 | Map rules | In progress | Tube air (terminal 38 m/s, 3× control), pads, walls, resets per leg in `tower/rules.rs`, `stone.rs`; the sling untested until an AI finishes |
 | 8 | Art placed on the course | Done (on the stand-in) | merged `tower2-art`: every v2 model placed from the contract (TA2-1); the inside's sharing/caps can go once the course thins the rings (TA2-3); stipple bands on the walls and the void fog for the person to judge (TA2-8) |
 | 9 | Lobby spot and flyover | Done | lobby mid lower bridge looking to tower 2 (both towers can't fit one view: 380 m apart, fog at 330 m); flyover a closed stadium lap, no jump (TA2-5, TA2-6) |
-| 10 | AI validation | In progress (course agent, branch `tower2-course`) | Three of four levels finish in order; the Sloth 10 s short; the inside climb and the portal hand-over are the slow, fragile legs (TW2-12) |
-| 11 | Medal times | Not started | |
+| 10 | AI validation | In progress (hand-over agent) | layout 0: Sloth 133, Monkey 140, Ape 126, King Kong 90 s: all finish, not in order; over 16 layouts the Sloth fails one and the tear test fails for most levels (TC2-1) |
+| 11 | Medal times | Done (provisional) | Author 94.5, Gold 101.5, Silver 111.5, Bronze 126.5 (v1 61/68/78/93); re-measure after the hand-over (TC2-4) |
 | 12 | Step and frame cost | In progress | worst frame 5,355 shapes (v1 4,896; budget 5,500), driven by the stand-in's inside density (TA2-2); step cost not measured |
 | 13 | Colourblind and JOJO MODE | Not started | |
 | 14 | Map card | Not started | New card from the new flyover |
