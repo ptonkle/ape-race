@@ -121,7 +121,9 @@ use crate::snow::Weather;
 /// roster seat, so every browser draws each player's chosen costume.
 /// 13: Mape's Tower (2026-10-15): the map `tower`, which a client of 12
 /// could not read in a Roster or a Start.
-pub const PROTOCOL: u32 = 13;
+/// 14: ape calls (TRIAGE T58): `LobbyCall` (a lobby ape's call, by kind)
+/// and `Call` (a racer's call, heard by distance).
+pub const PROTOCOL: u32 = 14;
 /// The most apes in a race, humans and AI together.
 pub const MAX_APES: usize = 4;
 /// The most AI apes the host may add.
@@ -446,6 +448,17 @@ enum Msg {
     },
     /// Someone in the lobby screeched (TRIAGE T44, PROTOCOL 3): play it.
     Screech,
+    /// Someone in the lobby pressed the call button (TRIAGE T58, PROTOCOL
+    /// 14): play `kind`'s call.
+    LobbyCall {
+        kind: Kind,
+    },
+    /// Racer `i` called in round `r` (TRIAGE T58, PROTOCOL 14): the
+    /// hearer plays its kind's call at a loudness from its distance.
+    Call {
+        r: u32,
+        i: usize,
+    },
     Leave,
     Dissolve,
     Ping {
@@ -620,6 +633,8 @@ struct RaceState {
     vines_sent: BTreeSet<(usize, u32)>,
     /// Summoned vines from other browsers, for the next `sync_race`.
     vines_in: Vec<Summon>,
+    /// Racers of other browsers that called, for [`Online::take_calls`].
+    calls_in: Vec<usize>,
 }
 
 /// One browser's online session.
@@ -672,6 +687,9 @@ pub struct Online {
     last_name_ms: i64,
     /// Screeches heard (and made) in the lobby, still to play.
     screeches: u32,
+    /// Calls heard in the lobby from other browsers, still to play (TRIAGE
+    /// T58), by kind.
+    lobby_calls: Vec<Kind>,
     race: Option<RaceState>,
     /// Host: its own start, held until the joiners have theirs.
     host_start_at: Option<i64>,
@@ -714,6 +732,7 @@ impl Online {
             wanted_name: None,
             last_name_ms: now_ms,
             screeches: 0,
+            lobby_calls: Vec::new(),
             race: None,
             host_start_at: None,
             start: None,
@@ -997,6 +1016,19 @@ impl Online {
                     self.screeches += 1;
                 }
             }
+            Msg::LobbyCall { kind } => {
+                if self.in_lobby() {
+                    self.lobby_calls.push(kind);
+                }
+            }
+            Msg::Call { r, i } => {
+                let mine = self.owns(i);
+                if let Some(race) = &mut self.race {
+                    if race.round == r && !mine && i < race.owners.len() {
+                        race.calls_in.push(i);
+                    }
+                }
+            }
             Msg::Leave => {
                 let client = self.peers.get(&peer).and_then(|p| p.id.clone());
                 if let Some(client) = client {
@@ -1143,7 +1175,7 @@ impl Online {
             return;
         };
         let to: Vec<PeerId> = match msg {
-            Msg::State { .. } | Msg::Vine { .. } => self
+            Msg::State { .. } | Msg::Vine { .. } | Msg::Call { .. } => self
                 .peers
                 .iter()
                 .filter(|(k, p)| {
@@ -1548,6 +1580,43 @@ impl Online {
         std::mem::take(&mut self.screeches)
     }
 
+    /// This browser's chosen ape calls in the lobby (TRIAGE T58): everyone
+    /// else plays `kind`'s call (this browser plays its own). Sent once; a
+    /// lost one is not repeated. The cooldown is the app's.
+    pub fn call_in_lobby(&mut self, kind: Kind) -> Result<(), OnlineError> {
+        if !self.in_lobby() {
+            return Err(OnlineError::NotInLobby);
+        }
+        self.broadcast(&Msg::LobbyCall { kind });
+        Ok(())
+    }
+
+    /// The lobby calls heard from other browsers since the last call, by
+    /// kind (and forgets them).
+    pub fn take_lobby_calls(&mut self) -> Vec<Kind> {
+        std::mem::take(&mut self.lobby_calls)
+    }
+
+    /// Racer `i` (one this browser owns) called during the race (TRIAGE
+    /// T58): everyone else hears it by distance. Sent once.
+    pub fn send_call(&mut self, i: usize) {
+        if !self.owns(i) {
+            return;
+        }
+        let Some(race) = &self.race else { return };
+        let msg = Msg::Call { r: race.round, i };
+        self.broadcast(&msg);
+    }
+
+    /// The racers of other browsers that called since the last call (and
+    /// forgets them).
+    pub fn take_calls(&mut self) -> Vec<usize> {
+        self.race
+            .as_mut()
+            .map(|r| std::mem::take(&mut r.calls_in))
+            .unwrap_or_default()
+    }
+
     /// Joiner: presses Ready Up (or undoes it). Repeated until the roster
     /// shows it.
     pub fn set_ready(&mut self, ready: bool, now_ms: i64) -> Result<(), OnlineError> {
@@ -1782,6 +1851,7 @@ impl Online {
             eats_reported: BTreeMap::new(),
             vines_sent: BTreeSet::new(),
             vines_in: Vec::new(),
+            calls_in: Vec::new(),
         });
         self.start = Some(start);
         self.status = Status::Racing;
