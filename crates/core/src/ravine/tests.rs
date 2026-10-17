@@ -750,3 +750,68 @@ fn a_low_vine_hangs_past_every_snake_on_its_side() {
         }
     }
 }
+
+/// The last stretch climbs out of the slot onto the open mesa (SECOND-ORDER
+/// RA-8 item 1): the walls stand 50 m or more round the last station, fall
+/// to low rims past the finish (still over 1.5 jumps' rise, so they
+/// close the course: no invisible wall), and stand 70 m or more off the
+/// line either side 60 m past it.
+#[test]
+fn the_mesa_opens_onto_low_rims_past_the_finish() {
+    use super::layout::{MESA_RIM, RIM_FALL};
+    use crate::rules::{GRAVITY, JUMP_SPEED};
+    let rise = fx::mul(JUMP_SPEED, JUMP_SPEED) / (2 * GRAVITY / ONE);
+    for c in layouts() {
+        let r = lay(&c);
+        let end = c.point(c.length);
+        let h = c.heading_at(c.length);
+        let (mut past, mut tall, mut wide) = (0, 0, 0);
+        for w in &r.walls {
+            for p in &w.points {
+                let d = p.at.sub(end).flat();
+                let (along, across) = (d.dot(h), d.dot(right_of(h)).abs());
+                if d.len() > int(200) {
+                    continue; // the canyon's earlier stretches
+                }
+                if along > int(RIM_FALL + 6) {
+                    past += 1;
+                    assert!(p.height <= MESA_RIM + int(1), "{} m past", along / ONE);
+                    assert!(p.height > rise * 3 / 2, "{} m past", along / ONE);
+                }
+                if along < -int(24) && along > -int(60) && across < int(30) {
+                    tall += 1;
+                    assert!(p.height >= int(50), "{} m short", -along / ONE);
+                }
+                if (int(56)..int(64)).contains(&along) && w.points.len() > 20 {
+                    wide += 1;
+                    assert!(across >= int(70), "{} m across", across / ONE);
+                }
+            }
+        }
+        assert!(past > 30 && tall >= 6 && wide >= 2, "{past} {tall} {wide}");
+    }
+}
+
+/// The campfire's roasting sticks stand at the layout's four spots
+/// (`Finish.sticks`, SECOND-ORDER RA-8 item 3), round the fire where the
+/// model's own stand at its drawn size, and the fire and tents stand clear
+/// of the sphinx and of one another.
+#[test]
+fn the_campfires_four_sticks_ring_the_fire() {
+    use super::layout::CAMPFIRE_SCALE;
+    let c = ravine();
+    let f = &lay(&c).finish;
+    let out = fx::mul(cm(170), CAMPFIRE_SCALE);
+    assert_eq!(f.sticks.len(), 4);
+    for s in &f.sticks {
+        let d = s.sub(f.campfire).flat().len();
+        assert!((d - out).abs() < cm(10), "a stick {} cm out", d * 100 / ONE);
+    }
+    assert!(f.campfire.flat().dist(f.sphinx.flat()) > int(20));
+    for (k, &(t, _)) in f.tents.iter().enumerate() {
+        assert!(t.flat().dist(f.campfire.flat()) > int(14), "tent {k}");
+        for &(u, _) in &f.tents[k + 1..] {
+            assert!(t.flat().dist(u.flat()) > int(12), "tent {k}");
+        }
+    }
+}

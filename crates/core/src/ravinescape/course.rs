@@ -646,9 +646,12 @@ fn finish(b: &mut Batch, r: &RavineLayout) {
         } else {
             m::TENT_RED
         };
+        let big = crate::ravine::layout::TENT_SCALE;
         m::tent(
             b,
-            &Affine::translate(at).then(&Affine::rot_y(yaw)),
+            &Affine::translate(at)
+                .then(&Affine::rot_y(yaw))
+                .then(&Affine::scale(v3(big, big, big))),
             c,
             k as u32,
         );
@@ -762,8 +765,52 @@ fn floor(c: &Course, r: &RavineLayout, n: usize) -> (Vec<i32>, Vec<(usize, u32, 
             last.2 = verts(&o) - last.1;
         }
     }
+    // the mesa top round the finish, out to the far buttes and past them,
+    // seen over the low rims (flat, a little under the floor's lowest so
+    // it never shows through it); in the last chunk with the finish
+    let mid = c.point(c.length + int(60));
+    let mid = v3(mid.x, MESA_TOP, mid.z);
+    let rings = [0, 140, 300, 520, 800].map(int);
+    const SPOKES: i32 = 24;
+    let at = |ring: usize, k: i32| {
+        let a = k * TURN / SPOKES;
+        mid.add(v3(
+            fx::mul(fx::sin(a), rings[ring]),
+            0,
+            fx::mul(fx::cos(a), rings[ring]),
+        ))
+    };
+    match ranges.last() {
+        Some((x, _, _)) if *x == n - 1 => {}
+        _ => ranges.push((n - 1, verts(&o), 0)),
+    }
+    for ring in 0..rings.len() - 1 {
+        for k in 0..SPOKES {
+            let shade = 88 + ((ring as i32 * 5 + k * 7) % 9);
+            let t = [0, 1, 2].map(|q| FLOOR_DARK[q] * shade / 100);
+            push_ground(
+                &mut o,
+                [at(ring, k), at(ring + 1, k), at(ring + 1, k + 1)],
+                t,
+            );
+            if ring > 0 {
+                push_ground(
+                    &mut o,
+                    [at(ring, k), at(ring + 1, k + 1), at(ring, k + 1)],
+                    t,
+                );
+            }
+        }
+    }
+    if let Some(last) = ranges.last_mut() {
+        last.2 = verts(&o) - last.1;
+    }
     (o, ranges)
 }
+
+/// The mesa top's height outside the canyon (under the floor's lowest,
+/// `ground`'s 0.9 m dips).
+const MESA_TOP: i32 = -cm(120);
 
 fn hue(c: LizardColour) -> m::LizardHue {
     match c {
@@ -929,7 +976,22 @@ pub fn dynamic(
     if near(r.finish.campfire, MOVERS_SEEN) {
         let at = r.finish.campfire;
         let toward = yaw_of(r.finish.sphinx.sub(at));
-        m::campfire(b, &Affine::translate(at).then(&Affine::rot_y(toward)), t, 1);
+        let big = crate::ravine::layout::CAMPFIRE_SCALE;
+        let size = Affine::scale(v3(big, big, big));
+        let frame = Affine::translate(at)
+            .then(&Affine::rot_y(toward))
+            .then(&size);
+        m::campfire_fire(b, &frame, t, 1);
+        // the layout's sticks, each leaning in over the fire to 1.2 m up
+        // (the model's lean, at its size)
+        let upright = Affine::translate(at).then(&size);
+        for (i, &foot) in r.finish.sticks.iter().enumerate() {
+            let out = foot.sub(at).flat();
+            let foot = v3(fx::div(out.x, big), 0, fx::div(out.z, big));
+            let tip = foot.scale(fx::div(cm(55), foot.len().max(1)));
+            let end = v3(tip.x, cm(120), tip.z);
+            m::roasting_stick(b, &upright, foot, end, i as i32);
+        }
     }
 }
 
