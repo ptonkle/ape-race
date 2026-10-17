@@ -410,6 +410,7 @@ tags = ["boundary"]
 "lib:ape::ski_tests::" = ["physics", "maps-ski"]
 "lib:ai::tests::on_the_tower_" = ["ai", "maps-tower"]
 "lib:ai::tests::on_rattlesnake_ravine_" = ["ai", "maps-ravine"]
+"lib:ai::tests::on_rattlesnake_ravine_a_grounded_ape" = ["maps-ravine"]
 "lib:api::" = ["page", "menus"]
 # app.rs's tests, moved to one file per domain (tags3, 2026-10-17)
 "lib:app::race_tests::" = ["race", "setup", "menus"]

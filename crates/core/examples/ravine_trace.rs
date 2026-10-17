@@ -74,7 +74,16 @@ fn main() {
                     m,
                     a.pos.y / ONE,
                     a.speed() / ONE,
-                    if stalled { "STALL " } else { "" },
+                    if stalled {
+                        format!(
+                            "STALL t{:?} ({},{}) ",
+                            brain.target,
+                            a.pos.x * 10 / ONE,
+                            a.pos.z * 10 / ONE
+                        )
+                    } else {
+                        String::new()
+                    },
                     line
                 );
             }
