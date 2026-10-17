@@ -64,7 +64,7 @@ tags = ["boundary"]
 "scripts/quick-check.sh" = ["boundary"]
 "scripts/tags.py" = ["boundary"]
 "scripts/wasm_imports.py" = ["all"]
-"tests/tags.toml" = ["all"]
+"tests/tags.toml" = ["boundary"]
 "web/vendor/**" = ["all"]
 "web/index.html" = ["all"]
 
