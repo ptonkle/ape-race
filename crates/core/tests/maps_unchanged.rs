@@ -12,6 +12,14 @@ use tool_core::race::{Driver, Entry, Phase, Race};
 use tool_core::replay::fingerprint;
 use tool_core::rules::{Kind, TICKS_PER_SECOND};
 
+/// The AI levels of a race's four seats.
+const SEATS: [Difficulty; 4] = [
+    Difficulty::Sloth,
+    Difficulty::Sloth,
+    Difficulty::Ape,
+    Difficulty::KingKong,
+];
+
 fn mix(h: &mut u64, v: i64) {
     *h ^= v as u64;
     *h = h.wrapping_mul(0x0000_0100_0000_01B3);
@@ -31,7 +39,8 @@ fn race_hash(course: Course, lava: bool) -> u64 {
         .collect();
     let mut race = Race::new(course, &entries, false, 7);
     race.lava = lava;
-    let mut brains: Vec<Brain> = Difficulty::ALL
+    // four seats, three levels: the Monkey's seat (removed, DM-4) is a Sloth's
+    let mut brains: Vec<Brain> = SEATS
         .iter()
         .enumerate()
         .map(|(i, &d)| Brain::new(d, 0xA9E5 + i as u64))
@@ -88,10 +97,12 @@ fn the_jungle_with_floor_is_lava_plays_out_as_before_sector_ape() {
 /// The City's, retaken 2026-10-16 for TRIAGE T90: an AI held on a City
 /// vine past the give-up time lets go even with releases queued (a
 /// deliberate AI change; the layout fingerprint is unchanged).
+/// (retaken 2026-10-17 for 1.14.4: the Monkey level was removed, so the
+/// race's second seat is a Sloth, SECOND-ORDER DM-4)
 const CITY: (u32, u64, u64) = (
     3_200_548_462,
-    9_912_722_393_795_212_091,
-    9_685_341_736_122_952_183,
+    2_107_152_609_342_677_241,
+    546_866_009_098_367_649,
 );
 /// The Ski Slope's, retaken 2026-10-15 for TRIAGE T84 (low vines thinned
 /// to one a station, by each fence or in each fork branch in turn; before
@@ -99,9 +110,13 @@ const CITY: (u32, u64, u64) = (
 /// replay saved before it no longer plays back the same. Retaken again
 /// 2026-10-16 with the Jungle's for TRIAGE T90: a caught Hook tows its user
 /// and no longer pulls the hooked ape back (a deliberate item change).
+/// (retaken 2026-10-17 for 1.14.4: the Monkey level was removed, so the
+/// race's second seat is a Sloth, SECOND-ORDER DM-4)
 const SKI: (u32, u64, u64) = (
     3_897_725_592,
-    16_920_151_890_700_000_989,
-    10_600_682_349_292_222_142,
+    13_812_632_743_768_814_292,
+    18_329_784_954_751_542_044,
 );
-const JUNGLE_LAVA: u64 = 12_155_838_013_011_777_751;
+/// (retaken 2026-10-17 for 1.14.4: the Monkey level was removed, so the
+/// race's second seat is a Sloth, SECOND-ORDER DM-4)
+const JUNGLE_LAVA: u64 = 4_813_789_052_288_605_790;

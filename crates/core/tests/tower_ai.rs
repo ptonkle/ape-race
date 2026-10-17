@@ -1,6 +1,6 @@
 //! The AI on Mape's Tower: every difficulty climbs the tower, falls down
-//! the zipper and finishes (TW1), and the difficulties stay ordered and
-//! spaced over sixteen layouts, as on the other maps (TC5).
+//! the zipper and finishes (TW1), and King Kong beats the Sloth on average
+//! over sixteen layouts, as on the other maps (TC5, DM-3).
 
 use tool_core::ai::{time_trial, trial_at, Difficulty, Trial};
 use tool_core::course::Course;
@@ -12,7 +12,7 @@ use tool_core::tower::{tower, tower_seeded, Leg};
 const LIMIT: u32 = 150 * TICKS_PER_SECOND as u32;
 
 /// Every level finishes the course inside the limit, each reported before
-/// any is judged, with the Monkey's time on each leg (the plan: about
+/// any is judged, with each level's time on each leg (the plan: about
 /// 10 s under each bridge).
 #[test]
 fn every_difficulty_climbs_falls_and_finishes() {
@@ -94,13 +94,12 @@ fn layout(k: u64) -> Course {
     }
 }
 
-/// As `bay_difficulties_are_ordered_and_spaced`: over sixteen layouts of
-/// Mape's Tower (one Chimpanzee, Equal Stats), each easier level's mean
-/// finish is at least `GAP` slower than the next harder's, and every race
-/// at every level finishes inside the limit (150 s).
+/// The AI is there to show the map can be finished (SECOND-ORDER DM-3):
+/// over sixteen layouts (one Chimpanzee, Equal Stats) every race at every
+/// level finishes inside the limit (150 s), and King Kong's mean finish
+/// is faster than the Sloth's. No spacing between the levels is asked.
 #[test]
-fn tower_difficulties_are_ordered_and_spaced() {
-    const GAP: f64 = 6.0;
+fn tower_every_level_finishes_and_king_kong_beats_the_sloth() {
     let runs: Vec<_> = Difficulty::ALL
         .into_iter()
         .map(|level| {
@@ -128,19 +127,14 @@ fn tower_difficulties_are_ordered_and_spaced() {
         println!("{:<10} {row:.1?} mean {mean:.1} s", level.key());
         means.push(mean);
     }
-    for (i, w) in means.windows(2).enumerate() {
-        assert!(
-            w[0] >= w[1] + GAP,
-            "{} ({:.1} s) is not {GAP} s slower than {} ({:.1} s)",
-            Difficulty::ALL[i].key(),
-            w[0],
-            Difficulty::ALL[i + 1].key(),
-            w[1]
-        );
-    }
+    let (sloth, king_kong) = (means[0], means[means.len() - 1]);
+    assert!(
+        king_kong < sloth,
+        "king_kong ({king_kong:.1} s) is not faster than sloth ({sloth:.1} s) on average"
+    );
 }
 
-/// The chase camera follows a Monkey up the climb and down the zipper:
+/// The chase camera follows an Ape up the climb and down the zipper:
 /// the eye stays near the ape all the way, rises with it to the tear and
 /// comes back down with it.
 #[test]
@@ -157,7 +151,7 @@ fn the_chase_camera_follows_up_the_climb_and_down_the_zipper() {
         costume: tool_core::costume::Costume::Own,
     };
     let mut race = Race::new(tower(), &[entry], true, 7);
-    let mut brains = vec![Brain::new(Difficulty::Monkey, 0xA9E5)];
+    let mut brains = vec![Brain::new(Difficulty::Ape, 0xA9E5)];
     let a = &race.racers[0].ape;
     let mut chase = Chase::new(a.pos, race.course.start_yaw, race.course.terrain);
     let (mut far, mut top, mut after_top) = (0, i32::MIN, i32::MAX);
@@ -174,7 +168,7 @@ fn the_chase_camera_follows_up_the_climb_and_down_the_zipper() {
             after_top = after_top.min(chase.eye.y);
         }
     }
-    assert!(race.racers[0].finish.is_some(), "the Monkey finishes");
+    assert!(race.racers[0].finish.is_some(), "the Ape finishes");
     assert!(
         far < 40 * ONE,
         "the eye strays {} m from the ape",

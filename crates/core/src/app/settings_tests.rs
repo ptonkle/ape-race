@@ -74,3 +74,17 @@ fn speed_colours_can_be_turned_off() {
     a.act("settings.speed_colours", "off");
     assert_eq!(fast(&mut a), 0);
 }
+
+/// The Monkey level was removed (1.14.4, SECOND-ORDER DM-2): settings
+/// saved with it load with the Sloth and keep everything else, and a
+/// "monkey" key (a picture-tile query) gives the Sloth too.
+#[test]
+fn a_saved_monkey_level_loads_as_the_sloth() {
+    let s = Settings::parse(r#"{"ai_level":"monkey","ai_count":2}"#);
+    assert_eq!(s.ai_level, crate::ai::Difficulty::Sloth);
+    assert_eq!(s.ai_count, 2);
+    assert_eq!(
+        crate::ai::Difficulty::from_key("monkey"),
+        Some(crate::ai::Difficulty::Sloth)
+    );
+}

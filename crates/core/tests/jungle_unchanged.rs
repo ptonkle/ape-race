@@ -10,6 +10,14 @@ use tool_core::race::{Driver, Entry, Phase, Race};
 use tool_core::replay::fingerprint;
 use tool_core::rules::{Kind, TICKS_PER_SECOND};
 
+/// The AI levels of a race's four seats.
+const SEATS: [Difficulty; 4] = [
+    Difficulty::Sloth,
+    Difficulty::Sloth,
+    Difficulty::Ape,
+    Difficulty::KingKong,
+];
+
 fn mix(h: &mut u64, v: i64) {
     *h ^= v as u64;
     *h = h.wrapping_mul(0x0000_0100_0000_01B3);
@@ -28,7 +36,8 @@ fn jungle_race_hash() -> u64 {
         })
         .collect();
     let mut race = Race::new(Course::jungle(), &entries, false, 7);
-    let mut brains: Vec<Brain> = Difficulty::ALL
+    // four seats, three levels: the Monkey's seat (removed, DM-4) is a Sloth's
+    let mut brains: Vec<Brain> = SEATS
         .iter()
         .enumerate()
         .map(|(i, &d)| Brain::new(d, 0xA9E5 + i as u64))
@@ -74,4 +83,6 @@ const JUNGLE_FINGERPRINT: u32 = 3_788_111_273;
 const JUNGLE_MUSHROOMS: usize = 22;
 /// (retaken 2026-10-16 for TRIAGE T90: a caught Hook tows its user and no
 /// longer pulls the hooked ape back, a deliberate item change)
-const JUNGLE_RACE: u64 = 2_769_119_832_941_132_963;
+/// (retaken 2026-10-17 for 1.14.4: the Monkey level was removed, so the
+/// race's second seat is a Sloth, SECOND-ORDER DM-4)
+const JUNGLE_RACE: u64 = 17_326_176_234_539_515_065;

@@ -153,13 +153,12 @@ fn layouts() -> Vec<Course> {
         .collect()
 }
 
-/// The difficulties (TRIAGE T14) are ordered and spaced: over eight layouts
-/// (one Chimpanzee, Equal Stats), each easier level's mean finish is at
-/// least `GAP` slower than the next harder's, and every race at every level
-/// finishes inside the limit (150 s). One thread per level.
+/// The AI is there to show the map can be finished (SECOND-ORDER DM-3):
+/// over eight layouts (one Chimpanzee, Equal Stats) every race at every
+/// level finishes inside the limit (150 s), and King Kong's mean finish
+/// is faster than the Sloth's. No spacing between the levels is asked.
 #[test]
-fn difficulties_are_ordered_and_spaced() {
-    const GAP: f64 = 6.0;
+fn every_level_finishes_and_king_kong_beats_the_sloth() {
     let runs: Vec<_> = Difficulty::ALL
         .into_iter()
         .map(|level| {
@@ -189,16 +188,11 @@ fn difficulties_are_ordered_and_spaced() {
         println!("{:<10} {row:.1?} mean {mean:.1} s", level.key());
         means.push(mean);
     }
-    for (i, w) in means.windows(2).enumerate() {
-        assert!(
-            w[0] >= w[1] + GAP,
-            "{} ({:.1} s) is not {GAP} s slower than {} ({:.1} s)",
-            Difficulty::ALL[i].key(),
-            w[0],
-            Difficulty::ALL[i + 1].key(),
-            w[1]
-        );
-    }
+    let (sloth, king_kong) = (means[0], means[means.len() - 1]);
+    assert!(
+        king_kong < sloth,
+        "king_kong ({king_kong:.1} s) is not faster than sloth ({sloth:.1} s) on average"
+    );
 }
 
 /// TRIAGE T32: the four AI starters each take the start-row vine in front
