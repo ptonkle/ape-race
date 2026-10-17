@@ -82,12 +82,14 @@ fn main() {
             };
             let side = race.course.progress(a.pos, a.hint).1;
             println!(
-                "{:>5.1}s {:>5} m {:>+6.1} {:<5} y{:>4} v{:>3} h{} {}",
+                "{:>5.1}s {:>5} m {:>+6.1} {:<5} x{:>4} y{:>4} z{:>4} v{:>3} h{} {}",
                 race.clock as f64 / TICKS_PER_SECOND as f64,
                 race.racers[0].progress / ONE,
                 side as f64 / ONE as f64,
                 m,
+                a.pos.x / ONE,
                 a.pos.y / ONE,
+                a.pos.z / ONE,
                 a.speed() / ONE,
                 a.hint * 2,
                 line
