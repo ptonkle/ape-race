@@ -1078,6 +1078,8 @@ pub struct SavePoint {
     pub door: Option<u32>,
     /// and Sunset Ruins' trapdoors (when each was last tripped)
     pub traps: Vec<Option<u32>>,
+    /// and Rattlesnake Ravine's snake vines (when each snapped)
+    pub snakes: Vec<Option<u32>>,
 }
 
 impl SavePoint {
@@ -1086,6 +1088,7 @@ impl SavePoint {
     pub fn of(race: &mut Race, brains: &[Brain], blank: &Course) -> SavePoint {
         let door = race.course.sector.as_ref().and_then(|s| s.door.shut_at);
         let traps = crate::ruins::trap_state(&race.course);
+        let snakes = crate::ravine::snake_state(&race.course);
         let course = std::mem::replace(&mut race.course, blank.clone());
         let copy = race.clone();
         race.course = course;
@@ -1094,6 +1097,7 @@ impl SavePoint {
             brains: brains.to_vec(),
             door,
             traps,
+            snakes,
         }
     }
 }
@@ -1109,6 +1113,7 @@ pub fn put_back(save: SavePoint, race: &mut Race, brains: &mut Vec<Brain>) {
         s.door.shut_at = save.door;
     }
     crate::ruins::put_trap_state(&mut race.course, &save.traps);
+    crate::ravine::put_snake_state(&mut race.course, &save.snakes);
 }
 
 /// A recording being watched. The race itself is the `Play`'s.

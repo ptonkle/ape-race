@@ -272,6 +272,7 @@ impl Difficulty {
                 item_wait: 6 * second,
                 flight: FLIGHT_TICKS,
                 hidden: true,
+                snake_slip: SNAKE_SLIP[0],
             },
             Difficulty::Ape => Tuning {
                 ideal_hop: int(26),
@@ -284,6 +285,7 @@ impl Difficulty {
                 item_wait: second,
                 flight: FLIGHT_TICKS,
                 hidden: true,
+                snake_slip: SNAKE_SLIP[1],
             },
             Difficulty::KingKong => Tuning {
                 ideal_hop: int(28),
@@ -296,10 +298,18 @@ impl Difficulty {
                 item_wait: 0,
                 flight: FLIGHT_TICKS,
                 hidden: true,
+                snake_slip: SNAKE_SLIP[2],
             },
         }
     }
 }
+
+/// Rattlesnake Ravine: of every hundred snake vines, how many each level
+/// makes for anyway (it misses the snake), easiest level first: the AI
+/// steers clear of most of them, the Sloth the least (the person,
+/// 2026-10-17). Which ones is fixed per vine (`snake_missed`), so a level
+/// misses the same snakes every race.
+const SNAKE_SLIP: [u32; 3] = [45, 10, 5];
 
 // The per-map tables below are indexed by level, easiest first: Sloth,
 // Ape, King Kong. Their notes predate 1.14.4, when the Monkey (the level
@@ -443,6 +453,9 @@ struct Tuning {
     flight: u32,
     /// it may take a hidden route (Sector Ape's wreck passage)
     hidden: bool,
+    /// Rattlesnake Ravine: of every hundred snake vines it makes for this
+    /// many (it misses the snake); it steers clear of the rest
+    snake_slip: u32,
 }
 
 /// Sector Ape's tuning (see [`Difficulty::tuning_on`]), easiest level
@@ -1041,6 +1054,12 @@ fn aim_point(course: &Course, i: usize, tick: u32) -> V3 {
 /// Whether vine `i` is on a hidden route this level does not look for
 /// (Sector Ape's wreck passage).
 fn off_limits(course: &Course, i: usize, tune: Tuning) -> bool {
+    // (Rattlesnake Ravine: a snake vine it sees, it steers clear of)
+    if let Some(r) = course.ravine.as_deref() {
+        if r.hangers.get(i).is_some_and(|h| h.snake) && !snake_missed(i, tune.snake_slip) {
+            return true;
+        }
+    }
     // (Sunset Ruins: a pit's vines are for when its trapdoor is open:
     // `drawn_up`)
     !tune.hidden
@@ -1050,10 +1069,44 @@ fn off_limits(course: &Course, i: usize, tune: Tuning) -> bool {
             .is_some_and(|s| s.routes.iter().any(|r| r.hidden && r.vines.contains(&i)))
 }
 
+/// Whether a canyon wall stands on the flat line from `from` to `to`
+/// (Rattlesnake Ravine; false on every other map): sampled every 2 m at
+/// `from`'s height plus 1 m, short of the last 4 m (a ledge vine's anchor
+/// sits at its wall's face).
+fn walled_off(course: &Course, from: V3, to: V3) -> bool {
+    let Some(s) = course.ravine_solids() else {
+        return false;
+    };
+    let d = to.sub(from).flat();
+    let len = d.len();
+    let dir = d.norm();
+    let mut k = int(2);
+    while k < len - int(4) {
+        let p = from.add(dir.scale(k)).add(v3(0, int(1), 0));
+        if s.near(p).iter().any(|&j| {
+            let sol = &s.list[j as usize];
+            sol.kind == crate::ravine::solids::SolidKind::Wall && sol.holds(p, 0)
+        }) {
+            return true;
+        }
+        k += int(2);
+    }
+    false
+}
+
 /// Whether vine `i` is drawn up out of reach at `tick` (Sunset Ruins: a
-/// pit vine over a shut trapdoor).
+/// pit vine over a shut trapdoor; Rattlesnake Ravine: a snapped snake
+/// vine).
 fn drawn_up(course: &Course, i: usize, tick: u32) -> bool {
     course.ruins.as_ref().is_some_and(|r| r.vine_up(i, tick))
+        || course.ravine.as_ref().is_some_and(|r| r.vine_gone(i, tick))
+}
+
+/// Whether a level that misses `slip` snakes in a hundred misses snake
+/// vine `i`'s (fixed per vine: a hash of its index).
+fn snake_missed(i: usize, slip: u32) -> bool {
+    let h = (i as u64 + 1).wrapping_mul(0x9E37_79B9_7F4A_7C15) >> 40;
+    (h % 100) < slip as u64
 }
 
 /// The vine to make for after `target`.
@@ -1816,6 +1869,12 @@ fn on_ground(a: &Ape, course: &Course, tick: u32, brain: &mut Brain) -> Controls
         if course.sector.is_some() && an.y.max(course.tip(i, tick).y) < support {
             continue;
         }
+        // (Rattlesnake Ravine: never a vine with canyon rock between, the
+        // island between the passages say: it ran into the rock for good,
+        // RC15)
+        if walled_off(course, a.pos, an) {
+            continue;
+        }
         let d = an.flat().sub(a.pos.flat()).len() as i64;
         let behind = if v.at < prog { int(25) as i64 } else { 0 };
         // up on the start platform: the nearest of the first vines, so the
@@ -2130,6 +2189,78 @@ fn aim_at(course: &Course, target: usize) -> i32 {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Rattlesnake Ravine (RC15): on the ground in the upper passage by the
+    /// island's nose (layout 1, where King Kong stopped at 1115 m), the AI
+    /// runs for a vine in the open, not for the tunnel's low vine through
+    /// the island's rock.
+    #[test]
+    fn on_rattlesnake_ravine_a_grounded_ape_runs_for_no_vine_behind_rock() {
+        let c = crate::ravine::ravine_seeded(0x5A4E_C0DE_0001 + 7919);
+        let (x, z) = (cm(10_250), cm(78_300));
+        let mut a = Ape::new(
+            crate::rules::Kind::Chimpanzee,
+            true,
+            v3(x, c.terrain(x, z) + crate::rules::BODY_DROP, z),
+            0,
+        );
+        a.hint = c.nearest_anywhere(a.pos);
+        // the tunnel's low vine, across the island, and the upper passage's
+        let (tunnel, open) = (151, 234);
+        assert!(walled_off(&c, a.pos, c.vines[tunnel].anchor));
+        assert!(!walled_off(&c, a.pos, c.vines[open].anchor));
+        let mut brain = Brain::new(Difficulty::KingKong, 0xA9E5);
+        on_ground(&a, &c, 1, &mut brain);
+        let t = brain.target.expect("a vine to run for");
+        assert!(
+            !walled_off(&c, a.pos, c.vines[t].anchor),
+            "ran for vine {t} through the rock"
+        );
+    }
+
+    /// Rattlesnake Ravine (the person, 2026-10-17): the AI steers clear of
+    /// most snake vines, the Sloth of the fewest; ordinary vines and the
+    /// other maps are as before.
+    #[test]
+    fn on_rattlesnake_ravine_the_ai_steers_clear_of_most_snake_vines_the_sloth_least() {
+        let mut c = crate::ravine::ravine();
+        let n = c.vines.len();
+        for h in &mut c.ravine.as_deref_mut().unwrap().hangers {
+            h.snake = true;
+        }
+        let on = On {
+            city: false,
+            ski: false,
+            sector: false,
+            ruins: false,
+            bay: false,
+            tower: false,
+        };
+        let shares: Vec<usize> = Difficulty::ALL
+            .iter()
+            .map(|d| {
+                let tune = d.tuning_on(on);
+                let open = (0..n).filter(|&i| !off_limits(&c, i, tune)).count();
+                open * 100 / n
+            })
+            .collect();
+        // each level makes for few of them, the Sloth for the most
+        assert!(shares.iter().all(|&s| s <= 55), "{shares:?}");
+        assert!(shares.windows(2).all(|w| w[0] >= w[1]), "{shares:?}");
+        assert!(shares[0] > shares[2] + 15, "{shares:?}");
+        // an ordinary vine is no one's off limits (and a snake vine off this
+        // map is just a vine)
+        let mut plain = c.clone();
+        for h in &mut plain.ravine.as_deref_mut().unwrap().hangers {
+            h.snake = false;
+        }
+        let jungle = crate::map::Map::Jungle.course();
+        for d in Difficulty::ALL {
+            let tune = d.tuning_on(on);
+            assert!((0..n).all(|i| !off_limits(&plain, i, tune)), "{d:?}");
+            assert!((0..jungle.vines.len()).all(|i| !off_limits(&jungle, i, tune)));
+        }
+    }
 
     /// Mape's Tower's climbs (TC2-17): inside tower 1's hollow every level
     /// swings with full arms, round tower 2 the Sloth with

@@ -115,6 +115,8 @@ pub(super) fn cue_for(e: &Event, local: usize) -> Option<Cue> {
             // its sound comes with the reward
             Happening::Launched => return None,
             Happening::Wall => return None,
+            // (Rattlesnake Ravine; the art may give them their own sounds)
+            Happening::Snapped | Happening::Bitten => Cue::Hit,
         }),
         Event::Countdown { .. } => Some(Cue::Beep),
         Event::Go => Some(Cue::Go),

@@ -1,6 +1,6 @@
 # Making a map
 
-Notes for building the next map, from the Jungle (the first course) and the City (New York at dusk, 2026-10-12), then the Ski Slope (Yeti Peak), Sector Ape, Sunset Ruins and Banana Bay Battle (the pirate map, 2026-10-15; brief `briefs/banana-bay-battle.md`, SECOND-ORDER BB, BM, BG, BC, BS, BT, BW rows). Read this before adding a map. Update it when a map teaches something new. SECOND-ORDER rows C4–C8 and on (City course), Y1–Y14 (City art), U1–U10 (map selector), I3 and I6 (integration), and V1–V12 (the jaguar mode, which runs on every map) have the details.
+Notes for building the next map, from the Jungle (the first course) and the City (New York at dusk, 2026-10-12), then the Ski Slope (Yeti Peak), Sector Ape, Sunset Ruins, Banana Bay Battle (the pirate map, 2026-10-15; brief `briefs/banana-bay-battle.md`, SECOND-ORDER BB, BM, BG, BC, BS, BT, BW rows), Mape's Tower and Rattlesnake Ravine (the slot canyon, 2026-10-17; brief `briefs/rattlesnake-ravine.md`, progress `notes/ravine-progress.md`, SECOND-ORDER RV, RG, RM, RK, RC, RR, RA, RL, RMT, RP rows). Read this before adding a map. Update it when a map teaches something new. SECOND-ORDER rows C4–C8 and on (City course), Y1–Y14 (City art), U1–U10 (map selector), I3 and I6 (integration), and V1–V12 (the jaguar mode, which runs on every map) have the details.
 
 ## Build steps (track these for every map)
 
@@ -162,6 +162,15 @@ Gathered on 2026-10-17 from TRIAGE, SECOND-ORDER, the morning and progress notes
 - **A rim is a trap.** A beam whose bottom is at the wall's top height swings the feet through the stone; beams just inside a wall hang at least 4 m over it (TC2-8).
 - **Random vines spread the times.** Scattered beams with no path make the inside climb take 20–60 s even for King Kong, which swamps the gaps between levels; a single-layout order test becomes a lottery (TC2-23).
 - **Flush solids z-fight.** A mortar block flush with both stone skins drew stipple bands across every wall; stop inner blocks short of the faces (TA2-10). Bridge hooks hung a fixed depth under a deck sat inside its stone; drop each until its beam is clear (TA2-11).
+
+### What Rattlesnake Ravine taught (the slot canyon, 2026-10-17, SECOND-ORDER RV/RM/RC/RR/RA/RP rows)
+
+- **Hold a map until it is ready.** Earlier maps were on the map grid from their skeleton, stand-in and all. `Map::held` keeps a map off the grid and Random (`Map::offered`) while it is built, and `map_cards.py --only <key>` still shoots its card (RV1, RA-14). Releasing it is one line.
+- **Pitfalls first.** The common gotchas above were gathered before the build and put in every agent's brief (`notes/ravine-pitfalls.md`); the walls, rooms, holes, skull and rocks were solid from the first commit, drawn and made solid from the same numbers (RA-1, RA-7).
+- **A hazard on a vine is drawn as its own thing.** Snake vines are never drawn as vines: a coil, a rattle, banded scales and a head, black and white in colourblind, so a sharp player reads one before grabbing it (RM-2, RA-2). The snap is a pure function of `snapped_at` and the tick, kept in the save points (RR1).
+- **A grounded AI ape needs a reachable vine, not the nearest one.** King Kong, dropped beside a rock island, ran at a vine across it for 90 s; a grounded ape now skips vines with a canyon wall in the way (RC15). Hazards that drop apes make the Sloth the slowest by far (5 of 16 layouts over 150 s, accepted).
+- **Moving things cost every sim step.** Lizards, carts and decks re-worked every step made the ravine's median step over twice the Tower's, worst 163 ms; a cheap box reject per mover and deck brought it to 188 µs (RP1). Measure with `examples/frame_cost.rs` as soon as moving bouncers land.
+- **Count the sky.** A narrow slot of starry sky still cost 1,028 shapes, which takes the hairpin's worst frame over 5,500 if counted (RP2); cut the dome's stars and haze to fit.
 
 ## Checklist for a new map
 

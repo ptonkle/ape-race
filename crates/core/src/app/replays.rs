@@ -278,7 +278,8 @@ pub(super) fn restore(p: &mut Play, save: replay::SavePoint) {
     p.chase = Chase::new(f.ape.pos, p.chase.yaw, p.race.course.terrain)
         .with_crowns(f.ape.pos, p.chase.crowns.clone())
         .with_temple(f.ape.pos, p.chase.temple.clone())
-        .with_hulls(f.ape.pos, p.chase.hulls.clone());
+        .with_hulls(f.ape.pos, p.chase.hulls.clone())
+        .with_keeps(f.ape.pos, p.chase.keeps.clone());
 }
 
 /// One page tick of a replay: as many race ticks as the speed (or a seek)

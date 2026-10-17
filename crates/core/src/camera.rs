@@ -12,7 +12,9 @@ use crate::skiscape::Crown;
 use std::sync::Arc;
 
 pub mod hulls;
+pub mod keeps;
 pub use hulls::Hulls;
+pub use keeps::Keeps;
 
 /// The field of view at rest and at full speed.
 const FOV_REST: i32 = deg(68);
@@ -67,6 +69,9 @@ pub struct Chase {
     /// the ships the eye keeps out of (Banana Bay Battle; none on the
     /// other maps), SECOND-ORDER BP1
     pub hulls: Option<Arc<Hulls>>,
+    /// the rooms the eye keeps inside of and the solids it keeps out of
+    /// (Rattlesnake Ravine; none on the other maps)
+    pub keeps: Option<Arc<Keeps>>,
     /// on the bay, the eye before it is kept out of the ships, and how far
     /// the ships move it (eased toward where `Hulls::kept_out` wants it,
     /// so a rise over a deck glides, BR1, BX1)
@@ -124,6 +129,7 @@ impl Chase {
             reach_speed: 0,
             temple: None,
             hulls: None,
+            keeps: None,
             free: at,
             shift: V3::ZERO,
         };
@@ -147,6 +153,17 @@ impl Chase {
     /// The same camera, keeping inside `temple` (placed again at `at`).
     pub fn with_temple(mut self, at: V3, temple: Option<Arc<Temple>>) -> Chase {
         self.temple = temple;
+        self.eye = self.target;
+        self.place(at, V3::ZERO);
+        self.prev_eye = self.eye;
+        self.prev_target = self.target;
+        self
+    }
+
+    /// The same camera, keeping inside `keeps`' rooms and out of its
+    /// solids (placed again at `at`).
+    pub fn with_keeps(mut self, at: V3, keeps: Option<Arc<Keeps>>) -> Chase {
+        self.keeps = keeps;
         self.eye = self.target;
         self.place(at, V3::ZERO);
         self.prev_eye = self.eye;
@@ -253,8 +270,12 @@ impl Chase {
             }
             None => eye,
         };
-        self.eye = match &self.temple {
+        let eye = match &self.temple {
             Some(t) => t.kept_in(target, eye),
+            None => eye,
+        };
+        self.eye = match &self.keeps {
+            Some(k) => k.kept_in(target, eye),
             None => eye,
         };
         self.target = target;

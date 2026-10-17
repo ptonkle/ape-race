@@ -82,6 +82,11 @@ impl App {
             let temple = crate::camera::Temple::of(r);
             chase = chase.with_temple(at, Some(std::sync::Arc::new(temple)));
         }
+        // on Rattlesnake Ravine the eye keeps inside the rooms and out of
+        // the rock
+        if let Some(k) = crate::camera::Keeps::of(&race.course) {
+            chase = chase.with_keeps(at, Some(std::sync::Arc::new(k)));
+        }
         // on Banana Bay Battle the eye keeps out of the ships (BP1)
         if let Some(h) = crate::camera::Hulls::of(&race.course) {
             chase = chase.with_hulls(at, Some(std::sync::Arc::new(h)));

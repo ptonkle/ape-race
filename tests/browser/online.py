@@ -26,6 +26,7 @@ candidates: see LOOPBACK_ONLY.
 Environment:
     BUILDER_ENGINES   space-separated engines (default "chromium firefox webkit")
 """
+import engines
 import base64
 import functools
 import http.server
@@ -184,7 +185,7 @@ def loopback(code):
 def run_engine(p, engine, origin):
     report.note(f"\n[{engine}] {origin}/nettest.html?ice=none")
     seen = {"foreign": [], "console": [], "errors": [], "sockets": []}
-    browser = getattr(p, engine).launch()
+    browser = engines.launch(p, engine)
     # Each tab is its own browser context: three separate "browsers".
     names = "AB" if engine in LOOPBACK_ONLY else "ABC"
     tabs = [Tab(watched_context(browser, origin, seen), origin, n, seen) for n in names]

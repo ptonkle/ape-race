@@ -54,6 +54,7 @@ maps-sector = "Sector Ape (space)"
 maps-ruins = "Sunset Ruins"
 maps-bay = "Banana Bay Battle"
 maps-tower = "Mape's Tower (the wizard tower)"
+maps-ravine = "Rattlesnake Ravine (the slot canyon)"
 # a map's art: its scenery and model files. Carried by that map's drawing,
 # scene and scenery tests, not its AI, physics or course tests (a mesh
 # change cannot move a racer). Narrow: it runs a map's test on its own.
@@ -63,6 +64,7 @@ art-sector = "Sector Ape's scenery and craft (sectorscape.rs, spacecraft.rs's dr
 art-ruins = "Sunset Ruins' scenery and models (ruinsscape.rs, ruinsmodels.rs)"
 art-bay = "Banana Bay Battle's scenery and ships (bayscape/, baymodels.rs)"
 art-tower = "Mape's Tower's scenery and models (towerscape/, towermodels/)"
+art-ravine = "Rattlesnake Ravine's art alone (its sky and light: ravinescape's own files)"
 
 # A hit tag on the left also hits the tags on the right: a change to the
 # drawing's core can break any drawn thing.
@@ -127,6 +129,8 @@ tags = ["boundary"]
 "crates/core/src/models.rs" = ["models"]
 "crates/core/src/models/tourist.rs" = ["gear"]
 "crates/core/src/models/wizard.rs" = ["gear"]
+"crates/core/src/models/cowboy.rs" = ["gear"]
+"crates/core/src/models/spider.rs" = ["models"]
 "crates/core/src/models/flame.rs" = ["models"]
 "crates/core/src/sky.rs" = ["sky"]
 "crates/core/src/icon.rs" = ["icon"]
@@ -204,6 +208,13 @@ tags = ["boundary"]
 "crates/core/src/bayscape/**" = ["art-bay", "scenery"]
 "crates/core/src/towermodels.rs" = ["art-tower", "scenery"]
 "crates/core/src/towermodels/**" = ["art-tower", "scenery"]
+"crates/core/src/ravine.rs" = ["maps-ravine"]
+"crates/core/src/ravine/**" = ["maps-ravine"]
+"crates/core/src/ravine/lobby.rs" = ["art-ravine"]
+"crates/core/src/ravinemodels.rs" = ["maps-ravine", "scenery"]
+"crates/core/src/ravinemodels/**" = ["maps-ravine", "scenery"]
+"crates/core/src/ravinescape.rs" = ["maps-ravine", "scenery", "sky"]
+"crates/core/src/ravinescape/**" = ["art-ravine"]
 
 # integration tests: a change to one runs it
 "crates/core/tests/ai.rs" = ["ai", "maps-jungle"]
@@ -213,6 +224,7 @@ tags = ["boundary"]
 "crates/core/src/towerscape.rs" = ["art-tower", "scenery", "sky", "weather"]
 "crates/core/src/towerscape/**" = ["art-tower", "scenery", "sky"]
 "crates/core/tests/tower_ai.rs" = ["ai", "maps-tower"]
+"crates/core/tests/ravine_ai.rs" = ["maps-ravine"]
 "crates/core/tests/city_ai.rs" = ["ai", "maps-city"]
 "crates/core/tests/ruins_ai.rs" = ["ai", "maps-ruins"]
 "crates/core/tests/sector_ai.rs" = ["ai", "maps-sector"]
@@ -226,6 +238,7 @@ tags = ["boundary"]
 "crates/core/tests/maps_unchanged.rs" = ["maps-city", "maps-ski", "maps-jungle"]
 # tools: clippy (always run) compiles them; no test runs them
 "crates/core/examples/**" = []
+"crates/core/examples/ravine_*.rs" = ["maps-ravine"]
 
 # data
 "data/strings.json" = ["menus"]
@@ -246,6 +259,7 @@ tags = ["boundary"]
 "tests/browser/online.py" = ["online"]
 "tests/browser/online_race.py" = ["online"]
 "tests/browser/progress.py" = ["page", "online"]
+"tests/browser/engines.py" = ["page", "online"]
 "scripts/check-online.sh" = ["online"]
 
 # nothing to run: docs, notes, tools that the checks do not use
@@ -400,6 +414,8 @@ tags = ["boundary"]
 "lib:ape::" = ["physics"]
 "lib:ape::ski_tests::" = ["physics", "maps-ski"]
 "lib:ai::tests::on_the_tower_" = ["ai", "maps-tower"]
+"lib:ai::tests::on_rattlesnake_ravine_" = ["ai", "maps-ravine"]
+"lib:ai::tests::on_rattlesnake_ravine_a_grounded_ape" = ["maps-ravine"]
 "lib:api::" = ["page", "menus"]
 # app.rs's tests, moved to one file per domain (tags3, 2026-10-17)
 "lib:app::race_tests::" = ["race", "setup", "menus"]
@@ -495,6 +511,8 @@ tags = ["boundary"]
 "lib:models::tests::on_mapes_tower" = ["gear", "models", "costumes", "maps-tower"]
 "lib:models::tests::the_wizard_outfits" = ["gear", "models", "costumes", "maps-ruins"]
 "lib:models::tests::only_mapes_towers" = ["models", "race"]
+"lib:models::tests::only_rattlesnake_ravines" = ["models", "race"]
+"lib:models::cowboy::" = ["gear", "models", "costumes"]
 "lib:online::" = ["online"]
 "lib:patch_notes::" = ["notes"]
 "lib:race::" = ["race", "physics", "items", "lava"]
@@ -504,6 +522,17 @@ tags = ["boundary"]
 "lib:ruins::" = ["maps-ruins", "physics"]
 "lib:ruinsmodels::" = ["maps-ruins", "art-ruins", "scenery", "gallery"]
 "lib:ruinsscape::" = ["maps-ruins", "art-ruins", "scenery"]
+"lib:ravine::" = ["maps-ravine", "physics", "race", "camera", "maps-jungle"]
+"lib:ravine::tests::the_mesa_opens" = ["maps-ravine"]
+"lib:ravine::tests::every_mover_and_deck_still" = ["maps-ravine"]
+"lib:ravine::tests::the_campfires_four" = ["maps-ravine"]
+"lib:ravinemodels::" = ["maps-ravine", "scenery"]
+"lib:ravinescape::" = ["art-ravine", "maps-ravine", "scenery", "sky"]
+"lib:ravinescape::course::" = ["art-ravine", "maps-ravine"]
+"lib:ravinescape::course::tests::the_skull_is_torch_lit" = ["art-ravine"]
+"lib:ravinescape::course::tests::the_canyon_mouths_steps" = ["art-ravine"]
+"lib:ravinescape::course::tests::a_wall_lizard_glows" = ["art-ravine"]
+"lib:ravinescape::lobby::" = ["art-ravine"]
 "lib:rules::" = ["physics", "race"]
 "lib:scene::" = ["render", "maps-city", "maps-jungle", "maps-ski", "lava", "vines", "art-city", "art-ski", "art-sector", "art-ruins", "art-bay", "art-tower"]
 "lib:sector::" = ["maps-sector", "physics"]
@@ -525,6 +554,7 @@ tags = ["boundary"]
 "test:ai" = ["ai", "physics", "race", "items", "maps-jungle", "trial", "medals"]
 "test:bay_ai" = ["ai", "physics", "race", "items", "maps-bay", "trial", "medals"]
 "test:tower_ai" = ["ai", "physics", "race", "camera", "maps-tower", "trial", "medals"]
+"test:ravine_ai" = ["maps-ravine", "medals"]
 "test:city_ai" = ["ai", "physics", "race", "items", "maps-city", "trial", "medals"]
 "test:ruins_ai" = ["ai", "physics", "race", "items", "maps-ruins", "trial", "medals"]
 "test:sector_ai" = ["ai", "physics", "race", "items", "maps-sector", "trial", "medals"]

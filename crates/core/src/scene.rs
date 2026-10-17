@@ -127,6 +127,7 @@ pub fn look(map: Map) -> Look {
         Map::Ruins => crate::ruinsscape::look(),
         Map::Bay => crate::bayscape::look(),
         Map::Tower => crate::towerscape::look(),
+        Map::Ravine => crate::ravinescape::look(),
     }
 }
 
@@ -146,13 +147,19 @@ pub fn look_of(c: &Course) -> Look {
         Map::Bay => crate::bayscape::look_for(c),
         // a golden late afternoon (the frame takes `look_in`: by height)
         Map::Tower => crate::towerscape::look(),
+        // a moonlit night, the moon low ahead of the start
+        Map::Ravine => crate::ravinescape::look_for(c),
     }
 }
 
 /// The look for an eye at `eye` on a course: `look_of`, except on Sunset
 /// Ruins, where it darkens past the temple's mouth and is skylit in the
-/// chamber.
+/// chamber, and on Rattlesnake Ravine, lit warm in the mine tunnel, teal in
+/// the caves and opening out on the mesa.
 pub fn look_at(c: &Course, eye: V3) -> Look {
+    if let Some(r) = &c.ravine {
+        return crate::ravinescape::look_at(c, r, eye);
+    }
     match &c.ruins {
         Some(r) => crate::ruinsscape::look_at(c, r, eye),
         None => look_of(c),
@@ -540,6 +547,9 @@ pub fn scenery(c: &Course) -> Scenery {
     }
     if let Some(b) = &c.bay {
         return crate::bayscape::scenery(c, b);
+    }
+    if let Some(r) = &c.ravine {
+        return crate::ravinescape::scenery(c, r);
     }
     jungle_scenery(c)
 }
@@ -1523,6 +1533,22 @@ pub fn vine_look_on(map: Map, in_reach: bool, vivid: bool, tick: u32) -> VineLoo
             glow: crate::bayscape::fleet::ROPE_GLOW_VIVID,
             ..look
         },
+        // Rattlesnake Ravine's vines: a pale moss green, glowing softly
+        // against the red-orange walls under the moon (step 5)
+        (Map::Ravine, false, false) => VineLook {
+            colour: crate::ravinescape::VINE,
+            glow: ONE / 2,
+            halo: look.width * crate::ravinescape::VINE_HALO,
+            ..look
+        },
+        (Map::Ravine, false, true) => VineLook {
+            halo: look.width * crate::ravinescape::VINE_HALO,
+            ..look
+        },
+        (Map::Ravine, true, _) => VineLook {
+            halo: look.width * crate::ravinescape::VINE_HALO,
+            ..look
+        },
         // Mape's Tower: spell beams with a soft glow (their colour is the
         // caster's spell, `towerscape::beam_vine`)
         (Map::Tower, false, false) => VineLook {
@@ -1585,6 +1611,11 @@ pub fn dynamic(f: &Frame) -> (Batch, Batch) {
         if c.ruins.as_ref().is_some_and(|r| r.vine_up(i, tick)) {
             continue;
         }
+        // Rattlesnake Ravine: a snake vine is drawn as a snake
+        // (`ravinescape::course::dynamic`)
+        if c.ravine.as_ref().is_some_and(|r| r.is_snake(i)) {
+            continue;
+        }
         let look = vine_look_on(map, Some(i) == reach, f.vivid, f.tick);
         // Mape's Tower: each vine is a spell beam in its caster's colour
         let look = match &c.tower {
@@ -1639,6 +1670,9 @@ pub fn dynamic(f: &Frame) -> (Batch, Batch) {
     }
     if let Some(r) = &c.ruins {
         crate::ruinsscape::dynamic(&mut b, c, r, eye, f.tick, tick);
+    }
+    if let Some(r) = &c.ravine {
+        crate::ravinescape::course::dynamic(&mut b, c, r, eye, f.tick, tick, f.vivid);
     }
     if let Some(bay) = &c.bay {
         // in the colourblind mode the flags, barrels and fire are muted as
@@ -1961,6 +1995,9 @@ pub fn catch_up_colour(map: Map, vivid: bool) -> Rgb {
         // Mape's Tower: a deep crimson, apart from every spell beam (the
         // stand-in's hot orange was the fire beam's colour, TL3)
         (Map::Tower, false) => rgb(230, 20, 30),
+        // Rattlesnake Ravine: a bright cyan against its pale moss-green
+        // vines, the red walls and the night
+        (Map::Ravine, false) => rgb(40, 230, 255),
         // the colourblind mode (TRIAGE T33): told from the map's vivid
         // vine by brightness, not hue alone, and kept off the item flowers'
         // violet: a deep red-orange under the bright green vines, a dark
@@ -1974,6 +2011,7 @@ pub fn catch_up_colour(map: Map, vivid: bool) -> Rgb {
         (Map::Ruins, true) => rgb(200, 0, 120),
         (Map::Bay, true) => crate::bayscape::fleet::CATCH_UP_VIVID,
         (Map::Tower, true) => rgb(230, 70, 0),
+        (Map::Ravine, true) => rgb(0, 70, 255),
     }
 }
 
@@ -2301,6 +2339,8 @@ pub fn preview(c: &Course) -> Preview {
         Map::Bay => crate::bayscape::lobby::preview(c),
         // a high bridge, the keep's wall beside the ape, the sky beyond
         Map::Tower => crate::towerscape::lobby::preview(c),
+        // a fallen log over the start straight, down the canyon to the arch
+        Map::Ravine => crate::ravinescape::lobby::preview(c),
         Map::Jungle => {
             let pl = c.platforms.first();
             let feet = pl.map_or(c.point(int(4)), |p| {
@@ -2338,6 +2378,10 @@ pub fn flyover_camera(c: &Course, ticks: u32, from: i32) -> Camera {
     if c.bay.is_some() {
         return crate::bayscape::lobby::flyover_camera(c, ticks, from);
     }
+    // down the slot under the bridges, past the skull, the upper passage
+    if c.ravine.is_some() {
+        return crate::ravinescape::lobby::flyover_camera(c, ticks, from);
+    }
     // up the climb and down the zipper, over the centreline's own height
     if c.tower.is_some() {
         return crate::towerscape::flyover_camera(c, ticks, from);
@@ -2363,7 +2407,7 @@ pub fn flyover_camera(c: &Course, ticks: u32, from: i32) -> Camera {
         Map::Ski => int(16),
         Map::Sector => int(20),
         Map::Ruins => int(14),
-        Map::Bay | Map::Tower => int(14),
+        Map::Bay | Map::Tower | Map::Ravine => int(14),
     };
     let eye = v3(p.x, c.terrain(p.x, p.z) + lift, p.z);
     // down the Ski Slope's hill, the glide looks down it too
@@ -2393,6 +2437,9 @@ pub fn backdrop(b: &mut Batch, c: &Course, eye: V3, tick: u32) {
     if let Some(r) = &c.ruins {
         crate::ruinsscape::dynamic(b, c, r, eye, tick, tick);
     }
+    if let Some(r) = &c.ravine {
+        crate::ravinescape::course::dynamic(b, c, r, eye, tick, tick, false);
+    }
     // the fleet's flags, crews, fire and barrels round the dock
     if let Some(bay) = &c.bay {
         crate::bayscape::fleet::dynamic(b, c, bay, eye, tick, tick, false);
@@ -2420,6 +2467,9 @@ pub fn flyover_dynamic(c: &Course, tick: u32, vivid: bool, eye: V3) -> (Batch, B
     if let Some(r) = &c.ruins {
         crate::ruinsscape::dynamic(&mut rest, c, r, eye, tick, tick);
     }
+    if let Some(r) = &c.ravine {
+        crate::ravinescape::course::dynamic(&mut rest, c, r, eye, tick, tick, vivid);
+    }
     if let Some(bay) = &c.bay {
         crate::bayscape::fleet::dynamic(&mut rest, c, bay, eye, tick, tick, false);
     }
@@ -2438,7 +2488,10 @@ pub fn vines_where(
     let map = Map::of(c);
     let look = vine_look_on(map, false, vivid, tick);
     for i in 0..c.vines.len() {
-        if c.ruins.as_ref().is_some_and(|r| r.vine_up(i, tick)) || !keep(i) {
+        if c.ruins.as_ref().is_some_and(|r| r.vine_up(i, tick))
+            || c.ravine.as_ref().is_some_and(|r| r.is_snake(i))
+            || !keep(i)
+        {
             continue;
         }
         let a = c.anchor(i, tick);

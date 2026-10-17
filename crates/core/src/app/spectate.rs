@@ -81,7 +81,8 @@ pub(super) fn refocus(p: &mut Play, from: Camera, ticks: u32) {
     p.chase = Chase::new(f.ape.pos, p.chase.yaw, p.race.course.terrain)
         .with_crowns(f.ape.pos, p.chase.crowns.clone())
         .with_temple(f.ape.pos, p.chase.temple.clone())
-        .with_hulls(f.ape.pos, p.chase.hulls.clone());
+        .with_hulls(f.ape.pos, p.chase.hulls.clone())
+        .with_keeps(f.ape.pos, p.chase.keeps.clone());
     p.prev[p.focus.racer] = f.ape.pos;
     p.out_for = 0;
     p.danced = 0;

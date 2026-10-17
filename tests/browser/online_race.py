@@ -31,6 +31,7 @@ LOOPBACK_ONLY): the pasted codes are rewritten for it.
 
 `ONLINE_SHOTS=DIR` also saves each tab's lobby (DIR/lobby-<engine>-<tab>.png).
 """
+import engines
 import json
 import os
 import pathlib
@@ -104,7 +105,7 @@ class Tab:
 def run_engine(p, engine, origin):
     transport.report.note(f"\n[{engine}] {origin}/index.html?codes&ice=none")
     seen = {"foreign": [], "console": [], "errors": [], "sockets": []}
-    browser = getattr(p, engine).launch()
+    browser = engines.launch(p, engine)
     paste = transport.loopback if engine in transport.LOOPBACK_ONLY else (lambda c: c)
     a = Tab(browser, origin, "A", seen)
     b = Tab(browser, origin, "B", seen)

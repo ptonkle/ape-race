@@ -25,10 +25,11 @@ pub enum Map {
     Ruins,
     Bay,
     Tower,
+    Ravine,
 }
 
 impl Map {
-    pub const ALL: [Map; 7] = [
+    pub const ALL: [Map; 8] = [
         Map::Jungle,
         Map::City,
         Map::Ski,
@@ -36,6 +37,7 @@ impl Map {
         Map::Ruins,
         Map::Bay,
         Map::Tower,
+        Map::Ravine,
     ];
 
     /// The map's key: the course's `name`, the replay library's and the
@@ -49,6 +51,7 @@ impl Map {
             Map::Ruins => "ruins",
             Map::Bay => "bay",
             Map::Tower => "tower",
+            Map::Ravine => "ravine",
         }
     }
 
@@ -64,8 +67,26 @@ impl Map {
     /// chose (the core has no dice of its own: BUILDER-SPEC D2): any map but
     /// `last`, so Random never runs the same map twice in a row.
     pub fn random(seed: u64, last: Map) -> Map {
-        let others: Vec<Map> = Map::ALL.into_iter().filter(|m| *m != last).collect();
+        let others: Vec<Map> = Map::offered().filter(|m| *m != last).collect();
         others[Dice(seed).below(others.len() as u32) as usize]
+    }
+
+    /// Whether the map is held back from the map choice and from Random
+    /// until it is real (MAPS.md "Hold the selector": a selectable
+    /// stand-in that looks like another map confuses players). A held map
+    /// is still in `ALL`: it builds, has its caches, and is reached by its
+    /// key (settings, replays, online, the tests).
+    pub fn held(self) -> bool {
+        // none now: Rattlesnake Ravine was held until its real course and
+        // art landed (SECOND-ORDER RV1), released in 1.15.0
+        let _ = self;
+        false
+    }
+
+    /// The maps offered on the map choice and picked by Random: `ALL`
+    /// but the held ones.
+    pub fn offered() -> impl Iterator<Item = Map> {
+        Map::ALL.into_iter().filter(|m| !m.held())
     }
 
     pub fn from_key(key: &str) -> Option<Map> {
@@ -82,6 +103,7 @@ impl Map {
             Map::Ruins => crate::ruins::ruins(),
             Map::Bay => crate::bay::bay(),
             Map::Tower => crate::tower::tower(),
+            Map::Ravine => crate::ravine::ravine(),
         }
     }
 
@@ -116,7 +138,9 @@ mod tests {
                     seen.push(m);
                 }
             }
-            assert_eq!(seen.len(), Map::ALL.len() - 1, "after {last:?}: {seen:?}");
+            let offered = Map::offered().filter(|m| *m != last).count();
+            assert_eq!(seen.len(), offered, "after {last:?}: {seen:?}");
+            assert!(seen.iter().all(|m| !m.held()), "a held map was picked");
             assert_eq!(
                 Map::random(7, last),
                 Map::random(7, last),
