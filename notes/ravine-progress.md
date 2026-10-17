@@ -6,7 +6,7 @@ The standard map-build steps (MAPS.md "Build steps"), one row each. Status is on
 | --- | --- | --- | --- |
 | 1 | Brief and answers | Done | `briefs/rattlesnake-ravine.md`; pitfalls from earlier maps in `notes/ravine-pitfalls.md` |
 | 2 | Skeleton and contract | Not started | |
-| 3 | Ape costumes | Not started | Wild West gear, one palette per ape; spider-jaguar |
+| 3 | Ape costumes | Done | `Gear::Cowboy` (models/cowboy.rs): hat, bandana, gun belt, chaps, boots with spurs, bananas in a holster or bandolier, a mix and palette per kind; `SPIDER_JAGUAR` (models/spider.rs), eight banded legs; Costume "Cowboy"; shots `notes/ravine-shots/costumes/`; RG1–RG6. Branch `ravine-gear`; Map::Ravine wiring is two lines for the skeleton (RG6) |
 | 4 | Models | Not started | |
 | 5 | Sky and lighting | Not started | |
 | 6 | Course layout | Not started | |
@@ -40,8 +40,8 @@ Stages: Model, Gameplay (or n/a), Placed in course, Tested.
 | Lower passage: mine tunnel, equipment, digs | brief | – | – | – | – |
 | Caves, archways, long jumps, tight corners | brief | – | – | – | – |
 | T-rex mouth shortcut (teeth reset to the floor) | brief | – | – | – | – |
-| Wild West gear, palette per ape | brief | – | n/a | n/a | – |
+| Wild West gear, palette per ape | brief | Done | n/a | n/a | Done |
 | Wall lizards (bouncers, like the turtles) | brief | – | – | – | – |
 | Mine-cart tracks from wall holes; carts like the City's cars | brief | – | – | – | – |
-| Spider-jaguar (Floor is Lava) | brief | – | – | n/a | – |
+| Spider-jaguar (Floor is Lava) | brief | Done | – | n/a | Done |
 | Mesa finish: proboscis sphinx, campfire, roasting bananas, tents | brief | – | n/a | – | – |

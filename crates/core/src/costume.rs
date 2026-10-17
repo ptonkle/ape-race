@@ -34,12 +34,14 @@ pub enum Costume {
     Tourist,
     /// Mape's Tower's wizard and witch outfits
     Wizard,
+    /// Rattlesnake Ravine's Wild West outfits
+    Cowboy,
 }
 
 impl Costume {
     /// The selector's order: the map's own, none, then the unlockable ones
     /// in the maps' order.
-    pub const ALL: [Costume; 8] = [
+    pub const ALL: [Costume; 9] = [
         Costume::Own,
         Costume::Bare,
         Costume::Ski,
@@ -48,6 +50,7 @@ impl Costume {
         Costume::Pirate,
         Costume::Tourist,
         Costume::Wizard,
+        Costume::Cowboy,
     ];
 
     /// The key: the settings' and the messages' word, and `costume.<key>`
@@ -62,6 +65,7 @@ impl Costume {
             Costume::Pirate => "pirate",
             Costume::Tourist => "tourist",
             Costume::Wizard => "wizard",
+            Costume::Cowboy => "cowboy",
         }
     }
 
@@ -96,6 +100,7 @@ impl Costume {
             Gear::Pirate => Some(Costume::Pirate),
             Gear::Tourist => Some(Costume::Tourist),
             Gear::Wizard => Some(Costume::Wizard),
+            Gear::Cowboy => Some(Costume::Cowboy),
         }
     }
 
@@ -110,6 +115,7 @@ impl Costume {
             Costume::Pirate => Gear::Pirate,
             Costume::Tourist => Gear::Tourist,
             Costume::Wizard => Gear::Wizard,
+            Costume::Cowboy => Gear::Cowboy,
         }
     }
 
@@ -180,12 +186,18 @@ mod tests {
             assert_eq!(Costume::Explorer.gear(map), Gear::Explorer);
             assert_eq!(Costume::Tourist.gear(map), Gear::Tourist);
             assert_eq!(Costume::Wizard.gear(map), Gear::Wizard);
+            assert_eq!(Costume::Cowboy.gear(map), Gear::Cowboy);
         }
         for c in Costume::ALL {
             assert_eq!(Costume::from_key(c.key()), Some(c));
         }
+        // (the cowboy's map, Rattlesnake Ravine, is wired by its skeleton)
         for c in Costume::ALL {
-            assert_eq!(c.free(), c.map().is_none() && c != Costume::Wizard, "{c:?}");
+            assert_eq!(
+                c.free(),
+                c.map().is_none() && !matches!(c, Costume::Wizard | Costume::Cowboy),
+                "{c:?}"
+            );
         }
         assert_eq!(Costume::Own.map(), None);
         assert_eq!(Costume::Bare.map(), None);

@@ -25,7 +25,9 @@ use crate::mesh::Mesh;
 use crate::render::{rgb, rod, shade, Batch, Camera, Rgb};
 use crate::rules::{Kind, BODY_DROP};
 
+mod cowboy;
 mod flame;
+mod spider;
 mod tourist;
 mod wizard;
 
@@ -73,12 +75,13 @@ pub enum Gear {
     Pirate,
     Tourist,
     Wizard,
+    /// Rattlesnake Ravine's Wild West outfits (`models::cowboy`)
+    Cowboy,
 }
 
 impl Gear {
     /// The gear named `key` (`none`, `ski`, `space`, `explorer`, `pirate`,
-    /// `tourist`; a tile's `gear=`).
-    /// `wizard`; a tile's `gear=`).
+    /// `tourist`, `wizard`, `cowboy`; a tile's `gear=`).
     pub fn from_key(key: &str) -> Option<Gear> {
         match key {
             "none" => Some(Gear::None),
@@ -88,6 +91,7 @@ impl Gear {
             "pirate" => Some(Gear::Pirate),
             "tourist" => Some(Gear::Tourist),
             "wizard" => Some(Gear::Wizard),
+            "cowboy" => Some(Gear::Cowboy),
             _ => None,
         }
     }
@@ -101,6 +105,7 @@ impl Gear {
             crate::map::Map::Bay => Gear::Pirate,
             crate::map::Map::City => Gear::Tourist,
             crate::map::Map::Tower => Gear::Wizard,
+            // TODO(ravine skeleton): crate::map::Map::Ravine => Gear::Cowboy,
             _ => Gear::None,
         }
     }
@@ -1221,6 +1226,9 @@ pub fn draw_in(b: &mut Batch, kind: Kind, palette: u8, pose: &Pose) {
     if pose.gear == Gear::Wizard {
         wizard::wizard(&mut rig, kind, &l, &m, &skel, pose.tick);
     }
+    if pose.gear == Gear::Cowboy {
+        cowboy::cowboy(&mut rig, kind, &l, &m, &skel);
+    }
     if pose.stunned {
         stars(&mut rig, &skel.head, m.head, pose.tick);
     }
@@ -1407,7 +1415,8 @@ fn limbs(rig: &mut Rig, kind: Kind, l: &Look, m: &Dims, s: &Skel, gear: Gear) {
         || matches!(
             gear,
             Gear::Explorer | Gear::Pirate | Gear::Tourist | Gear::Wizard
-        );
+        )
+        || (gear == Gear::Cowboy && cowboy::kit(kind).top.sleeved());
     let kit = pirate_kit(kind);
     let pirate = gear == Gear::Pirate;
     for (i, side) in SIDES.into_iter().enumerate() {
@@ -1462,7 +1471,11 @@ fn limbs(rig: &mut Rig, kind: Kind, l: &Look, m: &Dims, s: &Skel, gear: Gear) {
         }
         rig.bone(knee, ankle, pct(m.leg_w, 110), l.limb);
         let on = s.skis.map_or(*ff, |f| f[i]);
-        foot(rig, &on, ankle, m.leg_w, side, l.skin);
+        if gear == Gear::Cowboy {
+            cowboy::boot(rig, kind, &on, knee, ankle, m.leg_w, side);
+        } else {
+            foot(rig, &on, ankle, m.leg_w, side, l.skin);
+        }
     }
 }
 
@@ -2859,7 +2872,7 @@ fn head(rig: &mut Rig, kind: Kind, l: &Look, h: &Frame, pose: &Pose) {
     // (a pirate's tricorn or bandana, a wizard's hat, covers the head too)
     let helmeted = matches!(
         pose.gear,
-        Gear::Ski | Gear::Explorer | Gear::Pirate | Gear::Tourist | Gear::Wizard
+        Gear::Ski | Gear::Explorer | Gear::Pirate | Gear::Tourist | Gear::Wizard | Gear::Cowboy
     );
     // the skull, and the bare face on its front
     rig.put(Mesh::Geo, h.shape(V3::ZERO, p(100, 94, 96)), l.fur);
@@ -3152,6 +3165,10 @@ pub struct BigCat {
     /// a demon of shadow and flame: ember cracks, horns, smoke wings and a
     /// fire-whip tail (Mape's Tower's cat, `models::flame`)
     pub flame: bool,
+    /// a spider-jaguar: eight banded legs, a ring of extra eyes, fangs and
+    /// a spider's abdomen over the haunches (Rattlesnake Ravine's cat,
+    /// `models::spider`)
+    pub spider: bool,
     /// drawn size, percent of the jaguar's (the flame cat is huge)
     pub size: i32,
 }
@@ -3167,6 +3184,7 @@ pub const JAGUAR: BigCat = BigCat {
     pith: false,
     navy: false,
     flame: false,
+    spider: false,
     size: 100,
 };
 
@@ -3210,6 +3228,15 @@ pub const FLAME_CAT: BigCat = BigCat {
     ..JAGUAR
 };
 
+/// Rattlesnake Ravine's big cat (the person, 2026-10-17: "should still be
+/// a jaguar but with 8 legs and arachnid themed"): the jaguar's coat and
+/// head on eight banded legs, with six more eyes, fangs and a striped
+/// spider's abdomen behind (`models::spider`).
+pub const SPIDER_JAGUAR: BigCat = BigCat {
+    spider: true,
+    ..JAGUAR
+};
+
 /// Smoky grey-white with charcoal rosettes round grey middles, pale
 /// green-grey eyes and a very thick tail.
 pub const SNOW_LEOPARD: BigCat = BigCat {
@@ -3223,6 +3250,7 @@ pub const SNOW_LEOPARD: BigCat = BigCat {
     pith: false,
     navy: false,
     flame: false,
+    spider: false,
     size: 100,
 };
 
@@ -3235,6 +3263,7 @@ impl BigCat {
             crate::map::Map::Ruins => RUINS_JAGUAR,
             crate::map::Map::Bay => NAVY_JAGUAR,
             crate::map::Map::Tower => FLAME_CAT,
+            // TODO(ravine skeleton): crate::map::Map::Ravine => SPIDER_JAGUAR,
             _ => JAGUAR,
         }
     }
@@ -3318,7 +3347,12 @@ pub fn jaguar(b: &mut Batch, j: &crate::jaguar::Jaguar, scale: i32, cat: &BigCat
     if cat.flame {
         flame::body(&mut rig, j, &body);
     }
-    jaguar_legs(&mut rig, j, &body, fwd, cat);
+    if cat.spider {
+        spider::abdomen(&mut rig, j, &body, cat);
+        spider::legs(&mut rig, j, &body, fwd, cat);
+    } else {
+        jaguar_legs(&mut rig, j, &body, fwd, cat);
+    }
     jaguar_head(&mut rig, j, &body, fwd, cat);
     jaguar_tail(&mut rig, j, &body, cat);
 }
@@ -3479,6 +3513,9 @@ fn jaguar_head(rig: &mut Rig, j: &crate::jaguar::Jaguar, body: &Frame, fwd: V3, 
     }
     if cat.flame {
         flame::head(rig, j, &h);
+    }
+    if cat.spider {
+        spider::head(rig, j, &h);
     }
 }
 
@@ -5161,6 +5198,84 @@ mod tests {
         let explorer_all: usize = rows.iter().map(|r| r.2).sum();
         let wizard_all: usize = rows.iter().map(|r| r.3).sum();
         assert!(wizard_all <= explorer_all * 5 / 4, "{table}");
+    }
+
+    #[test]
+    fn only_rattlesnake_ravines_cat_is_an_eight_legged_spider_jaguar() {
+        // the person, 2026-10-17 (briefs/rattlesnake-ravine.md): "should
+        // still be a jaguar but with 8 legs and arachnid themed"
+        use crate::map::Map;
+        use spider::*;
+        for map in Map::ALL {
+            assert_eq!(BigCat::on(map).spider, map.key() == "ravine", "{map:?}");
+        }
+        const { assert!(SPIDER_JAGUAR.spider && !JAGUAR.spider && !FLAME_CAT.spider) };
+        let at = |gait: i32, leap: i32, head_down: i32| crate::jaguar::Jaguar {
+            feet: V3::ZERO,
+            yaw: deg(30),
+            gait,
+            stride: ONE,
+            leap,
+            head_down,
+            jaw: ONE / 2,
+        };
+        let draw = |j: &crate::jaguar::Jaguar, cat: &BigCat| {
+            let mut b = Batch::new();
+            jaguar(&mut b, j, 100, cat);
+            shapes(b)
+        };
+        // a claw at the tip of each leg: eight on the spider, four on a cat
+        let claws = |s: &[Shape], cat: &BigCat| -> Vec<V3> {
+            s.iter()
+                .filter(|x| x.colour == cat.spot && x.mesh == Mesh::Spike as u32)
+                .filter(|x| x.at.y < cm(30))
+                .map(|x| x.at)
+                .collect()
+        };
+        for (head_down, leap) in [(0, 0), (ONE, 0), (0, ONE)] {
+            let j = at(deg(50), leap, head_down);
+            let s = draw(&j, &SPIDER_JAGUAR);
+            // still a jaguar: its coat and rosettes
+            assert!(s.iter().any(|x| x.colour == JAG_COAT));
+            assert!(s.iter().any(|x| x.colour == JAG_SPOT));
+            assert_eq!(s.iter().filter(|x| x.colour == SPIDER_EYE).count(), 6);
+            assert_eq!(s.iter().filter(|x| x.colour == SPIDER_FANG).count(), 2);
+            assert_eq!(s.iter().filter(|x| x.colour == HOURGLASS).count(), 2);
+            if leap == 0 {
+                let feet = claws(&s, &SPIDER_JAGUAR);
+                assert_eq!(feet.len(), 8, "{head_down} {leap}");
+                // four down each side
+                let right = facing(j.yaw, 0).cross(V3::UP);
+                let n = feet.iter().filter(|f| f.dot(right) > 0).count();
+                assert_eq!(n, 4);
+            }
+            // no other cat has its eyes, fangs or hourglass
+            for other in [
+                JAGUAR,
+                SPACE_JAGUAR,
+                RUINS_JAGUAR,
+                NAVY_JAGUAR,
+                SNOW_LEOPARD,
+                FLAME_CAT,
+            ] {
+                let o = draw(&j, &other);
+                for c in [SPIDER_EYE, SPIDER_FANG, HOURGLASS] {
+                    assert!(!o.iter().any(|x| x.colour == c), "{other:?} {c:?}");
+                }
+            }
+        }
+        // the eight legs walk on the gait: half of them lifted at a time
+        let still = claws(&draw(&at(0, 0, 0), &SPIDER_JAGUAR), &SPIDER_JAGUAR);
+        let on = claws(&draw(&at(deg(90), 0, 0), &SPIDER_JAGUAR), &SPIDER_JAGUAR);
+        assert_eq!((still.len(), on.len()), (8, 8));
+        let moved = still
+            .iter()
+            .zip(&on)
+            .filter(|(a, b)| a.dist(**b) > cm(8))
+            .count();
+        assert_eq!(moved, 8, "{moved} legs moved");
+        let lifted = |f: &[V3]| f.iter().filter(|p| p.y > cm(8)).count();
+        assert!((3..=4).contains(&lifted(&still)), "{still:?}");
     }
 
     #[test]
