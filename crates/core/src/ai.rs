@@ -336,11 +336,11 @@ const SKI_HOP: [i32; 4] = [int(22), int(24), int(26), int(28)];
 /// layouts, before the zipper's beams were lengthened; TC5). With the Jungle's arms the Ape was 6.4 s ahead of the Monkey:
 /// its arms were 5 of 8 here. In the second design the climbs get their own
 /// arms (`TOWER_INSIDE_DRIVE`), so the bridges' arms and the reactions
-/// space the levels: the Ape 4 of 8, the reactions 10 / 5 / 2 / 0 ticks
+/// space the levels: the Ape 5 of 8, the reactions 10 / 5 / 2 / 0 ticks
 /// (TC2-17, TC2-19).
 const TOWER_HESITATE: [u32; 4] = [10, 5, 2, 0];
 const TOWER_JITTER: [u32; 4] = [10, 5, 2, 0];
-const TOWER_DRIVE: [u32; 4] = [2, 3, 4, DUTY];
+const TOWER_DRIVE: [u32; 4] = [2, 3, 5, DUTY];
 const TOWER_NOISE: [i32; 4] = [int(6), int(4), int(2), 0];
 /// Mape's Tower's arms on the climbs, easiest level first: round tower 2
 /// (`TOWER_SPIRAL_DRIVE`) and up the hollow and over the rim
