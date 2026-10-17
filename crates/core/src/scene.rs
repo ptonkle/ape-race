@@ -2339,8 +2339,9 @@ pub fn preview(c: &Course) -> Preview {
         Map::Bay => crate::bayscape::lobby::preview(c),
         // a high bridge, the keep's wall beside the ape, the sky beyond
         Map::Tower => crate::towerscape::lobby::preview(c),
-        // STAND-IN (Rattlesnake Ravine's skeleton): the Jungle's start tree
-        Map::Jungle | Map::Ravine => {
+        // a fallen log over the start straight, down the canyon to the arch
+        Map::Ravine => crate::ravinescape::lobby::preview(c),
+        Map::Jungle => {
             let pl = c.platforms.first();
             let feet = pl.map_or(c.point(int(4)), |p| {
                 v3(p.centre.x, p.top, p.centre.z).add(p.fwd.scale(p.half_len / 2))
@@ -2376,6 +2377,10 @@ pub fn flyover_camera(c: &Course, ticks: u32, from: i32) -> Camera {
     // alongside the fleet, above the hulls, clear of the masts
     if c.bay.is_some() {
         return crate::bayscape::lobby::flyover_camera(c, ticks, from);
+    }
+    // down the slot under the bridges, past the skull, the upper passage
+    if c.ravine.is_some() {
+        return crate::ravinescape::lobby::flyover_camera(c, ticks, from);
     }
     // up the climb and down the zipper, over the centreline's own height
     if c.tower.is_some() {

@@ -66,12 +66,15 @@ const DOME: i32 = int(560);
 /// Stars scattered over the whole sky.
 pub const FIELD_STARS: u32 = 320;
 /// Small stars thick along the Milky Way.
-pub const BAND_STARS: u32 = 380;
+pub const BAND_STARS: u32 = 580;
 /// The Milky Way's soft haze blobs.
-pub const BAND_HAZE: u32 = 80;
+pub const BAND_HAZE: u32 = 140;
 /// The Milky Way haze's strength: a sky glow (3 and up, unfogged) at a
-/// third of its colour, so the band reads as a soft pale river of light.
-pub const HAZE_GLOW: i32 = ONE * 3 + ONE / 3;
+/// fifth of its colour; with 140 blobs (overlapping) and 580 small stars
+/// the band reads as a soft pale river of light in the strip of sky
+/// (80 blobs and 380 stars were lost, RA-8; brighter blobs read as
+/// clouds; RL3).
+pub const HAZE_GLOW: i32 = ONE * 3 + ONE / 5;
 /// How far round the eye a glow's pool of light is drawn.
 pub const POOL_SEEN: i32 = int(110);
 
@@ -285,13 +288,15 @@ pub fn sky(b: &mut Batch, eye: V3, moon: i32, ticks: u32) {
     // edges), a little warmer toward the galaxy's core
     for i in 0..BAND_HAZE {
         let t = pick(i, 31, deg(4), deg(176));
-        let w = pick(i, 32, -ONE / 10, ONE / 10);
+        let w = pick(i, 32, -ONE / 12, ONE / 12);
         let dir = band_dir(f, t, w);
         if dir.y < ONE / 30 {
             continue;
         }
-        let at = eye.add(dir.scale(DOME - int(20)));
-        let s = int(pick(i, 33, 40, 72));
+        // (wholly inside the dome: where the dome cut a blob its edge
+        // showed as a crisp arc, RL3)
+        let s = int(pick(i, 33, 60, 100));
+        let at = eye.add(dir.scale(DOME - s / 2 - int(16)));
         let core = (t - deg(70)).abs() < deg(30);
         let c = if core {
             rgb(170, 150, 210)
@@ -302,7 +307,7 @@ pub fn sky(b: &mut Batch, eye: V3, moon: i32, ticks: u32) {
         // haze 540 m off was lost in the night fog, RK5)
         b.push_halo(
             Mesh::Sphere,
-            &placed(at, pick(i, 34, 0, TURN), v3(s, s * 2 / 3, s)),
+            &placed(at, pick(i, 34, 0, TURN), v3(s, s / 2, s)),
             c,
             HAZE_GLOW,
         );
@@ -424,6 +429,7 @@ pub fn scenery(c: &Course, r: &RavineLayout) -> Scenery {
 }
 
 pub mod course;
+pub mod lobby;
 
 #[cfg(test)]
 mod tests;

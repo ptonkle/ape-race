@@ -43,6 +43,7 @@
 //! random at runtime.
 
 pub mod layout;
+pub mod lobby;
 mod rules;
 #[cfg(test)]
 mod rules_tests;

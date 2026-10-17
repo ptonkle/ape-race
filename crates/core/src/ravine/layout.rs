@@ -178,14 +178,23 @@ pub fn ravine() -> Course {
 
 /// Rattlesnake Ravine's course from `seed`.
 pub fn ravine_seeded(seed: u64) -> Course {
-    build(seed, false)
+    with_lobby(build(seed, false))
 }
 
 /// The same course with the upper passage as its spine (where the lower
 /// passage's swing was, a straight): for measuring the AI along the upper
 /// passage (`examples/ravine_report.rs`). Not a map.
 pub fn ravine_upper_seeded(seed: u64) -> Course {
-    build(seed, true)
+    with_lobby(build(seed, true))
+}
+
+/// The course with its lobby spot chosen (`ravine::lobby`, step 9).
+fn with_lobby(mut c: Course) -> Course {
+    let spot = c.ravine.as_deref().map(|r| super::lobby::lobby_spot(&c, r));
+    if let (Some(r), Some(spot)) = (c.ravine.as_deref_mut(), spot) {
+        r.lobby = spot;
+    }
+    c
 }
 
 /// A route a station line follows: a point and the way on at `u` metres.

@@ -193,6 +193,7 @@ impl App {
             (Map::Ruins, Some(c)) => self.ruins_camera(c, focus),
             (Map::Bay, Some(c)) => self.bay_camera(c, focus),
             (Map::Tower, Some(c)) => self.tower_camera(c, focus),
+            (Map::Ravine, Some(c)) => self.ravine_camera(c, focus),
             _ => self.framed(preview_view(feet, look), focus),
         }
     }
@@ -236,6 +237,27 @@ impl App {
         .max(1);
         let back = crate::towerscape::lobby::LOBBY_BACK.max(fx::mul(BAY_FIT, fx::div(h, open)));
         let cam = move |feet, look| crate::towerscape::lobby::lobby_camera_at(feet, look, back);
+        self.turned(feet, look, mark, focus, &cam)
+    }
+
+    /// Rattlesnake Ravine's lobby camera (`ravinescape::lobby`), framed
+    /// beside the menus and turned so the first arch sits between the
+    /// docked panels and the ape, backed off where the open part is narrow
+    /// (the Bay's kind).
+    fn ravine_camera(&self, c: &Course, focus: V3) -> Camera {
+        let Some(r) = c.ravine.as_deref() else {
+            return self.framed(crate::scene::preview(c).camera, focus);
+        };
+        let (feet, look) = crate::ravinescape::lobby::lobby_spot(r);
+        let mark = crate::ravinescape::lobby::landmark(r);
+        let h = self.view_h.max(1);
+        let open = match self.dock() {
+            Dock::Side(dock) => self.view_w - dock,
+            _ => self.view_w,
+        }
+        .max(1);
+        let back = crate::ravinescape::lobby::LOBBY_BACK.max(fx::mul(BAY_FIT, fx::div(h, open)));
+        let cam = move |feet, look| crate::ravinescape::lobby::lobby_camera_at(feet, look, back);
         self.turned(feet, look, mark, focus, &cam)
     }
 
@@ -321,10 +343,13 @@ impl App {
         if let Some(c) = self.course_of(map) {
             // on Banana Bay Battle the start row is not yet rigged: its
             // ropes would hang a few metres in front of the ape (BL2)
-            let keep = |i: usize| match (c.bay.as_deref(), c.tower.as_deref()) {
-                (Some(bay), _) => !crate::bayscape::lobby::start_row(c, bay, i),
+            let keep = |i: usize| match (c.bay.as_deref(), c.tower.as_deref(), c.ravine.as_deref())
+            {
+                (Some(bay), _, _) => !crate::bayscape::lobby::start_row(c, bay, i),
                 // Mape's Tower: the start's beams too (TL1)
-                (_, Some(t)) => !crate::towerscape::lobby::hidden_in_lobby(c, t, i),
+                (_, Some(t), _) => !crate::towerscape::lobby::hidden_in_lobby(c, t, i),
+                // Rattlesnake Ravine: the lobby bridge's own vines (RL1)
+                (_, _, Some(r)) => !crate::ravinescape::lobby::hidden_in_lobby(c, r, i),
                 _ => true,
             };
             crate::scene::vines_where(&mut vines, c, self.ticks, vivid, &keep);
