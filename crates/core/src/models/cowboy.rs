@@ -10,13 +10,13 @@
 
 use super::*;
 
-pub(super) const HAT_BLACK: Rgb = rgb(34, 28, 26);
+/// the gorilla's: a sand leather that stands out on its black fur
+pub(super) const HAT_SAND: Rgb = rgb(208, 178, 126);
 pub(super) const HAT_CREAM: Rgb = rgb(230, 212, 168);
 pub(super) const HAT_SLATE: Rgb = rgb(86, 92, 104);
 pub(super) const HAT_BROWN: Rgb = rgb(122, 74, 38);
 pub(super) const HAT_WHITE: Rgb = rgb(244, 242, 234);
 pub(super) const HAT_TAN: Rgb = rgb(198, 150, 92);
-pub(super) const BAND_SILVER: Rgb = rgb(196, 200, 210);
 pub(super) const BAND_DARK: Rgb = rgb(60, 36, 22);
 pub(super) const BAND_RED: Rgb = rgb(150, 30, 30);
 pub(super) const KERCHIEF_RED: Rgb = rgb(196, 34, 36);
@@ -94,7 +94,7 @@ pub(super) struct Kit {
     pub bandolier: bool,
 }
 
-/// Each kind's mix: the gorilla the sheriff (black hat, red bandana, tan
+/// Each kind's mix: the gorilla the sheriff (sand hat, red bandana, tan
 /// vest with a gold star, black chaps, oxblood boots, a holster); the
 /// orangutan the trail boss (cream hat, teal bandana, navy suspenders,
 /// fringed chocolate chaps, a bandolier); the chimpanzee the outlaw (slate
@@ -129,7 +129,7 @@ pub(super) fn kit(kind: Kind) -> Kit {
             hat: Hat {
                 brim: 176,
                 curl: 10,
-                ..hat(HAT_BLACK, BAND_SILVER)
+                ..hat(HAT_SAND, BAND_DARK)
             },
             bandana: KERCHIEF_RED,
             top: Top::Vest {
@@ -201,7 +201,7 @@ pub(super) fn kit(kind: Kind) -> Kit {
                 curl: 18,
                 // (pushed back, clear of the hands on a vine: the lemur's
                 // head is right under them)
-                back: 24,
+                back: 34,
                 ..hat(HAT_TAN, BAND_RED)
             },
             bandana: KERCHIEF_BLACK,
@@ -261,55 +261,61 @@ pub(super) fn cowboy(rig: &mut Rig, kind: Kind, l: &Look, m: &Dims, s: &Skel) {
     }
 }
 
-/// The hat on the head `h` (`d` across): a wide oval brim with its sides
-/// curled up, a band, and a creased crown over the top of the skull.
+/// The hat on the head `h` (`d` across), level over the ears: a wide,
+/// flat oval brim whose two side edges curl up (inside the brim's edge,
+/// nothing hanging below it), a band, and a tall crown with a dented top
+/// and a pinched front.
 fn hat(rig: &mut Rig, h: &Frame, d: i32, hat: &Hat) {
     let h = &Frame {
         o: h.at(0, -pct(d, hat.back / 4), -pct(d, hat.back)),
         ..*h
     };
     let p = |x: i32, y: i32, z: i32| v3(pct(d, x), pct(d, y), pct(d, z));
-    let (brim, low) = (hat.brim, 31);
+    let (brim, low) = (hat.brim, 40);
     rig.put(
         Mesh::Hex,
-        h.shape(p(0, low, -4), p(brim * 72 / 100, 4, brim * 78 / 100)),
+        h.shape(p(0, low, -4), p(brim * 66 / 100, 4, brim * 74 / 100)),
         hat.colour,
     );
     for s in SIDES {
-        // the brim's sides, rising
-        let inner = h.at(s * pct(d, brim * 30 / 100), pct(d, low), -pct(d, 4));
-        let outer = h.at(s * pct(d, brim / 2), pct(d, low + hat.curl), -pct(d, 4));
+        // the brim's side edges, curling up from the flat middle
+        let inner = h.at(s * pct(d, brim * 22 / 100), pct(d, low + 1), -pct(d, 4));
+        let outer = h.at(
+            s * pct(d, brim * 34 / 100),
+            pct(d, low + 4 + hat.curl),
+            -pct(d, 4),
+        );
         rig.put(
             Mesh::Bevel,
             Affine {
                 c0: outer.sub(inner),
                 c1: h.y.scale(pct(d, 4)),
-                c2: h.z.scale(pct(d, brim * 48 / 100)),
+                c2: h.z.scale(pct(d, brim * 52 / 100)),
                 t: inner.lerp(outer, ONE / 2),
             },
             shade(hat.colour, 94),
         );
     }
-    rig.put(Mesh::Hex, h.shape(p(0, 37, -5), p(80, 9, 90)), hat.band);
+    rig.put(Mesh::Hex, h.shape(p(0, 47, -5), p(68, 10, 76)), hat.band);
     rig.put(
         Mesh::Bevel,
-        h.shape(p(0, 47, -6), p(78, 28, 88)),
+        h.shape(p(0, 60, -6), p(62, 28, 72)),
         hat.colour,
     );
-    // the crown's top: two rounded lobes either side of the crease, and
-    // the pinch at the front
+    // the crown's top: two rounded lobes either side of the dent, and the
+    // pinch at the front
     for s in SIDES {
         rig.put(
             Mesh::Geo,
-            h.shape(p(s * 12, 57, -8), p(50, 16, 84)),
+            h.shape(p(s * 12, 70, -10), p(32, 12, 64)),
             hat.colour,
         );
+        rig.put(
+            Mesh::Bevel,
+            h.shape(p(s * 12, 66, 29), p(10, 18, 8)),
+            shade(hat.colour, 84),
+        );
     }
-    rig.put(
-        Mesh::Bevel,
-        h.shape(p(0, 54, 39), p(30, 12, 6)),
-        shade(hat.colour, 84),
-    );
 }
 
 /// A kerchief at the neck: a triangle hanging under the chin, knotted at

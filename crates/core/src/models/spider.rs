@@ -2,13 +2,12 @@
 //! person: "should still be a jaguar but with 8 legs and arachnid
 //! themed"): the jaguar's spotted body and head, but on eight long banded
 //! legs that arch up and out like a spider's, walking in two alternating
-//! sets of four on the jaguar's own gait; six more small red eyes over its
-//! own, two dark fangs under the muzzle, and a striped spider's abdomen
+//! sets of four on the jaguar's own gait; the jaguar's own eyes (the
+//! person, 2026-10-17: no extra red ones), two dark fangs under the muzzle, and a striped spider's abdomen
 //! swelling over the haunches with a red hourglass and spinnerets.
 
 use super::*;
 
-pub(super) const SPIDER_EYE: Rgb = rgb(196, 24, 40);
 pub(super) const SPIDER_FANG: Rgb = rgb(44, 26, 26);
 pub(super) const HOURGLASS: Rgb = rgb(214, 30, 36);
 
@@ -97,18 +96,9 @@ pub(super) fn abdomen(rig: &mut Rig, _j: &crate::jaguar::Jaguar, body: &Frame, c
     }
 }
 
-/// Six more eyes over the jaguar's own (in pairs, glinting red) and two
-/// fangs under the muzzle.
+/// Two fangs under the muzzle (the eyes are the jaguar's own).
 pub(super) fn head(rig: &mut Rig, _j: &crate::jaguar::Jaguar, h: &Frame) {
     for s in SIDES {
-        for (x, y, z, size) in [(4, 9, 14, 4), (11, 8, 10, 4), (3, 13, 11, 3)] {
-            rig.glow(
-                Mesh::Ico,
-                h.shape(p3(s * x, y, z), p3(size, size, size)),
-                SPIDER_EYE,
-                ONE / 3,
-            );
-        }
         let top = h.at(s * cm(4), -cm(8), cm(17));
         let tip = top.sub(h.y.scale(cm(9))).add(h.z.scale(cm(2)));
         rig.put(Mesh::Spike, rod(top, tip, cm(4)), SPIDER_FANG);

@@ -3230,7 +3230,7 @@ pub const FLAME_CAT: BigCat = BigCat {
 
 /// Rattlesnake Ravine's big cat (the person, 2026-10-17: "should still be
 /// a jaguar but with 8 legs and arachnid themed"): the jaguar's coat and
-/// head on eight banded legs, with six more eyes, fangs and a striped
+/// head on eight banded legs, with its own eyes, fangs and a striped
 /// spider's abdomen behind (`models::spider`).
 pub const SPIDER_JAGUAR: BigCat = BigCat {
     spider: true,
@@ -5238,7 +5238,10 @@ mod tests {
             // still a jaguar: its coat and rosettes
             assert!(s.iter().any(|x| x.colour == JAG_COAT));
             assert!(s.iter().any(|x| x.colour == JAG_SPOT));
-            assert_eq!(s.iter().filter(|x| x.colour == SPIDER_EYE).count(), 6);
+            // its eyes are the jaguar's own, no extras
+            let eyes = |s: &[Shape]| s.iter().filter(|x| x.colour == JAGUAR.eye).count();
+            assert_eq!(eyes(&s), eyes(&draw(&j, &JAGUAR)));
+            assert!(eyes(&s) >= 2);
             assert_eq!(s.iter().filter(|x| x.colour == SPIDER_FANG).count(), 2);
             assert_eq!(s.iter().filter(|x| x.colour == HOURGLASS).count(), 2);
             if leap == 0 {
@@ -5259,7 +5262,7 @@ mod tests {
                 FLAME_CAT,
             ] {
                 let o = draw(&j, &other);
-                for c in [SPIDER_EYE, SPIDER_FANG, HOURGLASS] {
+                for c in [SPIDER_FANG, HOURGLASS] {
                     assert!(!o.iter().any(|x| x.colour == c), "{other:?} {c:?}");
                 }
             }

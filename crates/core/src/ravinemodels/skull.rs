@@ -9,12 +9,14 @@
 //! The teeth come from one list (`rex_teeth`), so the skeleton's solids and
 //! the drawing share the numbers; the bone's solids are `rex_bone_boxes`.
 //!
-//! About 52 shapes (28 teeth, 24 bone).
+//! 57 shapes (28 teeth, 29 bone).
 
 use super::*;
-use crate::fx::{cm, div, mul};
+use crate::fx::{cm, deg, div, mul};
 
 const TOOTH: Rgb = rgb(252, 246, 222);
+/// old bone stained by the cave
+const WEATHER: Rgb = rgb(150, 128, 92);
 
 /// The gallery's gap: 2× a 2 m ape. The course passes its own.
 pub const REX_GAP: i32 = int(4);
@@ -105,28 +107,41 @@ pub fn rex_teeth(gap: i32) -> Vec<Tooth> {
 }
 
 /// The skull's bone as solid boxes (middle, size) in its frame, for the
-/// skeleton: the upper skull above the upper gum and the lower jaw under
-/// the lower gum, the mouth between them open front to back.
+/// skeleton: the low snout and the tall back of the skull above the upper
+/// gum, the lower jaw under the lower gum, the mouth between them open
+/// front to back. The jaw's rising back ends and their hinge stand
+/// beside the mouth, inside the gap's height, and are left out (as the
+/// hinge posts were before): a box there would close the gap.
 pub fn rex_bone_boxes(gap: i32) -> Vec<(V3, V3)> {
     let s = share(gap);
     let m = |x: i32| mul(x, s);
     let gum = rex_gum(gap);
     vec![
-        // the upper skull: snout and braincase
+        // the snout, low at the front
         (
-            v3(0, gum + m(cm(150)), m(cm(40))),
-            v3(m(cm(560)), m(cm(300)), m(cm(760))),
+            v3(0, gum + m(cm(130)), m(cm(230))),
+            v3(m(cm(500)), m(cm(260)), m(cm(340))),
+        ),
+        // the deep back of the skull: eyes, cheeks, braincase
+        (
+            v3(0, gum + m(cm(230)), -m(cm(270))),
+            v3(m(cm(600)), m(cm(460)), m(cm(660))),
         ),
         // the lower jaw
         (
-            v3(0, -gum - m(cm(40)), m(cm(40))),
-            v3(m(cm(560)), m(cm(80)), m(cm(720))),
+            v3(0, -gum - m(cm(55)), m(cm(80))),
+            v3(m(cm(540)), m(cm(110)), m(cm(560))),
         ),
     ]
 }
 
 /// The skull for gap `gap` with teeth `teeth` (`rex_teeth(gap)`, or the
-/// course's own list).
+/// course's own list): a long, deep T-rex skull, its snout sloping down
+/// to the front, big holes in its side (the eye socket, the opening in
+/// front of it, the nostril, the one behind the eye), the lower jaw
+/// dropped open and hinged far back at the skull's lower corner, its
+/// rising back ends beside the mouth. Pale bone with darker weathered
+/// patches and cracks, a moss cap.
 pub fn rex_skull(b: &mut Batch, f: &Affine, gap: i32, teeth: &[Tooth]) {
     let s = share(gap);
     let m = |x: i32| mul(x, s);
@@ -137,31 +152,41 @@ pub fn rex_skull(b: &mut Batch, f: &Affine, gap: i32, teeth: &[Tooth]) {
     for t in teeth {
         bar(b, f, Mesh::Spike, t.base, t.tip, t.r, TOOTH, 0);
     }
-    // the upper skull: palate, snout, a nasal ridge, the braincase
+    // the upper jaw's tooth row, the snout over it sloping down to the
+    // front, the deep back of the skull, the ridge of the nose
     put(
         b,
         f,
         Mesh::Bevel,
-        up(0, cm(30), cm(40)),
-        p(cm(500), cm(60), cm(640)),
+        up(0, cm(35), cm(70)),
+        p(cm(480), cm(70), cm(560)),
         BONE_DARK,
         0,
     );
     put(
         b,
         f,
-        Mesh::Ico,
-        up(0, cm(150), cm(140)),
-        p(cm(470), cm(250), cm(460)),
+        Mesh::Wedge,
+        up(0, cm(170), cm(170)),
+        p(cm(440), cm(240), cm(400)),
         BONE,
         0,
     );
     put(
         b,
         f,
-        Mesh::Wedge,
-        up(0, cm(270), cm(260)),
-        p(cm(160), cm(110), cm(240)),
+        Mesh::Bevel,
+        up(0, cm(110), cm(250)),
+        p(cm(400), cm(150), cm(220)),
+        BONE,
+        0,
+    );
+    put(
+        b,
+        f,
+        Mesh::Bevel,
+        up(0, cm(220), -cm(170)),
+        p(cm(560), cm(420), cm(460)),
         BONE,
         0,
     );
@@ -169,19 +194,30 @@ pub fn rex_skull(b: &mut Batch, f: &Affine, gap: i32, teeth: &[Tooth]) {
         b,
         f,
         Mesh::Geo,
-        up(0, cm(220), -cm(220)),
-        p(cm(460), cm(340), cm(340)),
+        up(0, cm(330), -cm(330)),
+        p(cm(420), cm(240), cm(380)),
+        BONE_DARK,
+        0,
+    );
+    bar(
+        b,
+        f,
+        Mesh::Hex,
+        up(0, cm(180), cm(340)),
+        up(0, cm(400), -cm(60)),
+        m(cm(110)),
         BONE,
         0,
     );
     for sx in [-1, 1] {
-        // the eye socket, the hole in front of it, a brow hornlet
+        // the holes in the side: the tall eye socket, the big opening in
+        // front of it, the nostril at the snout, the one behind the eye
         put(
             b,
             f,
             Mesh::Ico,
-            up(sx * cm(205), cm(230), -cm(120)),
-            p(cm(80), cm(130), cm(110)),
+            up(sx * cm(270), cm(300), -cm(90)),
+            p(cm(60), cm(150), cm(110)),
             VOID,
             0,
         );
@@ -189,81 +225,112 @@ pub fn rex_skull(b: &mut Batch, f: &Affine, gap: i32, teeth: &[Tooth]) {
             b,
             f,
             Mesh::Ico,
-            up(sx * cm(225), cm(130), cm(80)),
-            p(cm(40), cm(100), cm(170)),
+            up(sx * cm(240), cm(160), cm(110)),
+            p(cm(50), cm(140), cm(190)),
             VOID,
             0,
         );
+        put(
+            b,
+            f,
+            Mesh::Ico,
+            up(sx * cm(195), cm(150), cm(320)),
+            p(cm(40), cm(60), cm(90)),
+            VOID,
+            0,
+        );
+        put(
+            b,
+            f,
+            Mesh::Ico,
+            up(sx * cm(285), cm(230), -cm(380)),
+            p(cm(50), cm(200), cm(90)),
+            VOID,
+            0,
+        );
+        // the bony horn over the eye
         put(
             b,
             f,
             Mesh::Spike,
-            up(sx * cm(180), cm(330), -cm(110)),
-            p(cm(50), cm(60), cm(50)),
+            up(sx * cm(220), cm(440), -cm(50)),
+            p(cm(70), cm(70), cm(90)),
             BONE_DARK,
             0,
         );
-        // the cheek bar and the jaw's hinge post
-        bar(
-            b,
-            f,
-            Mesh::Hex,
-            up(sx * cm(250), cm(30), cm(160)),
-            up(sx * cm(280), cm(70), -cm(300)),
-            m(cm(70)),
-            BONE,
-            0,
-        );
+        // the cheek bar under the eye, back to the skull's lower back
+        // corner, and the hinge knob there
         bar(
             b,
             f,
             Mesh::Taper,
-            dn(sx * cm(285), -cm(30), -cm(310)),
-            up(sx * cm(270), cm(80), -cm(260)),
-            m(cm(45)),
-            BONE_DARK,
-            0,
-        );
-        // the lower jaw: a long tapering bone each side, a ridge under it
-        bar(
-            b,
-            f,
-            Mesh::Taper,
-            dn(sx * cm(285), -cm(40), -cm(320)),
-            dn(sx * cm(170), -cm(40), cm(330)),
+            up(sx * cm(290), cm(30), -cm(560)),
+            up(sx * cm(255), cm(40), cm(60)),
             m(cm(90)),
+            BONE_DARK,
+            0,
+        );
+        put(
+            b,
+            f,
+            Mesh::Ico,
+            up(sx * cm(300), -cm(30), -cm(600)),
+            p(cm(120), cm(120), cm(140)),
+            BONE_DARK,
+            0,
+        );
+        // the lower jaw dropped open: a deep plate each side, its top
+        // edge sloping up from the chin to the hinge at the back, and
+        // its long tapering lower edge
+        let (top, foot) = (gum - m(cm(30)), -gum - m(cm(60)));
+        put(
+            b,
+            f,
+            Mesh::Wedge,
+            v3(m(sx * cm(295)), (top + foot) / 2, -m(cm(270))),
+            v3(m(cm(70)), top - foot, m(cm(700))),
             BONE,
             0,
         );
         bar(
             b,
             f,
-            Mesh::Hex,
-            dn(sx * cm(260), -cm(90), -cm(250)),
-            dn(sx * cm(180), -cm(80), cm(200)),
-            m(cm(50)),
-            BONE_DARK,
+            Mesh::Taper,
+            dn(sx * cm(270), -cm(50), -cm(230)),
+            dn(sx * cm(160), -cm(40), cm(340)),
+            m(cm(120)),
+            BONE,
             0,
         );
-        // a crack across the snout
+        // weathering: a crack across the snout, a stained patch on the
+        // cheek
         put_turned(
             b,
             f,
             Mesh::Cube,
-            up(sx * cm(150), cm(200), cm(230)),
+            up(sx * cm(205), cm(230), cm(190)),
             &Affine::rot_z(sx * deg(30)),
-            p(cm(8), cm(90), cm(8)),
+            p(cm(8), cm(110), cm(8)),
             VOID,
             0,
         );
+        put(
+            b,
+            f,
+            Mesh::Blob,
+            up(sx * cm(265), cm(90), -cm(200)),
+            p(cm(60), cm(110), cm(160)),
+            WEATHER,
+            0,
+        );
     }
-    // the chin, the lower gum and a moss cap on the skull
+    // the chin, the lower gum, a crack along the brow and a moss cap
     put(
         b,
         f,
         Mesh::Bevel,
-        dn(0, -cm(40), cm(320)),
-        p(cm(340), cm(80), cm(110)),
+        dn(0, -cm(50), cm(320)),
+        p(cm(340), cm(100), cm(110)),
         BONE,
         0,
     );
@@ -271,8 +338,8 @@ pub fn rex_skull(b: &mut Batch, f: &Affine, gap: i32, teeth: &[Tooth]) {
         b,
         f,
         Mesh::Bevel,
-        dn(0, -cm(25), cm(40)),
-        p(cm(420), cm(50), cm(600)),
+        dn(0, -cm(25), cm(60)),
+        p(cm(420), cm(50), cm(560)),
         BONE_DARK,
         0,
     );
@@ -280,8 +347,8 @@ pub fn rex_skull(b: &mut Batch, f: &Affine, gap: i32, teeth: &[Tooth]) {
         b,
         f,
         Mesh::Blob,
-        up(cm(40), cm(390), -cm(240)),
-        p(cm(300), cm(60), cm(200)),
+        up(cm(60), cm(440), -cm(250)),
+        p(cm(260), cm(60), cm(200)),
         MOSS,
         0,
     );

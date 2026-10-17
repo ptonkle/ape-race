@@ -6,7 +6,7 @@
 //! `SPHINX_SIZE`), the campfire about 36 and a halo, a tent about 14.
 
 use super::*;
-use crate::fx::{cm, cos, mul, sin, TURN};
+use crate::fx::{cm, cos, deg, mul, sin, TURN};
 use crate::render::{mix, shade};
 
 const STATUE: Rgb = rgb(214, 160, 110);
@@ -21,8 +21,9 @@ const ROAST: Rgb = rgb(150, 96, 40);
 /// y 0, centred on the origin, facing +z: about 34 m long, 18 m high.
 pub const SPHINX_SIZE: V3 = v3(int(16), int(19), int(34));
 
-/// The sphinx: a lion's body lying on a plinth, forepaws stretched toward
-/// +z, a proboscis monkey's head with its big hanging nose, a striped
+/// The sphinx: a lion's body lying low on a plinth like Giza's, chest
+/// down and forepaws stretched flat toward +z, a proboscis monkey's head
+/// with its long fleshy nose drooping over the mouth, a striped
 /// headcloth, furry cheek ridges, a curled tail.
 pub fn sphinx(b: &mut Batch, f: &Affine) {
     let m = |x: i32, y: i32, z: i32| v3(int(x), int(y), int(z));
@@ -36,36 +37,39 @@ pub fn sphinx(b: &mut Batch, f: &Affine) {
         SANDSTONE_DARK,
         0,
     );
-    // the body
-    bar(
+    // the body, long and low like Giza's: back level, belly on the plinth
+    put_turned(
         b,
         f,
         Mesh::Barrel,
-        m(0, 6, -11),
-        m(0, 7, 5),
-        int(10),
+        m(0, 5, -6),
+        &Affine::rot_x(deg(90)),
+        m(10, 18, 7),
         STATUE,
         0,
     );
-    put(b, f, Mesh::Geo, d(0, 68, 60), m(8, 7, 7), STATUE, 0);
+    // the chest, low between the forelegs
+    put(b, f, Mesh::Geo, d(0, 50, 30), m(8, 6, 6), STATUE, 0);
     for sx in [-1, 1] {
-        put(b, f, Mesh::Geo, d(sx * 45, 55, -95), m(5, 7, 9), STATUE, 0);
+        // a haunch tucked under, the hind leg along the flank
+        put(b, f, Mesh::Geo, d(sx * 42, 45, -100), m(5, 5, 8), STATUE, 0);
         put(
             b,
             f,
             Mesh::Bevel,
-            d(sx * 55, 30, -50),
+            d(sx * 52, 28, -60),
             m(3, 2, 8),
             STATUE_DARK,
             0,
         );
-        // a forepaw stretched out, three toe grooves on it
+        // a foreleg stretched out flat along the plinth, three toe
+        // grooves on its paw
         put(
             b,
             f,
             Mesh::Bevel,
-            d(sx * 35, 27, 110),
-            d(32, 26, 110),
+            d(sx * 35, 30, 95),
+            d(32, 22, 120),
             STATUE,
             0,
         );
@@ -73,8 +77,8 @@ pub fn sphinx(b: &mut Batch, f: &Affine) {
             b,
             f,
             Mesh::Bevel,
-            d(sx * 35, 22, 172),
-            d(38, 22, 30),
+            d(sx * 35, 27, 168),
+            d(38, 18, 34),
             STATUE_PALE,
             0,
         );
@@ -83,20 +87,20 @@ pub fn sphinx(b: &mut Batch, f: &Affine) {
                 b,
                 f,
                 Mesh::Cube,
-                d(sx * 35 + t * 10, 25, 186),
-                d(1, 16, 4),
+                d(sx * 35 + t * 10, 28, 184),
+                d(1, 14, 4),
                 STATUE_DARK,
                 0,
             );
         }
-        // the headcloth's lappets, striped
+        // the headcloth's lappets, striped, down onto the chest
         for i in 0..3 {
             put(
                 b,
                 f,
                 Mesh::Bevel,
-                d(sx * 36, 128 - i * 18, 66),
-                d(8, 18, 30),
+                d(sx * 36, 98 - i * 16, 58),
+                d(8, 16, 28),
                 if i % 2 == 0 { STATUE_PALE } else { STATUE_DARK },
                 0,
             );
@@ -106,8 +110,8 @@ pub fn sphinx(b: &mut Batch, f: &Affine) {
             b,
             f,
             Mesh::Blob,
-            d(sx * 30, 136, 98),
-            d(18, 34, 22),
+            d(sx * 30, 98, 84),
+            d(16, 30, 20),
             STATUE_PALE,
             0,
         );
@@ -115,21 +119,23 @@ pub fn sphinx(b: &mut Batch, f: &Affine) {
             b,
             f,
             Mesh::Ico,
-            d(sx * 36, 158, 82),
+            d(sx * 36, 120, 68),
             d(10, 14, 8),
             STATUE_DARK,
             0,
         );
-        put(b, f, Mesh::Ico, d(sx * 13, 156, 113), d(9, 7, 6), VOID, 0);
+        put(b, f, Mesh::Ico, d(sx * 13, 120, 98), d(9, 7, 6), VOID, 0);
+        // the nostrils, under the nose's tip
+        put(b, f, Mesh::Ico, d(sx * 5, 63, 117), d(6, 3, 6), VOID, 0);
     }
-    // the head and its headcloth
-    put(b, f, Mesh::Geo, d(0, 150, 85), d(64, 70, 60), STATUE, 0);
+    // the head and its headcloth, low over the chest
+    put(b, f, Mesh::Geo, d(0, 112, 72), d(64, 66, 58), STATUE, 0);
     put(
         b,
         f,
         Mesh::Ico,
-        d(0, 182, 80),
-        d(70, 26, 62),
+        d(0, 142, 67),
+        d(70, 24, 60),
         STATUE_PALE,
         0,
     );
@@ -137,42 +143,57 @@ pub fn sphinx(b: &mut Batch, f: &Affine) {
         b,
         f,
         Mesh::Cube,
-        d(0, 164, 112),
+        d(0, 128, 98),
         d(46, 6, 10),
         STATUE_DARK,
         0,
     );
+    // the brow and the bridge between the eyes
     put(
         b,
         f,
         Mesh::Bevel,
-        d(0, 142, 108),
-        d(40, 30, 16),
+        d(0, 116, 96),
+        d(34, 12, 10),
         STATUE_PALE,
         0,
     );
-    // the nose: long, swollen, hanging over the mouth
+    // the nose: a proboscis monkey's, long and fleshy, swelling as it
+    // hangs from between the eyes down over the mouth, its tip drooping
+    // below the chin
     bar(
         b,
         f,
         Mesh::Taper,
-        d(0, 150, 116),
-        d(0, 122, 126),
-        dm(22),
+        d(0, 88, 112),
+        d(0, 114, 100),
+        dm(20),
         STATUE,
         0,
     );
-    put(b, f, Mesh::Sphere, d(0, 116, 126), d(30, 26, 24), STATUE, 0);
-    put(b, f, Mesh::Cube, d(0, 104, 116), d(22, 4, 6), VOID, 0);
-    put(
+    put_turned(
         b,
         f,
-        Mesh::Ico,
-        d(0, 98, 110),
-        d(26, 14, 16),
+        Mesh::Geo,
+        d(0, 78, 114),
+        &Affine::rot_x(deg(12)),
+        d(26, 30, 18),
+        STATUE,
+        0,
+    );
+    put_turned(
+        b,
+        f,
+        Mesh::Geo,
+        d(0, 66, 113),
+        &Affine::rot_x(-deg(10)),
+        d(22, 16, 16),
         STATUE_PALE,
         0,
     );
+    // the mouth and chin, mostly hidden behind the nose
+    put(b, f, Mesh::Cube, d(0, 72, 102), d(28, 4, 6), VOID, 0);
+    put(b, f, Mesh::Ico, d(0, 64, 98), d(30, 14, 16), STATUE_PALE, 0);
     // the tail curled along the plinth
     let mut prev = m(-5, 3, -15);
     for i in 1..=4 {
