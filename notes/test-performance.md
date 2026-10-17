@@ -34,8 +34,7 @@ Several agents running heavy tests at once pushed load to 30–45 and made brows
 
 ## Left to do
 
-1. **Run the core test files at the same time:** `cargo-nextest` (also gives a progress bar). Estimated 85 s → 30–40 s. Started on branch `check-output` (f79bd36, not merged; the agent was stopped): nextest and `rich` progress bars, plain lines in logs, `scripts/watch-check.sh` for a view-only window.
+1. **Done (af9a7b1):** core tests run on `cargo-nextest`, all files at once, with a progress bar: 85 s → 49 s. Browser steps show `rich` bars per engine. `scripts/watch-check.sh <log> -- <check>` runs a check detached and opens a view-only window (100 columns; no `;` may reach wt.exe, it splits the command into tabs). A full quick check with everything in three browsers: ~4.5 min (was ~10.5).
 2. **Run the three browsers at the same time** (cap 2–3), and the online checks alongside the browser check. With the GPU fix this matters less; measure first.
-3. **Readable live output** (one line per test file, step start/end with times, a closing summary): also on `check-output` (4fe69f6).
+3. **Done:** readable live output (stage start with its usual time, ✓/✗ end lines, a closing summary).
 4. **The fixed 10 s idle watch** at the start of every engine (`BUILDER_IDLE`) is now half of Chromium's time: worth a look.
-5. Branch `fast-browser` (agent stopped before committing) has nothing to keep.
