@@ -7,36 +7,81 @@ use tool_core::course::Course;
 use tool_core::fx::ONE;
 use tool_core::map::Map;
 use tool_core::rules::{Kind, TICKS_PER_SECOND};
-use tool_core::tower::{tower, tower_seeded};
+use tool_core::tower::{tower, tower_seeded, Leg};
 
 const LIMIT: u32 = 150 * TICKS_PER_SECOND as u32;
 
+/// Every level finishes the course inside the limit, each reported before
+/// any is judged, with the Monkey's time on each leg (the plan: about
+/// 10 s under each bridge).
 #[test]
 fn every_difficulty_climbs_falls_and_finishes() {
     let runs: Vec<_> = Difficulty::ALL
         .into_iter()
-        .map(|level| {
-            std::thread::spawn(move || {
-                let t = trial_at(tower(), &[Kind::Chimpanzee], &[level], true, LIMIT);
-                (level, t[0].finish, t[0].progress)
-            })
-        })
+        .map(|level| std::thread::spawn(move || (level, leg_times(0, level))))
         .collect();
-    for run in runs {
-        let (level, finish, progress) = run.join().expect("the race runs");
-        let f = finish.unwrap_or_else(|| {
-            panic!(
-                "{} finishes Mape's Tower (stuck at {} m)",
-                level.key(),
-                progress / ONE
-            )
-        });
+    let all: Vec<_> = runs
+        .into_iter()
+        .map(|r| r.join().expect("the race runs"))
+        .collect();
+    for (level, (finish, progress, legs)) in &all {
+        let legs: Vec<String> = legs
+            .iter()
+            .map(|(leg, at)| format!("{leg:?} {:.1}", secs(*at)))
+            .collect();
         println!(
-            "{:<10} {:.1} s",
+            "{:<10} {}  reached {} m  legs: {}",
             level.key(),
-            f as f64 / TICKS_PER_SECOND as f64
+            finish
+                .map(|f| format!("{:.1} s", secs(f)))
+                .unwrap_or("-".into()),
+            progress / ONE,
+            legs.join(", ")
         );
     }
+    let stuck: Vec<String> = all
+        .iter()
+        .filter(|(_, (f, _, _))| f.is_none())
+        .map(|(level, (_, p, _))| format!("{} (stuck at {} m)", level.key(), p / ONE))
+        .collect();
+    assert!(
+        stuck.is_empty(),
+        "every level finishes Mape's Tower: {}",
+        stuck.join(", ")
+    );
+    let times: Vec<u32> = all.iter().map(|(_, (f, _, _))| f.unwrap()).collect();
+    assert!(
+        times.windows(2).all(|w| w[0] > w[1]),
+        "the levels finish in order: {times:?}"
+    );
+}
+
+/// One AI ape of `level` on layout `k`: its finish, its progress, and the
+/// tick it first reached each leg.
+fn leg_times(k: u64, level: Difficulty) -> (Option<u32>, i32, Vec<(Leg, u32)>) {
+    use tool_core::ai::Brain;
+    use tool_core::race::{Driver, Entry, Race};
+    let entry = Entry {
+        name: String::new(),
+        kind: Kind::Chimpanzee,
+        driver: Driver::Ai,
+        palette: 0,
+        costume: tool_core::costume::Costume::Own,
+    };
+    let mut race = Race::new(layout(k), &[entry], true, 7);
+    let mut brains = vec![Brain::new(level, 0xA9E5)];
+    let mut legs: Vec<(Leg, u32)> = Vec::new();
+    let mut best = 0;
+    while race.tick < LIMIT && race.racers[0].finish.is_none() {
+        tool_core::replay::drive(&mut race, &mut brains, usize::MAX, Default::default());
+        let p = race.racers[0].progress;
+        best = best.max(p);
+        let leg = race.course.tower.as_ref().unwrap().leg_at(p);
+        if legs.last().is_none_or(|l| l.0 < leg) {
+            legs.push((leg, race.clock));
+        }
+    }
+    (race.racers[0].finish, best, legs)
 }
 
 /// Layout `k` of Mape's Tower (0 is the course everyone races; the seeds

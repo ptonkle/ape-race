@@ -84,9 +84,9 @@ impl Course {
         let feet = p.y - BODY_DROP;
         let ground = self.terrain(p.x, p.z);
         let on_ground = feet <= ground + cm(10) && self.support(p) <= ground;
-        // (inside tower 1's hollow the coil is only what progress
-        // measures, and a missed swing falls far past it: only the floor
-        // is out there, TW2-6)
+        // (inside tower 1's hollow the line up the axis is only what
+        // progress measures, and a missed swing falls far past it: only
+        // the floor is out there, TW2-6)
         if t.inside_tower_1(p) {
             return on_ground;
         }
@@ -95,9 +95,19 @@ impl Course {
     }
 
     /// The reset pad for an ape out at `p`: by its leg
-    /// (`TowerLayout::reset_pad`).
-    pub fn tower_pad(&self, t: &TowerLayout, p: V3, hint: usize) -> Pad {
-        let (along, _) = self.progress(p, hint);
+    /// (`TowerLayout::reset_pad`). Inside tower 1 progress is height, so
+    /// a fall to the floor (or off the portal's beams, down the outside
+    /// of the wall) has taken its progress down with it: off a beam of
+    /// the climb inside or the portal's, the pad is the one behind that
+    /// beam (TW2-9).
+    pub fn tower_pad(&self, t: &TowerLayout, a: &Ape) -> Pad {
+        let (mut along, _) = self.progress(a.pos, a.hint);
+        if let Some((v, _)) = a.last_vine {
+            let at = self.vines[v].at;
+            if matches!(t.leg_at(at), Leg::Inside | Leg::Portal) {
+                along = along.max(at);
+            }
+        }
         t.reset_pad(along)
     }
 }
@@ -215,7 +225,7 @@ impl Race {
         let Some(t) = self.course.tower.as_deref() else {
             return false;
         };
-        let pad = self.course.tower_pad(t, pos, hint);
+        let pad = self.course.tower_pad(t, &r.ape);
         let pl = &self.course.platforms[pad.platform];
         let at = v3(pl.centre.x, pl.top + BODY_DROP, pl.centre.z);
         let yaw = yaw_of(pl.fwd);

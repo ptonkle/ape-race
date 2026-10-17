@@ -29,10 +29,12 @@
 //! the heading; down the tube, where the heading has no plan direction, it
 //! is the right of the way through the portal). On this map alone
 //! `Course::nearest`, `nearest_anywhere` and `progress` measure in 3D, so
-//! the coils of the climbs (one above another in plan) are told apart by
+//! the climbs (the spiral's turns one above another in plan; the line up
+//! tower 1's axis with no plan direction at all) are told apart by
 //! height. The centreline is only what progress measures: under the
 //! bridges and round tower 2 the beams hang to just above it; inside
-//! tower 1 it is a loose coil up the hollow that the beams do not follow.
+//! tower 1 it is a straight line up the hollow's axis (progress there is
+//! height, TW2-9) that the beams do not follow.
 //!
 //! **The legs** (`Leg`, `TowerLayout::leg_at`): `Start`, `LowerBridge`,
 //! `Tower2`, `UpperBridge`, `Inside`, `Portal`, `Tube`, `Sling`, `Tunnel`,
@@ -76,7 +78,7 @@
 //!
 //! STAND-IN (the skeleton, 2026-10-16): `tower()` lays the legs out with
 //! plain beams (lanes under the bridges, a spiral's lanes round tower 2,
-//! rings of leaning beams inside tower 1), a sinusoidal weave of pads down
+//! rings of scattered beams inside tower 1), a sinusoidal weave of pads down
 //! the tube and the sling row, enough to prove the plumbing (every AI
 //! level finishes; the resets work; the tube's air is measured). The
 //! course agent replaces the placement; the contract stays.
