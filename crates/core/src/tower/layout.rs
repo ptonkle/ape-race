@@ -110,12 +110,13 @@ const BOTTOM_OVER: i32 = int(2);
 /// The porch beam hangs this far short of tower 1's doorway (see `tower`).
 const PORCH: i32 = int(12);
 /// Inside tower 1: a ring of beams every this many metres of height, this
-/// many round, their length. A beam cast from a window or an inner
+/// many round (T96: 4 every 10.5 m, a third of the first 8 every 7 m),
+/// their length. A beam cast from a window or an inner
 /// balcony is anchored out in the hollow, `CAST_IN` from the axis (the
 /// caster's spell reaches to it), so a swing on it stays clear of the
 /// wall (the audit); a floating one within `FLOAT_IN` of the axis.
-pub const LAYER_RISE: i32 = int(7);
-const LAYER_BEAMS: usize = 8;
+pub const LAYER_RISE: i32 = cm(1050);
+const LAYER_BEAMS: usize = 4;
 /// The rings go on this far over the rim, so the last swings inside reach
 /// the portal's beams over the top.
 const RINGS_OVER_RIM: i32 = int(20);
@@ -617,7 +618,10 @@ pub fn tower_seeded(seed: u64) -> Course {
         for n in 0..LAYER_BEAMS {
             let yaw = base_yaw
                 + (TURN / LAYER_BEAMS as i32) * n as i32
-                + dice.range(-TURN / 24, TURN / 24);
+                + dice.range(
+                    -TURN / (3 * LAYER_BEAMS as i32),
+                    TURN / (3 * LAYER_BEAMS as i32),
+                );
             let out = facing(yaw, 0);
             let floating = (ring as usize + n) % 4 == 3;
             let (anchor, hang, hanger) = if floating {

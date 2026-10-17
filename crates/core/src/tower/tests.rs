@@ -438,6 +438,49 @@ fn item_crates_hang_on_whole_stations_and_never_on_the_start_row() {
     }
 }
 
+/// The beams of the inside climb (tower 1's rings).
+fn inside_beams(c: &crate::course::Course) -> Vec<usize> {
+    let t = c.tower.as_deref().unwrap();
+    (0..c.vines.len())
+        .filter(|&i| {
+            matches!(
+                t.hangers[i],
+                Hanger::Window { .. } | Hanger::Floating { .. } | Hanger::Mage { balcony: _ }
+            ) && t.leg_at(c.vines[i].at) == Leg::Inside
+        })
+        .collect()
+}
+
+/// T96: "like 3x as many vines as there should be inside the tower". The
+/// inside climb hangs about a third of 1.14.0's beams (169 on 5aec39e),
+/// still spread evenly up the hollow: every 30 m from the doorway up holds some,
+/// and no band more than twice another.
+#[test]
+fn the_inside_climb_hangs_about_a_third_of_its_old_beams() {
+    const BEFORE: usize = 169;
+    let c = tower();
+    let t = c.tower.as_deref().unwrap();
+    let inside = inside_beams(&c);
+    let n = inside.len();
+    assert!(
+        n * 4 >= BEFORE && n * 5 <= BEFORE * 2,
+        "{n} beams inside (before: {BEFORE}), not about a third"
+    );
+    // (whole 30 m bands from the lowest inside beam to the rim)
+    let foot = inside.iter().map(|&i| c.vines[i].anchor.y).min().unwrap();
+    let bands = ((t.towers[0].top() - foot) / int(30)) as usize;
+    let mut count = vec![0usize; bands];
+    for &i in &inside {
+        let k = ((c.vines[i].anchor.y - foot) / int(30)) as usize;
+        if k < bands {
+            count[k] += 1;
+        }
+    }
+    let band = &count[..];
+    let (lo, hi) = (*band.iter().min().unwrap(), *band.iter().max().unwrap());
+    assert!(lo > 0 && hi <= lo * 2, "per 30 m band: {band:?}");
+}
+
 /// Every vine inside tower 1 hangs inside the hollow (its anchor and its
 /// bottom clear of the wall), and each is within a swing of others: at
 /// least two other inside beams' bottoms within a beam's length and a
@@ -448,14 +491,7 @@ fn inside_beams_fill_the_hollow_each_within_a_swing_of_two_others() {
     let c = tower();
     let t = c.tower.as_deref().unwrap();
     let t1 = &t.towers[0];
-    let inside: Vec<usize> = (0..c.vines.len())
-        .filter(|&i| {
-            matches!(
-                t.hangers[i],
-                Hanger::Window { .. } | Hanger::Floating { .. } | Hanger::Mage { balcony: _ }
-            ) && t.leg_at(c.vines[i].at) == Leg::Inside
-        })
-        .collect();
+    let inside = inside_beams(&c);
     assert!(inside.len() >= 40, "{} beams inside", inside.len());
     let bottom = |i: usize| c.vines[i].anchor.add(t.hangs[i].scale(c.vines[i].length));
     for &i in &inside {
