@@ -236,6 +236,7 @@ tags = ["boundary"]
 "crates/core/tests/jungle_unchanged.rs" = ["maps-jungle"]
 "crates/core/tests/sector_unchanged.rs" = ["maps-sector"]
 "crates/core/tests/maps_unchanged.rs" = ["maps-city", "maps-ski", "maps-jungle"]
+"crates/core/tests/map_checks.rs" = ["maps-jungle", "maps-city", "maps-ski", "maps-sector", "maps-ruins", "maps-bay", "maps-tower", "maps-ravine"]
 # tools: clippy (always run) compiles them; no test runs them
 "crates/core/examples/**" = []
 "crates/core/examples/ravine_*.rs" = ["maps-ravine"]
@@ -570,6 +571,26 @@ tags = ["boundary"]
 "test:boundary" = ["boundary"]
 "test:online" = ["online", "race", "costumes"]
 "test:map_pictures" = ["menus"]
+# the standard checks every map gets (map_checks.rs): the start is drawn
+# and solid (its map and its drawing), the finish counts across the open
+# width (its map and course.rs, maps-jungle, whose progress serves them all)
+"test:map_checks:start::jungle" = ["maps-jungle", "render"]
+"test:map_checks:start::city" = ["maps-city", "art-city"]
+"test:map_checks:start::ski" = ["maps-ski", "art-ski"]
+"test:map_checks:start::sector" = ["maps-sector", "art-sector"]
+"test:map_checks:start::ruins" = ["maps-ruins", "art-ruins"]
+"test:map_checks:start::bay" = ["maps-bay", "art-bay"]
+"test:map_checks:start::tower" = ["maps-tower", "art-tower"]
+"test:map_checks:start::ravine" = ["maps-ravine", "art-ravine"]
+"test:map_checks:finish::jungle" = ["maps-jungle"]
+"test:map_checks:finish::city" = ["maps-city", "maps-jungle"]
+"test:map_checks:finish::ski" = ["maps-ski", "maps-jungle"]
+"test:map_checks:finish::sector" = ["maps-sector", "maps-jungle"]
+"test:map_checks:finish::ruins" = ["maps-ruins", "maps-jungle"]
+"test:map_checks:finish::bay" = ["maps-bay", "maps-jungle"]
+"test:map_checks:finish::tower" = ["maps-tower", "maps-jungle"]
+"test:map_checks:finish::ravine" = ["maps-ravine", "maps-jungle"]
+"test:map_checks:every_map_is_checked" = ["menus"]
 
 # ---------------------------------------------------------------------------
 # Browser check steps (tests/browser/interactions.py STEPS) -> tags. The
