@@ -59,3 +59,4 @@ One row per run of `scripts/timed-checks.sh`, newest last. Seconds per step; `lo
 | 2026-10-17 15:11 | 1.14.4 | 868e156 | 11.99 | online (chromium+firefox+webkit) | release=0.3 transport=16.9 a=111.0 | 128.1 | pass |
 | 2026-10-17 15:17 | 1.15.0 | 3ab9c3c | 31.33 | quick (chromium+firefox+webkit; tags all, boundary, notes, online, page) | format=1.2 lint=5.1 list=35.6 core=138.4 release=13.1 WebAssembly=0.1 browser=129.2 | - | FAIL (exit 1) |
 | 2026-10-17 15:45 | 1.15.0 | 3ab9c3c | ~8-40 | rerun of browser + online after the load timeout (chromium+firefox+webkit) | browser, online | - | pass |
+| 2026-10-17 15:58 | 1.15.0 | 702e712 | 0.88 | quick (; tags ) | format=0.7 lint=6.3 list=0.1 core=55.9 release=0.3 WebAssembly=0.1 browser=30.8 online-transport=6.5 online-race=15.9 | 116.6 | pass |
