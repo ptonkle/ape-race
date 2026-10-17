@@ -15,6 +15,9 @@ use super::*;
 use crate::fx::{cm, deg, div, mul};
 
 const TOOTH: Rgb = rgb(252, 246, 222);
+/// The teeth catch the torchlight: a little of their own light, so they
+/// read white against the dark fin from the approach (RA-12).
+const TOOTH_GLOW: i32 = ONE / 6;
 /// old bone stained by the cave
 const WEATHER: Rgb = rgb(150, 128, 92);
 
@@ -150,7 +153,7 @@ pub fn rex_skull(b: &mut Batch, f: &Affine, gap: i32, teeth: &[Tooth]) {
     let up = |x: i32, y: i32, z: i32| v3(m(x), gum + m(y), m(z));
     let dn = |x: i32, y: i32, z: i32| v3(m(x), -gum + m(y), m(z));
     for t in teeth {
-        bar(b, f, Mesh::Spike, t.base, t.tip, t.r, TOOTH, 0);
+        bar(b, f, Mesh::Spike, t.base, t.tip, t.r, TOOTH, TOOTH_GLOW);
     }
     // the upper jaw's tooth row, the snout over it sloping down to the
     // front, the deep back of the skull, the ridge of the nose

@@ -200,8 +200,42 @@ pub fn look_at(c: &Course, r: &RavineLayout, eye: V3) -> Look {
             }
         }
     }
+    // the skull's torches light the bone and the teeth from the approach
+    if let Some(s) = &r.skull {
+        let k = skull_share(s, eye);
+        if k > 0 {
+            l = blend(&l, &skull_look(s), k);
+        }
+    }
     l
 }
+
+/// The torchlight round the T-rex skull (`course::skull_lights`): warm,
+/// from the in-leg the apes come in from (so the snout, the teeth and the
+/// gap face the light), the fog pushed out.
+pub fn skull_look(s: &crate::ravine::Skull) -> Look {
+    Look {
+        sky: rgb(30, 20, 34),
+        fog: rgb(60, 36, 34),
+        fog_range: (int(90), int(300)),
+        light_dir: facing(s.yaw + TURN / 2, deg(30)),
+        light: rgb(250, 186, 120),
+        ground: rgb(176, 104, 66),
+        rim: rgb(70, 44, 30),
+        far: crate::render::FAR,
+    }
+}
+
+/// How strongly the skull's torchlight holds at `p`: `SKULL_LIT` within
+/// 30 m of the mouth, none past 80 m (the approach down the in-leg).
+pub fn skull_share(s: &crate::ravine::Skull, p: V3) -> i32 {
+    let d = p.sub(s.at).flat().len();
+    let t = ONE - fx::div((d - int(30)).max(0), int(50)).min(ONE);
+    fx::mul(t, SKULL_LIT)
+}
+
+/// The skull's torchlight at most: most of the way, the night still in it.
+pub const SKULL_LIT: i32 = ONE * 3 / 4;
 
 fn blend(a: &Look, b: &Look, t: i32) -> Look {
     if t <= 0 {

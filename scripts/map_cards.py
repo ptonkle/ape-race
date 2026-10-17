@@ -7,7 +7,8 @@ built game and kept as data/maps/<key>.webp, which the build ships.
 
 The maps are read from the built game itself (the cards on Race Setup), so
 a new map needs no change here: it is shot from DEFAULT until CARDS names a
-better moment for it. Each shot opens the title's flyover over the map,
+better moment for it (a map still held from the grid is shot when
+--only names it). Each shot opens the title's flyover over the map,
 `dist/index.html?map=<key>&at=<metres>` with the menus hidden, so no ape
 is in the picture (the person, 2026-10-13), is shot at SHOT and
 scaled down to SIZE by the browser, which also encodes the webp. Commit the
@@ -51,6 +52,9 @@ CARDS = {
     # near the flyover's top: the keep's battlements and turrets over the
     # cloud band, the eldritch banana beyond in the golden haze
     "tower": "930",
+    # beside the T-rex skull in its torchlight, the teeth and the gap, the
+    # snake vines and the glowing canyon winding on beyond
+    "ravine": "520",
 }
 
 SCALE_TO_WEBP = """async ([w, h, q]) => {
@@ -94,6 +98,9 @@ def main():
         page = b.new_page(viewport={"width": SHOT[0], "height": SHOT[1]})
         keys = map_keys(page, base)
         page.close()
+        # a map held from the grid until it is real (`Map::held`) is
+        # still shot when --only names it, so its card is ready first
+        keys += [k for k in sorted(only) if k not in keys]
         for key in keys:
             if only and key not in only:
                 continue

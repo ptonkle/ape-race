@@ -123,12 +123,14 @@ fn every_snake_vine_is_drawn_with_a_warning_glow_and_black_and_white_bands_when_
             );
             if vivid {
                 // every unlit shape round a snake's anchor is black or
-                // white (lizards, carts and glows are elsewhere)
+                // white (lizards, carts, glows and the skull's torches are elsewhere)
                 let mut only = Batch::new();
                 let mut alone = r.clone();
                 alone.lizards.clear();
                 alone.carts.clear();
                 alone.glows.clear();
+                // (and the skull's torches, RA-12)
+                alone.skull = None;
                 alone.finish.campfire = v3(int(9000), 0, 0);
                 dynamic(&mut only, &c, &alone, eye, 0, 0, true);
                 let cols = RefCell::new(Vec::new());
@@ -175,4 +177,110 @@ fn the_ravine_frame_stays_within_budget() {
         worst.1,
         worst.2
     );
+}
+
+/// Every shape's middle in `b` (the instance's translation).
+fn middles(b: Batch) -> Vec<V3> {
+    let (values, _) = b.finish(0);
+    values
+        .chunks(crate::render::INSTANCE_VALUES)
+        .map(|s| v3(s[3], s[7], s[11]))
+        .collect()
+}
+
+#[test]
+fn the_skull_is_torch_lit_from_the_approach() {
+    // (RA-12: the fin's hairpin was near-black; the teeth and the gap
+    // must read from the in-leg)
+    let (c, r) = ravine();
+    let s = r.skull.as_ref().expect("the skull");
+    let out = crate::geom::facing(s.yaw, 0).neg();
+    let approach = s.at.add(out.scale(int(25)));
+    let mut b = Batch::new();
+    skull_lights(&mut b, s, 0);
+    let mut halos = b.take_halos();
+    let fire = RefCell::new(0);
+    halos.restyle(|col, g| {
+        if col == SKULL_FIRE {
+            *fire.borrow_mut() += 1;
+        }
+        (col, g)
+    });
+    assert!(
+        *fire.borrow() > SKULL_TORCHES.len(),
+        "{} torchlight glows round the skull",
+        fire.borrow()
+    );
+    // the torches stand on the fin's face, beside the skull, not in its mouth
+    for (side, _) in SKULL_TORCHES {
+        assert!(side.abs() > int(7), "a torch {side} across is in the skull");
+    }
+    let warm = |l: crate::scene::Look| l.light[0] > l.light[2];
+    assert!(
+        warm(crate::ravinescape::look_at(&c, &r, approach)),
+        "the approach is lit by the torches"
+    );
+    let far = s.at.add(out.scale(int(200)));
+    assert!(
+        crate::ravinescape::skull_share(s, far) == 0,
+        "the torchlight reaches 200 m"
+    );
+}
+
+#[test]
+fn the_canyon_mouths_steps_are_heaped_with_rock_outside_the_canyon() {
+    // (RA-11, RA-12: the walls fell to the mesa as bare slabs; the rock
+    // dresses the steps and slopes away outside, never into the way)
+    let (_, r) = ravine();
+    let mut steps = 0;
+    for w in &r.walls {
+        for k in w.points.windows(2) {
+            let (a, z) = (k[0], k[1]);
+            if (a.height - z.height).abs() <= MOUTH_STEP {
+                continue;
+            }
+            steps += 1;
+            let fwd = z.at.sub(a.at).flat().norm();
+            let into = into_rock(w.side, fwd);
+            let (bottom, top) = stretch_heights(&a, &z);
+            let mut b = Batch::new();
+            mouth_rock(
+                &mut b,
+                (a, z),
+                fwd,
+                into,
+                w.depth,
+                (bottom + WALL_BELOW, top),
+                0,
+            );
+            for p in middles(b) {
+                let back = p.sub(a.at).flat().dot(into);
+                assert!(
+                    back > int(1),
+                    "a mouth rock at {p:?} sits {back} into the rock from the face at {:?}",
+                    a.at
+                );
+            }
+        }
+    }
+    assert!(steps >= 6, "{steps} canyon-mouth steps (both sides)");
+}
+
+#[test]
+fn a_wall_lizard_glows_white_when_colourblind() {
+    let (c, r) = ravine();
+    let (at, _) = r.lizard_at(0, 0);
+    for vivid in [false, true] {
+        let mut b = Batch::new();
+        dynamic(&mut b, &c, &r, at, 0, 0, vivid);
+        let mut halos = b.take_halos();
+        let white = RefCell::new(0);
+        halos.restyle(|col, g| {
+            if col == LIZARD_GLOW_VIVID {
+                *white.borrow_mut() += 1;
+            }
+            (col, g)
+        });
+        assert_eq!(*white.borrow() > 0, vivid, "lizard glow (vivid {vivid})");
+    }
 }

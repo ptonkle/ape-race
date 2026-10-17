@@ -16,8 +16,8 @@ The standard map-build steps (MAPS.md "Build steps"), one row each. Status is on
 | 10 | AI validation | Done | 16 layouts: Sloth 131.9 s (5 timeouts, accepted), Ape 97.2 s and King Kong 77.1 s finish all (King Kong no longer runs at vines behind rock, RC15) |
 | 11 | Medal times | In progress | agent on `ravine-medals` |
 | 12 | Performance test | In progress | Drawing: 4,900 of 5,500 shapes at the hairpin (before the Milky Way's +260); game tick time not measured yet |
-| 13 | Colourblind and JOJO MODE | In progress | Snake cue done; whole-map check on `ravine-cb` (with skull light, mesa wall ends) |
-| 14 | Map card | In progress | on `ravine-cb`; the card shows Canopy Run's picture now |
+| 13 | Colourblind and JOJO MODE | Done | Whole map checked in both (`notes/ravine-shots/polish/colourblind.png`, `jojo.png`): vines, item flowers, snakes, bananas, carts read; wall lizards now go pale with a white glow in colourblind (RA-13). Also: skull torch-lit (4 torches, mouth glow, warm light, teeth glow) and the canyon mouth's steps dressed with talus and shoulders (RA-12). Worst frame 4,926 of 5,500 |
+| 14 | Map card | Done | `data/maps/ravine.webp` from the flyover at 520 m: the torch-lit skull and the canyon beyond (was Canopy Run's picture); `map_cards.py --only ravine` shoots a held map; text "Rattlesnake Ravine"; grid shot `polish/map-grid.png` (RA-14) |
 | 15 | Screenshots at 1920×1080 | Not started | |
 | 16 | Other maps unchanged | In progress | 13:20: 1.14.4 merged in, other-maps tests pass; again after art (step 8). 10:51: the other-maps-unchanged tests pass on `ravine` with skeleton, models, costumes and rules merged |
 | 17 | Docs | Not started | |
