@@ -259,6 +259,9 @@ pub fn look_in(t: &TowerLayout, eye: V3, w: Weather) -> Look {
     let zipper = t.in_void(eye);
     let s = sky_at(t, eye, w);
     let mut l = look_from(s, w, zipper);
+    if zipper && in_tube(t, eye) {
+        l.fog_range = TUBE_FOG;
+    }
     let k = if zipper { 0 } else { in_cloud(t, eye.y) };
     if k > 0 {
         l.fog = mix(l.fog, s.cloud, k);
@@ -268,6 +271,20 @@ pub fn look_in(t: &TowerLayout, eye: V3, w: Weather) -> Look {
         );
     }
     l
+}
+
+/// The fog inside the tube, further out than the void's (70–260 m): the
+/// void's washed the tube sea-green, the pads dark shapes and the walls
+/// gone two pads down (TA2-8); from the top the pads read and the walls
+/// stand several pads down.
+pub const TUBE_FOG: (i32, i32) = (int(200), int(580));
+
+/// Whether an eye is inside the tube (or over its open top).
+pub fn in_tube(t: &TowerLayout, eye: V3) -> bool {
+    let tube = &t.tube;
+    !v3(eye.x - tube.axis.x, 0, eye.z - tube.axis.z).longer_than(tube.radius + tube.wall)
+        && eye.y < tube.top + int(20)
+        && eye.y > tube.bottom - int(2)
 }
 
 /// Mape's Tower at twilight, at the base (`snow::sky_in`, where no eye is
@@ -557,6 +574,33 @@ mod tests {
                 "{w:?}: the portal moves"
             );
         }
+    }
+
+    /// TA2-8: the void's fog washed the tube; inside it the fog starts
+    /// past several pads, so they read from the top and the walls stand.
+    #[test]
+    fn inside_the_tube_the_fog_starts_past_several_pads() {
+        let c = Map::Tower.course();
+        let t = c.tower.as_ref().unwrap();
+        let z = &t.tube;
+        let top = v3(z.axis.x, z.top - int(5), z.axis.z);
+        assert!(t.in_void(top) && in_tube(t, top));
+        let l = look_in(t, top, Weather::Clear);
+        // clear five pads down from the first
+        let five = top.y - z.pads[5].y;
+        assert!(
+            l.fog_range.0 > five,
+            "the fog starts {} m down, the fifth pad {} m",
+            l.fog_range.0 / ONE,
+            five / ONE
+        );
+        // out in the tunnel, the void's own fog
+        let tunnel = t.tunnel.mouth.add(t.tunnel.along.scale(int(100)));
+        assert!(t.in_void(tunnel) && !in_tube(t, tunnel));
+        assert_eq!(
+            look_in(t, tunnel, Weather::Clear).fog_range,
+            ZIPPER.fog_range
+        );
     }
 
     #[test]

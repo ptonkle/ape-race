@@ -28,7 +28,7 @@ use crate::course::Course;
 use crate::fx::{cm, int, mul, ONE, TURN};
 use crate::geom::{right_of, v3, yaw_of, Affine, V3};
 use crate::mesh::Mesh;
-use crate::render::{placed, rgb, Batch, Rgb};
+use crate::render::Batch;
 use crate::scene::{self, Scenery, VineLook};
 use crate::tower::{Hanger, PadShape, TowerLayout, TubePad, TUBE_PAD_THICK};
 use crate::towermodels as m;
@@ -47,17 +47,6 @@ const SEGMENT: i32 = int(36);
 /// Portholes down the tube: one every this far, the first this far down.
 const PORTHOLE_EVERY: i32 = int(30);
 const PORTHOLE_FIRST: i32 = int(18);
-/// The void wall's colours (`towermodels::tube`'s, which are private): the
-/// mouth segment's panels are drawn here so the tunnel's opening is open.
-const VOID_WALL: [Rgb; 3] = [rgb(40, 30, 72), rgb(56, 44, 94), rgb(26, 20, 50)];
-const VOID_RIB: Rgb = rgb(60, 150, 130);
-/// The pads' film and rim (`towermodels::tube`'s), for the ring pads
-/// composed here (the model's ring has its hole in the middle; the
-/// physics' is offset).
-const FILM: Rgb = rgb(140, 236, 216);
-const RING: Rgb = rgb(110, 255, 200);
-const FILM_DEEP: Rgb = rgb(70, 170, 160);
-
 /// The spell vine `i` is cast with: a balcony's mage by the balcony, a
 /// dragon rider, a cloud's rune and the start's by the vine, the sling's
 /// the deep spells.
@@ -291,20 +280,21 @@ fn tower1_cuts(t: &TowerLayout, y0: i32, y1: i32, door: bool) -> [m::Cut; 8] {
 /// `open`, shifted `edge` along it and drawn `edge` bigger so its arc
 /// still reaches the wall (the extra is in the wall); quarters are the
 /// model's turned so its covered quadrants lie round ±`axis`; a ring is
-/// composed here (`ring_pad`), so no model shape. The frame is at the
-/// tube's axis at the pad's middle height.
-fn pad_frame(tube_axis: V3, r: i32, pad: &TubePad) -> (Affine, Option<(m::PadShape, i32)>) {
+/// the model's holed ring, its hole where the physics' is (TA2-4). The
+/// frame is at the tube's axis at the pad's middle height.
+fn pad_frame(tube_axis: V3, r: i32, pad: &TubePad) -> (Affine, (m::PadShape, i32)) {
     let mid = v3(tube_axis.x, pad.y - TUBE_PAD_THICK / 2, tube_axis.z);
     match pad.shape {
         PadShape::Slab { open, edge } => (
             at(mid.add(open.scale(edge)), yaw_of(right_of(open).neg())),
-            Some((m::PadShape::Half, r + edge)),
+            (m::PadShape::Half, r + edge),
         ),
-        PadShape::Quarters { axis } => (
-            at(mid, yaw_of(axis) - TURN / 8),
-            Some((m::PadShape::Quarters, r)),
-        ),
-        PadShape::Ring { .. } => (at(mid, 0), None),
+        PadShape::Quarters { axis } => {
+            (at(mid, yaw_of(axis) - TURN / 8), (m::PadShape::Quarters, r))
+        }
+        PadShape::Ring { at: hole_at, hole } => {
+            (at(mid, 0), (m::PadShape::Holed { at: hole_at, hole }, r))
+        }
     }
 }
 
@@ -313,62 +303,13 @@ fn pad_frame(tube_axis: V3, r: i32, pad: &TubePad) -> (Affine, Option<(m::PadSha
 /// physics.
 #[cfg(test)]
 fn drawn_covers(tube_axis: V3, r: i32, pad: &TubePad, rel: V3) -> bool {
-    let (f, shape) = pad_frame(tube_axis, r, pad);
-    match shape {
-        None => {
-            let PadShape::Ring { at, hole } = pad.shape else {
-                unreachable!()
-            };
-            !rel.longer_than(r) && rel.sub(at).longer_than(hole)
-        }
-        Some((shape, rr)) => {
-            // the point in the pad's frame: the frame's x and z axes
-            let p = tube_axis.add(rel);
-            let d = p.sub(f.t);
-            let ax = f.apply_dir(v3(ONE, 0, 0));
-            let az = f.apply_dir(v3(0, 0, ONE));
-            m::pad_covers(shape, rr, d.dot(ax), d.dot(az))
-        }
-    }
-}
-
-/// A ring pad across a tube of radius `r` with its hole of radius `hole`
-/// at `hole_at` (in plan, from the axis), in frame `f` (at the axis at
-/// the pad's middle): strips of film from the hole's rim to the wall, a
-/// glowing rim round both, and a soft halo. About 45 shapes.
-fn ring_pad(b: &mut Batch, f: &Affine, r: i32, hole_at: V3, hole: i32, k: u32) {
-    let thick = cm(50);
-    let n = 24;
-    for i in 0..n {
-        let a = TURN * i / n;
-        let dir = v3(crate::fx::sin(a), 0, crate::fx::cos(a));
-        let p = hole_at.add(dir.scale(hole));
-        let q = dir.scale(r);
-        let c = if (i + k as i32) % 2 == 0 {
-            FILM
-        } else {
-            crate::render::mix(FILM, FILM_DEEP, ONE / 3)
-        };
-        // (a strip's width covers the wall's end of the fan)
-        m::bar(b, f, Mesh::Cube, p, q, int(5), c, ONE / 2);
-    }
-    let rim = |b: &mut Batch, centre: V3, rr: i32, segs: i32| {
-        for i in 0..segs {
-            let p = |j: i32| {
-                let a = TURN * j / segs;
-                centre.add(v3(
-                    mul(rr, crate::fx::sin(a)),
-                    0,
-                    mul(rr, crate::fx::cos(a)),
-                ))
-            };
-            m::bar(b, f, Mesh::Cube, p(i), p(i + 1), cm(60), RING, ONE);
-        }
-    };
-    rim(b, V3::ZERO, r, 12);
-    rim(b, hole_at, hole, 8);
-    let _ = thick;
-    m::halo_ball(b, f, v3(0, cm(20), 0), 2 * r, FILM_DEEP, ONE / 4);
+    let (f, (shape, rr)) = pad_frame(tube_axis, r, pad);
+    // the point in the pad's frame: the frame's x and z axes
+    let p = tube_axis.add(rel);
+    let d = p.sub(f.t);
+    let ax = f.apply_dir(v3(ONE, 0, 0));
+    let az = f.apply_dir(v3(0, 0, ONE));
+    m::pad_covers(shape, rr, d.dot(ax), d.dot(az))
 }
 
 /// A caster's beam inside tower 1: a plain glowing rod from `a` to `z`
@@ -663,15 +604,19 @@ fn build(c: &Course, t: &TowerLayout, sink: &mut Sink) -> Vec<Option<V3>> {
                 let br = &t.bridges[bridge.min(1)];
                 let top = v3(a.x, br.from.y.max(br.to.y), a.z);
                 let fwd = br.to.sub(br.from).flat().norm();
-                let hook = top.sub(v3(0, m::HANGER_DROP, 0));
+                // (the chain longer where the arch is deep: the hook
+                // hangs clear of the stone, its beam too, TA2-10)
+                let drop = hook_drop(t, top, a);
+                let hook = top.sub(v3(0, drop, 0));
                 put("hangers", Some(a), &mut |b| {
-                    m::bridge_hangers(
+                    m::bridge_hangers_dropped(
                         b,
                         &Affine::IDENTITY,
                         top,
                         top.add(fwd),
                         br.half_width * 2,
                         int(1000),
+                        drop,
                         i as u32,
                     );
                     if hook.y - a.y > int(1) {
@@ -833,77 +778,33 @@ fn build(c: &Course, t: &TowerLayout, sink: &mut Sink) -> Vec<Option<V3>> {
         seg_top = seg_bottom;
         seg += 1;
     }
-    // the mouth segment: the void's panels round the foot, none over the
-    // tunnel's opening, and the floor disc the tunnel's floor runs from
+    // the mouth segment: the tube's own, open round the tunnel's mouth
+    // and floored at its foot (`tube_with_door`)
     let mouth_mid = v3(z.axis.x, (mouth_seg + z.bottom) / 2, z.axis.z);
     put("tube", Some(mouth_mid), &mut |b| {
         let f = at(v3(z.axis.x, mouth_seg, z.axis.z), 0);
-        let len = mouth_seg - z.bottom;
-        let bands = (len / m::SECTION_H).max(1);
-        let bh = len / bands;
-        let panels = 12;
-        let panel_w = mul(2 * z.radius, crate::fx::ratio(268, 1000)) + cm(40);
-        let half_arc = crate::fx::atan2(tn.half_width, z.radius) + TURN / 24;
-        for j in 0..bands {
-            let y0 = -bh * j;
-            let y1 = -bh * (j + 1);
-            for i in 0..panels {
-                let a = TURN * i / panels;
-                if crate::fx::wrap(a.wrapping_sub(mouth_yaw)).abs() <= half_arc {
-                    continue;
-                }
-                let g = f.then(&Affine::rot_y(a));
-                let c = VOID_WALL[((j * panels + i) as u32 * 7 % 3) as usize];
-                m::put(
-                    b,
-                    &g,
-                    Mesh::Cube,
-                    v3(0, (y0 + y1) / 2, z.radius + int(1)),
-                    v3(panel_w, bh - cm(20), int(2)),
-                    c,
-                    0,
-                );
-                m::bar(
-                    b,
-                    &g,
-                    Mesh::Cube,
-                    v3(-panel_w / 2, y1 + cm(10), z.radius + cm(40)),
-                    v3(panel_w / 2, y1 + cm(10), z.radius + cm(40)),
-                    cm(30),
-                    VOID_RIB,
-                    ONE / 3,
-                );
-            }
-        }
-        let d = 2 * z.radius + int(2);
-        b.push(
-            Mesh::Cyl,
-            &placed(
-                v3(z.axis.x, z.bottom - int(1), z.axis.z),
-                0,
-                v3(d, int(2), d),
-            ),
-            VOID_WALL[2],
-            0,
+        let door = m::TubeDoor {
+            bearing: mouth_yaw,
+            half: tn.half_width,
+            height: tn.height,
+        };
+        m::tube_with_door(
+            b,
+            &f,
+            z.radius,
+            mouth_seg - z.bottom,
+            &[],
+            Some(door),
+            seg + 1,
         );
     });
 
     // the pads: where the physics' shapes cover (`pad_frame`)
     for (k, pad) in z.pads.iter().enumerate() {
-        let (f, shape) = pad_frame(z.axis, z.radius, pad);
-        put(
-            "void pads",
-            Some(v3(z.axis.x, pad.y, z.axis.z)),
-            &mut |b| match shape {
-                Some((shape, rr)) => m::void_pad(b, &f, rr, shape, 0, 0, tick, k as u32),
-                None => {
-                    let PadShape::Ring { at: hole_at, hole } = pad.shape else {
-                        unreachable!()
-                    };
-                    ring_pad(b, &f, z.radius, hole_at, hole, k as u32)
-                }
-            },
-        );
+        let (f, (shape, rr)) = pad_frame(z.axis, z.radius, pad);
+        put("void pads", Some(v3(z.axis.x, pad.y, z.axis.z)), &mut |b| {
+            m::void_pad(b, &f, rr, shape, 0, 0, tick, k as u32)
+        });
     }
 
     // the zip down the inside of the tube's wall, opposite the tunnel
@@ -931,7 +832,8 @@ fn build(c: &Course, t: &TowerLayout, sink: &mut Sink) -> Vec<Option<V3>> {
             m::tunnel_mouth(b, &fm, z.radius, tick, 5);
         },
     );
-    let ft = at(tn.mouth.add(v3(0, z.radius, 0)), mouth_yaw);
+    let foot = at(v3(z.axis.x, z.bottom, z.axis.z), 0);
+    let ft = m::tunnel_frame(&foot, z.radius, mouth_yaw);
     let mut along = 0;
     let mut seg = 0u32;
     while along < tn.length {
@@ -984,6 +886,25 @@ pub fn worst_drawn_at(c: &Course) -> ((usize, usize), usize) {
         most = most.max((n as usize, k));
     }
     ((most.0, s.values.len() / INSTANCE_VALUES), most.1)
+}
+
+/// How far under the deck's top `top` a bridge hanger's hook hangs for
+/// the anchor `a` under it: `HANGER_DROP`, or lower in 25 cm steps until
+/// the hook and its beam down to the anchor are clear of the stone (at
+/// most to the anchor itself).
+fn hook_drop(t: &TowerLayout, top: V3, a: V3) -> i32 {
+    let clear = |hook: V3| {
+        (0..20).all(|k| {
+            t.point_in_stone(hook.add(a.sub(hook).scale(ONE * k / 20)))
+                .is_none()
+        })
+    };
+    let most = (top.y - a.y).max(m::HANGER_DROP);
+    let mut drop = m::HANGER_DROP;
+    while drop < most && !clear(top.sub(v3(0, drop, 0))) {
+        drop = (drop + cm(25)).min(most);
+    }
+    drop
 }
 
 /// The vines cast by balcony `n`'s mage.
