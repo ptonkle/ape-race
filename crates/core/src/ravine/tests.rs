@@ -646,7 +646,7 @@ fn the_glows_lead_to_the_mesa_finish() {
         .filter(|g| along(g.at) > c.length * 2 / 3)
         .count();
     assert!(
-        last > first,
+        2 * last > 3 * first,
         "glows: {first} in the first third, {last} in the last"
     );
     for kind in [
