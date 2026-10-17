@@ -6,7 +6,7 @@ The standard map-build steps (MAPS.md "Build steps"), one row each. Status is on
 | --- | --- | --- | --- |
 | 1 | Brief and answers | Done | `briefs/rattlesnake-ravine.md`; pitfalls from earlier maps in `notes/ravine-pitfalls.md` |
 | 2 | Skeleton and contract | Done | Merged: `Map::Ravine` (held from the map grid and Random, `Map::held`), the `RavineLayout` contract (`ravine.rs`), a stand-in course (the Jungle's layout, own seed), night look, PROTOCOL 15; SECOND-ORDER RV1–RV6 |
-| 3 | Ape costumes | In progress | agent on `ravine-gear` (started 09:48): Wild West gear, one palette per ape; spider-jaguar |
+| 3 | Ape costumes | Done | `Gear::Cowboy` (models/cowboy.rs): hat, bandana, gun belt, chaps, boots with spurs, bananas in a holster or bandolier, a mix and palette per kind; `SPIDER_JAGUAR` (models/spider.rs), eight banded legs; Costume "Cowboy"; shots `notes/ravine-shots/costumes/`; RG1–RG6. Branch `ravine-gear`; Map::Ravine wiring is two lines for the skeleton (RG6) |
 | 4 | Models | Done (merged) | `crates/core/src/ravinemodels.rs` + `ravinemodels/`: snake vine and snapped, wall lizards (red/yellow/blue), mine cart, track with trestles, wall hole, T-rex skull from its tooth list, proboscis sphinx, campfire with roasting bananas, tents, mining props, rope bridge, log span, fossils, mushrooms, torch, fireflies. 25 gallery keys; shots in `notes/ravine-shots/models/`; SECOND-ORDER RM-1–RM-5 |
 | 5 | Sky and lighting | Not started | |
 | 6 | Course layout | In progress | agent on `ravine-course` (started 10:13) |
