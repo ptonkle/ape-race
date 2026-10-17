@@ -4,6 +4,12 @@ Stage 9, written by the agent. `C5 Consolidate in your own words`.
 
 A fresh session starts from this file, not from memory.
 
+## Mape's Tower, second design (2026-10-17, branch `tower2`, 1.14.0, not deployed)
+
+- Start from `notes/tower2-morning.md` (questions for the person) and `notes/tower2-progress.md`.
+- Every AI level finishes all 16 layouts; medals Author 90.0, Gold 97.0, Silver 107.0, Bronze 122.0. main (1.13.4) merged in.
+- Checks (2026-10-17, 9192d6e + tags fix): `check.sh` stops at the debug tests: `tower::audit::every_vine_is_clear_of_the_stone` (32 entry-beam swings, TC2-10); `tests/tower_ai.rs` also fails `every_difficulty_climbs_falls_and_finishes` (order on layout 0), `tower_difficulties_are_ordered_and_spaced` (Ape 5.3 s ahead of King Kong, 6 needed), `every_level_flies_through_the_tear` (Monkey layout 10 at 161 s), TC2-23. Run on their own: the tags guard, the WebAssembly import audit, and the browser check PASSED in Chromium, Firefox and WebKit; check-online.sh PASSED in all three.
+
 ## Mape's Tower (2026-10-16, `tower` branch, not deployed)
 
 - The map (key `tower`, TRIAGE T92, brief `briefs/mapes-tower.md`, progress `notes/tower-progress.md`): steps 1–18 done but the lobby view (step 9, waiting on the person); deploy held. The tear is now 50 m tall and 56 m wide, 13 m over the line's top, and every AI level flies through it on 16 layouts (`tower_ai::every_level_flies_through_the_tear`, TA8). AI over 16 layouts: Sloth 107.2 s, Monkey 92.0, Ape 77.3, King Kong 64.5.

@@ -11,7 +11,7 @@ The person said "do these but dont parallelize, I'm going to bed". One agent at 
 | 5 | Model/contract mismatches | Done (merged) | doorway 20 m, ring pad hole matches the physics, tube door cut and tunnel frame in the models, gallery framings; walk ledges skipped |
 | 6 | Look issues | 2 of 3 done | stipple gone (a mortar block z-fighting the stone), speed lines off in the hollow; the tube's sea-green wash is the pads' own film and glow, not fog: not solved (TA2-12). Shots `notes/tower2-shots/polish-*-before/after.png` |
 | 7 | Map card, docs, patch notes | Done | new card `data/maps/tower.webp`; 1.14.0 patch notes and version; README and MAPS lessons. main (1.13.3–1.13.4, ape calls) merged into tower2. Colourblind/JOJO not separately shot |
-| 8 | Full checks, three engines | In progress | no deploy |
+| 8 | Full checks, three engines | Done, 4 known failures | browser check and online check pass in Chromium, Firefox and WebKit; the debug tests fail only the 3 AI-order tests and the 32-row entry-beam audit (see step 3); 2 new tests tagged. Not deployed |
 
 ## A correction
 

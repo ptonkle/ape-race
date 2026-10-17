@@ -45,3 +45,5 @@ One row per run of `scripts/timed-checks.sh`, newest last. Seconds per step; `lo
 | 2026-10-16 19:19 | 1.13.3 | 9bbf96f | 7.95 | quick (chromium; tags all, boundary, camera, costumes, items, menus, notes, online, page, race, replay, sound, weather) | format=0.6 lint=10.3 list=34.1 core=66.1 release=11.1 WebAssembly=0.1 browser=0.1 | - | FAIL (exit 1) |
 | 2026-10-16 19:21 | 1.13.3 | 9bbf96f | 13.55 | quick (chromium; tags all, boundary, camera, costumes, items, menus, notes, online, page, race, replay, sound, weather) | format=0.6 lint=0.1 list=0.1 core=69.8 release=0.3 WebAssembly=0.1 browser=232.1 online-transport=7.1 online-race=84.5 | 394.7 | pass |
 | 2026-10-16 19:45 | 1.13.4 | 56c23e1 | 7.23 | quick (chromium; tags boundary, notes, sound) | format=1.0 lint=3.7 list=19.6 core=0.4 release=6.6 WebAssembly=0.1 browser=49.6 | 81.0 | pass |
+| 2026-10-17 01:17 | 1.14.0 | 9192d6e | 1.70 | check (chromium+firefox+webkit) | (stopped early) | - | FAIL (exit 101) |
+| 2026-10-17 01:17 | 1.14.0 | 9192d6e | 7.68 | online (chromium+firefox+webkit) | release=6.1 transport=16.6 a=106.6 | 129.3 | pass |
