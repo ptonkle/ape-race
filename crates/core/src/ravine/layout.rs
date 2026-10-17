@@ -713,18 +713,19 @@ fn build(seed: u64, upper_spine: bool) -> Course {
     let end = c.point(c.length);
     let h = c.heading_at(c.length);
     let r = right_of(h);
-    let campfire = on_ground(end.add(h.scale(int(14))).add(r.scale(int(14))));
+    // big enough to read at race distance (the models' own sizes are a
+    // person's: `CAMPFIRE_SCALE`, `TENT_SCALE`), round the sphinx
+    let campfire = on_ground(end.add(h.scale(int(18))).add(r.scale(int(22))));
+    // the four roasting sticks' feet round the fire, where the model's own
+    // sticks stand (1.7 m out at the model's size)
     let sticks = (0..4)
         .map(|k| {
             let a = k * fx::TURN / 4 + fx::TURN / 8;
-            on_ground(campfire.add(v3(
-                fx::mul(fx::sin(a), cm(130)),
-                0,
-                fx::mul(fx::cos(a), cm(130)),
-            )))
+            let out = fx::mul(cm(170), CAMPFIRE_SCALE);
+            on_ground(campfire.add(v3(fx::mul(fx::sin(a), out), 0, fx::mul(fx::cos(a), out))))
         })
         .collect();
-    let tents = [(-26, 24), (-30, 44), (28, 34)]
+    let tents = [(-30, 20), (-42, 40), (40, 44), (26, 64)]
         .iter()
         .map(|&(x, z)| {
             let p = on_ground(end.add(h.scale(int(z))).add(r.scale(int(x))));
@@ -1058,20 +1059,47 @@ fn skull(c: &Course, s: i32, exit: i32) -> Skull {
     }
 }
 
-/// Rim heights: tall slot-canyon walls, 60–80 m, falling to 14 m mesa
-/// buttes past the finish.
-fn rim(s: i32, side: i32, len: i32) -> i32 {
+/// The mesa's low rims: the walls' height once the canyon has opened onto
+/// the mesa top, past the finish (over twice a jump's 3.6 m rise, so they
+/// still close the course; low enough to see the sky and the far buttes
+/// all round).
+pub const MESA_RIM: i32 = int(8);
+/// The mesa's campfire and tents are drawn this many times their models'
+/// size (a person's), so they read at race distance.
+pub const CAMPFIRE_SCALE: i32 = ONE * 5 / 2;
+pub const TENT_SCALE: i32 = ONE * 11 / 5;
+
+/// The walls fall to `MESA_RIM` over this many metres past the finish
+/// line. Up to the line they are as they were (the canyon's last 60 m
+/// already a little lower, a little wider): the AI's run in is unchanged
+/// (opening them from 24 m short pushed a Sloth's 148.9 s run past the
+/// 150 s cut, SECOND-ORDER).
+pub const RIM_FALL: i32 = 30;
+
+/// Rim heights: tall slot-canyon walls, 60–80 m, easing down over the
+/// last 60 m and falling past the finish to the mesa's low rims
+/// (`MESA_RIM`, a metre's wave): the last stretch climbs out of the slot
+/// onto the open mesa top.
+pub(crate) fn rim(s: i32, side: i32, len: i32) -> i32 {
     let wave = fx::sin(s * 97 + side * 20_000);
     let tall = int(70) + fx::mul(wave, int(10));
-    let to_mesa = (s - (len - 60)).clamp(0, 220);
-    tall - (tall - int(14)) * to_mesa / 220
+    let to_mesa = (s.min(len) - (len - 60)).clamp(0, 220);
+    let at_line = tall - (tall - int(14)) * to_mesa / 220;
+    let low = MESA_RIM + fx::mul(wave, int(1));
+    let out = (s - len).clamp(0, RIM_FALL);
+    at_line - (at_line - low) * out / RIM_FALL
 }
 
 /// The canyon's half width on its left at `s` m along a spine `len` m
-/// long: `HALF`, opening out onto the mesa past the finish (the scene's
-/// floor reaches the walls by it).
+/// long: `HALF`, a quarter metre a metre wider from 20 m short of the
+/// finish (as before the mesa opened), then past the line a metre a metre
+/// for 60 m (some 85 m either side 60 m past it) and a quarter metre a
+/// metre on (some 110 m at the far end). The scene's floor reaches the
+/// walls by it.
 pub(crate) fn open_half(len: i32, s: i32) -> i32 {
-    HALF + int((s - (len - 20)).clamp(0, 200)) / 4
+    let short = int((s.min(len) - (len - 20)).clamp(0, 20)) / 4;
+    let d = (s - len).clamp(0, 200);
+    HALF + short + int(d.min(60)) + int((d - 60).max(0)) / 4
 }
 
 /// Wall points are this far apart along the spine (and a hole's ends are

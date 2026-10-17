@@ -233,8 +233,21 @@ pub fn sphinx(b: &mut Batch, f: &Affine) {
 /// A campfire on the dirt at the origin: a ring of stones, a teepee of
 /// logs, flames flickering with `tick`, glowing embers, three sticks
 /// pushed into the dirt leaning over the fire with a banana roasting on
-/// each, two log seats.
+/// each (`roasting_stick`), two log seats.
 pub fn campfire(b: &mut Batch, f: &Affine, tick: u32, k: u32) {
+    campfire_fire(b, f, tick, k);
+    for i in 0..3 {
+        let a = i * TURN / 3 + TURN / 6;
+        let (sa, ca) = (sin(a), cos(a));
+        let foot = v3(mul(cm(170), sa), 0, mul(cm(170), ca));
+        let end = v3(mul(cm(55), sa), cm(120), mul(cm(55), ca));
+        roasting_stick(b, f, foot, end, i);
+    }
+}
+
+/// The campfire without its sticks (the course pushes its own,
+/// `Finish.sticks`, in with `roasting_stick`).
+pub fn campfire_fire(b: &mut Batch, f: &Affine, tick: u32, k: u32) {
     put(
         b,
         f,
@@ -293,15 +306,6 @@ pub fn campfire(b: &mut Batch, f: &Affine, tick: u32, k: u32) {
         );
     }
     halo_ball(b, f, v3(0, cm(70), 0), int(3), FLAME, ONE / 2);
-    for i in 0..3 {
-        let a = i * TURN / 3 + TURN / 6;
-        let (sa, ca) = (sin(a), cos(a));
-        let foot = v3(mul(cm(170), sa), 0, mul(cm(170), ca));
-        let end = v3(mul(cm(55), sa), cm(120), mul(cm(55), ca));
-        bar(b, f, Mesh::Hex, foot, end, cm(4), TIMBER, 0);
-        let roast = mix(BANANA, ROAST, ONE * (i + 1) / 5);
-        crate::ruinsmodels::banana(b, f, end, end.neg(), cm(40), cm(9), roast, 0);
-    }
     for i in 0..2 {
         let a = i * TURN / 2 + TURN / 5;
         let at = v3(mul(cm(260), sin(a)), cm(22), mul(cm(260), cos(a)));
@@ -316,6 +320,14 @@ pub fn campfire(b: &mut Batch, f: &Affine, tick: u32, k: u32) {
             0,
         );
     }
+}
+
+/// A stick pushed into the dirt at `foot`, leaning in over the fire (at
+/// the origin) to `end`, a banana roasting on its end (browner with `i`).
+pub fn roasting_stick(b: &mut Batch, f: &Affine, foot: V3, end: V3, i: i32) {
+    bar(b, f, Mesh::Hex, foot, end, cm(4), TIMBER, 0);
+    let roast = mix(BANANA, ROAST, ONE * (i % 4 + 1) / 5);
+    crate::ruinsmodels::banana(b, f, end, end.neg(), cm(40), cm(9), roast, 0);
 }
 
 /// An A-frame canvas tent at the origin, its ridge along z, the open flap

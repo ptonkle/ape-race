@@ -44,4 +44,4 @@ Stages: Model, Gameplay (or n/a), Placed in course, Tested.
 | Wall lizards (bouncers, like the turtles) | brief | Done | Done | Done | – |
 | Mine-cart tracks from wall holes; carts like the City's cars | brief | Done | Done | Done | – |
 | Spider-jaguar (Floor is Lava) | brief | Done | Done | n/a | – |
-| Mesa finish: proboscis sphinx, campfire, roasting bananas, tents | brief | Done | n/a | Done | Done (sphinx frame) |
+| Mesa finish: proboscis sphinx, campfire, roasting bananas, tents | brief | Done | n/a | Done (open mesa, low rims, fire 2.5×, tents 2.2×, layout sticks; RA-9) | Done (sphinx frame, rims, sticks) |
