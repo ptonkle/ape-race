@@ -773,14 +773,14 @@ pub fn voice_level(key: &str) -> Option<u8> {
 // chest beat is a run of hollow thuds (a sine thump and a slap of noise).
 //
 // A call is one clip. Heard from another ape it is the same clip played
-// through a loudness that follows the distance and a pitch that bends with
-// the closing speed (`pass_by` renders that for the journal; in the game
-// the page plays the clip with the gain and rate the core hands it). No
-// left/right placement.
+// through a loudness that follows the distance (`pass_by` renders that for
+// the journal; in the game the page plays the clip with the gain the core
+// hands it). No pitch bend (the person, 2026-10-16) and no left/right
+// placement.
 
 /// Gorilla vowels: the hype vowels scaled down for a big chest.
-const GUH: Vowel = Vowel(500, 900, 1900);
-const GAH: Vowel = Vowel(620, 1050, 2100);
+const GUH: Vowel = Vowel(430, 800, 1750);
+const GAH: Vowel = Vowel(540, 940, 1950);
 
 /// The gorilla's call, as syllables (the voice) and thuds (the chest).
 fn gorilla_parts() -> (Vec<Syllable>, Vec<Note>) {
@@ -789,19 +789,19 @@ fn gorilla_parts() -> (Vec<Syllable>, Vec<Note>) {
     let voice = vec![
         Syllable {
             growl: 40,
-            ..syl(0, 150, (100, 85), GUH, GUH, 70)
+            ..syl(0, 150, (72, 60), GUH, GUH, 70)
         },
         Syllable {
             growl: 40,
-            ..syl(220, 150, (105, 88), GUH, GUH, 80)
+            ..syl(220, 150, (76, 62), GUH, GUH, 80)
         },
         Syllable {
             growl: 50,
-            ..syl(450, 170, (115, 160), GUH, GAH, 100)
+            ..syl(450, 170, (82, 118), GUH, GAH, 100)
         },
         Syllable {
             growl: 55,
-            ..syl(600, 380, (160, 85), GAH, GUH, 100)
+            ..syl(600, 380, (118, 58), GAH, GUH, 100)
         },
     ];
     let mut chest = Vec::new();
@@ -862,9 +862,9 @@ pub fn gorilla(volume: u8) -> Vec<u8> {
 
 // A pass: the caller swings past the listener on a straight line, closest
 // `PASS_NEAR` away, at `PASS_SPEED`, nearest `PASS_MID` percent of the way
-// through the call. Loudness falls with distance (1 / (1 + (d / PASS_REF)²))
-// and the pitch bends with the Doppler shift at a cartoon speed of sound,
-// so the bend is heard.
+// through the call. Loudness falls with distance (1 / (1 + (d / PASS_REF)²)).
+// The pitch does not change: a Doppler bend was tried and the person
+// did not want it.
 
 /// The passer's speed, m/s (a fast swing).
 const PASS_SPEED: i64 = 18;
@@ -874,26 +874,16 @@ const PASS_NEAR: i64 = 3;
 const PASS_REF: i64 = 4;
 /// Where in the call the passer is nearest, percent.
 const PASS_MID: i64 = 50;
-/// The speed of sound for the Doppler bend, m/s (real air: 340; lower
-/// bends the pitch more).
-const PASS_SOUND: i64 = 220;
-
-/// The loudness (Q16, ONE up close) and the playback rate (Q16, ONE as
-/// recorded) of a call heard from a passer `x` cm along its track from
-/// its nearest point, moving at `PASS_SPEED`.
-fn pass_at(x: i64) -> (i64, i64) {
+/// The loudness (Q16, ONE up close) of a call heard from a passer `x` cm
+/// along its track from its nearest point.
+fn pass_at(x: i64) -> i64 {
     let d = fx::isqrt((x * x + PASS_NEAR * PASS_NEAR * 10_000) as u128) as i64;
-    // speed toward the listener, cm/s (positive while approaching)
-    let toward = -x * PASS_SPEED * 100 / d.max(1);
-    let c = PASS_SOUND * 100;
-    let rate = (c << 16) / (c - toward).max(1);
     let r2 = PASS_REF * PASS_REF * 10_000;
-    let gain = ONE as i64 * r2 / (r2 + d * d);
-    (gain, rate)
+    ONE as i64 * r2 / (r2 + d * d)
 }
 
-/// `mix` as heard while its caller passes: the one clip, pitch bent and
-/// loudness falling off with the distance, normalised to a peak of ONE.
+/// `mix` as heard while its caller passes: the one clip, its loudness
+/// falling off with the distance, normalised to a peak of ONE.
 fn pass_by(mix: &[i64]) -> Vec<i64> {
     let len = mix.len() as i64;
     if len < 2 {
@@ -905,9 +895,10 @@ fn pass_by(mix: &[i64]) -> Vec<i64> {
     // the read position in 1/2^16 samples
     let mut pos: i64 = 0;
     let mut k: i64 = 0;
-    while pos < (len - 1) << 16 {
+    while pos < len << 16 {
         let x = (k - mid) * PASS_SPEED * 100 / rate;
-        let (gain, step) = pass_at(x);
+        let gain = pass_at(x);
+        let step = ONE as i64;
         let i = (pos >> 16) as usize;
         let frac = pos & 0xFFFF;
         let a = mix[i];
@@ -965,7 +956,7 @@ mod call_tests {
     }
 
     #[test]
-    fn the_passing_gorilla_swells_in_from_afar_with_its_pitch_bent() {
+    fn the_passing_gorilla_swells_in_from_afar_at_its_own_pitch() {
         let pcm = gorilla_pass_samples(100);
         let first = tenth_peak(&pcm, 0);
         let loudest = (0..10).map(|k| tenth_peak(&pcm, k)).max().unwrap();
@@ -973,11 +964,11 @@ mod call_tests {
             first * 3 < loudest,
             "the passing call opens at {first} and peaks at {loudest}: it should swell in from afar"
         );
-        let (_, coming) = pass_at(-1_200);
-        let (_, going) = pass_at(1_200);
-        assert!(
-            coming > ONE as i64 && going < ONE as i64,
-            "the pitch should bend up coming ({coming}) and down going ({going})"
+        let plain = gorilla_samples(100);
+        assert_eq!(
+            pcm.len(),
+            plain.len(),
+            "the pass plays the clip at its own speed, so it is exactly as long"
         );
     }
 }
