@@ -815,3 +815,36 @@ fn the_campfires_four_sticks_ring_the_fire() {
         }
     }
 }
+
+/// The cheap rejects (RP1) never miss what the full test finds: on the
+/// real course a body standing on each lizard and each cart's moved top,
+/// at ticks right round their periods, is on that bouncer, and a body on
+/// each deck's middle and near its ends gets that deck's top.
+#[test]
+fn every_mover_and_deck_still_holds_a_body_on_it_past_the_quick_rejects() {
+    let c = ravine();
+    let r = c.ravine.as_deref().unwrap();
+    let movers = r
+        .lizards
+        .iter()
+        .map(|l| (l.bouncer, l.period))
+        .chain(r.carts.iter().map(|k| (k.bouncer, k.period)));
+    for (m, period) in movers {
+        for k in 0..16 {
+            let tick = period.max(1) * k / 16;
+            let top = c.ravine_bouncer(r, m, tick).top;
+            let p = top.add(v3(0, BODY_DROP - cm(5), 0));
+            assert_eq!(
+                c.ravine_bouncer_under(r, p, tick),
+                Some(m),
+                "bouncer {m} at tick {tick}"
+            );
+        }
+    }
+    for (n, d) in r.decks.iter().enumerate() {
+        for f in [ONE / 50, ONE / 2, ONE - ONE / 50] {
+            let at = d.from.lerp(d.to, f);
+            assert!(d.top_at(at).is_some(), "deck {n} at {f}");
+        }
+    }
+}

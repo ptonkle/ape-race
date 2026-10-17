@@ -174,15 +174,18 @@ pub const TOWER: [u32; 4] = [
     secs(TOWER_AUTHOR),
 ];
 
-/// Rattlesnake Ravine's target times in hundredths of a second. STAND-IN
-/// (the skeleton, 2026-10-17): from the stand-in course's King Kong as a
-/// Time Trial (59.3–79.1 s by kind, the Orangutan best, the Gorilla
-/// slowest) with the Jungle's steps of 7, 10 and 15 s; re-measure on the
-/// real course (`ai::time_trial`, every kind).
-pub const RAVINE_AUTHOR: u32 = 5_850;
-pub const RAVINE_GOLD: u32 = 6_550;
-pub const RAVINE_SILVER: u32 = 7_550;
-pub const RAVINE_BRONZE: u32 = 9_050;
+/// Rattlesnake Ravine's target times in hundredths of a second (RMT1,
+/// 2026-10-17, the real 1,754 m route): King Kong alone as a Time Trial
+/// runs finishes in 65.3-86.0 s by kind, the Chimpanzee best (65.31 s,
+/// Equal Stats the same), the Gorilla next (67.80 s), the Proboscis
+/// slowest; `tests/ravine_ai.rs` `ravine_time_trial_report`. Author just
+/// under the best kind, then the Jungle's steps of 7, 10 and 15 s. (The
+/// skeleton's stand-ins were 58.5 / 65.5 / 75.5 / 90.5 s.) Re-measure if
+/// the course's length changes.
+pub const RAVINE_AUTHOR: u32 = 6_500;
+pub const RAVINE_GOLD: u32 = 7_200;
+pub const RAVINE_SILVER: u32 = 8_200;
+pub const RAVINE_BRONZE: u32 = 9_700;
 
 /// Rattlesnake Ravine's target times, in race ticks, slowest first.
 pub const RAVINE: [u32; 4] = [

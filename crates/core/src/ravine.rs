@@ -172,6 +172,17 @@ pub struct Deck {
 impl Deck {
     /// The deck's top under (`p.x`, `p.z`), if `p` is over it.
     pub fn top_at(&self, p: V3) -> Option<i32> {
+        // (cheap first: outside the flat box round its ends, widened by its
+        // half width and a metre for rounding, it cannot be over it; the
+        // course asks every deck many times a tick)
+        let r = self.half_width + fx::ONE;
+        if p.x < self.from.x.min(self.to.x) - r
+            || p.x > self.from.x.max(self.to.x) + r
+            || p.z < self.from.z.min(self.to.z) - r
+            || p.z > self.from.z.max(self.to.z) + r
+        {
+            return None;
+        }
         let run = self.to.sub(self.from).flat();
         let len = run.len();
         if len <= 0 {
@@ -521,15 +532,46 @@ impl Course {
                 && feet <= m.top.y
                 && feet >= m.top.y - crate::rules::MUSHROOM_HEIGHT
         };
-        let movers = r
+        // (cheap first: a mover's top is always within its path's span of
+        // where it starts, so a body further off than that, or the top's
+        // reach, is on none; the AI's planned flights ask every tick)
+        let near = |m: usize, (lo, hi): (V3, V3)| {
+            let b = self.mushrooms[m].top;
+            let rr = self.mushrooms[m].radius + BODY_RADIUS / 2;
+            let span = hi.sub(lo);
+            (p.x - b.x).abs() <= span.x + rr
+                && (p.z - b.z).abs() <= span.z + rr
+                && feet <= b.y + span.y
+                && feet >= b.y - span.y - crate::rules::MUSHROOM_HEIGHT
+        };
+        let lizards = r
             .lizards
             .iter()
-            .map(|l| l.bouncer)
-            .chain(r.carts.iter().map(|c| c.bouncer));
-        movers
-            .into_iter()
-            .find(|&m| m < self.mushrooms.len() && on(&self.ravine_bouncer(r, m, tick)))
+            .map(|l| (l.bouncer, span_of(&[l.from, l.to])));
+        let carts = r.carts.iter().map(|c| {
+            let pts = r.tracks.get(c.track).map_or(&[][..], |t| &t.points[..]);
+            (c.bouncer, span_of(pts))
+        });
+        lizards
+            .chain(carts)
+            .find(|&(m, span)| {
+                m < self.mushrooms.len() && near(m, span) && on(&self.ravine_bouncer(r, m, tick))
+            })
+            .map(|(m, _)| m)
     }
+}
+
+/// The box round `pts` (lowest corner, highest corner); zero for none.
+fn span_of(pts: &[V3]) -> (V3, V3) {
+    let Some(&first) = pts.first() else {
+        return (V3::ZERO, V3::ZERO);
+    };
+    pts.iter().fold((first, first), |(lo, hi), q| {
+        (
+            v3(lo.x.min(q.x), lo.y.min(q.y), lo.z.min(q.z)),
+            v3(hi.x.max(q.x), hi.y.max(q.y), hi.z.max(q.z)),
+        )
+    })
 }
 
 /// The snake vines' snap state, for a save point: when each hanger snapped
