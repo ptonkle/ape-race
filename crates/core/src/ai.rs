@@ -1069,6 +1069,31 @@ fn off_limits(course: &Course, i: usize, tune: Tuning) -> bool {
             .is_some_and(|s| s.routes.iter().any(|r| r.hidden && r.vines.contains(&i)))
 }
 
+/// Whether a canyon wall stands on the flat line from `from` to `to`
+/// (Rattlesnake Ravine; false on every other map): sampled every 2 m at
+/// `from`'s height plus 1 m, short of the last 4 m (a ledge vine's anchor
+/// sits at its wall's face).
+fn walled_off(course: &Course, from: V3, to: V3) -> bool {
+    let Some(s) = course.ravine_solids() else {
+        return false;
+    };
+    let d = to.sub(from).flat();
+    let len = d.len();
+    let dir = d.norm();
+    let mut k = int(2);
+    while k < len - int(4) {
+        let p = from.add(dir.scale(k)).add(v3(0, int(1), 0));
+        if s.near(p).iter().any(|&j| {
+            let sol = &s.list[j as usize];
+            sol.kind == crate::ravine::solids::SolidKind::Wall && sol.holds(p, 0)
+        }) {
+            return true;
+        }
+        k += int(2);
+    }
+    false
+}
+
 /// Whether vine `i` is drawn up out of reach at `tick` (Sunset Ruins: a
 /// pit vine over a shut trapdoor; Rattlesnake Ravine: a snapped snake
 /// vine).
@@ -1844,6 +1869,12 @@ fn on_ground(a: &Ape, course: &Course, tick: u32, brain: &mut Brain) -> Controls
         if course.sector.is_some() && an.y.max(course.tip(i, tick).y) < support {
             continue;
         }
+        // (Rattlesnake Ravine: never a vine with canyon rock between, the
+        // island between the passages say: it ran into the rock for good,
+        // RC15)
+        if walled_off(course, a.pos, an) {
+            continue;
+        }
         let d = an.flat().sub(a.pos.flat()).len() as i64;
         let behind = if v.at < prog { int(25) as i64 } else { 0 };
         // up on the start platform: the nearest of the first vines, so the
@@ -2158,6 +2189,34 @@ fn aim_at(course: &Course, target: usize) -> i32 {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Rattlesnake Ravine (RC15): on the ground in the upper passage by the
+    /// island's nose (layout 1, where King Kong stopped at 1115 m), the AI
+    /// runs for a vine in the open, not for the tunnel's low vine through
+    /// the island's rock.
+    #[test]
+    fn on_rattlesnake_ravine_a_grounded_ape_runs_for_no_vine_behind_rock() {
+        let c = crate::ravine::ravine_seeded(0x5A4E_C0DE_0001 + 7919);
+        let (x, z) = (cm(10_250), cm(78_300));
+        let mut a = Ape::new(
+            crate::rules::Kind::Chimpanzee,
+            true,
+            v3(x, c.terrain(x, z) + crate::rules::BODY_DROP, z),
+            0,
+        );
+        a.hint = c.nearest_anywhere(a.pos);
+        // the tunnel's low vine, across the island, and the upper passage's
+        let (tunnel, open) = (151, 234);
+        assert!(walled_off(&c, a.pos, c.vines[tunnel].anchor));
+        assert!(!walled_off(&c, a.pos, c.vines[open].anchor));
+        let mut brain = Brain::new(Difficulty::KingKong, 0xA9E5);
+        on_ground(&a, &c, 1, &mut brain);
+        let t = brain.target.expect("a vine to run for");
+        assert!(
+            !walled_off(&c, a.pos, c.vines[t].anchor),
+            "ran for vine {t} through the rock"
+        );
+    }
 
     /// Rattlesnake Ravine (the person, 2026-10-17): the AI steers clear of
     /// most snake vines, the Sloth of the fewest; ordinary vines and the
