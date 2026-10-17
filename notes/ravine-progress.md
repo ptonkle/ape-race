@@ -6,11 +6,11 @@ The standard map-build steps (MAPS.md "Build steps"), one row each. Status is on
 | --- | --- | --- | --- |
 | 1 | Brief and answers | Done | `briefs/rattlesnake-ravine.md`; pitfalls from earlier maps in `notes/ravine-pitfalls.md` |
 | 2 | Skeleton and contract | Done | Merged: `Map::Ravine` (held from the map grid and Random, `Map::held`), the `RavineLayout` contract (`ravine.rs`), a stand-in course (the Jungle's layout, own seed), night look, PROTOCOL 15; SECOND-ORDER RV1–RV6 |
-| 3 | Ape costumes | In progress | Wild West gear, one palette per ape; spider-jaguar |
+| 3 | Ape costumes | In progress | agent on `ravine-gear` (started 09:48): Wild West gear, one palette per ape; spider-jaguar |
 | 4 | Models | Done (merged) | `crates/core/src/ravinemodels.rs` + `ravinemodels/`: snake vine and snapped, wall lizards (red/yellow/blue), mine cart, track with trestles, wall hole, T-rex skull from its tooth list, proboscis sphinx, campfire with roasting bananas, tents, mining props, rope bridge, log span, fossils, mushrooms, torch, fireflies. 25 gallery keys; shots in `notes/ravine-shots/models/`; SECOND-ORDER RM-1–RM-5 |
 | 5 | Sky and lighting | Not started | |
-| 6 | Course layout | Not started | |
-| 7 | Map rules | Not started | |
+| 6 | Course layout | In progress | agent on `ravine-course` (started 10:13) |
+| 7 | Map rules | In progress | agent on `ravine-rules` (started 10:13): snake snap, teeth reset, solids, camera |
 | 8 | Art placed on the course | Not started | |
 | 9 | Lobby spot and flyover | Not started | |
 | 10 | AI validation | Not started | |
