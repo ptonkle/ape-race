@@ -53,6 +53,8 @@ mod spectate;
 mod view;
 mod weather;
 use self::audio::cue_for;
+#[cfg(test)]
+use self::hud::{colour_of, minimap_shape};
 use self::race::{follow_speed, step_chains};
 use self::replays::{replay_camera, replay_tick};
 use self::results::results_due;
