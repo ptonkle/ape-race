@@ -263,6 +263,7 @@ tags = ["boundary"]
 "scripts/tiles.py" = []
 "scripts/map_cards.py" = []
 "scripts/patch_notes_html.py" = []
+"scripts/second-order-archive.py" = []
 
 # ---------------------------------------------------------------------------
 # A changed file whose diff touches only lines matching these patterns (Python

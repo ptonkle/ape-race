@@ -8,7 +8,7 @@
 4. The page (`web/`) draws what the core returns and does not reproduce a core rule.
 5. Run `cargo test` after each meaningful core change.
 6. For each new behaviour test, break the behaviour it covers once, watch the test fail, then restore it. Note the failure message in `SECOND-ORDER.md`.
-7. Keep `SECOND-ORDER.md` while you work: one row per assumption, surprise, divergence from the plan, or item the person must do.
+7. Keep `SECOND-ORDER.md` while you work: one row per assumption, surprise, divergence from the plan, or item the person must do. Keep it to live rows: when a row closes (done or decided), run `./scripts/second-order-archive.py` to move it to `notes/second-order-archive.md`, which agents need not read. Keep a row to a few lines.
 8. Do not deploy. Deploying is the person's decision (stage 8).
 9. Before handoff, run `./scripts/check.sh` and record the result in `HANDOFF.md`.
 
