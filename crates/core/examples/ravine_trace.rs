@@ -1,7 +1,7 @@
 //! One AI ape on Rattlesnake Ravine, traced: where it stalls (3 s with
 //! under 25 m gained), with its mode, height and side, and its finish.
 //!
-//! `cargo run --release -p tool_core --example ravine_trace -- LEVEL [SEED [upper [full]]]`
+//! `cargo run --release -p tool_core --example ravine_trace -- LEVEL [SEED [upper [full] [solids]]]`
 use tool_core::ai::{think, Brain, Difficulty};
 use tool_core::ape::{Happening, Mode};
 use tool_core::fx::ONE;
@@ -15,6 +15,8 @@ fn main() {
     let k: u64 = args.get(1).map(|a| a.parse().unwrap()).unwrap_or(0);
     let upper = args.iter().any(|a| a == "upper");
     let full = args.iter().any(|a| a == "full");
+    // `solids`: at a stall, the solids within 3 m of the ape
+    let show_solids = args.iter().any(|a| a == "solids");
     let seed = 0x5A4E_C0DE_0001 + k * 7919;
     let course = match (k, upper) {
         (0, false) => ravine(),
@@ -76,6 +78,16 @@ fn main() {
                 );
             }
             line.clear();
+            if stalled && show_solids {
+                if let Some(s) = race.course.ravine_solids() {
+                    for &k in s.near(a.pos) {
+                        let sol = &s.list[k as usize];
+                        if sol.holds(a.pos, 3 * ONE) {
+                            println!("        at {:?}: {:?}", a.pos.scale(1), sol);
+                        }
+                    }
+                }
+            }
         }
     }
     println!(

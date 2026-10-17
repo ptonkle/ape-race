@@ -110,9 +110,9 @@ pub(crate) fn plan(upper: bool) -> Plan {
         Leg(40, 0),    // 4
         Leg(32, -90),  // 5 a tight corner right
         Leg(110, 0),   // 6 the in-leg: the skull cave
-        Leg(32, 90),   // 7 the hairpin: left
-        Leg(24, 0),    // 8
-        Leg(32, 90),   // 9 and left again
+        Leg(48, 90),   // 7 the hairpin: left (R 31 m: the fin's tip round, 10 m)
+        Leg(4, 0),     // 8
+        Leg(48, 90),   // 9 and left again
         Leg(110, 0),   // 10 the out-leg
         Leg(120, -60), // 11 right
         Leg(30, 0),    // 12 to the fork
@@ -143,10 +143,10 @@ pub(crate) fn plan(upper: bool) -> Plan {
         pins.push(m(corner) - 14);
         pins.push(m(corner + 1) + 5);
     }
-    // the hairpin's straight: one station in its middle (the two corners'
-    // pins would be a metre apart)
+    // the hairpin: its two corners are long (48 m, R 31 m) and 4 m apart;
+    // one station between them in place of the corners' own pins
     pins.retain(|&p| p != m(8) + 5 && p != m(9) - 14);
-    pins.push(m(8) + 12);
+    pins.push(m(8) + 2);
     if !upper {
         let (a, b) = tunnel_span(&marks);
         pins.push(a - 6);
@@ -1059,17 +1059,26 @@ fn walls(c: &Course, plan: &Plan, split: Option<&Split>, has_skull: bool) -> Vec
                 .add(right_of(c.heading_at(int(s))).scale(off)),
         )
     };
-    // how far right of the spine the upper passage's middle is at `s`
-    let upper_off = |s: i32| -> i32 {
-        let Some(sp) = split else { return 0 };
+    // how far right of the spine (along its right at `s`) the upper
+    // passage's middle is, and its half width that way: where the spine's
+    // right meets the chord, `d / cos θ` (θ the angle between the two),
+    // and `HALF / cos θ` (a projection, `d cos θ`, put the walls inside
+    // the upper passage in the swing: the AI ran into them)
+    let upper_ray = |s: i32| -> (i32, i32) {
+        let Some(sp) = split else { return (0, HALF) };
         if s <= fork || s >= rejoin {
-            return 0;
+            return (0, HALF);
         }
         let a = sp.upper[0];
         let dir = sp.upper[sp.upper.len() - 1].sub(a).flat().norm();
         let p = c.point(int(s));
         let q = a.add(dir.scale(p.sub(a).flat().dot(dir)));
-        q.sub(p).flat().dot(right_of(c.heading_at(int(s))))
+        let r = right_of(c.heading_at(int(s)));
+        let cos = right_of(dir).dot(r).abs().max(ONE / 2);
+        (
+            fx::div(fx::div(q.sub(p).flat().dot(r), cos), cos),
+            fx::div(HALF, cos),
+        )
     };
     // the mesa: the canyon opens out past the finish
     let open = |s: i32| HALF + int((s - (len - 20)).clamp(0, 200)) / 4;
@@ -1078,8 +1087,8 @@ fn walls(c: &Course, plan: &Plan, split: Option<&Split>, has_skull: bool) -> Vec
     let mut s = -START_BACK / ONE;
     while s <= end {
         left_pts.push((s, face(s, -open(s)), rim(s, -1, len)));
-        let off = upper_off(s);
-        let rw = if off > 0 { off + HALF } else { open(s) };
+        let (off, half) = upper_ray(s);
+        let rw = if off > 0 { (off + half).max(HALF) } else { open(s) };
         right_pts.push((s, face(s, rw), rim(s, 1, len)));
         s += WALL_STEP;
     }
@@ -1172,14 +1181,14 @@ fn walls(c: &Course, plan: &Plan, split: Option<&Split>, has_skull: bool) -> Vec
         let mut back = Vec::new();
         let mut s = fork;
         while s <= rejoin {
-            let off = upper_off(s);
-            if off >= 2 * HALF + int(6) {
+            let (off, half) = upper_ray(s);
+            if off - half >= HALF + int(6) {
                 there.push(WallPoint {
                     at: face(s, HALF),
                     height: rim(s, 1, len),
                 });
                 back.push(WallPoint {
-                    at: face(s, off - HALF),
+                    at: face(s, off - half),
                     height: rim(s, 1, len),
                 });
             }
