@@ -15,13 +15,13 @@ The standard map-build steps (MAPS.md "Build steps"), one row each. Status is on
 | 9 | Lobby spot and flyover | Done | lobby mid lower bridge looking to tower 2 (both towers can't fit one view: 380 m apart, fog at 330 m); flyover a closed stadium lap, no jump (TA2-5, TA2-6) |
 | 10 | AI validation | In progress (hand-over agent) | layout 0: Sloth 133, Monkey 140, Ape 126, King Kong 90 s: all finish, not in order; over 16 layouts the Sloth fails one and the tear test fails for most levels (TC2-1) |
 | 11 | Medal times | Done (provisional) | Author 94.5, Gold 101.5, Silver 111.5, Bronze 126.5 (v1 61/68/78/93); re-measure after the hand-over (TC2-4) |
-| 12 | Step and frame cost | In progress | worst frame 5,355 shapes (v1 4,896; budget 5,500), driven by the stand-in's inside density (TA2-2); step cost not measured |
+| 12 | Step and frame cost | In progress | worst frame 5,355 shapes (v1 4,896; budget 5,500), driven by the stand-in's inside density (TA2-2); the budget test passes after the merges; step cost not measured |
 | 13 | Colourblind and JOJO MODE | Not started | |
 | 14 | Map card | Not started | New card from the new flyover |
 | 15 | Screenshots at 1920×1080 | Done (first pass) | `notes/tower2-shots/` 21 shots: gallery, play, lobby, flyover; on the journal; retake after the course lands |
-| 16 | Other maps unchanged | Not started | |
+| 16 | Other maps unchanged | Done so far | fingerprint and replay-hash tests pass unchanged after every merge |
 | 17 | Docs | Not started | |
-| 18 | Full checks | Not started | |
+| 18 | Full checks | Not started | debug workspace tests on `tower2` f8468f6: 4 failures, all the hand-over and the entry-beam audit (TC2-1, TC2-3); fmt and clippy clean |
 | 19 | Deploy | Not started | Replaces the live tower |
 
 ## This map's features
