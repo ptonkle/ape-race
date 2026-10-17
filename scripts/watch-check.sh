@@ -13,7 +13,7 @@
 # with a last line `EXIT <n>`, and the window shows a PASSED/FAILED banner.
 # Without wt.exe (not WSL), or with WATCH_NO_WINDOW=1, it opens no window:
 # it prints where the logs are and returns. `tail -f <log>.raw` in any
-# terminal shows the run too. WATCH_COLS sets the check's width (100).
+# terminal shows the run too. WATCH_COLS sets the check's width (80).
 set -euo pipefail
 cd "$(dirname "$0")/.."
 [ $# -ge 3 ] || { sed -n '2,16p' "$0"; exit 2; }
@@ -24,7 +24,7 @@ if [ "$1" = --name ]; then NAME=$2; shift 2; fi
 shift
 NAME=${NAME:-$*}
 RAW="$LOG.raw"
-COLS=${WATCH_COLS:-100}
+COLS=${WATCH_COLS:-80}
 mkdir -p "$(dirname "$LOG")"
 : > "$RAW"; rm -f "$LOG"
 q() { printf '%q' "$1"; }

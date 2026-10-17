@@ -284,7 +284,7 @@ def nextest_cmd(cmd):
     if "--" in args:
         names = [a for a in args[args.index("--") + 1:] if a != "--exact"]
         args = args[: args.index("--")]
-    out = ["cargo", "nextest", "run", *args, "--show-progress", "bar", "--status-level", "slow",
+    out = ["cargo", "nextest", "run", *args, "--show-progress", "bar", "--max-progress-running", "0", "--status-level", "slow",
            "--final-status-level", "slow", "--no-input-handler", "--cargo-quiet"]
     if names:
         out += ["-E", " | ".join(f"test(={n})" for n in names)]
