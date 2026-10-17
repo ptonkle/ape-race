@@ -20,7 +20,7 @@
 //! trampolines drawn on the physics' discs (`disc_frame`, checked by
 //! `the_drawn_trampolines_lie_on_the_physics_discs`), the tunnel's mouth
 //! with the sling bar, the tunnel and the banana sea; drawn only from
-//! past the plane, as the climb's parts only from before it (`Chunk.side`).
+//! inside the void, as the climb's parts only from outside it (`Chunk.side`).
 //! The portal itself turns and breathes each frame (`towerscape::dynamic`,
 //! `portal_frame`), not here.
 
@@ -143,8 +143,7 @@ const VOID_PARTS: [&str; 8] = [
 /// box and heights, drawn within `REACH`), and per side one always-drawn
 /// chunk (the towers' far panels; the zip and the banana sea). The climb
 /// and the void share their space, so each chunk is drawn only from its
-/// own side of the portal's plane (`Chunk.side`; the plane is taken as
-/// the tear's x: the stand-in's `through` is +x).
+/// own side of the void's edge (`Chunk.side`, `TowerLayout::void`).
 pub fn scenery(c: &Course, t: &TowerLayout) -> Scenery {
     type Key = (bool, i32, i32, i32);
     let mut cells: std::collections::BTreeMap<Key, Batch> = Default::default();
@@ -166,6 +165,7 @@ pub fn scenery(c: &Course, t: &TowerLayout) -> Scenery {
     let mut values = Vec::new();
     let mut chunks = Vec::new();
     let far = i32::MAX / 4;
+    let void = t.void();
     for ((past, x, y, z), b) in cells {
         let draws = b.finish_into(crate::render::STATIC_BUFFER, &mut values);
         let always = x == i32::MAX;
@@ -182,7 +182,7 @@ pub fn scenery(c: &Course, t: &TowerLayout) -> Scenery {
             draws,
             bounds: always.then_some([-far, -far, far, far]),
             heights: always.then_some([-far, far]),
-            side: Some((t.portal.tear.x, past)),
+            side: Some((void, past)),
         });
     }
     let mut s = Scenery {
@@ -906,6 +906,43 @@ mod tests {
     /// as many at once as the first design's worst (4,896, TA3).
     const MOST_AT_ONCE: usize = 5_500;
     const MOST: usize = 20_000;
+
+    #[test]
+    fn the_towers_world_draws_from_every_camera_round_the_start() {
+        // (the start deck stands past the portal's plane by tower 1, T97:
+        // an eye round it must draw the towers' world, not the void's)
+        use crate::render::DRAW_VALUES;
+        let c = Map::Tower.course();
+        let t = c.tower.as_ref().unwrap();
+        let s = scene::scenery(&c);
+        let shapes = |eye: V3| -> u32 {
+            s.draws_in(eye, int(560))
+                .chunks(DRAW_VALUES)
+                .map(|d| d[3])
+                .sum()
+        };
+        let p = c.point(0);
+        // (the reference eye stands back from the plane, plainly in the
+        // towers' world)
+        let base = shapes(p.add(v3(0, int(4), 0)).sub(t.portal.through.scale(int(15))));
+        for k in 0..16 {
+            let a = k * crate::fx::TURN / 16;
+            for (r, up) in [(int(8), int(4)), (int(14), int(9))] {
+                let eye = p.add(v3(
+                    crate::fx::mul(crate::fx::cos(a), r),
+                    up,
+                    crate::fx::mul(crate::fx::sin(a), r),
+                ));
+                let n = shapes(eye);
+                assert!(
+                    n * 2 > base,
+                    "an eye {:?} round the start draws {n} shapes against {base} (void {})",
+                    eye,
+                    t.in_void(eye)
+                );
+            }
+        }
+    }
 
     #[test]
     fn every_hanger_has_its_caster_drawn_at_its_beam() {

@@ -334,18 +334,18 @@ pub struct Chunk {
     /// distance only. Mape's Tower sets it (`bound_heights`): its course
     /// climbs, so a chunk far above or below the eye is far off.
     pub heights: Option<[i32; 2]>,
-    /// drawn only from one side of a plane `x` (true: only for an eye past
-    /// it, false: only for one not past it); None from anywhere. Mape's
-    /// Tower's climb and zipper share their space but are two places.
-    pub side: Option<(i32, bool)>,
+    /// drawn only from one side of Mape's Tower's void (true: only for an
+    /// eye in it, false: only for one not in it); None from anywhere. The
+    /// climb and the void share their space but are two places.
+    pub side: Option<(crate::tower::Void, bool)>,
 }
 
 impl Chunk {
     /// How near (flat) `eye` any of the chunk can be: to its box when it
     /// has one, else to its centre.
     pub fn nearest(&self, eye: V3) -> i32 {
-        if let Some((x, past)) = self.side {
-            if (eye.x > x) != past {
+        if let Some((void, past)) = self.side {
+            if void.holds(eye) != past {
                 return i32::MAX;
             }
         }

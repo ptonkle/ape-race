@@ -117,6 +117,46 @@ pub const CLIMB_LIFT: i32 = int(3);
 const VOID_UNDER_TEAR: i32 = int(40);
 const VOID_PAST: i32 = int(2);
 
+/// The void's place (`TowerLayout::void`), a plain value the scenery's
+/// chunks carry to tell which side an eye is on (`scene::Chunk.side`).
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct Void {
+    /// the portal's plane: the tear's middle and the way through
+    pub tear: V3,
+    pub through: V3,
+    /// past the plane, everything from this height up
+    pub high_from: i32,
+    /// the tube's column: its axis, inside radius, and from this height
+    pub axis: V3,
+    pub radius: i32,
+    pub floor: i32,
+    /// the tunnel's box: its mouth, the way along, its span along from
+    /// the mouth, half width and height
+    pub mouth: V3,
+    pub along: V3,
+    pub span: (i32, i32),
+    pub half_width: i32,
+    pub height: i32,
+}
+
+impl Void {
+    /// Whether `p` is in the void.
+    pub fn holds(&self, p: V3) -> bool {
+        if p.sub(self.tear).dot(self.through) <= 0 {
+            return false;
+        }
+        let column = !v3(p.x - self.axis.x, 0, p.z - self.axis.z).longer_than(self.radius)
+            && p.y >= self.floor;
+        let d = p.sub(self.mouth);
+        let along = d.dot(self.along);
+        let tunnel = along >= self.span.0
+            && along <= self.span.1
+            && d.dot(right_of(self.along)).abs() <= self.half_width
+            && d.y <= self.height;
+        p.y >= self.high_from || column || tunnel
+    }
+}
+
 /// The legs of the race, in order.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Leg {
@@ -489,26 +529,30 @@ impl TowerLayout {
             && !v3(p.x - t1.centre.x, 0, p.z - t1.centre.z).longer_than(t1.inner)
     }
 
-    /// Whether a point is in the void: past the portal's plane, and high
-    /// by the tear, in the tube's column or in the tunnel. (Not the whole
-    /// half past the plane: since T97 the start deck stands at its foot
-    /// by tower 1, and an eye there is in the towers' world.)
+    /// Whether a point is in the void (`Void`).
     pub fn in_void(&self, p: V3) -> bool {
-        if p.sub(self.portal.tear).dot(self.portal.through) <= 0 {
-            return false;
+        self.void().holds(p)
+    }
+
+    /// The void's place: past the portal's plane, and high by the tear,
+    /// in the tube's column or in the tunnel. (Not the whole half past
+    /// the plane: since T97 the start deck stands at its foot by tower 1,
+    /// and an eye there is in the towers' world.)
+    pub fn void(&self) -> Void {
+        let (z, n) = (&self.tube, &self.tunnel);
+        Void {
+            tear: self.portal.tear,
+            through: self.portal.through,
+            high_from: self.portal.tear.y - self.portal.tear_half.0 - VOID_UNDER_TEAR,
+            axis: z.axis,
+            radius: z.radius,
+            floor: z.bottom - VOID_PAST,
+            mouth: n.mouth,
+            along: n.along,
+            span: (-z.wall - VOID_PAST, n.length + VOID_PAST),
+            half_width: n.half_width + VOID_PAST,
+            height: n.height + VOID_PAST,
         }
-        let high = p.y >= self.portal.tear.y - self.portal.tear_half.0 - VOID_UNDER_TEAR;
-        let z = &self.tube;
-        let column = !v3(p.x - z.axis.x, 0, p.z - z.axis.z).longer_than(z.radius)
-            && p.y >= z.bottom - VOID_PAST;
-        let n = &self.tunnel;
-        let d = p.sub(n.mouth);
-        let along = d.dot(n.along);
-        let tunnel = along >= -z.wall - VOID_PAST
-            && along <= n.length + VOID_PAST
-            && d.dot(right_of(n.along)).abs() <= n.half_width + VOID_PAST
-            && d.y <= n.height + VOID_PAST;
-        high || column || tunnel
     }
 
     /// Whether vine `i` is a climb vine.
