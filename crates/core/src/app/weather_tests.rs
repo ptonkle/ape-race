@@ -29,42 +29,32 @@ fn item(ui: &Value, id: &str) -> Option<Value> {
 }
 
 #[test]
-fn the_weather_is_in_settings_clear_by_default_and_kept_after_a_reload() {
+fn the_weather_is_chosen_on_the_setup_not_in_settings_and_kept_after_a_reload() {
     let mut a = app();
     assert_eq!(a.settings.weather, Weather::Clear);
+    // no Weather in Settings (the person, 2026-10-17)
     a.act("menu.settings", "");
-    let ui = ui_of(&mut a);
-    let w = item(&ui, "settings.weather").expect("a weather select in Settings");
-    assert_eq!(w["label"], "Weather");
-    assert_eq!(w["value"], "clear");
-    let texts: Vec<&str> = w["options"]
-        .as_array()
-        .unwrap()
-        .iter()
-        .map(|o| o["text"].as_str().unwrap())
-        .collect();
-    assert_eq!(
-        texts,
-        [
-            "Clear",
-            "Snowing (Yeti Peak)",
-            "Blizzard (Yeti Peak)",
-            "Squall (Banana Bay Battle)",
-            "Twilight (Mape's Tower)",
-            "Dawn (Mape's Tower)"
-        ]
-    );
+    assert!(item(&ui_of(&mut a), "settings.weather").is_none());
     a.act("settings.weather", "snowing");
+    assert_eq!(
+        a.settings.weather,
+        Weather::Clear,
+        "Settings sets no weather"
+    );
+    a.act("menu.back", "");
+    a.act("menu.race", "");
+    a.act("setup.map", "ski");
+    a.act("setup.weather", "snowing");
     assert_eq!(a.settings.weather, Weather::Snowing);
     let saved = ui_of(&mut a)["save"].as_str().unwrap().to_string();
     let b = App::new(include_str!("../../../../data/strings.json"), &saved, 7).unwrap();
     assert_eq!(b.settings.weather, Weather::Snowing);
     // an unknown word leaves it alone; settings saved before it read Clear
-    a.act("settings.weather", "hail");
+    a.act("setup.weather", "hail");
     assert_eq!(a.settings.weather, Weather::Snowing);
     assert_eq!(Settings::parse("{\"map\":\"ski\"}").weather, Weather::Clear);
     // and a blizzard is kept too (TRIAGE T63)
-    a.act("settings.weather", "blizzard");
+    a.act("setup.weather", "blizzard");
     assert_eq!(a.settings.weather, Weather::Blizzard);
     let saved = ui_of(&mut a)["save"].as_str().unwrap().to_string();
     let b = App::new(include_str!("../../../../data/strings.json"), &saved, 7).unwrap();
@@ -232,37 +222,6 @@ fn on_the_ski_slope_the_racers_wear_their_gear_and_elsewhere_none() {
 }
 
 #[test]
-fn settings_shows_the_weather_as_set_even_a_squall() {
-    // one Weather setting for the Ski Slope and the bay (SECOND-ORDER BS2):
-    // Settings reads what is set, never Clear for a squall (BW1)
-    for (key, want) in [
-        ("squall", Weather::Squall),
-        ("blizzard", Weather::Blizzard),
-        ("clear", Weather::Clear),
-    ] {
-        let mut a = app();
-        a.act("menu.race", "");
-        a.act("setup.map", if key == "squall" { "bay" } else { "ski" });
-        a.act("setup.weather", key);
-        assert_eq!(a.settings.weather, want);
-        a.act("menu.back", "");
-        a.act("menu.settings", "");
-        let w = item(&ui_of(&mut a), "settings.weather").expect("a weather select");
-        assert_eq!(w["value"], key, "Settings misreports {key}");
-        let offered: Vec<&str> = w["options"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .map(|o| o["value"].as_str().unwrap())
-            .collect();
-        assert!(offered.contains(&key), "{key} not among {offered:?}");
-        // and choosing it in Settings sets it
-        a.act("settings.weather", "squall");
-        assert_eq!(a.settings.weather, Weather::Squall);
-    }
-}
-
-#[test]
 fn a_squall_is_offered_on_banana_bay_battle_only() {
     // the setups: the bay offers Clear and Squall, the Ski Slope its snow
     // without a squall, the other maps no weather
@@ -296,12 +255,6 @@ fn a_squall_is_offered_on_banana_bay_battle_only() {
     let select = item(&ui_of(&mut a), "setup.weather").unwrap();
     assert_eq!(select["value"], "squall");
     assert_eq!(select["options"][1]["text"], "Squall");
-    // Settings lists every weather, so the squall reads Squall there
-    // (SECOND-ORDER BW1; it read Clear before)
-    a.act("menu.back", "");
-    a.act("menu.settings", "");
-    let s = item(&ui_of(&mut a), "settings.weather").unwrap();
-    assert_eq!(s["value"], "squall");
     // a squall is drawn on the bay only; snow never on the bay
     assert_eq!(Weather::Squall.on(Map::Ski), Weather::Clear);
     assert_eq!(Weather::Squall.on(Map::Jungle), Weather::Clear);

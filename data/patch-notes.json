@@ -1,5 +1,12 @@
 [
   {
+    "version": "1.14.2",
+    "date": "2026-10-17",
+    "notes": [
+      "Weather is now picked when you set up a race, not in Settings."
+    ]
+  },
+  {
     "version": "1.14.1",
     "date": "2026-10-17",
     "notes": [
