@@ -123,15 +123,35 @@ def test_tags(cfg, tid):
     return None if best is None else set(best[1])
 
 
+# The broad tags: a map's test they meet still needs its map hit. A narrow
+# tag (an outfit, the HUD, the jaguar) runs a map's test that carries it on
+# its own: a gear change runs the Ski Slope's gear test without a Ski Slope
+# change. `scenery` stays broad, so a city scenery change runs no bay
+# scenery test; `trial` and `medals` too, so they run no map's AI races.
+GATED = {"race", "items", "menus", "camera", "replay", "sound", "online", "costumes",
+         "weather", "notes", "render", "scenery", "page", "boundary", "trial", "medals",
+         "setup", "results", "settings"}
+
+
+def implied(cfg, hit):
+    """The hit tags with what [implies] adds (render hits models, gear...)."""
+    out = set(hit)
+    for t in hit:
+        out |= set(cfg.get("implies", {}).get(t, []))
+    return out
+
+
 def wanted(tags, hit):
     """A test runs when its tags meet the hit ones. A map's test (one with a
     maps-* tag) also needs one of its maps hit: a race-flow or menu change
     doesn't run every map's AI races (the person, 2026-10-17). Physics and
-    AI changes reach every map, so they hit them all."""
+    AI changes reach every map, so they hit them all. A narrow tag (not in
+    GATED) runs a map's test on its own."""
     if ALL in hit:
         return True
     maps = {t for t in tags if t.startswith("maps-")}
-    if maps:
+    narrow = {x for x in tags & hit if x not in GATED and not x.startswith("maps-")}
+    if maps and not narrow:
         reach = {t for t in hit if t.startswith("maps-")}
         if not maps & reach and not hit & {"physics", "ai"}:
             return False
@@ -172,6 +192,8 @@ def guard():
         for k, tags in cfg[section].items():
             check_names(f"[{section}] {k}", tags)
     check_names("[always]", cfg["always"]["tags"])
+    for k, tags in cfg.get("implies", {}).items():
+        check_names(f"[implies] {k}", [k, *tags])
     for path, rule in cfg.get("lines", {}).items():
         check_names(f"[lines] {path}", rule["tags"])
         for pat in rule["patterns"]:
@@ -540,7 +562,7 @@ def plan(cfg, files, base=None, rng=None, ids=None):
         hit |= tags
         picks |= p
         bsteps |= b
-    return rows, hit, picks, bsteps
+    return rows, implied(cfg, hit), picks, bsteps
 
 
 def quick(args):
@@ -605,11 +627,12 @@ def quick(args):
     tfiles = sorted({tid.split(":")[1] for tid in picked if tid.startswith("test:")})
 
     bsteps = [s for s, tags in cfg["browser"].items() if step_hit(tags, hit) or s in direct]
-    browser_run = [s for s in bsteps if s != "boot"]
+    # boot alone runs too (a tab icon change): it is what boot checks
+    browser_run = [s for s in bsteps if s != "boot"] or (["boot"] if "boot" in bsteps else [])
     osteps = [s for s, tags in cfg["online"].items() if ALL in hit or set(tags) & hit]
 
     print(f"\ncargo tests: {len(picked)} of {len(ids)} (integration files {', '.join(tfiles) or 'none'})")
-    print(f"browser steps: {', '.join(['boot'] + browser_run) if browser_run else 'none (browser check skipped)'}"
+    print(f"browser steps: {', '.join(['boot'] + [s for s in browser_run if s != 'boot']) if browser_run else 'none (browser check skipped)'}"
           f"{' in ' + engines if browser_run else ''}")
     print(f"online steps: {', '.join(osteps) if osteps else 'none (online check skipped)'}")
     if dry:
@@ -625,7 +648,7 @@ def quick(args):
     if browser_run:
         env = {"BUILDER_ENGINES": engines}
         if not (ALL in hit or "page" in hit):
-            env["BUILDER_STEPS"] = " ".join(browser_run)
+            env["BUILDER_STEPS"] = " ".join(s for s in browser_run if s != "boot")
         step("browser", [py, "tests/browser/check.py"], env)
     for s in osteps:
         step(f"online-{s}", [py, ONLINE_STEPS[s]], {"BUILDER_ENGINES": engines})
