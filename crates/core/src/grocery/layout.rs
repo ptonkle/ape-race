@@ -867,7 +867,9 @@ pub fn grocery_seeded(seed: u64) -> Course {
         })
         .collect();
     let by_hand = |u: i32| {
-        item_at.iter().any(|&s| (s - ITEM_CLEAR..s + ITEM_CLEAR).contains(&u))
+        item_at
+            .iter()
+            .any(|&s| (s - ITEM_CLEAR..s + ITEM_CLEAR).contains(&u))
             || (m12 + LOW_FROM - 8..m12 + ICE_AT + 12).contains(&u)
             || u >= marks[leg::LOT] - 6
             || plan_of(c.point(int(u))).1 < int(SOUTH + 14)
@@ -962,7 +964,11 @@ pub fn grocery_seeded(seed: u64) -> Course {
         .into_iter()
         .enumerate()
     {
-        let lanes: [i32; 3] = if k % 2 == 0 { [-14, 0, 14] } else { [-21, -7, 7] };
+        let lanes: [i32; 3] = if k % 2 == 0 {
+            [-14, 0, 14]
+        } else {
+            [-21, -7, 7]
+        };
         let mut here = Vec::new();
         for off in lanes {
             let b = along(d, int(off) + int(dice.range(-1, 1)));
@@ -987,7 +993,13 @@ pub fn grocery_seeded(seed: u64) -> Course {
             let mut here = Vec::new();
             for off in lanes {
                 let b = along(d, int(off));
-                here.push(hang(&mut vines, v3(b.x, CEILING_AT, b.z), length, int(m12 + d), 0));
+                here.push(hang(
+                    &mut vines,
+                    v3(b.x, CEILING_AT, b.z),
+                    length,
+                    int(m12 + d),
+                    0,
+                ));
             }
             all.push(here);
         }
@@ -1105,7 +1117,13 @@ pub fn grocery_seeded(seed: u64) -> Course {
         let on = c.point(s);
         let away = on.sub(mouth).flat().norm();
         let far = on.add(away.scale(int(10)));
-        let mut here = vec![hang(&mut vines, v3(far.x, CEILING_AT, far.z), int(26), s, 0)];
+        let mut here = vec![hang(
+            &mut vines,
+            v3(far.x, CEILING_AT, far.z),
+            int(26),
+            s,
+            0,
+        )];
         let low = on.sub(away.scale(int(4)));
         here.push(hang(
             &mut vines,
@@ -1214,7 +1232,11 @@ pub fn grocery_seeded(seed: u64) -> Course {
     // freezer, facing the front (the camera before it; the aisle's lens of
     // glass doors, the coffins, the shoppers and the meat sign behind)
     let lobby = (
-        plan(aisle_x(5, 6, int(LOBBY_Z)) + int(COFFIN_OFF + 12), int(LOBBY_Z)).add(v3(0, BODY_DROP, 0)),
+        plan(
+            aisle_x(5, 6, int(LOBBY_Z)) + int(COFFIN_OFF + 12),
+            int(LOBBY_Z),
+        )
+        .add(v3(0, BODY_DROP, 0)),
         yaw_of(NORTH.neg()),
     );
     c.ravine = Some(Box::new(RavineLayout {

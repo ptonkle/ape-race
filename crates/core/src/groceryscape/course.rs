@@ -93,7 +93,21 @@ pub fn scenery(c: &Course, g: &GroceryLayout) -> Scenery {
     let Some(r) = c.ravine.as_deref() else {
         return Scenery::default();
     };
+    // (the store and the parking lot, GR-T4)
     let (lo, hi) = g.bounds;
+    let (llo, lhi) = g.lot.bounds;
+    let (lo, hi) = (
+        v3(
+            lo.x.min(hi.x).min(llo.x.min(lhi.x)),
+            0,
+            lo.z.min(hi.z).min(llo.z.min(lhi.z)),
+        ),
+        v3(
+            lo.x.max(hi.x).max(llo.x.max(lhi.x)),
+            0,
+            lo.z.max(hi.z).max(llo.z.max(lhi.z)),
+        ),
+    );
     let (lo, hi) = (
         v3(lo.x.min(hi.x), 0, lo.z.min(hi.z)).sub(v3(int(60), 0, int(60))),
         v3(lo.x.max(hi.x), 0, lo.z.max(hi.z)).add(v3(int(60), 0, int(60))),
@@ -103,6 +117,7 @@ pub fn scenery(c: &Course, g: &GroceryLayout) -> Scenery {
     super::shelves::scenery(&mut cells, r, g);
     super::walls::scenery(&mut cells, c, r, g);
     super::fixtures::scenery(&mut cells, c, r, g);
+    super::lot::scenery(&mut cells, c, g);
     let mut values = Vec::new();
     let mut chunks = Vec::new();
     let nx = cells.nx;
@@ -294,5 +309,6 @@ pub fn dynamic(
         return;
     };
     super::movers::dynamic(b, c, r, g, eye, t, tick, vivid);
+    super::lot::dynamic(b, c, g, eye, tick);
     super::shelves::near(b, r, g, eye);
 }

@@ -245,11 +245,22 @@ fn every_racer_has_an_item_in_each_zone_s_aisle() {
         let along: Vec<i32> = spots.iter().map(|it| c.vines[it.vine].at).collect();
         let (lo, hi) = (*along.iter().min().unwrap(), *along.iter().max().unwrap());
         assert!(lo > last, "zone {zone} comes before zone {}", zone - 1);
-        assert!(hi - lo <= int(45), "zone {zone}'s spots {} m apart", (hi - lo) / ONE);
+        assert!(
+            hi - lo <= int(45),
+            "zone {zone}'s spots {} m apart",
+            (hi - lo) / ONE
+        );
         last = hi;
         for it in &spots {
-            assert!(!s.holds(it.at, BODY_RADIUS + ITEM_REACH / 2), "item {it:?} in a solid");
-            assert_eq!(c.tip(it.vine, 0).y, it.at.y + int(2), "item {it:?} off its string");
+            assert!(
+                !s.holds(it.at, BODY_RADIUS + ITEM_REACH / 2),
+                "item {it:?} in a solid"
+            );
+            assert_eq!(
+                c.tip(it.vine, 0).y,
+                it.at.y + int(2),
+                "item {it:?} off its string"
+            );
         }
     }
 }

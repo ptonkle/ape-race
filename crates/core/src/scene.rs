@@ -1768,6 +1768,12 @@ pub fn dynamic(f: &Frame) -> (Batch, Batch) {
         );
     }
     course_bananas(&mut b, race, f.local, eye, f.tick);
+    // (Clean-Up on Aisle Ape: the shopping list, and the planes that pick
+    // up a full order, GR-T2, GR-T5)
+    if let Some(g) = &race.course.grocery {
+        crate::groceryscape::lot::items(&mut b, race, g, f.local, eye, f.tick);
+        crate::groceryscape::lot::planes(&mut b, race, f.tick);
+    }
     crate::items::draw(&mut b, race);
     speed_lines(&mut b, f);
     (vines, b)

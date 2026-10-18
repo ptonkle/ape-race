@@ -77,7 +77,9 @@ pub const ITEM_WORTH: i32 = int(80);
 /// enough to fly out to it; others' items' strings never (they are another
 /// racer's).
 pub fn for_ai(course: &Course, a: &Ape, from: i32, look: i32, cands: &mut Vec<usize>) {
-    if TEMP_OFF { return; }
+    if TEMP_OFF {
+        return;
+    }
     let Some(g) = course.grocery.as_deref() else {
         return;
     };
@@ -106,7 +108,9 @@ const ITEM_FROM_ABOVE: i32 = int(14);
 /// (metres along, Q16): `ITEM_WORTH` for its own item's string it has yet
 /// to take.
 pub fn worth_to(course: &Course, a: &Ape, v: usize) -> i64 {
-    if TEMP_OFF { return 0; }
+    if TEMP_OFF {
+        return 0;
+    }
     let Some(g) = course.grocery.as_deref() else {
         return 0;
     };

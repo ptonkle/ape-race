@@ -13,6 +13,7 @@
 pub mod course;
 pub mod fixtures;
 pub mod lobby;
+pub mod lot;
 pub mod movers;
 pub mod shelves;
 #[cfg(test)]
