@@ -18,11 +18,14 @@
 //! The builders live in `products.rs` (the 12 shapes and 8 fronts),
 //! `people.rs` (shoppers and carts), `props.rs` (balloons, the ball bin,
 //! produce tables, display bins, misters, the stock cart, the pallet) and
-//! `signs.rs` (aisle signs, sale banners, department pictures); the model
-//! gallery's keys are in `gallery.rs`.
+//! `signs.rs` (aisle signs, sale banners, department pictures), and
+//! `outside.rs` (the second pass, GR-T1–T8: the banana logo, the shopping
+//! list's items, the parking lot, the plane, the drop ceiling, the ice, the
+//! odd vines' fittings); the model gallery's keys are in `gallery.rs`.
 
 pub mod catalogue;
 mod gallery;
+pub mod outside;
 mod people;
 mod products;
 mod props;
@@ -32,6 +35,10 @@ mod tests;
 
 pub use catalogue::{Aisle, AISLES};
 pub use gallery::{framing, gallery, gallery_look, GALLERY};
+pub use outside::{
+    balloon_weight, banana_logo, canopy, car, corral, doors, ice_wall, lamp_post, list_item,
+    low_ceiling, order_bag, plane, sign_arm,
+};
 
 use crate::fx::{self, cm, QUARTER};
 use crate::geom::{v3, Affine, V3};

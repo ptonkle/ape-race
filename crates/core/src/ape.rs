@@ -108,6 +108,11 @@ pub struct Ape {
     pub rebound_cool: u8,
     /// Sunset Ruins: ticks left before a spiked ape can grab again
     pub no_grab: i32,
+    /// Clean-Up on Aisle Ape (GR-T2): the shopping list's items taken, a
+    /// bit a zone, and the racer's spot in each item aisle (GR-T3, set by
+    /// the race; kept in the ape so the AI's copies plan with them)
+    pub list: u8,
+    pub slot: u8,
 }
 
 impl Ape {
@@ -131,6 +136,8 @@ impl Ape {
             climb: None,
             rebound_cool: 0,
             no_grab: 0,
+            list: 0,
+            slot: 0,
         }
     }
 

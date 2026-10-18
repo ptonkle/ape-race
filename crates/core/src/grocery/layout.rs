@@ -810,6 +810,19 @@ pub fn grocery_seeded(seed: u64) -> Course {
         bounds: (p(WEST, SOUTH), p(EAST_WALL, NORTH_WALL)),
         doors,
         lobby,
+        items: Vec::new(),
+        hangs: Vec::new(),
+        odd: Vec::new(),
+        low: Vec::new(),
+        ice: Vec::new(),
+        lot: Lot {
+            canopy: (V3::ZERO, V3::ZERO),
+            canopy_under: 0,
+            cars: Vec::new(),
+            lamps: Vec::new(),
+            corrals: Vec::new(),
+            bounds: (V3::ZERO, V3::ZERO),
+        },
     }));
     c
 }
