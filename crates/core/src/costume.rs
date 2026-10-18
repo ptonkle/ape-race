@@ -36,12 +36,14 @@ pub enum Costume {
     Wizard,
     /// Rattlesnake Ravine's Wild West outfits
     Cowboy,
+    /// Clean-Up on Aisle Ape's snacks
+    Food,
 }
 
 impl Costume {
     /// The selector's order: the map's own, none, then the unlockable ones
     /// in the maps' order.
-    pub const ALL: [Costume; 9] = [
+    pub const ALL: [Costume; 10] = [
         Costume::Own,
         Costume::Bare,
         Costume::Ski,
@@ -51,6 +53,7 @@ impl Costume {
         Costume::Tourist,
         Costume::Wizard,
         Costume::Cowboy,
+        Costume::Food,
     ];
 
     /// The key: the settings' and the messages' word, and `costume.<key>`
@@ -66,6 +69,7 @@ impl Costume {
             Costume::Tourist => "tourist",
             Costume::Wizard => "wizard",
             Costume::Cowboy => "cowboy",
+            Costume::Food => "food",
         }
     }
 
@@ -101,6 +105,7 @@ impl Costume {
             Gear::Tourist => Some(Costume::Tourist),
             Gear::Wizard => Some(Costume::Wizard),
             Gear::Cowboy => Some(Costume::Cowboy),
+            Gear::Food => Some(Costume::Food),
         }
     }
 
@@ -116,6 +121,7 @@ impl Costume {
             Costume::Tourist => Gear::Tourist,
             Costume::Wizard => Gear::Wizard,
             Costume::Cowboy => Gear::Cowboy,
+            Costume::Food => Gear::Food,
         }
     }
 
@@ -187,6 +193,7 @@ mod tests {
             assert_eq!(Costume::Tourist.gear(map), Gear::Tourist);
             assert_eq!(Costume::Wizard.gear(map), Gear::Wizard);
             assert_eq!(Costume::Cowboy.gear(map), Gear::Cowboy);
+            assert_eq!(Costume::Food.gear(map), Gear::Food);
         }
         for c in Costume::ALL {
             assert_eq!(Costume::from_key(c.key()), Some(c));

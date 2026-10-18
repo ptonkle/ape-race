@@ -27,6 +27,7 @@ use crate::rules::{Kind, BODY_DROP};
 
 mod cowboy;
 mod flame;
+mod food;
 mod spider;
 mod tourist;
 mod wizard;
@@ -77,6 +78,8 @@ pub enum Gear {
     Wizard,
     /// Rattlesnake Ravine's Wild West outfits (`models::cowboy`)
     Cowboy,
+    /// Clean-Up on Aisle Ape's food apes: each kind a snack (`models::food`)
+    Food,
 }
 
 impl Gear {
@@ -92,6 +95,8 @@ impl Gear {
             "tourist" => Some(Gear::Tourist),
             "wizard" => Some(Gear::Wizard),
             "cowboy" => Some(Gear::Cowboy),
+            // Clean-Up on Aisle Ape's snacks
+            "food" => Some(Gear::Food),
             _ => None,
         }
     }
@@ -106,6 +111,7 @@ impl Gear {
             crate::map::Map::City => Gear::Tourist,
             crate::map::Map::Tower => Gear::Wizard,
             crate::map::Map::Ravine => Gear::Cowboy,
+            crate::map::Map::Grocery => Gear::Food,
             _ => Gear::None,
         }
     }
@@ -1184,6 +1190,11 @@ pub fn draw(b: &mut Batch, kind: Kind, pose: &Pose) {
 /// Draws one ape in palette `palette` (TRIAGE T49; 0 is the classic).
 pub fn draw_in(b: &mut Batch, kind: Kind, palette: u8, pose: &Pose) {
     let l = look_in(kind, palette);
+    let l = if pose.gear == Gear::Food {
+        food::look(kind, palette, l)
+    } else {
+        l
+    };
     let m = dims(&l);
     let pose = &dance_turn(kind, pose);
     let mut skel = pose_skel(kind, &l, pose);
@@ -1228,6 +1239,9 @@ pub fn draw_in(b: &mut Batch, kind: Kind, palette: u8, pose: &Pose) {
     }
     if pose.gear == Gear::Cowboy {
         cowboy::cowboy(&mut rig, kind, &l, &m, &skel);
+    }
+    if pose.gear == Gear::Food {
+        food::food(&mut rig, kind, palette, &l, &m, &skel, pose);
     }
     if pose.stunned {
         stars(&mut rig, &skel.head, m.head, pose.tick);
@@ -3175,6 +3189,9 @@ pub struct BigCat {
     /// a spider's abdomen over the haunches (Rattlesnake Ravine's cat,
     /// `models::spider`)
     pub spider: bool,
+    /// a gummy: glossy, lit from inside (Clean-Up on Aisle Ape's cat,
+    /// `models::food`)
+    pub gummy: bool,
     /// drawn size, percent of the jaguar's (the flame cat is huge)
     pub size: i32,
 }
@@ -3191,6 +3208,7 @@ pub const JAGUAR: BigCat = BigCat {
     navy: false,
     flame: false,
     spider: false,
+    gummy: false,
     size: 100,
 };
 
@@ -3243,6 +3261,19 @@ pub const SPIDER_JAGUAR: BigCat = BigCat {
     ..JAGUAR
 };
 
+/// Clean-Up on Aisle Ape's big cat (GR-Q11): a gummy jaguar, raspberry
+/// gummy coat, deeper red rosettes, glossy and lit from inside
+/// (`models::food::gummy_cat`).
+pub const GUMMY_JAGUAR: BigCat = BigCat {
+    coat: food::GUMMY_COAT,
+    deep: food::GUMMY_DEEP,
+    cream: food::GUMMY_CREAM,
+    spot: food::GUMMY_SPOT,
+    eye: food::GUMMY_EYE,
+    gummy: true,
+    ..JAGUAR
+};
+
 /// Smoky grey-white with charcoal rosettes round grey middles, pale
 /// green-grey eyes and a very thick tail.
 pub const SNOW_LEOPARD: BigCat = BigCat {
@@ -3257,6 +3288,7 @@ pub const SNOW_LEOPARD: BigCat = BigCat {
     navy: false,
     flame: false,
     spider: false,
+    gummy: false,
     size: 100,
 };
 
@@ -3270,6 +3302,7 @@ impl BigCat {
             crate::map::Map::Bay => NAVY_JAGUAR,
             crate::map::Map::Tower => FLAME_CAT,
             crate::map::Map::Ravine => SPIDER_JAGUAR,
+            crate::map::Map::Grocery => GUMMY_JAGUAR,
             _ => JAGUAR,
         }
     }
@@ -3361,6 +3394,9 @@ pub fn jaguar(b: &mut Batch, j: &crate::jaguar::Jaguar, scale: i32, cat: &BigCat
     }
     jaguar_head(&mut rig, j, &body, fwd, cat);
     jaguar_tail(&mut rig, j, &body, cat);
+    if cat.gummy {
+        food::gummy_cat(&mut rig, &body);
+    }
 }
 
 fn jaguar_legs(rig: &mut Rig, j: &crate::jaguar::Jaguar, body: &Frame, fwd: V3, cat: &BigCat) {
