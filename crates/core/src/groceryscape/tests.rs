@@ -33,6 +33,8 @@ pub fn worst_frame(c: &Course) -> (usize, usize, usize) {
             .sum();
         let mut b = Batch::new();
         dynamic(&mut b, c, g, eye, 100, 100, false);
+        // (and the shopping list's items, as racer 0 sees them, GR-T2)
+        super::lot::items_seen(&mut b, g, Some(0), 0, eye, 100);
         let moving = b.count() + b.take_halos().count();
         if still + moving > worst.0 + worst.1 {
             worst = (still, moving, k * 5);

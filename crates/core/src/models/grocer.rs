@@ -244,7 +244,10 @@ fn logo(rig: &mut Rig, at: V3, up: V3, out: V3, r: i32) {
             .then(&Affine::scale(v3(r * 23 / 10, r / 10, r * 23 / 10))),
         PATCH,
     );
-    crate::grocerymodels::banana_logo(rig.b, &rig.base.then(&frame), r);
+    // (the badge is centred on its frame, about a quarter of its radius
+    // deep: stood out by half that, all of it is in front of the patch)
+    let badge = frame.then(&Affine::translate(v3(0, 0, r / 8)));
+    crate::grocerymodels::banana_logo(rig.b, &rig.base.then(&badge), r);
 }
 
 /// Everything a store worker wears, over the ape `kind` posed as `s`.
@@ -736,7 +739,9 @@ mod tests {
                     for x in &s {
                         for a in x.axes {
                             assert!(
-                                a.len() >= ONE / 500 && a.len() <= int(2),
+                                // (the logo's ring is a twentieth of a
+                                // small badge's radius thick)
+                                a.len() >= ONE / 1000 && a.len() <= int(2),
                                 "{kind:?} mesh {} colour {:?} axis {}",
                                 x.mesh,
                                 x.colour,
@@ -826,9 +831,17 @@ mod tests {
                 .filter(|x| own.contains(&x.colour))
                 .collect();
             assert!(!on.is_empty(), "{kind:?}: no logo on the back's patch");
+            // (out along the patch's own face, away from the body: on a
+            // sloping back the logo's parts stand off the patch that way)
+            let n = biggest.axes[1].norm();
+            let n = if biggest.at.sub(middle).dot(n) < 0 {
+                n.neg()
+            } else {
+                n
+            };
             for x in on {
                 assert!(
-                    x.at.sub(biggest.at).dot(fwd) < 0,
+                    x.at.sub(biggest.at).dot(n) > 0,
                     "{kind:?}: the back's logo faces into the ape"
                 );
             }

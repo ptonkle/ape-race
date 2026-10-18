@@ -2,7 +2,9 @@
 //! under 25 m gained), with its mode, height and side, and its finish.
 //!
 //! `cargo run --release -p tool_core --example grocery_trace -- LEVEL [SEED [full] [solids] [slot=K]]`
-//! (`slot=K`: a race of four, tracing racer K, so its own item spots)
+//! (`slot=K`: a race of four, tracing racer K, so its own item spots;
+//! `kind=KEY`: that kind; `boosts`: crates give only the Speed Boost, as in
+//! a Time Trial)
 use tool_core::ai::{think, Brain, Difficulty};
 use tool_core::ape::{Happening, Mode};
 use tool_core::fx::ONE;
@@ -22,7 +24,10 @@ fn main() {
         0 => grocery(),
         _ => grocery_seeded(seed),
     };
-    let kind = Kind::Chimpanzee;
+    let kind = args
+        .iter()
+        .find_map(|a| a.strip_prefix("kind=").and_then(Kind::from_key))
+        .unwrap_or(Kind::Chimpanzee);
     let slot: Option<usize> = args
         .iter()
         .find_map(|a| a.strip_prefix("slot=").map(|k| k.parse().unwrap()));
@@ -36,7 +41,11 @@ fn main() {
         })
         .collect();
     let me = slot.unwrap_or(0);
-    let mut race = Race::new(course, &entries, true, 7);
+    let boosts = args.iter().any(|a| a == "boosts");
+    let mut race = Race::new(course, &entries, !boosts, 7);
+    if boosts {
+        race.items = tool_core::items::ItemSet::only(tool_core::race::Item::Boost);
+    }
     let mut brains: Vec<Brain> = (0..entries.len())
         .map(|i| Brain::new(level, 0xA9E5 + i as u64))
         .collect();

@@ -264,3 +264,103 @@ fn every_racer_has_an_item_in_each_zone_s_aisle() {
         }
     }
 }
+
+/// The list's gains (GR-T2): the first and third items each add a quarter
+/// of the kind's top speed (the drag falls by the square), the second and
+/// fourth a quarter of its air steering, added, not compounded: with all
+/// four, 1.5 times each.
+#[test]
+fn the_list_s_items_add_speed_then_air_control_a_quarter_each() {
+    let c = grocery();
+    let a0 = crate::ape::Ape::new_on(&c, crate::rules::Kind::Gibbon, false, c.starts[0], 0);
+    let mut a = a0.clone();
+    let gains: Vec<_> = (0..LIST_ZONES).map(|z| list::take(&mut a, z)).collect();
+    use crate::race::Reward::{ListAir, ListSpeed};
+    assert_eq!(gains, [ListSpeed, ListAir, ListSpeed, ListAir]);
+    assert!(list::full(&a));
+    // (`got` × `k` against `want` × `j`, within a unit of `got`: the drag
+    // is a small whole number)
+    let near = |got: i32, k: i64, want: i32, j: i64| (got as i64 * k - want as i64 * j).abs() <= k;
+    // drag × (1/1.5)², air, drive fade and run × 1.5
+    let p = (a.phys, a0.phys);
+    assert!(
+        near(p.0.drag, 9, p.1.drag, 4),
+        "drag {} of {}",
+        p.0.drag,
+        p.1.drag
+    );
+    assert!(
+        near(p.0.air, 2, p.1.air, 3),
+        "air {} of {}",
+        p.0.air,
+        p.1.air
+    );
+    assert!(near(p.0.run_speed, 2, p.1.run_speed, 3));
+    assert!(near(p.0.drive_fade, 2, p.1.drive_fade, 3));
+    assert_eq!(p.0.reach, p.1.reach);
+}
+
+/// Each racer takes only its own spot's item (GR-T3), by touching it or
+/// by grabbing its string, once; the race says so (the HUD's flash).
+#[test]
+fn a_racer_takes_only_its_own_spot_s_item_once() {
+    use crate::ape::Controls;
+    use crate::race::{Driver, Entry, Event, Phase, Race};
+    let c = grocery();
+    let g = c.grocery.clone().unwrap();
+    let e: Vec<Entry> = (0..LIST_SLOTS)
+        .map(|_| Entry {
+            name: String::new(),
+            kind: crate::rules::Kind::Gorilla,
+            driver: Driver::Ai,
+            palette: 0,
+            costume: crate::costume::Costume::Own,
+        })
+        .collect();
+    let mut r = Race::new(c, &e, true, 7);
+    r.phase = Phase::Running;
+    let hold = |it: &ListItem| it.at.add(v3(0, BODY_DROP / 2, 0));
+    // each at the spot two along: nobody takes anything
+    for k in 0..LIST_SLOTS {
+        r.racers[k].ape.pos = hold(g.item(0, (k + 2) % LIST_SLOTS).unwrap());
+    }
+    r.step(&[Controls::default(); LIST_SLOTS]);
+    assert!(r.racers.iter().all(|x| x.ape.list == 0));
+    // each at its own: each takes it, and says so, once
+    for k in 0..LIST_SLOTS {
+        r.racers[k].ape.pos = hold(g.item(0, k).unwrap());
+        r.racers[k].ape.vel = V3::ZERO;
+    }
+    r.step(&[Controls::default(); LIST_SLOTS]);
+    let said = |r: &Race| {
+        r.events
+            .iter()
+            .filter(|e| matches!(e, Event::Reward { .. }))
+            .count()
+    };
+    assert!(
+        r.racers.iter().all(|x| x.ape.list == 1),
+        "{:?}",
+        r.racers.iter().map(|x| x.ape.list).collect::<Vec<_>>()
+    );
+    assert_eq!(said(&r), LIST_SLOTS);
+    r.step(&[Controls::default(); LIST_SLOTS]);
+    assert_eq!(said(&r), 0);
+    // racer 0 grabbing its zone-1 string, far above the item, takes it
+    let it = *g.item(1, 0).unwrap();
+    let a = &mut r.racers[0].ape;
+    a.pos = r.course.vines[it.vine].anchor.sub(v3(0, int(6), 0));
+    a.vel = V3::ZERO;
+    let grab = Controls {
+        grab: true,
+        ..Controls::default()
+    };
+    r.step(&[
+        grab,
+        Controls::default(),
+        Controls::default(),
+        Controls::default(),
+    ]);
+    assert_eq!(r.racers[0].ape.swinging(), Some(it.vine));
+    assert_eq!(r.racers[0].ape.list, 0b11);
+}

@@ -50,7 +50,7 @@ pub const START: (i32, i32) = (cm(3435), int(525));
 /// The route: straights and bends (metres, degrees; + is left).
 const LEGS: &[Leg] = &[
     Leg(60, 0),   // 0 the start, by the stockroom doors
-    Leg(66, 0),   // 1 the back aisle, past aisle 1 (the first item)
+    Leg(62, 0),   // 1 the back aisle, past aisle 1 (the first item)
     Leg(78, -90), // 2 into aisle 3 (R 50 m: the run-up is long, so fast)
     Leg(6, -7),   // 3 aisle 3 (cereal), bowed west
     Leg(105, 0),
@@ -63,7 +63,7 @@ const LEGS: &[Leg] = &[
     Leg(56, 90),  // 11 into the frozen aisle
     Leg(265, 0),  // 12 the frozen aisle, north
     Leg(56, -90), // 13 onto the back aisle
-    Leg(90, 0),   // 14 east under the meat sign
+    Leg(94, 0),   // 14 east under the meat sign
     Leg(56, -90), // 15 into aisle 9
     Leg(6, 7),    // 16 aisle 9 (snacks), bowed east
     Leg(119, 0),
@@ -290,15 +290,22 @@ fn walks() -> Vec<((i32, i32), (i32, i32), bool, bool)> {
 pub const ITEM_AISLES: [(usize, bool); 4] = [(1, true), (4, false), (7, true), (10, false)];
 /// The items hang this far into their aisle's mouth, ...
 pub const ITEM_IN: i32 = 1;
+/// The route's line along the front cross aisle (plan north): the corners
+/// out of aisles 3 and 9 (R 36 m) bring it there.
+pub const FRONT_LINE: i32 = int(188);
+/// The items hang this far off the route's line toward their aisle: at
+/// its mouth, level with the runs' ends (an AI's swing reaches no further
+/// out of its way, GR-T2) ...
+pub const ITEM_OUT: i32 = int(14);
 /// ... spot `k` this far east of the aisle's middle (plan metres, Q16:
 /// east of it, as the angled run ends' solids reach a few metres past
 /// their runs' west faces) ...
-pub const ITEM_SPOTS: [i32; 4] = [int(-7), 0, int(7), int(14)];
+pub const ITEM_SPOTS: [i32; 4] = [int(-10), int(-3), int(4), int(11)];
 /// ... their middles this high.
-pub const ITEM_UP: i32 = int(19);
+pub const ITEM_UP: i32 = int(22);
 /// No other station's ropes hang within this of an item aisle's middle
 /// (metres along the route), so the item strings are the way on there.
-pub const ITEM_CLEAR: i32 = 14;
+pub const ITEM_CLEAR: i32 = 40;
 /// An item aisle is closed this far in (a pocket for the item; the others
 /// at their mouths).
 pub const POCKET: i32 = 26;
@@ -855,22 +862,32 @@ pub fn grocery_seeded(seed: u64) -> Course {
     let mut all: Vec<Vec<usize>> = Vec::new();
     let mut mushrooms = Vec::new();
     // (the drop ceiling, its climb and the lot are hung by hand, below)
-    // (and near an item aisle's mouth the item strings are the station,
-    // GR-T3: each racer's own the vine to take there)
-    let item_at: Vec<i32> = ITEM_AISLES
+    // (near an item aisle's mouth a station's ropes lean toward the aisle,
+    // GR-T3: a swing along its near rope passes each racer's own item)
+    let item_at: Vec<(i32, V3)> = ITEM_AISLES
         .iter()
         .map(|&(a, back)| {
             let x = (RUNS[a - 1].0 + RUNS[a].0) / 2;
             let z = if back { BACK } else { FRONT };
             let q = p(x, z);
-            (c.progress(q, c.nearest_anywhere(q)).0 >> 16) + 4
+            ((c.progress(q, c.nearest_anywhere(q)).0 >> 16) + 4, q)
         })
         .collect();
-    let by_hand = |u: i32| {
+    let toward_item = |u: i32| {
         item_at
             .iter()
-            .any(|&s| (s - ITEM_CLEAR..s + ITEM_CLEAR).contains(&u))
-            || (m12 + LOW_FROM - 8..m12 + ICE_AT + 12).contains(&u)
+            .find(|&&(s, _)| (s - ITEM_CLEAR..s + ITEM_CLEAR).contains(&u))
+            .map(|&(_, q)| {
+                let on = c.point(int(u));
+                if q.sub(on).dot(right_of(c.heading_at(int(u)))) > 0 {
+                    1
+                } else {
+                    -1
+                }
+            })
+    };
+    let by_hand = |u: i32| {
+        (m12 + LOW_FROM - 8..m12 + ICE_AT + 12).contains(&u)
             || u >= marks[leg::LOT] - 6
             || plan_of(c.point(int(u))).1 < int(SOUTH + 14)
     };
@@ -895,6 +912,8 @@ pub fn grocery_seeded(seed: u64) -> Course {
             }
             let off = if first {
                 (lane - 1) * 6
+            } else if let Some(side) = toward_item(u) {
+                side * (lane * 7 - 3)
             } else {
                 (lane - 1) * 10 + dice.range(-2, 2)
             };
@@ -908,7 +927,8 @@ pub fn grocery_seeded(seed: u64) -> Course {
                 int(dice.range(23, 31))
             };
             let foot = v3(base.x, CEILING_AT - length, base.z);
-            if !clear(foot, int(3)) || !clear(foot.add(v3(0, length / 2, 0)), int(2)) {
+            // (room to swing: the runs' ends are solid to the ceiling)
+            if !clear(foot, int(7)) || !clear(foot.add(v3(0, length / 2, 0)), int(5)) {
                 continue;
             }
             here.push(hang(
@@ -952,6 +972,32 @@ pub fn grocery_seeded(seed: u64) -> Course {
         }
     }
 
+    // ---- catch ropes past each corner (GR-T2: an ape with the list's
+    // speed overshoots; on the floor there, these let it climb back up)
+    for k in [
+        leg::AISLE_A - 1,
+        leg::FRONT - 1,
+        leg::AISLE_B - 1,
+        leg::BACK - 1,
+        leg::AISLE_C - 1,
+        leg::DOORS,
+    ] {
+        let start = int(marks[k]);
+        let h = c.heading_at(start);
+        let end = int(marks[k + 1]);
+        let mut here = Vec::new();
+        // (low ones only, to climb back up by: a high one, counted as the
+        // corner's end, lured the AI out of every corner)
+        for (d, length) in [(44, CEILING_AT - int(4)), (70, CEILING_AT - int(4))] {
+            let b = c.point(start).add(h.scale(int(d)));
+            let foot = v3(b.x, CEILING_AT - length, b.z);
+            if clear(foot, int(5)) && clear(v3(b.x, CEILING_AT - int(10), b.z), int(5)) {
+                here.push(hang(&mut vines, v3(b.x, CEILING_AT, b.z), length, end, 0));
+            }
+        }
+        all.push(here);
+    }
+
     // ---- the drop ceiling and the climb over the ice (GR-T7) ----
     let mut odd = Vec::new();
     let mut ups = Vec::new();
@@ -987,8 +1033,9 @@ pub fn grocery_seeded(seed: u64) -> Course {
     // low one to climb back up by from the floor), and bins of bouncy balls
     {
         for (d, length, lanes) in [
-            (LOW_TO + 12, int(36), [-12, 12]),
-            (LOW_TO + 30, int(26), [-6, 18]),
+            (LOW_TO + 10, int(38), [-12, 0, 12]),
+            (LOW_TO + 24, int(32), [-18, -6, 8]),
+            (LOW_TO + 38, int(30), [-12, 2, 16]),
         ] {
             let mut here = Vec::new();
             for off in lanes {
@@ -1093,7 +1140,11 @@ pub fn grocery_seeded(seed: u64) -> Course {
             int(FRONT + ITEM_IN)
         };
         for (slot, &dx) in ITEM_SPOTS.iter().enumerate() {
-            let at = plan(mid + dx, z).add(v3(0, ITEM_UP, 0));
+            // (at the aisle's mouth, level with the runs' ends: `ITEM_OUT`
+            // off the cross aisle's line toward the aisle)
+            let line = if back { START.1 } else { FRONT_LINE };
+            let toward = if back { -ITEM_OUT } else { ITEM_OUT };
+            let at = plan(mid + dx, line + toward).add(v3(0, ITEM_UP, 0));
             let s = c.progress(at, c.nearest_anywhere(at)).0;
             let top = int(2);
             let vine = hang(
@@ -1110,29 +1161,10 @@ pub fn grocery_seeded(seed: u64) -> Course {
                 vine,
             });
         }
-        // the rest of the station: a rope on the route's far side, a low
-        // one on its line and one in the pocket, to climb back up by
+        // a low rope in the pocket, to climb back up by
         let mouth = plan(mid, z);
         let s = c.progress(mouth, c.nearest_anywhere(mouth)).0;
-        let on = c.point(s);
-        let away = on.sub(mouth).flat().norm();
-        let far = on.add(away.scale(int(10)));
-        let mut here = vec![hang(
-            &mut vines,
-            v3(far.x, CEILING_AT, far.z),
-            int(26),
-            s,
-            0,
-        )];
-        let low = on.sub(away.scale(int(4)));
-        here.push(hang(
-            &mut vines,
-            v3(low.x, CEILING_AT, low.z),
-            CEILING_AT - int(4),
-            s,
-            0,
-        ));
-        all.push(here);
+        let away = c.point(s).sub(mouth).flat().norm();
         let inside = mouth.sub(away.scale(int(12)));
         hang(
             &mut vines,

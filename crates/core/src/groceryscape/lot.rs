@@ -281,17 +281,44 @@ pub fn items(
     t: u32,
 ) {
     let me = viewer.and_then(|v| race.racers.get(v)).map(|r| &r.ape);
+    items_seen(
+        b,
+        g,
+        me.map(|a| a.slot as usize),
+        me.map_or(0, |a| a.list),
+        eye,
+        t,
+    );
+}
+
+/// The items as one at spot `slot` with `list` taken sees them from `eye`:
+/// their own glowing out to `OWN_SEEN`, the others plain within
+/// `OTHERS_SEEN`.
+pub fn items_seen(
+    b: &mut Batch,
+    g: &GroceryLayout,
+    slot: Option<usize>,
+    list: u8,
+    eye: V3,
+    t: u32,
+) {
     for it in &g.items {
-        if it.at.flat().sub(eye.flat()).longer_than(int(260)) {
+        let mine = slot == Some(it.slot as usize);
+        let seen = if mine { OWN_SEEN } else { OTHERS_SEEN };
+        if it.at.flat().sub(eye.flat()).longer_than(seen) {
             continue;
         }
-        let mine = me.is_some_and(|a| a.slot == it.slot);
-        if mine && me.is_some_and(|a| a.list & (1 << it.zone) != 0) {
+        if mine && list & (1 << it.zone) != 0 {
             continue;
         }
         m::list_item(b, it.at, it.zone, mine, t);
     }
 }
+
+/// A racer's own item glows from this far (a cross aisle away and more) ...
+const OWN_SEEN: i32 = int(260);
+/// ... and the others' show only this near.
+const OTHERS_SEEN: i32 = int(90);
 
 /// The planes (GR-T5): an ape that finished with all four items holds its
 /// order up, and `PLANE_AFTER` ticks on a plane comes in low over the lot,

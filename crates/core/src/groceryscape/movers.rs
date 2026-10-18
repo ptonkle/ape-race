@@ -12,7 +12,7 @@ use crate::ravine::RavineLayout;
 use crate::render::Batch;
 
 /// Shoppers and balloons are drawn within this of the eye.
-pub const SEEN: i32 = int(300);
+pub const SEEN: i32 = int(180);
 /// A shopper's stride: one step cycle every this many metres walked.
 const STRIDE: i32 = int(12);
 

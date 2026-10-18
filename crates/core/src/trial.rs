@@ -195,16 +195,18 @@ pub const RAVINE: [u32; 4] = [
     secs(RAVINE_AUTHOR),
 ];
 
-/// Clean-Up on Aisle Ape's target times in hundredths of a second (GR8,
-/// 2026-10-18, the 1,854 m route): King Kong alone as a Time Trial
-/// finishes in 75.8-107.2 s by kind, the Orangutan best (75.84 s), the
-/// Gibbon next (82.48 s), the Proboscis slowest, Equal Stats 96.38 s;
-/// `tests/grocery_ai.rs` `grocery_time_trial_report`. Author just under
-/// the best kind, then the Jungle's steps of 7, 10 and 15 s.
-pub const GROCERY_AUTHOR: u32 = 7_500;
-pub const GROCERY_GOLD: u32 = 8_200;
-pub const GROCERY_SILVER: u32 = 9_200;
-pub const GROCERY_BRONZE: u32 = 10_700;
+/// Clean-Up on Aisle Ape's target times in hundredths of a second (GR8;
+/// GR10, 2026-10-18, the second pass's 2,110 m route with the shopping
+/// list): King Kong alone as a Time Trial finishes in 91.2-131.9 s by
+/// kind, the Gibbon best (91.24 s), the Chimpanzee and the Proboscis next
+/// (101-102 s), the Orangutan, Gorilla and Lemur slowest (131 s), Equal
+/// Stats 101.27 s; `tests/grocery_ai.rs` `grocery_time_trial_report`.
+/// Author just under the best kind, then the Jungle's steps of 7, 10 and
+/// 15 s.
+pub const GROCERY_AUTHOR: u32 = 9_000;
+pub const GROCERY_GOLD: u32 = 9_700;
+pub const GROCERY_SILVER: u32 = 10_700;
+pub const GROCERY_BRONZE: u32 = 12_200;
 
 /// Clean-Up on Aisle Ape's target times, in race ticks, slowest first.
 pub const GROCERY: [u32; 4] = [

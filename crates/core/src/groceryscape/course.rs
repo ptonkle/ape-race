@@ -32,7 +32,7 @@ use crate::scene::{Chunk, Scenery};
 pub const LIT: i32 = ONE * 2 / 5;
 /// A chunk is drawn while any of it is this near the eye (the fog's far
 /// end, `groceryscape::look`, is nearer still in the aisles).
-pub const REACH: i32 = int(200);
+pub const REACH: i32 = int(180);
 /// The store's chunks: squares this wide.
 const CELL: i32 = int(100);
 

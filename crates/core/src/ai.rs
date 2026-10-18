@@ -273,6 +273,7 @@ impl Difficulty {
                 flight: FLIGHT_TICKS,
                 hidden: true,
                 snake_slip: SNAKE_SLIP[0],
+                list_at: None,
             },
             Difficulty::Ape => Tuning {
                 ideal_hop: int(26),
@@ -286,6 +287,7 @@ impl Difficulty {
                 flight: FLIGHT_TICKS,
                 hidden: true,
                 snake_slip: SNAKE_SLIP[1],
+                list_at: Some(1),
             },
             Difficulty::KingKong => Tuning {
                 ideal_hop: int(28),
@@ -299,6 +301,7 @@ impl Difficulty {
                 flight: FLIGHT_TICKS,
                 hidden: true,
                 snake_slip: SNAKE_SLIP[2],
+                list_at: Some(0),
             },
         }
     }
@@ -456,6 +459,10 @@ struct Tuning {
     /// Rattlesnake Ravine: of every hundred snake vines it makes for this
     /// many (it misses the snake); it steers clear of the rest
     snake_slip: u32,
+    /// Clean-Up on Aisle Ape: where among its candidates it puts its own
+    /// shopping-list item's string (GR-T2; none: it takes one only when
+    /// it comes its way)
+    list_at: Option<usize>,
 }
 
 /// Sector Ape's tuning (see [`Difficulty::tuning_on`]), easiest level
@@ -934,7 +941,7 @@ fn ahead(course: &Course, a: &Ape, from: i32, tick: u32, tune: Tuning) -> Vec<us
     );
     // (Clean-Up on Aisle Ape: its shopping list's strings first, GR-T2)
     if course.grocery.is_some() {
-        crate::grocery::list::for_ai(course, a, from, tune.look, &mut out);
+        crate::grocery::list::for_ai(course, a, from, tune.look, tune.list_at, &mut out);
     }
     out
 }

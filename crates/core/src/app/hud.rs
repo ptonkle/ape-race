@@ -56,7 +56,14 @@ impl App {
             },
             "item": [self.t("hud.item"), item],
             // the course's bananas taken (TRIAGE T43)
-            "bananas": [self.t("hud.bananas"), format!("{}/{}", me.ape.whole_bananas(), rules::BANANAS_FULL)],
+            "bananas": match &race.course.grocery {
+                // (Clean-Up on Aisle Ape: the shopping list instead, GR-T2)
+                Some(_) => json!([
+                    self.t("hud.list"),
+                    format!("{}/{}", me.ape.list.count_ones(), crate::grocery::LIST_ZONES)
+                ]),
+                None => json!([self.t("hud.bananas"), format!("{}/{}", me.ape.whole_bananas(), rules::BANANAS_FULL)]),
+            },
             "item_key": me.item.map(|i| i.key()).unwrap_or(""),
             // the held item as a picture (TRIAGE T19)
             "item_icon": me.item.map(crate::items::icon_svg).unwrap_or_default(),

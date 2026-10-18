@@ -72,14 +72,18 @@ pub const ITEM_WORTH: i32 = int(80);
 
 /// The AI's candidates (`ai::ahead`) for ape `a` on `course`, from its
 /// held vine's place `from` looking `look` on: its own item's string it
-/// has yet to take second (after the best lying vine, so a swing that
-/// cannot reach it still has a way on), and only from a vine held high
-/// enough to fly out to it; others' items' strings never (they are another
-/// racer's).
-pub fn for_ai(course: &Course, a: &Ape, from: i32, look: i32, cands: &mut Vec<usize>) {
-    if TEMP_OFF {
-        return;
-    }
+/// has yet to take at `place` among them (by level: King Kong first, the
+/// Ape second, the Sloth only as it comes), and only from a vine held
+/// high enough to fly out to it; others' items' strings never (they are
+/// another racer's).
+pub fn for_ai(
+    course: &Course,
+    a: &Ape,
+    from: i32,
+    look: i32,
+    place: Option<usize>,
+    cands: &mut Vec<usize>,
+) {
     let Some(g) = course.grocery.as_deref() else {
         return;
     };
@@ -92,12 +96,12 @@ pub fn for_ai(course: &Course, a: &Ape, from: i32, look: i32, cands: &mut Vec<us
         .filter(|&(at, v)| at > from - int(20) && at <= from + look && Some(v) != a.swinging())
         .collect();
     mine.sort();
-    if a.pos.y < ITEM_FROM_ABOVE {
-        mine.clear();
-    }
+    let Some(place) = place.filter(|_| a.pos.y >= ITEM_FROM_ABOVE) else {
+        return;
+    };
     for &(_, v) in mine.iter().rev() {
         cands.retain(|&c| c != v);
-        cands.insert(cands.len().min(1), v);
+        cands.insert(place.min(cands.len()), v);
     }
 }
 
@@ -108,9 +112,6 @@ const ITEM_FROM_ABOVE: i32 = int(14);
 /// (metres along, Q16): `ITEM_WORTH` for its own item's string it has yet
 /// to take.
 pub fn worth_to(course: &Course, a: &Ape, v: usize) -> i64 {
-    if TEMP_OFF {
-        return 0;
-    }
     let Some(g) = course.grocery.as_deref() else {
         return 0;
     };
@@ -144,5 +145,3 @@ impl Race {
         self.events.push(Event::Reward { who: i, what });
     }
 }
-
-const TEMP_OFF: bool = false;

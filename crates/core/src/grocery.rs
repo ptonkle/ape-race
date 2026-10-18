@@ -188,7 +188,7 @@ pub const LIST_ZONES: usize = 4;
 pub const LIST_SLOTS: usize = 4;
 /// An ape takes its item when its middle comes within this of the item's
 /// middle (plus its body's radius), or when it grabs the item's string.
-pub const ITEM_REACH: i32 = int(6);
+pub const ITEM_REACH: i32 = int(7);
 /// The first and third items an ape takes each add this share of its
 /// kind's top speed, the second and fourth this share of its air
 /// steering, added and not compounded (GR-T2: with all four, 1.5 times
