@@ -555,19 +555,25 @@ fn blocker(cells: &mut Cells, b: &crate::grocery::Blocker, k: u32) {
         v3(int(6), cm(60), len - int(2)),
         rgb(120, 124, 130),
     );
+    // (at an item aisle's pocket the cases are stacked to the top stock,
+    // in tiers, GR-T2)
+    let tiers = ((b.top - cm(120)) / (BLOCKER_TOP - cm(120))).max(1);
+    let tier = (b.top - cm(120)) / tiers;
     for s in [-1, 0, 1] {
         let c = mid.add(d.norm().scale(s * (len - int(4)) / 3));
-        let shade = if (k as i32 + s) % 2 == 0 {
-            KRAFT
-        } else {
-            KRAFT_DARK
-        };
-        cells.block(
-            c.add(v3(0, cm(120) + (BLOCKER_TOP - cm(120)) / 2, 0)),
-            yaw,
-            v3(int(5), BLOCKER_TOP - cm(120), (len - int(6)) / 3),
-            shade,
-        );
+        for t in 0..tiers {
+            let shade = if (k as i32 + s + t) % 2 == 0 {
+                KRAFT
+            } else {
+                KRAFT_DARK
+            };
+            cells.block(
+                c.add(v3(0, cm(120) + tier * t + tier / 2, 0)),
+                yaw,
+                v3(int(5) - t * cm(10), tier - cm(20), (len - int(6)) / 3),
+                shade,
+            );
+        }
     }
     // the sign: an A-frame of two yellow boards, in front of the cart
     let s = b

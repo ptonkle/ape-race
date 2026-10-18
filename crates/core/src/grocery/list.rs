@@ -9,7 +9,8 @@
 
 use super::{GroceryLayout, ITEM_GAIN, ITEM_REACH, LIST_ZONES};
 use crate::ape::{Ape, Happening, Mode};
-use crate::fx::ONE;
+use crate::course::Course;
+use crate::fx::{int, ONE};
 use crate::race::{Event, Race, Reward};
 use crate::rules::BODY_RADIUS;
 
@@ -65,6 +66,61 @@ pub fn full(a: &Ape) -> bool {
     a.list.count_ones() as usize >= LIST_ZONES
 }
 
+/// For the AI: a landing on its own item's string is worth this many
+/// metres more along (it goes out of its way for it, as a player would).
+pub const ITEM_WORTH: i32 = int(80);
+
+/// The AI's candidates (`ai::ahead`) for ape `a` on `course`, from its
+/// held vine's place `from` looking `look` on: its own item's string it
+/// has yet to take second (after the best lying vine, so a swing that
+/// cannot reach it still has a way on), and only from a vine held high
+/// enough to fly out to it; others' items' strings never (they are another
+/// racer's).
+pub fn for_ai(course: &Course, a: &Ape, from: i32, look: i32, cands: &mut Vec<usize>) {
+    if TEMP_OFF { return; }
+    let Some(g) = course.grocery.as_deref() else {
+        return;
+    };
+    cands.retain(|&v| g.items.iter().all(|it| it.vine != v || it.slot == a.slot));
+    let mut mine: Vec<(i32, usize)> = g
+        .items
+        .iter()
+        .filter(|it| it.slot == a.slot && a.list & (1 << it.zone) == 0)
+        .map(|it| (course.vines[it.vine].at, it.vine))
+        .filter(|&(at, v)| at > from - int(20) && at <= from + look && Some(v) != a.swinging())
+        .collect();
+    mine.sort();
+    if a.pos.y < ITEM_FROM_ABOVE {
+        mine.clear();
+    }
+    for &(_, v) in mine.iter().rev() {
+        cands.retain(|&c| c != v);
+        cands.insert(cands.len().min(1), v);
+    }
+}
+
+/// The AI goes for its item only from higher than this.
+const ITEM_FROM_ABOVE: i32 = int(14);
+
+/// For the AI: what more a landing on vine `v` is worth to ape `a`
+/// (metres along, Q16): `ITEM_WORTH` for its own item's string it has yet
+/// to take.
+pub fn worth_to(course: &Course, a: &Ape, v: usize) -> i64 {
+    if TEMP_OFF { return 0; }
+    let Some(g) = course.grocery.as_deref() else {
+        return 0;
+    };
+    let mine = g
+        .items
+        .iter()
+        .any(|it| it.vine == v && it.slot == a.slot && a.list & (1 << it.zone) == 0);
+    if mine {
+        ITEM_WORTH as i64
+    } else {
+        0
+    }
+}
+
 impl Race {
     /// Clean-Up on Aisle Ape after ape `i`'s step: the item it touched or
     /// caught, if any.
@@ -84,3 +140,5 @@ impl Race {
         self.events.push(Event::Reward { who: i, what });
     }
 }
+
+const TEMP_OFF: bool = false;

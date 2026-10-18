@@ -103,6 +103,10 @@ pub struct Blocker {
     pub to: V3,
     pub out: V3,
     pub wall: usize,
+    /// its drawn top: `BLOCKER_TOP`, or at an item aisle's pocket (GR-T2)
+    /// cases stacked to `STOCK_TOP`, so it is solid to the ceiling and
+    /// nothing flies over into the closed aisle
+    pub top: i32,
 }
 
 /// A blocker's drawn top: a stock cart and its cases (0.75 m real).
@@ -133,6 +137,9 @@ pub enum PostKind {
     Coffin,
     /// a stretch of a checkout counter
     Counter,
+    /// a pole outdoors: the entrance canopy's, a light pole's (drawn with
+    /// the lot, GR-T4)
+    Pole,
 }
 
 /// One of `RavineLayout.rocks`: what it is drawn as, and (for the tables
@@ -181,7 +188,7 @@ pub const LIST_ZONES: usize = 4;
 pub const LIST_SLOTS: usize = 4;
 /// An ape takes its item when its middle comes within this of the item's
 /// middle (plus its body's radius), or when it grabs the item's string.
-pub const ITEM_REACH: i32 = int(4);
+pub const ITEM_REACH: i32 = int(6);
 /// The first and third items an ape takes each add this share of its
 /// kind's top speed, the second and fourth this share of its air
 /// steering, added and not compounded (GR-T2: with all four, 1.5 times

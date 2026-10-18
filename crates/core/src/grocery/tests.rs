@@ -116,10 +116,12 @@ fn every_aisle_is_sealed_under_the_ceiling() {
 const MIDDLE_Z: i32 = layout::MIDDLE;
 
 /// Every vine hangs clear of the walls and posts (its foot and its
-/// middle), from the ceiling, under it.
+/// middle), from the ceiling, under it (out in the lot, no higher than
+/// the light poles' arms).
 #[test]
 fn every_vine_hangs_clear_of_the_shelves() {
     let (c, s) = store();
+    let g = c.grocery.as_deref().unwrap();
     let hit = |q: V3| {
         s.near(q).iter().any(|&k| {
             let sol = &s.list[k as usize];
@@ -127,7 +129,12 @@ fn every_vine_hangs_clear_of_the_shelves() {
         })
     };
     for (i, v) in c.vines.iter().enumerate() {
-        assert!(v.anchor.y <= CEILING_AT, "vine {i} above the ceiling");
+        let top = if g.outside(v.anchor) {
+            layout::LAMP_HEIGHT
+        } else {
+            CEILING_AT
+        };
+        assert!(v.anchor.y <= top, "vine {i} above the ceiling");
         let foot = c.tip(i, 0);
         let mid = c.anchor(i, 0).lerp(foot, ONE / 2);
         assert!(!hit(foot) && !hit(mid), "vine {i} in a solid");
@@ -182,18 +189,20 @@ fn a_shopper_s_head_is_a_moving_bouncer() {
     }
 }
 
-/// The route is about 90 s long: some 2 km.
+/// The route is about 110 s long (the person, GR-T4: the detours and the
+/// lot may grow it from 90 s): some 2.1 km.
 #[test]
 fn the_route_is_about_two_kilometres() {
     let c = grocery();
     let len = c.length / ONE;
-    assert!((1_850..=2_050).contains(&len), "{len} m");
+    assert!((2_000..=2_250).contains(&len), "{len} m");
     assert_eq!(c.path.len() as i32 - 1, c.length / STEP);
 }
 
 /// Every aisle off the route is closed at both mouths (a runner cannot get
-/// in: `ai::walled_off` would leave it no vine), and the route's three are
-/// open from end to end.
+/// in: `ai::walled_off` would leave it no vine), but an item aisle's mouth
+/// on the route, closed `POCKET` in (GR-T2); the route's three are open
+/// from end to end.
 #[test]
 fn the_aisles_off_the_route_are_closed_and_the_route_s_are_open() {
     let (_, s) = store();
@@ -202,9 +211,45 @@ fn the_aisles_off_the_route_are_closed_and_the_route_s_are_open() {
     for a in 1..runs.len() {
         let (w, e) = (runs[a - 1].0, runs[a].0);
         let on_route = ROUTE_AISLES.iter().any(|&(x, _)| x + 1 == a);
-        for z in [FRONT + 4, BACK - 4] {
-            let shut = s.holds(mouth(w, e, z), 0);
-            assert_eq!(shut, !on_route, "aisle {a} at plan z {z}");
+        for (z, back, inward) in [(FRONT, false, 1), (BACK, true, -1)] {
+            let pocket = layout::ITEM_AISLES.contains(&(a, back));
+            let open_to = if pocket { layout::POCKET - 2 } else { 0 };
+            let depths: &[i32] = if pocket {
+                &[4, layout::POCKET - 2, layout::POCKET + 3]
+            } else {
+                &[4]
+            };
+            for &d in depths {
+                let shut = s.holds(mouth(w, e, z + inward * d), 0);
+                let want = !on_route && d > open_to;
+                assert_eq!(shut, want, "aisle {a} at plan z {}", z + inward * d);
+            }
+        }
+    }
+}
+
+/// The shopping list (GR-T2, GR-T3): four zones in the route's order, a
+/// spot for each racer in each, all four spots of a zone in the same
+/// aisle's mouth and as far along as each other (within the aisle's
+/// width), clear of the shelves, each on its own string.
+#[test]
+fn every_racer_has_an_item_in_each_zone_s_aisle() {
+    let (c, s) = store();
+    let g = c.grocery.as_deref().unwrap();
+    assert_eq!(g.items.len(), LIST_ZONES * LIST_SLOTS);
+    let mut last = 0;
+    for zone in 0..LIST_ZONES {
+        let spots: Vec<_> = (0..LIST_SLOTS)
+            .map(|slot| *g.item(zone, slot).expect("a spot"))
+            .collect();
+        let along: Vec<i32> = spots.iter().map(|it| c.vines[it.vine].at).collect();
+        let (lo, hi) = (*along.iter().min().unwrap(), *along.iter().max().unwrap());
+        assert!(lo > last, "zone {zone} comes before zone {}", zone - 1);
+        assert!(hi - lo <= int(45), "zone {zone}'s spots {} m apart", (hi - lo) / ONE);
+        last = hi;
+        for it in &spots {
+            assert!(!s.holds(it.at, BODY_RADIUS + ITEM_REACH / 2), "item {it:?} in a solid");
+            assert_eq!(c.tip(it.vine, 0).y, it.at.y + int(2), "item {it:?} off its string");
         }
     }
 }

@@ -100,7 +100,7 @@ fn posts(cells: &mut Cells, r: &RavineLayout, g: &GroceryLayout) {
             PostKind::Table => m::table(cells.at(k.at), k.at, k.radius, k.height, p.stock),
             PostKind::Bin => m::bin(cells.at(k.at), k.at, k.radius, k.height, p.stock),
             // (drawn whole: `coffins`, `checkouts`)
-            PostKind::Coffin | PostKind::Counter => {}
+            PostKind::Coffin | PostKind::Counter | PostKind::Pole => {}
         }
     }
 }
