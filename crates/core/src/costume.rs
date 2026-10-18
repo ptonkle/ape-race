@@ -36,8 +36,8 @@ pub enum Costume {
     Wizard,
     /// Rattlesnake Ravine's Wild West outfits
     Cowboy,
-    /// Clean-Up on Aisle Ape's snacks
-    Food,
+    /// Clean-Up on Aisle Ape's store uniforms
+    Grocer,
 }
 
 impl Costume {
@@ -53,7 +53,7 @@ impl Costume {
         Costume::Tourist,
         Costume::Wizard,
         Costume::Cowboy,
-        Costume::Food,
+        Costume::Grocer,
     ];
 
     /// The key: the settings' and the messages' word, and `costume.<key>`
@@ -69,7 +69,7 @@ impl Costume {
             Costume::Tourist => "tourist",
             Costume::Wizard => "wizard",
             Costume::Cowboy => "cowboy",
-            Costume::Food => "food",
+            Costume::Grocer => "grocer",
         }
     }
 
@@ -105,7 +105,7 @@ impl Costume {
             Gear::Tourist => Some(Costume::Tourist),
             Gear::Wizard => Some(Costume::Wizard),
             Gear::Cowboy => Some(Costume::Cowboy),
-            Gear::Food => Some(Costume::Food),
+            Gear::Grocer => Some(Costume::Grocer),
         }
     }
 
@@ -121,7 +121,7 @@ impl Costume {
             Costume::Tourist => Gear::Tourist,
             Costume::Wizard => Gear::Wizard,
             Costume::Cowboy => Gear::Cowboy,
-            Costume::Food => Gear::Food,
+            Costume::Grocer => Gear::Grocer,
         }
     }
 
@@ -193,7 +193,7 @@ mod tests {
             assert_eq!(Costume::Tourist.gear(map), Gear::Tourist);
             assert_eq!(Costume::Wizard.gear(map), Gear::Wizard);
             assert_eq!(Costume::Cowboy.gear(map), Gear::Cowboy);
-            assert_eq!(Costume::Food.gear(map), Gear::Food);
+            assert_eq!(Costume::Grocer.gear(map), Gear::Grocer);
         }
         for c in Costume::ALL {
             assert_eq!(Costume::from_key(c.key()), Some(c));

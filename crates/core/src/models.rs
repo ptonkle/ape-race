@@ -28,6 +28,7 @@ use crate::rules::{Kind, BODY_DROP};
 mod cowboy;
 mod flame;
 mod food;
+mod grocer;
 mod spider;
 mod tourist;
 mod wizard;
@@ -78,8 +79,9 @@ pub enum Gear {
     Wizard,
     /// Rattlesnake Ravine's Wild West outfits (`models::cowboy`)
     Cowboy,
-    /// Clean-Up on Aisle Ape's food apes: each kind a snack (`models::food`)
-    Food,
+    /// Clean-Up on Aisle Ape's store uniforms: each kind a job
+    /// (`models::grocer`)
+    Grocer,
 }
 
 impl Gear {
@@ -95,8 +97,8 @@ impl Gear {
             "tourist" => Some(Gear::Tourist),
             "wizard" => Some(Gear::Wizard),
             "cowboy" => Some(Gear::Cowboy),
-            // Clean-Up on Aisle Ape's snacks
-            "food" => Some(Gear::Food),
+            // Clean-Up on Aisle Ape's store uniforms
+            "grocer" => Some(Gear::Grocer),
             _ => None,
         }
     }
@@ -111,7 +113,7 @@ impl Gear {
             crate::map::Map::City => Gear::Tourist,
             crate::map::Map::Tower => Gear::Wizard,
             crate::map::Map::Ravine => Gear::Cowboy,
-            crate::map::Map::Grocery => Gear::Food,
+            crate::map::Map::Grocery => Gear::Grocer,
             _ => Gear::None,
         }
     }
@@ -1190,11 +1192,6 @@ pub fn draw(b: &mut Batch, kind: Kind, pose: &Pose) {
 /// Draws one ape in palette `palette` (TRIAGE T49; 0 is the classic).
 pub fn draw_in(b: &mut Batch, kind: Kind, palette: u8, pose: &Pose) {
     let l = look_in(kind, palette);
-    let l = if pose.gear == Gear::Food {
-        food::look(kind, palette, l)
-    } else {
-        l
-    };
     let m = dims(&l);
     let pose = &dance_turn(kind, pose);
     let mut skel = pose_skel(kind, &l, pose);
@@ -1240,8 +1237,8 @@ pub fn draw_in(b: &mut Batch, kind: Kind, palette: u8, pose: &Pose) {
     if pose.gear == Gear::Cowboy {
         cowboy::cowboy(&mut rig, kind, &l, &m, &skel);
     }
-    if pose.gear == Gear::Food {
-        food::food(&mut rig, kind, palette, &l, &m, &skel, pose);
+    if pose.gear == Gear::Grocer {
+        grocer::grocer(&mut rig, kind, palette, &l, &m, &skel);
     }
     if pose.stunned {
         stars(&mut rig, &skel.head, m.head, pose.tick);
@@ -1430,7 +1427,8 @@ fn limbs(rig: &mut Rig, kind: Kind, l: &Look, m: &Dims, s: &Skel, gear: Gear) {
             gear,
             Gear::Explorer | Gear::Pirate | Gear::Tourist | Gear::Wizard
         )
-        || (gear == Gear::Cowboy && cowboy::kit(kind).top.sleeved());
+        || (gear == Gear::Cowboy && cowboy::kit(kind).top.sleeved())
+        || gear == Gear::Grocer;
     let kit = pirate_kit(kind);
     let pirate = gear == Gear::Pirate;
     for (i, side) in SIDES.into_iter().enumerate() {
@@ -2887,7 +2885,7 @@ fn head(rig: &mut Rig, kind: Kind, l: &Look, h: &Frame, pose: &Pose) {
     let helmeted = matches!(
         pose.gear,
         Gear::Ski | Gear::Explorer | Gear::Pirate | Gear::Tourist | Gear::Wizard | Gear::Cowboy
-    );
+    ) || pose.gear == Gear::Grocer;
     // the skull, and the bare face on its front
     rig.put(Mesh::Geo, h.shape(V3::ZERO, p(100, 94, 96)), l.fur);
     let face_size = match kind {
