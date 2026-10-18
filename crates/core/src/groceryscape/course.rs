@@ -65,16 +65,6 @@ impl Cells {
         }
     }
 
-    /// The store's cells (for the tests' counts).
-    #[cfg(test)]
-    pub fn for_test(g: &GroceryLayout) -> Cells {
-        let (lo, hi) = g.bounds;
-        Cells::new(
-            v3(lo.x.min(hi.x), 0, lo.z.min(hi.z)).sub(v3(int(60), 0, int(60))),
-            v3(lo.x.max(hi.x), 0, lo.z.max(hi.z)).add(v3(int(60), 0, int(60))),
-        )
-    }
-
     /// The batch for a shape at `p`.
     pub fn at(&mut self, p: V3) -> &mut Batch {
         let cx = ((p.x - self.lo.x) / CELL).clamp(0, self.nx - 1);
@@ -136,11 +126,6 @@ pub fn scenery(c: &Course, g: &GroceryLayout) -> Scenery {
     };
     s.bound_chunks();
     s
-}
-
-#[cfg(test)]
-pub fn floor_and_ceiling_for_test(cells: &mut Cells) {
-    floor_and_ceiling(cells);
 }
 
 /// The floor's tiles (two tones, seams, the lights' sheen under each row)

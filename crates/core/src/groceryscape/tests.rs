@@ -52,28 +52,3 @@ fn the_grocery_frame_stays_within_budget() {
         worst.2
     );
 }
-
-#[test]
-#[ignore]
-fn grocery_shapes_by_part() {
-    let c = store();
-    let g = c.grocery.as_deref().unwrap();
-    let r = c.ravine.as_deref().unwrap();
-    let count = |f: &dyn Fn(&mut super::course::Cells)| {
-        let mut cells = super::course::Cells::for_test(g);
-        f(&mut cells);
-        cells.batches.iter().map(|b| b.count()).sum::<usize>()
-    };
-    println!(
-        "floor+ceiling {}",
-        count(&|c| super::course::floor_and_ceiling_for_test(c))
-    );
-    println!("shelves {}", count(&|cl| super::shelves::scenery(cl, r, g)));
-    println!("walls {}", count(&|cl| super::walls::scenery(cl, &c, r, g)));
-    println!(
-        "fixtures {}",
-        count(&|cl| super::fixtures::scenery(cl, &c, r, g))
-    );
-    let w = worst_frame(&c);
-    println!("worst {w:?}");
-}
