@@ -459,11 +459,13 @@ pub(super) fn shopper(
     let (upper, fore) = (u(30), u(29));
     for side in [1, -1] {
         let shoulder = v3(side * u(20), up(140), 0);
-        // the right hand (side −1) holds the string
-        let target = if side == -1 {
-            string.map(to_local).or(handles.map(|h| to_local(h[1])))
+        // the hand nearer the string's end holds it; the other the cart
+        let held = string.map(to_local);
+        let holder = held.map(|e| if e.x < 0 { -1 } else { 1 });
+        let target = if holder == Some(side) {
+            held
         } else {
-            handles.map(|h| to_local(h[0]))
+            handles.map(|h| to_local(if side == 1 { h[0] } else { h[1] }))
         };
         let (elbow, hand) = match target {
             Some(t) => {

@@ -112,7 +112,11 @@ fn a_shopper_keeps_to_the_budget_in_every_look_and_pose_and_holds_the_string() {
     for look in 0..7u8 {
         for yaw in [0, crate::fx::deg(70)] {
             for stride in [0, ONE / 4, ONE / 2, ONE * 3 / 4] {
-                for string in [None, Some(feet.add(v3(-int(3), int(23), int(2))))] {
+                for string in [
+                    None,
+                    Some(feet.add(v3(-int(3), int(23), int(2)))),
+                    Some(feet.add(v3(int(4), int(22), -int(1)))),
+                ] {
                     for cart in [false, true] {
                         let mut b = Batch::new();
                         shopper(&mut b, feet, yaw, look, stride, string, cart);

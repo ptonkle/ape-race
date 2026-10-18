@@ -159,9 +159,10 @@ pub fn product(b: &mut Batch, p: &Product, foot: V3, yaw: i32, detail: Detail) {
 
 /// A shopper standing at `feet`, facing `yaw`, walking (`stride` 0..ONE
 /// round one step cycle; 0 standing). `look` (0..7) picks their clothes,
-/// skin and hair. With `string`, their right hand is raised and holds a
-/// balloon string whose end is there; with `cart`, they push a shopping
-/// cart ahead of them. 20.4 m tall (`grocery::SHOPPER_HEIGHT`).
+/// skin and hair. With `string`, whichever hand is nearer the end is raised
+/// and holds the balloon string there (a balloon shopper walking back has
+/// it on their left); with `cart`, they push a shopping cart ahead of them,
+/// both hands on it (but a string hand). 20.4 m tall (`grocery::SHOPPER_HEIGHT`).
 pub fn shopper(
     b: &mut Batch,
     feet: V3,
