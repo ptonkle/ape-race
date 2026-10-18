@@ -2,8 +2,8 @@
 //! Boosts only, every kind, against the map's medal times (SECOND-ORDER GR8).
 
 use tool_core::ai::{time_trial, Trial};
-use tool_core::map::Map;
 use tool_core::grocery::grocery;
+use tool_core::map::Map;
 use tool_core::rules::{Kind, TICKS_PER_SECOND};
 
 const LIMIT: u32 = 150 * TICKS_PER_SECOND as u32;
