@@ -26,10 +26,11 @@ pub enum Map {
     Bay,
     Tower,
     Ravine,
+    Grocery,
 }
 
 impl Map {
-    pub const ALL: [Map; 8] = [
+    pub const ALL: [Map; 9] = [
         Map::Jungle,
         Map::City,
         Map::Ski,
@@ -38,6 +39,7 @@ impl Map {
         Map::Bay,
         Map::Tower,
         Map::Ravine,
+        Map::Grocery,
     ];
 
     /// The map's key: the course's `name`, the replay library's and the
@@ -52,6 +54,7 @@ impl Map {
             Map::Bay => "bay",
             Map::Tower => "tower",
             Map::Ravine => "ravine",
+            Map::Grocery => "grocery",
         }
     }
 
@@ -77,10 +80,10 @@ impl Map {
     /// is still in `ALL`: it builds, has its caches, and is reached by its
     /// key (settings, replays, online, the tests).
     pub fn held(self) -> bool {
-        // none now: Rattlesnake Ravine was held until its real course and
-        // art landed (SECOND-ORDER RV1), released in 1.15.0
-        let _ = self;
-        false
+        // Rattlesnake Ravine was held until its real course and art
+        // landed (SECOND-ORDER RV1), released in 1.15.0; Clean-Up on Aisle
+        // Ape is held until Peter releases it
+        self == Map::Grocery
     }
 
     /// The maps offered on the map choice and picked by Random: `ALL`
@@ -104,6 +107,7 @@ impl Map {
             Map::Bay => crate::bay::bay(),
             Map::Tower => crate::tower::tower(),
             Map::Ravine => crate::ravine::ravine(),
+            Map::Grocery => crate::grocery::grocery(),
         }
     }
 

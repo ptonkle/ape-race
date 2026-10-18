@@ -365,4 +365,5 @@ per_map! {
     bay => Map::Bay,
     tower => Map::Tower,
     ravine => Map::Ravine,
+    grocery => Map::Grocery,
 }

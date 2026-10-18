@@ -128,6 +128,7 @@ pub fn look(map: Map) -> Look {
         Map::Bay => crate::bayscape::look(),
         Map::Tower => crate::towerscape::look(),
         Map::Ravine => crate::ravinescape::look(),
+        Map::Grocery => crate::groceryscape::look(),
     }
 }
 
@@ -149,6 +150,8 @@ pub fn look_of(c: &Course) -> Look {
         Map::Tower => crate::towerscape::look(),
         // a moonlit night, the moon low ahead of the start
         Map::Ravine => crate::ravinescape::look_for(c),
+        // the store's strip lights
+        Map::Grocery => crate::groceryscape::look_for(c),
     }
 }
 
@@ -157,6 +160,11 @@ pub fn look_of(c: &Course) -> Look {
 /// chamber, and on Rattlesnake Ravine, lit warm in the mine tunnel, teal in
 /// the caves and opening out on the mesa.
 pub fn look_at(c: &Course, eye: V3) -> Look {
+    // (Clean-Up on Aisle Ape's solids are a Ravine layout: its own light
+    // first)
+    if let Some(g) = &c.grocery {
+        return crate::groceryscape::look_at(c, g, eye);
+    }
     if let Some(r) = &c.ravine {
         return crate::ravinescape::look_at(c, r, eye);
     }
@@ -547,6 +555,9 @@ pub fn scenery(c: &Course) -> Scenery {
     }
     if let Some(b) = &c.bay {
         return crate::bayscape::scenery(c, b);
+    }
+    if let Some(g) = &c.grocery {
+        return crate::groceryscape::scenery(c, g);
     }
     if let Some(r) = &c.ravine {
         return crate::ravinescape::scenery(c, r);
@@ -1549,6 +1560,12 @@ pub fn vine_look_on(map: Map, in_reach: bool, vivid: bool, tick: u32) -> VineLoo
             halo: look.width * crate::ravinescape::VINE_HALO,
             ..look
         },
+        // Clean-Up on Aisle Ape's licorice ropes: sour-apple green on the
+        // store's cream (the colourblind mode keeps the shared vivid green)
+        (Map::Grocery, false, false) => VineLook {
+            colour: crate::groceryscape::VINE,
+            ..look
+        },
         // Mape's Tower: spell beams with a soft glow (their colour is the
         // caster's spell, `towerscape::beam_vine`)
         (Map::Tower, false, false) => VineLook {
@@ -1671,7 +1688,9 @@ pub fn dynamic(f: &Frame) -> (Batch, Batch) {
     if let Some(r) = &c.ruins {
         crate::ruinsscape::dynamic(&mut b, c, r, eye, f.tick, tick);
     }
-    if let Some(r) = &c.ravine {
+    if let Some(g) = &c.grocery {
+        crate::groceryscape::dynamic(&mut b, c, g, eye, f.tick, tick, f.vivid);
+    } else if let Some(r) = &c.ravine {
         crate::ravinescape::course::dynamic(&mut b, c, r, eye, f.tick, tick, f.vivid);
     }
     if let Some(bay) = &c.bay {
@@ -1998,6 +2017,9 @@ pub fn catch_up_colour(map: Map, vivid: bool) -> Rgb {
         // Rattlesnake Ravine: a bright cyan against its pale moss-green
         // vines, the red walls and the night
         (Map::Ravine, false) => rgb(40, 230, 255),
+        // Clean-Up on Aisle Ape: a hot magenta against the green licorice
+        // and the store's cream
+        (Map::Grocery, false) => crate::groceryscape::CATCH_UP,
         // the colourblind mode (TRIAGE T33): told from the map's vivid
         // vine by brightness, not hue alone, and kept off the item flowers'
         // violet: a deep red-orange under the bright green vines, a dark
@@ -2012,6 +2034,7 @@ pub fn catch_up_colour(map: Map, vivid: bool) -> Rgb {
         (Map::Bay, true) => crate::bayscape::fleet::CATCH_UP_VIVID,
         (Map::Tower, true) => rgb(230, 70, 0),
         (Map::Ravine, true) => rgb(0, 70, 255),
+        (Map::Grocery, true) => crate::groceryscape::CATCH_UP_VIVID,
     }
 }
 
@@ -2341,6 +2364,8 @@ pub fn preview(c: &Course) -> Preview {
         Map::Tower => crate::towerscape::lobby::preview(c),
         // a fallen log over the start straight, down the canyon to the arch
         Map::Ravine => crate::ravinescape::lobby::preview(c),
+        // the stock cart by the stockroom doors, the back aisle ahead
+        Map::Grocery => crate::groceryscape::lobby::preview(c),
         Map::Jungle => {
             let pl = c.platforms.first();
             let feet = pl.map_or(c.point(int(4)), |p| {
@@ -2378,6 +2403,10 @@ pub fn flyover_camera(c: &Course, ticks: u32, from: i32) -> Camera {
     if c.bay.is_some() {
         return crate::bayscape::lobby::flyover_camera(c, ticks, from);
     }
+    // along the route under the store's ceiling
+    if c.grocery.is_some() {
+        return crate::groceryscape::lobby::flyover_camera(c, ticks, from);
+    }
     // down the slot under the bridges, past the skull, the upper passage
     if c.ravine.is_some() {
         return crate::ravinescape::lobby::flyover_camera(c, ticks, from);
@@ -2407,7 +2436,7 @@ pub fn flyover_camera(c: &Course, ticks: u32, from: i32) -> Camera {
         Map::Ski => int(16),
         Map::Sector => int(20),
         Map::Ruins => int(14),
-        Map::Bay | Map::Tower | Map::Ravine => int(14),
+        Map::Bay | Map::Tower | Map::Ravine | Map::Grocery => int(14),
     };
     let eye = v3(p.x, c.terrain(p.x, p.z) + lift, p.z);
     // down the Ski Slope's hill, the glide looks down it too
@@ -2437,7 +2466,9 @@ pub fn backdrop(b: &mut Batch, c: &Course, eye: V3, tick: u32) {
     if let Some(r) = &c.ruins {
         crate::ruinsscape::dynamic(b, c, r, eye, tick, tick);
     }
-    if let Some(r) = &c.ravine {
+    if let Some(g) = &c.grocery {
+        crate::groceryscape::dynamic(b, c, g, eye, tick, tick, false);
+    } else if let Some(r) = &c.ravine {
         crate::ravinescape::course::dynamic(b, c, r, eye, tick, tick, false);
     }
     // the fleet's flags, crews, fire and barrels round the dock
@@ -2467,7 +2498,9 @@ pub fn flyover_dynamic(c: &Course, tick: u32, vivid: bool, eye: V3) -> (Batch, B
     if let Some(r) = &c.ruins {
         crate::ruinsscape::dynamic(&mut rest, c, r, eye, tick, tick);
     }
-    if let Some(r) = &c.ravine {
+    if let Some(g) = &c.grocery {
+        crate::groceryscape::dynamic(&mut rest, c, g, eye, tick, tick, vivid);
+    } else if let Some(r) = &c.ravine {
         crate::ravinescape::course::dynamic(&mut rest, c, r, eye, tick, tick, vivid);
     }
     if let Some(bay) = &c.bay {

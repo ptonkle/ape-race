@@ -214,6 +214,9 @@ pub struct Course {
     /// Rattlesnake Ravine's solids, built from `ravine` on first use
     /// (`Course::ravine_solids`)
     pub ravine_solids: crate::ravine::SolidsCache,
+    /// Clean-Up on Aisle Ape's fixtures, shoppers, balloons and misters
+    /// (`grocery.rs`); its solids are `ravine`'s. `None` on the other maps
+    pub grocery: Option<Box<crate::grocery::GroceryLayout>>,
 }
 
 /// A straight street of a course with sharp corners (the City). The
@@ -867,6 +870,7 @@ pub(crate) fn centreline(name: &'static str, legs: &[Leg]) -> Course {
         tower: None,
         ravine: None,
         ravine_solids: Default::default(),
+        grocery: None,
     }
 }
 
