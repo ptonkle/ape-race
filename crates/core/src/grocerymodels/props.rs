@@ -83,8 +83,8 @@ pub(super) fn ball_bin(b: &mut Batch, top: V3, radius: i32) {
         0,
     );
     // the wire: upright bars round the side
-    for i in 0..8 {
-        let a = i * TURN / 8;
+    for i in 0..6 {
+        let a = i * TURN / 6;
         let at = v3(mul(sin(a), radius), 0, mul(fx::cos(a), radius));
         fr.rod(b, Mesh::Cube, at, at.add(v3(0, h, 0)), cm(30), frame, 0);
     }
@@ -96,17 +96,11 @@ pub(super) fn ball_bin(b: &mut Batch, top: V3, radius: i32) {
         c += 1;
         fr.put(b, Mesh::Sphere, at, v3(d, d, d), colour, ONE / 6);
     };
-    for ring in 0..2 {
-        let y = part(h, 30 + ring * 32, 100);
-        for i in 0..9 {
-            let a = i * TURN / 9 + ring * TURN / 18 + TURN / 16;
-            let r = radius - d / 2 - cm(20);
-            ball(b, v3(mul(sin(a), r), y, mul(fx::cos(a), r)));
-        }
-    }
+    // (behind the wire only the heap shows from a swing's height: the
+    // rings of balls there were cut for the frame's budget, GR7)
     let rings = [
-        (part(radius, 72, 100), 9, 30),
-        (part(radius, 38, 100), 5, 10),
+        (part(radius, 70, 100), 7, 30),
+        (part(radius, 34, 100), 3, 10),
     ];
     for (r, n, lift) in rings {
         for i in 0..n {

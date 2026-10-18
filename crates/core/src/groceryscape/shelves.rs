@@ -51,7 +51,7 @@ const SET_BACK: i32 = cm(25);
 const BAND_BACK: i32 = cm(160);
 /// Each facing is drawn within this of the eye, each block as one shape
 /// within `BLOCK_REACH`, and beyond that the still bands show.
-pub const FULL_REACH: i32 = int(20);
+pub const FULL_REACH: i32 = int(14);
 pub const BLOCK_REACH: i32 = int(80);
 
 /// One straight stretch of a run's outline, drawn as shelving facing out
@@ -191,6 +191,15 @@ pub fn blocks(f: &Face, level: usize, len_cm: i32, mut each: impl FnMut(Block)) 
     }
 }
 
+/// Whether a face sells one of the route's three aisles (their catalogue
+/// aisles are the runs' indices west of them plus one).
+pub fn on_route(f: &Face) -> bool {
+    crate::grocery::layout::ROUTE_AISLES
+        .iter()
+        .any(|&(w, _)| f.aisle as usize == w + 1)
+        && !f.end
+}
+
 /// The still shelving: every run's faces and ends, its top stock; the
 /// closed aisles' stock carts.
 pub fn scenery(cells: &mut Cells, r: &RavineLayout, g: &GroceryLayout) {
@@ -285,6 +294,9 @@ fn shelf_face(cells: &mut Cells, f: &Face) {
 /// Each shelf's products as bands of their blocks' colours, set back
 /// behind where the near products stand.
 fn bands(cells: &mut Cells, f: &Face, len: i32, yaw: i32) {
+    // (a face on the route's aisles: about 34 m a band; a closed aisle's,
+    // seen only past its stock carts: one band a shelf)
+    let merge = if on_route(f) { 280 } else { 100_000 };
     let len_cm = len * 100 / real_cm(100);
     for level in 0..LEVELS.len() {
         let base = level_y(level);
@@ -308,7 +320,7 @@ fn bands(cells: &mut Cells, f: &Face, len: i32, yaw: i32) {
             );
         };
         blocks(f, level, len_cm, |b| {
-            if run_from >= 0 && b.at - run_from > 280 {
+            if run_from >= 0 && b.at - run_from > merge {
                 flush(cells, run_from, last_end, run_colour, run_h);
                 run_from = -1;
             }
@@ -484,6 +496,9 @@ fn top_stock(cells: &mut Cells, run: &crate::grocery::Gondola, r: &RavineLayout)
         return;
     }
     let width = run.half * 2 - cm(40);
+    let lines_route = crate::grocery::layout::ROUTE_AISLES
+        .iter()
+        .any(|&(w, _)| run.faces.iter().any(|&a| a as usize == w + 1));
     let h = STOCK_TOP - SHELF_TOP;
     // along the middle line, between the outline's ends (the cut ends'
     // middles), in stacks of about 14 m
@@ -507,16 +522,19 @@ fn top_stock(cells: &mut Cells, run: &crate::grocery::Gondola, r: &RavineLayout)
             let l = len / n - cm(30);
             cells.block(v3(c.x, SHELF_TOP + h / 2, c.z), yaw, v3(width, h, l), shade);
             // a printed band on its side, in one of the aisle's colours
-            let ink = AISLES
-                .get(run.faces[(k % 2) as usize] as usize)
-                .and_then(|a| a.products.get(k as usize % a.products.len()))
-                .map_or(KRAFT_DARK, |p| p.colours[0]);
-            cells.block(
-                v3(c.x, SHELF_TOP + h * (1 + (k % 3) as i32) / 5, c.z),
-                yaw,
-                v3(width + cm(20), int(2), l - int(1)),
-                ink,
-            );
+            // (on the runs along the route only: the frame's budget, GR7)
+            if lines_route {
+                let ink = AISLES
+                    .get(run.faces[(k % 2) as usize] as usize)
+                    .and_then(|a| a.products.get(k as usize % a.products.len()))
+                    .map_or(KRAFT_DARK, |p| p.colours[0]);
+                cells.block(
+                    v3(c.x, SHELF_TOP + h * (1 + (k % 3) as i32) / 5, c.z),
+                    yaw,
+                    v3(width + cm(20), int(2), l - int(1)),
+                    ink,
+                );
+            }
             k += 1;
         }
     }
@@ -529,8 +547,28 @@ fn blocker(cells: &mut Cells, b: &crate::grocery::Blocker, k: u32) {
     let len = d.len();
     let mid = b.from.lerp(b.to, ONE / 2).sub(b.out.scale(int(3)));
     let yaw = yaw_of(d);
-    let at = cells.at(mid);
-    m::stock_cart(at, mid, yaw, v3(int(6), BLOCKER_TOP, len - int(2)));
+    // (a plain cart, not `stock_cart`: 22 of them would cost 900 shapes):
+    // a grey deck on wheels, three stacks of cases to `BLOCKER_TOP`
+    cells.block(
+        mid.add(v3(0, cm(90), 0)),
+        yaw,
+        v3(int(6), cm(60), len - int(2)),
+        rgb(120, 124, 130),
+    );
+    for s in [-1, 0, 1] {
+        let c = mid.add(d.norm().scale(s * (len - int(4)) / 3));
+        let shade = if (k as i32 + s) % 2 == 0 {
+            KRAFT
+        } else {
+            KRAFT_DARK
+        };
+        cells.block(
+            c.add(v3(0, cm(120) + (BLOCKER_TOP - cm(120)) / 2, 0)),
+            yaw,
+            v3(int(5), BLOCKER_TOP - cm(120), (len - int(6)) / 3),
+            shade,
+        );
+    }
     // the sign: an A-frame of two yellow boards, in front of the cart
     let s = b
         .from

@@ -32,7 +32,7 @@ use crate::scene::{Chunk, Scenery};
 pub const LIT: i32 = ONE * 2 / 5;
 /// A chunk is drawn while any of it is this near the eye (the fog's far
 /// end, `groceryscape::look`, is nearer still in the aisles).
-pub const REACH: i32 = int(240);
+pub const REACH: i32 = int(200);
 /// The store's chunks: squares this wide.
 const CELL: i32 = int(100);
 
@@ -262,7 +262,7 @@ fn floor_and_ceiling(cells: &mut Cells) {
         );
         z += 15;
     }
-    // the rows of strip lights, north to south over the store every 24 m,
+    // the rows of strip lights, north to south over the store every 32 m,
     // and their sheen on the floor
     let mut x = x0 + 12;
     while x < x1 {
@@ -280,7 +280,7 @@ fn floor_and_ceiling(cells: &mut Cells) {
                 STRIP,
                 ONE,
             );
-            if (x / 24) % 2 == 0 {
+            if (x / 32) % 2 == 0 {
                 cells.push(
                     Mesh::Cube,
                     &placed(at(int(x), mid, cm(3)), 0, v3(int(len), cm(2), int(3))),
@@ -290,7 +290,7 @@ fn floor_and_ceiling(cells: &mut Cells) {
             }
             z += len + 4;
         }
-        x += 24;
+        x += 32;
     }
 }
 

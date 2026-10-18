@@ -243,12 +243,18 @@ fn checkouts(cells: &mut Cells, g: &GroceryLayout) {
             REGISTER,
             LIT,
         );
-        m::aisle_sign(
-            cells.at(pole),
-            pole.add(v3(0, int(31), 0)),
-            yaw_of(across),
-            k as u32 + 1,
+        // (its number light: one lit box, not a sign's 20 shapes)
+        cells.push(
+            Mesh::Cube,
+            &placed(
+                pole.add(v3(0, int(31), 0)),
+                yaw_of(across),
+                v3(int(4), int(3), cm(40)),
+            ),
+            CHECKOUT_BLUE,
+            ONE / 2,
         );
+        let _ = k;
     }
 }
 
@@ -312,14 +318,18 @@ fn hanging_signs(cells: &mut Cells) {
             n if n == RUNS.len() => int(RUNS[n - 1].0 + half(n - 1) + EAST_WALL) / 2,
             n => aisle_x(n - 1, n, int(z)),
         };
-        for (z, yaw) in [
-            (FRONT + 26, yaw_of(NORTH.neg())),
-            (BACK - 26, yaw_of(NORTH)),
-        ] {
+        // (one sign an aisle, at the end the route passes: the front for
+        // the aisles west of the frozen one's, the back for the rest)
+        let ends = if a <= 6 {
+            [(FRONT + 26, yaw_of(NORTH.neg()))]
+        } else {
+            [(BACK - 26, yaw_of(NORTH))]
+        };
+        for (z, yaw) in ends {
             let p = at(x(z), int(z), int(42));
             m::aisle_sign(cells.at(p), p, yaw, a as u32 + 1);
         }
-        if a % 2 == 1 {
+        if a % 3 == 1 {
             let z = (FRONT + BACK) / 2 + if a % 4 == 1 { -60 } else { 60 };
             let p = at(x(z) + int(8), int(z), int(36));
             m::banner(cells.at(p), p, yaw_of(NORTH), a as u32);

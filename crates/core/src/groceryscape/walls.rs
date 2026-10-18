@@ -251,7 +251,7 @@ fn meat(cells: &mut Cells, k: &crate::grocery::Cases, len: i32, yaw: i32, top: i
                 v3(int(3), cm(100), int(4) - cm(40)),
                 MEAT[j % MEAT.len()],
             );
-            a += int(8);
+            a += int(12);
             j += 1;
         }
     }

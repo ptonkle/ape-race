@@ -54,7 +54,7 @@ pub fn look() -> Look {
         sky: CEILING_TILE,
         fog: HAZE,
         // the store's far wall shows down a long aisle, softened
-        fog_range: (int(100), int(300)),
+        fog_range: (int(90), int(250)),
         // the strip lights overhead, a little toward the back of the store
         light_dir: v3(cm(30), cm(100), cm(18)).norm(),
         light: STRIP_LIGHT,
