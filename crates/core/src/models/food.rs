@@ -534,7 +534,7 @@ fn docking(toast: Rgb) -> Rgb {
 
 /// The sandwich cookie: dark wafer all over, a thick band of filling round
 /// the waist and a thinner one at the neck, and the wafer's stamp on the
-/// chest (a raised disc, a ring of dots round a six-petal flower; no
+/// chest and the back (a raised disc, a ring of dots round a six-petal flower; no
 /// letters, no logo). The wafer covers the silver back too.
 fn sandwich_cookie(rig: &mut Rig, l: &Look, m: &Dims, s: &Skel, f: &Flavour) {
     let body = &s.body;
@@ -550,7 +550,7 @@ fn sandwich_cookie(rig: &mut Rig, l: &Look, m: &Dims, s: &Skel, f: &Flavour) {
     // the filling: a thick band round the waist, a ring at the neck
     rig.put(
         Mesh::Hex,
-        body.shape(at(0, 40, 2), at(114, 20, 124)),
+        body.shape(at(0, 40, 2), at(120, 26, 130)),
         f.mark,
     );
     rig.put(
@@ -561,51 +561,53 @@ fn sandwich_cookie(rig: &mut Rig, l: &Look, m: &Dims, s: &Skel, f: &Flavour) {
         ),
         f.mark,
     );
-    // the stamp: a raised disc on the chest with an edge, a ring of
-    // twelve dots and a flower in the middle
-    let face = body.z;
-    let middle = body.at(0, pct(t, 68), pct(d, 58));
-    let across = pct(w, 54);
-    rig.put(
-        Mesh::Hex,
-        rod(
-            middle.sub(face.scale(pct(d, 4))),
-            middle.add(face.scale(pct(d, 3))),
-            across + pct(w, 6),
-        ),
-        f.other,
-    );
-    rig.put(
-        Mesh::Hex,
-        rod(middle, middle.add(face.scale(pct(d, 5))), across),
-        stamp(l.fur, false),
-    );
-    let front = middle.add(face.scale(pct(d, 5)));
-    let r = across * 38 / 100;
-    for i in 0..12 {
-        let a = i * TURN / 12;
-        let p = front
-            .add(body.x.scale(mul(fx::sin(a), r)))
-            .add(body.y.scale(mul(fx::cos(a), r)));
-        rig.ball(p, pct(w, 6), stamp(l.fur, true));
-    }
-    for i in 0..6 {
-        let a = i * TURN / 6;
-        let p = front
-            .add(body.x.scale(mul(fx::sin(a), r / 2)))
-            .add(body.y.scale(mul(fx::cos(a), r / 2)));
+    // the stamp, on the chest and on the back (which the chase camera
+    // sees): a raised disc with an edge, a ring of twelve dots and a
+    // flower in the middle
+    for (y, z, face) in [(68, 58, body.z), (56, -60, body.z.neg())] {
+        let middle = body.at(0, pct(t, y), pct(d, z));
+        let across = pct(w, 54);
         rig.put(
-            Mesh::Octa,
-            Affine {
-                c0: body.x.scale(pct(w, 7)),
-                c1: body.y.scale(pct(w, 7)),
-                c2: face.scale(pct(d, 4)),
-                t: p,
-            },
-            stamp(l.fur, true),
+            Mesh::Hex,
+            rod(
+                middle.sub(face.scale(pct(d, 4))),
+                middle.add(face.scale(pct(d, 3))),
+                across + pct(w, 6),
+            ),
+            f.other,
         );
+        rig.put(
+            Mesh::Hex,
+            rod(middle, middle.add(face.scale(pct(d, 5))), across),
+            stamp(l.fur, false),
+        );
+        let front = middle.add(face.scale(pct(d, 5)));
+        let r = across * 38 / 100;
+        for i in 0..12 {
+            let a = i * TURN / 12;
+            let p = front
+                .add(body.x.scale(mul(fx::sin(a), r)))
+                .add(body.y.scale(mul(fx::cos(a), r)));
+            rig.ball(p, pct(w, 6), stamp(l.fur, true));
+        }
+        for i in 0..6 {
+            let a = i * TURN / 6;
+            let p = front
+                .add(body.x.scale(mul(fx::sin(a), r / 2)))
+                .add(body.y.scale(mul(fx::cos(a), r / 2)));
+            rig.put(
+                Mesh::Octa,
+                Affine {
+                    c0: body.x.scale(pct(w, 7)),
+                    c1: body.y.scale(pct(w, 7)),
+                    c2: face.scale(pct(d, 4)),
+                    t: p,
+                },
+                stamp(l.fur, true),
+            );
+        }
+        rig.ball(front, pct(w, 8), stamp(l.fur, true));
     }
-    rig.ball(front, pct(w, 8), stamp(l.fur, true));
 }
 
 /// The stamp's colour on wafer `fur`: the disc (or, `raised`, its dots and
@@ -780,8 +782,10 @@ fn pretzel(rig: &mut Rig, l: &Look, m: &Dims, s: &Skel, f: &Flavour) {
                     let from = a.lerp(b, ONE * (2 * k + 1) / 6);
                     let to = a.lerp(b, ONE * (2 * k + 2) / 6);
                     rig.blade(
-                        from.add(across.scale(r * 3 / 4)).add(out.scale(face * r)),
-                        to.sub(across.scale(r * 3 / 4)).add(out.scale(face * r)),
+                        from.add(across.scale(r * 3 / 5))
+                            .add(out.scale(face * r * 4 / 5)),
+                        to.sub(across.scale(r * 3 / 5))
+                            .add(out.scale(face * r * 4 / 5)),
                         way,
                         pct(m.arm_w, 26),
                         pct(m.arm_w, 12),
@@ -873,14 +877,16 @@ fn cheese_puff(rig: &mut Rig, l: &Look, m: &Dims, s: &Skel, f: &Flavour, pose: &
         light,
     );
     // the tail
-    for (i, (a, b, wd)) in tail_links(Kind::Proboscis, m, s, pose.tick)
-        .into_iter()
-        .enumerate()
-    {
+    let links = tail_links(Kind::Proboscis, m, s, pose.tick);
+    for (i, &(a, b, wd)) in links.iter().enumerate() {
         rig.put(Mesh::Taper, rod(a, b, pct(wd, 150)), l.fur);
         if i % 2 == 1 {
             rig.ball(b, pct(wd, 140), if i % 4 == 1 { light } else { dark });
         }
+    }
+    // a puff over the pale tuft at its tip
+    if let Some(&(a, b, wd)) = links.last() {
+        rig.ball(b.add(b.sub(a).scale(ONE / 4)), pct(wd, 340), light);
     }
 }
 
@@ -890,7 +896,7 @@ fn cheese_puff(rig: &mut Rig, l: &Look, m: &Dims, s: &Skel, f: &Flavour, pose: &
 /// in pink and white rings.
 fn circus_cookie(rig: &mut Rig, l: &Look, m: &Dims, s: &Skel, f: &Flavour, tick: u32) {
     let (h, hd) = (&s.head, cm(l.head));
-    let bead = pct(hd, 9);
+    let bead = pct(hd, 12);
     let mut k = 0;
     for &(y, round) in &[
         (94, 50),
@@ -1103,7 +1109,8 @@ mod tests {
 
     #[test]
     fn the_sandwich_cookie_is_stamped_with_dots_and_a_flower_round_a_filling_band() {
-        // generic, never a logo: twelve dots, six petals, one middle dot
+        // generic, never a logo: twelve dots, six petals, one middle dot, on
+        // the chest and the back
         let p = Pose {
             gear: Gear::Food,
             ..at_rest()
@@ -1113,7 +1120,7 @@ mod tests {
             let l = look(Kind::Gorilla, palette, look_in(Kind::Gorilla, palette));
             let raised = stamp(l.fur, true);
             let dots = s.iter().filter(|x| x.colour == raised).count();
-            assert_eq!(dots, 12 + 6 + 1, "palette {palette}");
+            assert_eq!(dots, 2 * (12 + 6 + 1), "palette {palette}");
             // the filling: the waist band and the neck ring
             let f = flavour(Kind::Gorilla, palette);
             let fill: Vec<&Shape> = s.iter().filter(|x| x.colour == f.mark).collect();
