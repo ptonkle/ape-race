@@ -118,11 +118,11 @@ pub fn framing(key: &str) -> (V3, i32) {
         let tall = ps.iter().map(|p| p.size_m().y).max().unwrap_or(ONE);
         return (v3(0, tall / 2, 0), (row_len(&ps) / 2).max(tall));
     }
-    match key {
+    let (mid, r) = match key {
         "productgrid" => (v3(0, int(20), 0), int(34)),
-        "shopper" => (v3(0, int(13), 0), int(14)),
+        "shopper" => (v3(0, int(17), 0), int(22)),
         "shoppers" => (v3(0, int(10), 0), int(34)),
-        "shoppercart" => (v3(0, int(10), int(5)), int(15)),
+        "shoppercart" => (v3(0, int(10), 0), int(17)),
         "balloons" => (v3(0, int(6), 0), int(6)),
         "ballbin" => (v3(0, int(5), 0), int(9)),
         "table" => (v3(0, int(9), 0), int(14)),
@@ -136,7 +136,9 @@ pub fn framing(key: &str) -> (V3, i32) {
         "stockcart" => (v3(0, int(5), 0), int(16)),
         "pallet" => (v3(0, int(9), 0), int(22)),
         _ => (V3::ZERO, int(10)),
-    }
+    };
+    // the gallery's camera stands 1.7 radii off: a little more room
+    (mid, r * 3 / 2)
 }
 
 /// Draws gallery model `key` in frame `f` (turning about up) at `tick`.

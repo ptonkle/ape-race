@@ -151,52 +151,42 @@ pub(super) fn cart(b: &mut Batch, foot: V3, yaw: i32) {
     let basket = (u(48), u(95));
     let mid_z = (back + front) / 2;
     let len = front - back;
-    let wall_h = basket.1 - basket.0;
     let wall_y = (basket.0 + basket.1) / 2;
-    // the basket: a floor, wire sides, a front and a back gate
+    // the basket: a wire floor and chrome rails round it at two heights
+    // (open, so the shopper shows through)
     fr.put(
         b,
         Mesh::Cube,
         v3(0, basket.0, mid_z),
         v3(half_w * 2, u(2), len),
-        CHROME,
-        0,
-    );
-    for s in [-1, 1] {
-        fr.put(
-            b,
-            Mesh::Cube,
-            v3(s * (half_w - u(1)), wall_y, mid_z),
-            v3(u(1), wall_h, len),
-            WIRE,
-            0,
-        );
-        fr.rod(
-            b,
-            Mesh::Cyl,
-            v3(s * half_w, basket.1, back),
-            v3(s * half_w, basket.1, front),
-            u(3),
-            CHROME,
-            0,
-        );
-    }
-    fr.put(
-        b,
-        Mesh::Cube,
-        v3(0, wall_y, front - u(1)),
-        v3(half_w * 2, wall_h, u(1)),
         WIRE,
         0,
     );
-    fr.put(
-        b,
-        Mesh::Cube,
-        v3(0, wall_y, back + u(1)),
-        v3(half_w * 2, wall_h, u(1)),
-        shade(WIRE, 92),
-        0,
-    );
+    for (i, y) in [basket.1, wall_y].into_iter().enumerate() {
+        for s in [-1, 1] {
+            fr.rod(
+                b,
+                Mesh::Cyl,
+                v3(s * half_w, y, back),
+                v3(s * half_w, y, front),
+                u(if i == 0 { 3 } else { 2 }),
+                CHROME,
+                0,
+            );
+        }
+        let ends: &[i32] = if i == 0 { &[back, front] } else { &[front] };
+        for &z in ends {
+            fr.rod(
+                b,
+                Mesh::Cyl,
+                v3(-half_w, y, z),
+                v3(half_w, y, z),
+                u(if i == 0 { 3 } else { 2 }),
+                CHROME,
+                0,
+            );
+        }
+    }
     // the bottom rack
     fr.put(
         b,
@@ -304,7 +294,7 @@ pub(super) fn shopper(
         let hip = v3(side * u(10), hip_y, 0);
         let knee = hip.add(swung(s).scale(thigh));
         let ankle = knee.add(swung(s - k).scale(shin));
-        fr.rod(b, Mesh::Taper, hip, knee, u(15), leg_colour, 0);
+        fr.rod(b, Mesh::Taper, hip, knee, u(13), leg_colour, 0);
         fr.rod(b, Mesh::Taper, knee, ankle, u(11), leg_colour, 0);
         fr.put(
             b,
@@ -335,11 +325,13 @@ pub(super) fn shopper(
             0,
         );
     }
-    fr.put(
+    // the torso: a tapered prism turned over, broad at the shoulders
+    fr.turned(
         b,
-        Mesh::Barrel,
-        v3(0, up(122), 0),
-        v3(u(40), u(48), u(24)),
+        Mesh::Taper,
+        v3(0, up(121), 0),
+        Affine::rot_z(fx::HALF),
+        v3(u(40), u(46), u(23)),
         lk.top,
         0,
     );
