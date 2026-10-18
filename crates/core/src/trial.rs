@@ -195,12 +195,16 @@ pub const RAVINE: [u32; 4] = [
     secs(RAVINE_AUTHOR),
 ];
 
-/// Clean-Up on Aisle Ape's target times in hundredths of a second.
-/// STAND-IN (the skeleton): the Ravine's, until its time trial (step 11).
-pub const GROCERY_AUTHOR: u32 = 6_500;
-pub const GROCERY_GOLD: u32 = 7_200;
-pub const GROCERY_SILVER: u32 = 8_200;
-pub const GROCERY_BRONZE: u32 = 9_700;
+/// Clean-Up on Aisle Ape's target times in hundredths of a second (GR8,
+/// 2026-10-18, the 1,854 m route): King Kong alone as a Time Trial
+/// finishes in 75.8-107.2 s by kind, the Orangutan best (75.84 s), the
+/// Gibbon next (82.48 s), the Proboscis slowest, Equal Stats 96.38 s;
+/// `tests/grocery_ai.rs` `grocery_time_trial_report`. Author just under
+/// the best kind, then the Jungle's steps of 7, 10 and 15 s.
+pub const GROCERY_AUTHOR: u32 = 7_500;
+pub const GROCERY_GOLD: u32 = 8_200;
+pub const GROCERY_SILVER: u32 = 9_200;
+pub const GROCERY_BRONZE: u32 = 10_700;
 
 /// Clean-Up on Aisle Ape's target times, in race ticks, slowest first.
 pub const GROCERY: [u32; 4] = [

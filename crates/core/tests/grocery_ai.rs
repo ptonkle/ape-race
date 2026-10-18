@@ -1,0 +1,72 @@
+//! The AI on Clean-Up on Aisle Ape as a Time Trial: King Kong alone, Speed
+//! Boosts only, every kind, against the map's medal times (SECOND-ORDER GR8).
+
+use tool_core::ai::{time_trial, Trial};
+use tool_core::map::Map;
+use tool_core::grocery::grocery;
+use tool_core::rules::{Kind, TICKS_PER_SECOND};
+
+const LIMIT: u32 = 150 * TICKS_PER_SECOND as u32;
+
+fn secs(ticks: u32) -> f64 {
+    ticks as f64 / TICKS_PER_SECOND as f64
+}
+
+fn every_kind(equal: bool) -> Vec<Trial> {
+    let mut kinds: Vec<(Kind, bool)> = Kind::ALL.into_iter().map(|k| (k, false)).collect();
+    if equal {
+        kinds.push((Kind::Chimpanzee, true));
+    }
+    let runs: Vec<_> = kinds
+        .into_iter()
+        .map(|(k, eq)| std::thread::spawn(move || time_trial(grocery(), k, eq, LIMIT)))
+        .collect();
+    runs.into_iter().map(|r| r.join().unwrap()).collect()
+}
+
+/// Clean-Up on Aisle Ape's medal report: every kind and Equal Stats.
+#[test]
+#[ignore]
+fn grocery_time_trial_report() {
+    println!("grocery time trial (last: equal stats)");
+    for t in &every_kind(true) {
+        println!(
+            "  {:<11} finish {:>9}  grabs {:>3}  landings {:>2}  ground {:>5.1} s",
+            format!("{:?}", t.kind),
+            t.finish
+                .map(|f| format!("{:.2} s", secs(f)))
+                .unwrap_or("-".into()),
+            t.grabs,
+            t.landings,
+            secs(t.ground_ticks),
+        );
+    }
+    let medals = tool_core::trial::medals(Map::Grocery).map(secs);
+    println!("medals bronze / silver / gold / author: {medals:.2?}");
+}
+
+/// The store's medals follow its time trial (GR8): the best kind's run
+/// (King Kong alone, Speed Boosts only) beats Gold, and the Author time
+/// is just under it (inside 1.5 s).
+#[test]
+fn the_grocery_medals_follow_its_time_trial() {
+    let best = every_kind(false)
+        .into_iter()
+        .filter_map(|t| t.finish)
+        .min()
+        .expect("some kind finishes");
+    let target = |m| tool_core::trial::target_on(Map::Grocery, m);
+    use tool_core::trial::Medal;
+    assert!(
+        best <= target(Medal::Gold),
+        "best run {:.2} s misses Gold",
+        secs(best)
+    );
+    let author = target(Medal::Author);
+    assert!(
+        author <= best && best - author <= 3 * TICKS_PER_SECOND as u32 / 2,
+        "Author {:.2} s is not just under the best run {:.2} s",
+        secs(author),
+        secs(best)
+    );
+}
