@@ -22,24 +22,25 @@ fn the_grocery_is_held_from_the_map_choice_and_random() {
 }
 
 /// The route's three aisles keep to their aisles' middle lines (bowed as
-/// the runs are) within 3 m, from end to end.
+/// the runs are) within 4 m, from end to end (it rounds the bow's vertex).
 #[test]
 fn the_route_follows_its_three_aisles() {
     let c = grocery();
     let m = marks();
-    for (k, first) in [leg::AISLE_A, leg::AISLE_B, leg::AISLE_C]
+    // (each aisle's legs: the bowed ones five, the frozen aisle one)
+    for (k, (first, legs)) in [(leg::AISLE_A, 5), (leg::AISLE_B, 1), (leg::AISLE_C, 5)]
         .into_iter()
         .enumerate()
     {
         let (w, e) = ROUTE_AISLES[k];
         let mut s = m[first] + 4;
         let mut seen = 0;
-        while s < m[first + 5].min(m[m.len() - 1]) {
+        while s < m[first + legs] {
             let (x, z) = plan_of(c.point(int(s)));
             if z > int(FRONT + 4) && z < int(BACK - 4) {
                 let off = (x - aisle_x(w, e, z)).abs();
                 assert!(
-                    off < int(3),
+                    off < int(4),
                     "aisle {k} at {s} m: {} cm off its middle",
                     off * 100 / ONE
                 );
@@ -48,7 +49,7 @@ fn the_route_follows_its_three_aisles() {
             s += 2;
         }
         assert!(
-            seen > 140,
+            seen > 120,
             "aisle {k}: only {seen} samples between the ends"
         );
     }
@@ -188,4 +189,22 @@ fn the_route_is_about_two_kilometres() {
     let len = c.length / ONE;
     assert!((1_850..=2_050).contains(&len), "{len} m");
     assert_eq!(c.path.len() as i32 - 1, c.length / STEP);
+}
+
+/// Every aisle off the route is closed at both mouths (a runner cannot get
+/// in: `ai::walled_off` would leave it no vine), and the route's three are
+/// open from end to end.
+#[test]
+fn the_aisles_off_the_route_are_closed_and_the_route_s_are_open() {
+    let (_, s) = store();
+    let mouth = |w: i32, e: i32, z: i32| plan(int(w + e) / 2, int(z)).add(v3(0, int(5), 0));
+    let runs = layout::RUNS;
+    for a in 1..runs.len() {
+        let (w, e) = (runs[a - 1].0, runs[a].0);
+        let on_route = ROUTE_AISLES.iter().any(|&(x, _)| x + 1 == a);
+        for z in [FRONT + 4, BACK - 4] {
+            let shut = s.holds(mouth(w, e, z), 0);
+            assert_eq!(shut, !on_route, "aisle {a} at plan z {z}");
+        }
+    }
 }

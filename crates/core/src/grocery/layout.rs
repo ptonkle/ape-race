@@ -12,7 +12,7 @@
 //! into a lens), six gondolas bowed east. An arc of checkout lanes, produce
 //! tables round a misting U-turn, columns, display bins.
 //!
-//! **The route** (1,995 m): out of the stockroom doors in the back-west
+//! **The route** (1,854 m): out of the stockroom doors in the back-west
 //! corner, east along the back aisle, south down aisle 3 (cereal), east
 //! along the front, north up the frozen aisle (6), east along the back,
 //! south down aisle 9 (snacks), east into produce, a wide U-turn round the
@@ -41,51 +41,52 @@ const SEED: u64 = 0x6E0C_E2E5_0001;
 /// draws move).
 const DICE: u64 = 0x4752_4F43_4552;
 
-/// The start, in plan metres: in the back aisle, 90 m short of the corner
+/// The start, in plan metres: in the back aisle, 70 m short of the corner
 /// into aisle 3 (whose middle line is at x 210 where it meets the aisles'
-/// ends), so that the corner's arc (Leg(32, -90), 20.37 m round) brings
+/// ends), so that the corner's arc (Leg(56, -90), 35.65 m round) brings
 /// the route onto it.
-pub const START: (i32, i32) = (cm(9963), int(535));
+pub const START: (i32, i32) = (cm(10435), int(540));
 
 /// The route: straights and bends (metres, degrees; + is left).
 const LEGS: &[Leg] = &[
     Leg(60, 0),   // 0 the start, by the stockroom doors
-    Leg(30, 0),   // 1 the back aisle
-    Leg(32, -90), // 2 into aisle 3
+    Leg(10, 0),   // 1 the back aisle
+    Leg(56, -90), // 2 into aisle 3 (R 36 m: room to swing round the runs' ends)
     Leg(6, -7),   // 3 aisle 3 (cereal), bowed west
-    Leg(150, 0),
-    Leg(12, 14),
-    Leg(150, 0),
-    Leg(6, -7),
-    Leg(32, 90),  // 8 onto the front cross aisle
-    Leg(117, 0),  // 9 east past the checkouts' backs
-    Leg(32, 90),  // 10 into the frozen aisle
-    Leg(334, 0),  // 11 the frozen aisle, north
-    Leg(32, -90), // 12 onto the back aisle
-    Leg(120, 0),  // 13 east under the meat sign
-    Leg(32, -90), // 14 into aisle 9
-    Leg(6, 7),    // 15 aisle 9 (snacks), bowed east
-    Leg(166, 0),  // (its kink at the runs' middles: it starts 12 m further north)
-    Leg(12, -14),
     Leg(134, 0),
+    Leg(12, 14),
+    Leg(134, 0),
+    Leg(6, -7),
+    Leg(2, 0),
+    Leg(56, 90),  // 9 onto the front cross aisle
+    Leg(86, 0),   // 10 east past the checkouts' backs
+    Leg(56, 90),  // 11 into the frozen aisle
+    Leg(286, 0),  // 12 the frozen aisle, north
+    Leg(56, -90), // 13 onto the back aisle
+    Leg(90, 0),   // 14 east under the meat sign
+    Leg(56, -90), // 15 into aisle 9
+    Leg(6, 7),    // 16 aisle 9 (snacks), bowed east
+    Leg(136, 0),
+    Leg(12, -14),
+    Leg(132, 0),
     Leg(6, 7),
-    Leg(24, 0),     // 20 out past the gondolas' ends
-    Leg(32, 90),    // 21 into produce
-    Leg(100, 0),    // 22 east along the produce
-    Leg(170, -180), // 23 the misting U-turn
-    Leg(200, 0),    // 24 the front end, to the doors
+    Leg(2, 0),
+    Leg(56, 90),    // 22 into produce
+    Leg(40, 0),     // 23 east along the produce
+    Leg(198, -180), // 24 the misting U-turn, down into the front end (R 63 m)
+    Leg(160, 0),    // 25 the front end, to the doors
 ];
 
 /// Leg numbers (`Plan.marks`) the art and the tests look up.
 pub mod leg {
     pub const AISLE_A: usize = 3;
-    pub const FRONT: usize = 9;
-    pub const AISLE_B: usize = 11;
-    pub const BACK: usize = 13;
-    pub const AISLE_C: usize = 15;
-    pub const PRODUCE: usize = 22;
-    pub const TURN: usize = 23;
-    pub const FRONT_END: usize = 24;
+    pub const FRONT: usize = 10;
+    pub const AISLE_B: usize = 12;
+    pub const BACK: usize = 14;
+    pub const AISLE_C: usize = 16;
+    pub const PRODUCE: usize = 23;
+    pub const TURN: usize = 24;
+    pub const FRONT_END: usize = 25;
 }
 
 /// Where each leg starts along the route (and, last, its length), metres.
@@ -105,9 +106,9 @@ pub const SOUTH: i32 = 20;
 pub const EAST_WALL: i32 = 762;
 pub const NORTH_WALL: i32 = 570;
 /// The runs' front and back ends, and their middles (bowed `BOW`).
-pub const FRONT: i32 = 190;
+pub const FRONT: i32 = 206;
 pub const BACK: i32 = 510;
-pub const MIDDLE: i32 = 350;
+pub const MIDDLE: i32 = 358;
 pub const BOW: i32 = 20;
 /// A gondola's half thickness, and a freezer run's.
 pub const GONDOLA_HALF: i32 = 5;
@@ -130,6 +131,20 @@ pub const RUNS: [(i32, i32, Run, [u8; 2]); 13] = [
     (601, 1, Run::Shelves, [10, 11]),
     (649, 1, Run::Shelves, [11, 12]),
     (697, 1, Run::Shelves, [12, 13]),
+];
+
+/// The runs' ends cut at an angle where the route turns round them (the
+/// inside of each turn between an aisle and a cross aisle): which run,
+/// which end (0 the front, 2 the back), which face (0 west, 1 east), and how
+/// far up that face the cut starts. A swing round the turn clears the
+/// end; the plan's own ends are angled across the fan.
+pub const CHAMFERS: [(usize, usize, usize, i32); 6] = [
+    (2, 2, 1, 16),
+    (3, 0, 0, 16),
+    (5, 0, 1, 16),
+    (6, 2, 0, 16),
+    (8, 2, 1, 16),
+    (9, 0, 0, 16),
 ];
 
 /// The route's three aisles: between which runs (west, east).
@@ -185,30 +200,29 @@ const COLUMNS: [(i32, i32); 11] = [
 
 /// Produce tables (plan metres, radius): round the U-turn's middle and
 /// beyond its ring, each with a mister.
-const TABLES: [(i32, i32, i32); 7] = [
-    (648, 107, 12),
-    (676, 126, 7),
-    (676, 88, 7),
-    (622, 112, 6),
-    (740, 60, 9),
-    (742, 150, 9),
-    (560, 132, 8),
+const TABLES: [(i32, i32, i32); 6] = [
+    (606, 119, 14),
+    (628, 130, 7),
+    (634, 100, 7),
+    (578, 120, 7),
+    (700, 60, 9),
+    (702, 150, 9),
 ];
 
 /// Display bins (plan metres): kraft cardboard rounds of product on the
 /// corridors' edges.
 const BINS: [(i32, i32, u8); 6] = [
-    (258, 184, 9),
-    (318, 184, 3),
+    (258, 198, 9),
+    (318, 198, 3),
     (420, 180, 10),
     (470, 186, 8),
-    (586, 176, 13),
+    (586, 198, 13),
     (100, 186, 0),
 ];
 
 /// The coffin freezers down the frozen aisle's middle (plan north of their
 /// middles); each is 32 m long, 12 m wide, 11 m tall.
-const COFFINS: [i32; 3] = [300, 350, 400];
+const COFFINS: [i32; 3] = [308, 358, 408];
 
 /// The shoppers' walks (plan metres): from, to, balloons, cart.
 #[allow(clippy::type_complexity)]
@@ -235,7 +249,7 @@ fn walks() -> Vec<((i32, i32), (i32, i32), bool, bool)> {
     // the back aisle and the front cross aisle
     put(((130, 553), (175, 553)), false, true);
     put(((405, 527), (480, 527)), true, false);
-    put(((250, 182), (330, 182)), false, true);
+    put(((250, 195), (330, 195)), false, true);
     // produce, and the front end
     put(((560, 62), (620, 62)), true, false);
     put(((712, 140), (712, 175)), false, true);
@@ -297,8 +311,22 @@ pub fn grocery_seeded(seed: u64) -> Course {
         let line = [FRONT, MIDDLE, BACK].map(|z| plan(run_x(x0, sign, int(z)), int(z)));
         // a loop round its outline, the inside on the right: north up its
         // west face, east over the back, south down its east face
-        let west: Vec<V3> = line.iter().map(|q| q.sub(EAST.scale(half))).collect();
-        let east: Vec<V3> = line.iter().rev().map(|q| q.add(EAST.scale(half))).collect();
+        let mut west: Vec<V3> = line.iter().map(|q| q.sub(EAST.scale(half))).collect();
+        let mut east: Vec<V3> = line.iter().map(|q| q.add(EAST.scale(half))).collect();
+        let k = gondolas.len();
+        for &(run, end, face, cut) in &CHAMFERS {
+            if run != k {
+                continue;
+            }
+            let along = if end == 0 { NORTH } else { NORTH.neg() };
+            let q = if face == 0 {
+                &mut west[end]
+            } else {
+                &mut east[end]
+            };
+            *q = q.add(along.scale(int(cut)));
+        }
+        east.reverse();
         let mut points: Vec<WallPoint> = west
             .iter()
             .chain(east.iter())
@@ -362,6 +390,60 @@ pub fn grocery_seeded(seed: u64) -> Course {
         side: Side::Left,
         depth: cm(150),
     });
+    // the aisles off the route are closed at both ends: a loaded stock
+    // cart across each mouth (an AI that falls by a mouth would run in and
+    // find no vine it can see, `ai::walled_off`)
+    let mut blockers = Vec::new();
+    let mut close = |walls: &mut Vec<Wall>, w: i32, e: i32, z: i32, inward: i32| {
+        // (a box from x `w` to `e`, its face at `z`, `inward` deep into the
+        // aisle, 1 m into the runs either side)
+        let (z0, z1) = (z.min(z + inward), z.max(z + inward));
+        let corners = [
+            (w - 1, z0),
+            (w - 1, z1),
+            (e + 1, z1),
+            (e + 1, z0),
+            (w - 1, z0),
+        ];
+        blockers.push(Blocker {
+            from: p(w, z),
+            to: p(e, z),
+            out: if inward > 0 { NORTH.neg() } else { NORTH },
+            wall: walls.len(),
+        });
+        walls.push(Wall {
+            points: corners
+                .iter()
+                .map(|&(x, z)| WallPoint {
+                    at: p(x, z),
+                    height: BLOCKER_TOP,
+                })
+                .collect(),
+            side: Side::Right,
+            depth: int(3),
+        });
+    };
+    let half = |k: usize| match RUNS[k].2 {
+        Run::Shelves => GONDOLA_HALF,
+        Run::Freezer => FREEZER_HALF,
+    };
+    for a in 0..=RUNS.len() {
+        if ROUTE_AISLES.iter().any(|&(w, _)| w + 1 == a) {
+            continue;
+        }
+        let w = if a == 0 {
+            WEST
+        } else {
+            RUNS[a - 1].0 + half(a - 1)
+        };
+        let e = if a == RUNS.len() {
+            EAST_WALL
+        } else {
+            RUNS[a].0 - half(a)
+        };
+        close(&mut walls, w, e, FRONT + 1, 6);
+        close(&mut walls, w, e, BACK - 1, -6);
+    }
     let cases = vec![
         Cases {
             dept: Dept::Dairy,
@@ -465,7 +547,7 @@ pub fn grocery_seeded(seed: u64) -> Course {
     }
     // the water-case pallet display: exactly the Ravine's sphinx box (its
     // `Finish.sphinx` is always solid), behind the glass's east end
-    let pallet = p(590, 120);
+    let pallet = p(255, 125);
     let finish = Finish {
         sphinx: pallet,
         sphinx_yaw: yaw_of(NORTH),
@@ -527,7 +609,7 @@ pub fn grocery_seeded(seed: u64) -> Course {
         hang(&mut vines, v3(base.x, CEILING_AT, base.z), int(35), at);
     }
     let mut pins = Vec::new();
-    for k in [2, 8, 10, 12, 14, 21] {
+    for k in [2, 9, 11, 13, 15, 22] {
         pins.push(marks[k] - 14);
         pins.push(marks[k + 1] + 5);
     }
@@ -575,15 +657,19 @@ pub fn grocery_seeded(seed: u64) -> Course {
             lanes_at.push(off);
         }
         all.push(here);
-        // a low vine every other station, to climb back up by
+        // a low vine every other station, to climb back up by (further
+        // out where the middle is taken: the frozen aisle's coffins)
         if station % 2 == 1 {
-            let off = dice.range(7, 9) * if dice.below(2) == 0 { -1 } else { 1 };
-            let b = c
-                .point(int(u + 7))
-                .add(right_of(c.heading_at(int(u + 7))).scale(int(off)));
+            let sign = if dice.below(2) == 0 { -1 } else { 1 };
+            let off = dice.range(7, 9) * sign;
             let length = CEILING_AT - int(3) - cm(dice.range(0, 40));
-            if clear(v3(b.x, CEILING_AT - length, b.z), int(3)) {
-                hang(&mut vines, v3(b.x, CEILING_AT, b.z), length, int(u + 7));
+            let s7 = int(u + 7);
+            let spot = [off, 14 * sign, 18 * sign, -14 * sign, -18 * sign]
+                .into_iter()
+                .map(|o| c.point(s7).add(right_of(c.heading_at(s7)).scale(int(o))))
+                .find(|b| clear(v3(b.x, CEILING_AT - length, b.z), int(3)));
+            if let Some(b) = spot {
+                hang(&mut vines, v3(b.x, CEILING_AT, b.z), length, s7);
             }
         }
         // a bin of bouncy balls short of a side lane's vine
@@ -706,6 +792,7 @@ pub fn grocery_seeded(seed: u64) -> Course {
     c.grocery = Some(Box::new(GroceryLayout {
         gondolas,
         cases,
+        blockers,
         posts,
         lanes,
         shoppers,

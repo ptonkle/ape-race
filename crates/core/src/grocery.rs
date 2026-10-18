@@ -91,6 +91,22 @@ pub enum Dept {
     WetRack,
 }
 
+/// A stock cart loaded with cases parked across a closed aisle's mouth (a
+/// wet-floor sign beside it: a clean-up on that aisle): `from` and `to`
+/// its face toward the cross aisle on the floor, `out` toward it. Solid as
+/// its wall, `wall` in `RavineLayout.walls`, `BLOCKER_TOP` tall (so its
+/// solid stands 10 m higher: a runner cannot get into the aisle).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Blocker {
+    pub from: V3,
+    pub to: V3,
+    pub out: V3,
+    pub wall: usize,
+}
+
+/// A blocker's drawn top: a stock cart and its cases (0.75 m real).
+pub const BLOCKER_TOP: i32 = int(9);
+
 /// A run of cases along a store wall, from `from` to `to` (the cases' front
 /// on the floor), `out` into the store (flat, unit). The store's wall is
 /// solid from the cases' front (`RavineLayout.walls`); the cases and the
@@ -161,6 +177,7 @@ pub struct Mister {
 pub struct GroceryLayout {
     pub gondolas: Vec<Gondola>,
     pub cases: Vec<Cases>,
+    pub blockers: Vec<Blocker>,
     pub posts: Vec<Post>,
     pub lanes: Vec<Lane>,
     pub shoppers: Vec<Shopper>,

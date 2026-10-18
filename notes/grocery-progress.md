@@ -5,11 +5,11 @@ The standard map-build steps (MAPS.md "Build steps"), one row each. Status is on
 | # | Step | Status | Notes |
 | --- | --- | --- | --- |
 | 1 | Brief and answers | Done (defaults) | `briefs/clean-up-on-aisle-ape.md`; `notes/grocery-pitfalls.md`; decisions GR-Q1–Q12 put to the person with defaults, building on the defaults |
-| 2 | Skeleton and contract | In progress | |
-| 3 | Ape costumes | Not started | |
-| 4 | Models | Not started | |
+| 2 | Skeleton and contract | Done | `Map::Grocery` held; `GroceryLayout` (`grocery.rs`) with the store's solids as a Ravine layout; the models' contract (`grocerymodels.rs`) and the 94-product catalogue; SECOND-ORDER GR1–GR5 |
+| 3 | Ape costumes | In progress (background agent, own worktree) | the food apes and the gummy jaguar |
+| 4 | Models | In progress (background agent, own worktree) | products, shoppers, balloons, signs, props |
 | 5 | Sky and lighting | Not started | |
-| 6 | Course layout | Not started | |
+| 6 | Course layout | In progress | 1,854 m: back aisle, cereal aisle, front, frozen aisle, back, snack aisle, produce U-turn, the front-end vestibule; radius-36 turns, angled run ends, closed side aisles. 16 layouts: King Kong 16/16 (87.0 s), Ape 15/16 (105.7 s), Sloth 11/16 (131.8 s); SECOND-ORDER GR6 |
 | 7 | Map rules | Not started | |
 | 8 | Art placed on the course | Not started | |
 | 9 | Lobby spot and flyover | Not started | |
