@@ -223,6 +223,10 @@ const BINS: [(i32, i32, u8); 6] = [
 /// The coffin freezers down the frozen aisle's middle (plan north of their
 /// middles); each is 32 m long, 12 m wide, 11 m tall.
 const COFFINS: [i32; 3] = [308, 358, 408];
+/// A coffin freezer's top over the floor.
+pub const COFFIN_TOP: i32 = int(11);
+/// The lobby spot's plan north: on the middle coffin, toward its south end.
+const LOBBY_Z: i32 = 350;
 
 /// The shoppers' walks (plan metres): from, to, balloons, cart.
 #[allow(clippy::type_complexity)]
@@ -519,7 +523,7 @@ pub fn grocery_seeded(seed: u64) -> Course {
                 &mut rocks,
                 plan(frozen_x(z + k), zz),
                 int(6),
-                int(11),
+                COFFIN_TOP,
                 PostKind::Coffin,
                 0,
             );
@@ -764,7 +768,13 @@ pub fn grocery_seeded(seed: u64) -> Course {
     }
 
     let doors = (p(410, SOUTH), NORTH.neg());
-    let lobby = (c.starts[0], c.start_yaw);
+    // the lobby: on the frozen aisle's floor beside the middle coffin
+    // freezer, facing the front (the camera before it; the aisle's lens of
+    // glass doors, the coffins, the shoppers and the meat sign behind)
+    let lobby = (
+        plan(aisle_x(5, 6, int(LOBBY_Z)) - int(20), int(LOBBY_Z)).add(v3(0, BODY_DROP, 0)),
+        yaw_of(NORTH.neg()),
+    );
     c.ravine = Some(Box::new(RavineLayout {
         walls,
         rooms,

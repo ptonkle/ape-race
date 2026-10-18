@@ -348,6 +348,9 @@ impl App {
                 (Some(bay), _, _) => !crate::bayscape::lobby::start_row(c, bay, i),
                 // Mape's Tower: the start's beams too (TL1)
                 (_, Some(t), _) => !crate::towerscape::lobby::hidden_in_lobby(c, t, i),
+                // (Clean-Up on Aisle Ape's solids are a Ravine layout: every
+                // vine shows in its lobby)
+                (_, _, Some(_)) if c.grocery.is_some() => true,
                 // Rattlesnake Ravine: the lobby bridge's own vines (RL1)
                 (_, _, Some(r)) => !crate::ravinescape::lobby::hidden_in_lobby(c, r, i),
                 _ => true,
