@@ -1,18 +1,22 @@
 //! The model gallery's grocery keys (`?gallery=<key>`), drawn under the
 //! store's strip lights.
 
+use super::outside::{
+    balloon_weight, banana_logo, canopy, car, corral, doors, ice_wall, lamp_post, list_item,
+    low_ceiling, order_bag, plane, sign_arm,
+};
 use super::{
     aisle_sign, ball_bin, balloons, banner, bin, cart, dept_sign, mister, pallet, product, shopper,
     stock_cart, table, Detail, Front, Product, Shape, AISLES,
 };
-use crate::fx::{int, ONE};
+use crate::fx::{cm, int, ONE};
 use crate::geom::{v3, yaw_of, Affine, V3};
 use crate::mesh::Mesh;
-use crate::render::{rgb, rod, Batch, Rgb};
+use crate::render::{placed, rgb, rod, Batch, Rgb};
 use crate::rules::TICKS_PER_SECOND as TPS;
 use crate::scene::Look;
 
-pub const GALLERY: [&str; 32] = [
+pub const GALLERY: [&str; 45] = [
     "product",
     "fronts",
     "productgrid",
@@ -45,6 +49,19 @@ pub const GALLERY: [&str; 32] = [
     "cart",
     "stockcart",
     "pallet",
+    "logo",
+    "listitems",
+    "orderbag",
+    "plane",
+    "cars",
+    "lamppost",
+    "corral",
+    "canopy",
+    "doors",
+    "lowceiling",
+    "icewall",
+    "signarm",
+    "balloonweight",
 ];
 
 /// The store's light, bright, for the gallery.
@@ -135,6 +152,19 @@ pub fn framing(key: &str) -> (V3, i32) {
         "cart" => (v3(0, int(6), 0), int(8)),
         "stockcart" => (v3(0, int(5), 0), int(16)),
         "pallet" => (v3(0, int(9), 0), int(22)),
+        "logo" => (v3(int(3), int(6), 0), int(8)),
+        "listitems" => (v3(0, int(5), 0), int(18)),
+        "orderbag" => (v3(0, int(3), 0), int(4)),
+        "plane" => (v3(0, -int(6), 0), int(34)),
+        "cars" => (v3(0, int(8), 0), int(62)),
+        "lamppost" => (v3(int(6), int(32), 0), int(32)),
+        "corral" => (v3(0, int(10), 0), int(26)),
+        "canopy" => (v3(0, int(16), 0), int(46)),
+        "doors" => (v3(0, int(20), 0), int(46)),
+        "lowceiling" => (v3(0, int(44), 0), int(44)),
+        "icewall" => (v3(0, int(9), 0), int(32)),
+        "signarm" => (v3(0, int(42), 0), int(14)),
+        "balloonweight" => (v3(0, int(2), 0), int(3)),
         _ => (V3::ZERO, int(10)),
     };
     // the gallery's camera stands 1.7 radii off: a little more room
@@ -234,6 +264,107 @@ pub fn gallery(b: &mut Batch, key: &str, f: &Affine, tick: u32) {
         "pallet" => {
             let size = crate::ravinemodels::SPHINX_SIZE;
             pallet(b, at(0, 0, size.z / 2), yaw);
+        }
+        _ => outside(b, key, f, tick),
+    }
+}
+
+/// The second pass's models (`outside.rs`).
+fn outside(b: &mut Batch, key: &str, f: &Affine, tick: u32) {
+    let yaw = yaw_of(f.c2);
+    let at = |x: i32, y: i32, z: i32| f.apply(v3(x, y, z));
+    let across = f.c0;
+    match key {
+        "logo" => {
+            // big, and small beside it (a uniform's size)
+            let big = f.then(&Affine::translate(v3(0, int(6), 0)));
+            banana_logo(b, &big, int(5));
+            let small = f.then(&Affine::translate(v3(int(8), int(3), 0)));
+            banana_logo(b, &small, cm(60));
+        }
+        "listitems" => {
+            // lit along the top, unlit under them
+            for z in 0..4u8 {
+                let x = int(10) * z as i32 - int(15);
+                list_item(b, at(x, int(9), 0), z, true, tick);
+                list_item(b, at(x, int(2), 0), z, false, tick);
+            }
+        }
+        "orderbag" => order_bag(b, at(0, 0, 0), yaw),
+        "plane" => {
+            let hook = at(0, -int(22), -int(2));
+            plane(b, at(0, 0, 0), yaw, 0, 0, tick, Some(hook));
+        }
+        "cars" => {
+            for look in 0..8u8 {
+                let x = int(30) * (look as i32 % 4) - int(45);
+                let z = if look < 4 { int(36) } else { -int(36) };
+                car(b, at(x, 0, z), yaw, look);
+            }
+        }
+        "lamppost" => lamp_post(b, at(0, 0, 0), int(60), at(int(12), int(60), 0)),
+        "corral" => corral(b, at(0, 0, -int(22)), at(0, 0, int(22))),
+        "canopy" => {
+            // axis-aligned by its contract (it does not turn); the store's
+            // front stood in by a wall at the most x
+            canopy(
+                b,
+                v3(-int(18), 0, -int(40)),
+                v3(int(18), 0, int(40)),
+                int(30),
+            );
+            b.push(
+                Mesh::Cube,
+                &placed(v3(int(19), int(26), 0), 0, v3(int(2), int(52), int(90))),
+                rgb(214, 210, 200),
+                0,
+            );
+        }
+        "doors" => {
+            // shut and open, each in a stand-in for the store's front wall
+            for (x, open) in [(-int(30), 0), (int(30), ONE)] {
+                let mid = at(x, 0, 0);
+                doors(b, mid, across, int(36), int(34), open);
+                for s in [-1, 1] {
+                    let side = mid.add(across.scale(s * int(28)));
+                    b.push(
+                        Mesh::Cube,
+                        &placed(
+                            side.add(v3(0, int(22), 0)),
+                            yaw,
+                            v3(int(18), int(44), int(2)),
+                        ),
+                        rgb(214, 210, 200),
+                        0,
+                    );
+                }
+            }
+        }
+        "lowceiling" => low_ceiling(b, at(0, 0, 0), f.c2, int(35), int(35), int(40)),
+        "icewall" => ice_wall(b, at(-int(40), 0, 0), at(int(40), 0, 0), int(5), int(18)),
+        "signarm" => {
+            let anchor = at(0, int(40), 0);
+            sign_arm(b, anchor, across);
+            b.push(
+                Mesh::Cyl,
+                &rod(anchor, anchor.add(across.scale(int(12))), cm(30)),
+                VINE,
+                0,
+            );
+        }
+        "balloonweight" => {
+            let foot = at(0, 0, 0);
+            balloon_weight(b, foot);
+            b.push(
+                Mesh::Cyl,
+                &rod(
+                    foot.add(v3(0, cm(250), 0)),
+                    foot.add(v3(0, int(8), 0)),
+                    cm(12),
+                ),
+                VINE,
+                0,
+            );
         }
         _ => {}
     }
