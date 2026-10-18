@@ -52,6 +52,16 @@ Settings: Volume, Colourblind Mode (the world goes grey, the vines stay vivid, t
 
 Colours: beside the ape picker on Race Setup, Time Trial and the online lobby, each ape has four palettes (Classic and three alternates, e.g. the Gorilla's Silverback, Mountain Brown and Snowflake). Each ape remembers its own; online, everyone sees your choice, and replays keep it. An AI ape of a kind already racing wears another palette.
 
+## Make your own map
+
+The maps are built with Claude Code, one step at a time, and everything it needs is in this repo:
+
+1. Clone it, run `./scripts/setup.sh` (browsers for the checks, cargo-nextest) and `./scripts/build.sh`, then open Claude Code in the folder.
+2. Write a brief for your map in `briefs/<name>.md` (look at `briefs/rattlesnake-ravine.md`: the setting, the look, what's special, the finish), and ask Claude to build it.
+3. Claude follows `MAPS.md`: 19 build steps from the skeleton to the full checks, the common gotchas from every map so far, and a progress table in `notes/<map>-progress.md`. Older lessons are in `notes/maps-archive.md`.
+4. The steps are done by agents with fixed roles in `.claude/agents/` (`map-skeleton`, `map-course`, `map-rules`, `map-models`, `map-costumes`, `map-art`, and helpers); `/progress-report` shows where the build is. `.claude/skills/design-journal` keeps a screenshot journal of how it looks.
+5. Every map gets the standard checks in `crates/core/tests/map_checks.rs` (a drawn, solid start; a finish that counts anywhere across the line). Run `./scripts/quick-check.sh` while you work and `./scripts/check.sh` before you share it; `./scripts/watch-check.sh <log> -- <check>` shows progress in a window.
+
 ## Build, test and serve
 
 ```bash

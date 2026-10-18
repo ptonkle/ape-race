@@ -5,3 +5,4 @@ __pycache__/
 /mutants.out*/
 /.claude/*
 !/.claude/skills/
+!/.claude/agents/
