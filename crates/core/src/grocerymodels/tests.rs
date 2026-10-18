@@ -259,3 +259,273 @@ fn a_produce_pile_stays_within_three_metres_of_its_table() {
         );
     }
 }
+
+// ---------------------------------------------------------------------------
+// The second pass's models (`outside.rs`).
+
+/// Every shape's glow in `b` (its halos left out).
+fn glows(mut b: Batch) -> Vec<i32> {
+    let _ = b.take_halos();
+    let (v, _) = b.finish(0);
+    v.chunks(crate::render::INSTANCE_VALUES)
+        .map(|s| s[15])
+        .collect()
+}
+
+#[test]
+fn the_logo_is_at_most_twelve_shapes_flat_and_inside_its_ring() {
+    for r in [crate::fx::cm(60), int(5)] {
+        let mut b = Batch::new();
+        banana_logo(&mut b, &Affine::IDENTITY, r);
+        let all = shapes(b);
+        assert!(all.len() <= 12, "logo {r}: {} shapes", all.len());
+        let (lo, hi) = bounds(&all);
+        assert!(
+            lo.x >= -r - SLACK && hi.x <= r + SLACK && lo.y >= -r - SLACK && hi.y <= r + SLACK,
+            "logo {r} spills out of its ring: {lo:?}..{hi:?}"
+        );
+        assert!(hi.z - lo.z <= r / 4, "logo {r} {} thick", hi.z - lo.z);
+    }
+}
+
+#[test]
+fn a_list_item_lit_glows_with_a_halo_and_sparkles_and_unlit_is_dim() {
+    let at = v3(int(5), int(30), -int(8));
+    for zone in 0..4u8 {
+        let mut b = Batch::new();
+        list_item(&mut b, at, zone, true, 77);
+        let halos = b.take_halos().count();
+        let n = b.count();
+        assert!(n <= 20, "item {zone} lit: {n} shapes");
+        assert!(halos >= 1, "item {zone} lit: no halo");
+        assert!(
+            glows(b).iter().all(|g| *g == ONE),
+            "item {zone} lit: a part not glowing"
+        );
+        let mut b = Batch::new();
+        list_item(&mut b, at, zone, false, 77);
+        assert_eq!(b.take_halos().count(), 0, "item {zone} unlit: a halo");
+        let mut c = Batch::new();
+        list_item(&mut c, at, zone, false, 77);
+        let (lo, hi) = bounds(&shapes(c));
+        assert!(
+            glows(b).iter().all(|g| *g == 0),
+            "item {zone} unlit: glowing"
+        );
+        let tall = hi.y - lo.y;
+        assert!(
+            (int(3) + crate::fx::cm(50)..=int(4) + crate::fx::cm(60)).contains(&tall),
+            "item {zone}: {tall} tall"
+        );
+        assert!(
+            (lo.y - (at.y - tall / 2)).abs() < crate::fx::cm(80),
+            "item {zone} not round its middle: {lo:?}..{hi:?}"
+        );
+        // its sparkles twinkle (and it turns)
+        let mut a = Batch::new();
+        list_item(&mut a, at, zone, true, 0);
+        let mut z = Batch::new();
+        list_item(&mut z, at, zone, true, 60);
+        assert_ne!(shapes(a), shapes(z), "item {zone} still");
+    }
+}
+
+#[test]
+fn the_order_bag_stands_on_its_foot_about_four_metres_tall() {
+    let foot = v3(int(3), int(10), int(4));
+    let mut b = Batch::new();
+    order_bag(&mut b, foot, crate::fx::deg(30));
+    let all = shapes(b);
+    assert!(all.len() <= 30, "bag: {}", all.len());
+    let (lo, hi) = bounds(&all);
+    assert!(lo.y >= foot.y - SLACK, "bag under its foot: {}", lo.y);
+    assert!(
+        (int(4)..=int(6) + crate::fx::cm(50)).contains(&(hi.y - foot.y)),
+        "bag {} tall",
+        hi.y - foot.y
+    );
+}
+
+#[test]
+fn the_plane_is_sixty_metres_across_its_propeller_turns_and_its_line_reaches_the_hook() {
+    let at = v3(0, int(80), 0);
+    let hook = at.add(v3(int(2), -int(25), -int(3)));
+    let mut b = Batch::new();
+    plane(&mut b, at, 0, 0, 0, 10, Some(hook));
+    let halos = b.take_halos().count();
+    let all = shapes(b);
+    assert!(all.len() <= 60, "plane: {}", all.len());
+    assert!(halos <= 2);
+    let (lo, hi) = bounds(&all);
+    let span = hi.x - lo.x;
+    assert!(
+        (span - int(60)).abs() <= crate::fx::cm(150),
+        "plane spans {span}"
+    );
+    assert!(
+        lo.y <= hook.y + SLACK && lo.y >= hook.y - int(2),
+        "the hook at {} but the plane's lowest {}",
+        hook.y,
+        lo.y
+    );
+    let mut none = Batch::new();
+    plane(&mut none, at, 0, 0, 0, 10, None);
+    assert!(
+        bounds(&shapes(none)).0.y > at.y - int(8),
+        "a line without a hook"
+    );
+    let mut later = Batch::new();
+    plane(&mut later, at, 0, 0, 0, 11, Some(hook));
+    assert_ne!(shapes(later), all, "the propeller still");
+    // nose up: its front (the shape farthest forward) climbs
+    let mut up = Batch::new();
+    plane(&mut up, at, 0, crate::fx::deg(20), 0, 10, None);
+    let up = shapes(up);
+    let nose = up.iter().max_by_key(|a| a.t.z).map_or(0, |a| a.t.y);
+    assert!(nose > at.y + int(3), "pitch did not lift the nose: {nose}");
+}
+
+#[test]
+fn every_car_look_fills_the_car_box_exactly_in_at_most_24_shapes() {
+    let (len, wid, h) = crate::grocery::CAR_SIZE;
+    for look in 0..8u8 {
+        let mut b = Batch::new();
+        car(&mut b, V3::ZERO, 0, look);
+        let all = shapes(b);
+        assert!(all.len() <= 24, "car {look}: {}", all.len());
+        let (lo, hi) = bounds(&all);
+        assert!(
+            fills(lo, hi, v3(-wid / 2, 0, -len / 2), v3(wid / 2, h, len / 2)),
+            "car {look} spans {lo:?}..{hi:?}"
+        );
+    }
+}
+
+#[test]
+fn a_lamp_post_stands_on_its_foot_and_its_head_hangs_over_the_arm() {
+    let foot = v3(int(4), 0, int(9));
+    let arm = foot.add(v3(int(10), int(60), -int(4)));
+    let mut b = Batch::new();
+    lamp_post(&mut b, foot, int(60), arm);
+    let all = shapes(b);
+    assert!(all.len() <= 10, "lamp: {}", all.len());
+    let (lo, hi) = bounds(&all);
+    assert!(lo.y >= -SLACK && hi.y <= int(62), "lamp {lo:?}..{hi:?}");
+    assert!(
+        all.iter()
+            .any(|a| a.t.flat().dist(arm.flat()) < crate::fx::cm(10)
+                && (a.t.y - arm.y).abs() < int(1)),
+        "no lamp head at the arm"
+    );
+}
+
+#[test]
+fn corrals_canopies_doors_and_ceilings_keep_to_their_budgets() {
+    for len in [12, 30, 44, 80] {
+        let mut b = Batch::new();
+        corral(&mut b, v3(0, 0, 0), v3(int(len), 0, int(3)));
+        assert!(b.count() <= 40, "corral {len} m: {}", b.count());
+    }
+    for (dx, dz) in [(30, 60), (40, 140)] {
+        let (a, c) = (v3(-int(dx), 0, 0), v3(0, 0, int(dz)));
+        let mut b = Batch::new();
+        canopy(&mut b, a, c, int(30));
+        let all = shapes(b);
+        assert!(all.len() <= 30, "canopy {dx}×{dz}: {}", all.len());
+        let (lo, hi) = bounds(&all);
+        assert!(
+            lo.x >= a.x - int(1) && hi.x <= c.x + SLACK && lo.z >= -SLACK && hi.z <= c.z + SLACK,
+            "canopy spans {lo:?}..{hi:?}"
+        );
+    }
+    let along = v3(0, 0, ONE);
+    let draw = |open: i32| {
+        let mut b = Batch::new();
+        doors(&mut b, V3::ZERO, along, int(36), int(34), open);
+        shapes(b)
+    };
+    let (shut, open) = (draw(0), draw(ONE));
+    assert!(shut.len() <= 20 && open.len() <= 20, "doors {}", shut.len());
+    // open, the leaves are out of the opening (in the wall)
+    let half = int(18);
+    let leaves = |all: &[Affine]| {
+        all.iter()
+            .filter(|a| a.t.y < int(34) && a.t.z.abs() < half)
+            .count()
+    };
+    assert!(leaves(&shut) > leaves(&open) + 3, "the doors did not open");
+    for (hw, hl) in [(35, 35), (35, 40), (60, 120)] {
+        let mut b = Batch::new();
+        let (w, l) = (int(hw), int(hl));
+        low_ceiling(&mut b, v3(int(9), 0, 0), v3(0, 0, ONE), w, l, int(40));
+        let all = shapes(b);
+        assert!(all.len() <= 60, "ceiling {hw}×{hl}: {}", all.len());
+        let (lo, hi) = bounds(&all);
+        let near = crate::fx::cm(25);
+        assert!(
+            lo.y >= int(40) - near
+                && hi.y <= crate::grocery::CEILING_AT + SLACK
+                && lo.z >= -l - near
+                && hi.z <= l + near,
+            "ceiling {hw}×{hl} spans {lo:?}..{hi:?}"
+        );
+    }
+}
+
+#[test]
+fn the_ice_wall_fills_its_box_exactly_in_at_most_60_shapes() {
+    for (len, half, top) in [(80, 5, 18), (30, 7, 12), (120, 4, 20)] {
+        let (from, to) = (v3(-int(len) / 2, 0, int(6)), v3(int(len) / 2, 0, int(6)));
+        let mut b = Batch::new();
+        ice_wall(&mut b, from, to, int(half), int(top));
+        let all = shapes(b);
+        assert!(all.len() <= 60, "ice {len}: {}", all.len());
+        let (lo, hi) = bounds(&all);
+        assert!(
+            fills(
+                lo,
+                hi,
+                v3(from.x, 0, int(6) - int(half)),
+                v3(to.x, int(top), int(6) + int(half))
+            ),
+            "ice {len}×{half}×{top} spans {lo:?}..{hi:?}"
+        );
+    }
+}
+
+#[test]
+fn the_sign_arm_hangs_from_the_ceiling_and_the_weight_sits_on_its_foot() {
+    let anchor = v3(int(3), int(38), -int(7));
+    let mut b = Batch::new();
+    sign_arm(&mut b, anchor, v3(ONE, 0, 0));
+    let all = shapes(b);
+    assert!(all.len() <= 40, "sign arm: {}", all.len());
+    let (lo, hi) = bounds(&all);
+    assert!(
+        (hi.y - crate::grocery::CEILING_AT).abs() <= SLACK,
+        "chains to {}",
+        hi.y
+    );
+    assert!(
+        hi.x <= anchor.x + crate::fx::cm(50),
+        "the sign past the rope's way: {hi:?}"
+    );
+    assert!(
+        lo.x < anchor.x - int(5),
+        "the sign is not behind its arm: {lo:?}"
+    );
+    assert!(
+        all.iter().any(|a| a.t.dist(anchor) < crate::fx::cm(5)),
+        "nothing at the anchor"
+    );
+    let at = v3(int(2), int(1), int(3));
+    let mut b = Batch::new();
+    balloon_weight(&mut b, at);
+    let all = shapes(b);
+    assert!(all.len() <= 8, "weight: {}", all.len());
+    let (lo, hi) = bounds(&all);
+    assert!(
+        (lo.y - at.y).abs() <= SLACK && hi.y - at.y <= int(3),
+        "weight spans {lo:?}..{hi:?}"
+    );
+}
