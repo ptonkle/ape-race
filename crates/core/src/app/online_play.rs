@@ -273,6 +273,11 @@ impl App {
                         if let Some(o) = &mut self.online.session {
                             let _ = o.set_costume(c, now);
                         }
+                    } else if let Some(o) = &mut self.online.session {
+                        // lent for this lobby only, not kept (GR-T11)
+                        if Self::lent_in(c, &o.lobby()) {
+                            let _ = o.set_costume(c, now);
+                        }
                     }
                 }
             }
@@ -304,6 +309,7 @@ impl App {
                         }
                     }
                 }
+                self.return_lent_costume();
             }
             "lobby.equal" => {
                 let on = value == "on";
@@ -408,6 +414,8 @@ impl App {
             "disconnected" => o.peer_left(peer, now),
             _ => {}
         }
+        // (the host may have moved the lobby off Aisle Ape, GR-T11)
+        self.return_lent_costume();
     }
 
     /// A code for the pasted-code path, from the page's transport.
@@ -714,7 +722,7 @@ impl App {
                     "value": self.settings.kind.key(), "options": kinds,
                     "text": ape(self.settings.kind) }),
             self.palette_select("lobby.palette"),
-            self.costume_select("lobby.costume"),
+            self.lobby_costume_select("lobby.costume", &view),
             json!({ "type": "stats", "label": self.t("setup.stats"), "rows": self.stats_rows(&stats) }),
         ];
         // the host's weather for everyone, next to the map that has it

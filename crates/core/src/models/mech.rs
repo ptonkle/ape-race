@@ -861,7 +861,7 @@ pub(super) const OCELOT_SPOT: Rgb = rgb(70, 44, 22);
 pub(super) const OCELOT_EYE: Rgb = rgb(96, 214, 70);
 
 #[cfg(test)]
-mod tests {
+pub(super) mod tests {
     use super::super::food::tests::read;
     use super::super::tests::{at_rest, poses, triangles, Shape};
     use super::*;
@@ -887,7 +887,7 @@ mod tests {
         (0..3).map(|i| (a[i] - b[i]).abs()).max().unwrap() * 255 / ONE
     }
 
-    fn same(x: &Shape, y: &Shape) -> bool {
+    pub(in crate::models) fn same(x: &Shape, y: &Shape) -> bool {
         y.mesh == x.mesh && y.at == x.at && y.axes == x.axes
     }
 
@@ -1212,7 +1212,7 @@ mod tests {
 
     /// A flat face of a box-like shape: its middle, its two half-spans and
     /// its outward normal (length `ONE`).
-    struct Face {
+    pub(in crate::models) struct Face {
         mid: V3,
         u: V3,
         v: V3,
@@ -1221,7 +1221,7 @@ mod tests {
 
     /// The flat faces of a cube, a bevelled box (its flat middles, a third
     /// of the way out each way) or a wedge (its bottom and back).
-    fn faces(x: &Shape) -> Vec<Face> {
+    pub(in crate::models) fn faces(x: &Shape) -> Vec<Face> {
         let all = [(0, 1), (0, -1), (1, 1), (1, -1), (2, 1), (2, -1)];
         let (which, span): (&[(usize, i32)], i32) = match x.mesh {
             m if m == Mesh::Cube as u32 => (&all, ONE / 2),
@@ -1271,7 +1271,7 @@ mod tests {
     /// Whether two faces lie in one plane (within `gap`), face the same
     /// way and overlap: the depth test cannot tell them apart, and the
     /// two colours flicker through each other.
-    fn fight(a: &Face, b: &Face, gap: i32) -> bool {
+    pub(in crate::models) fn fight(a: &Face, b: &Face, gap: i32) -> bool {
         if a.n.dot(b.n) < ONE * 998 / 1000 || b.mid.sub(a.mid).dot(a.n).abs() > gap {
             return false;
         }
