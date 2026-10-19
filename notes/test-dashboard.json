@@ -1872,7 +1872,8 @@
     "crates/core/src/jaguar.rs",
     "crates/core/src/models.rs",
     "crates/core/src/models/flame.rs",
-    "crates/core/src/models/spider.rs"
+    "crates/core/src/models/spider.rs",
+    "crates/core/src/podium.rs"
    ],
    "modules": [
     [
@@ -2909,6 +2910,7 @@
    "files": [
     "crates/core/src/app/tournament.rs",
     "crates/core/src/app/tournament_tests.rs",
+    "crates/core/src/podium.rs",
     "crates/core/src/tournament.rs"
    ],
    "modules": [

@@ -1,5 +1,12 @@
 [
   {
+    "version": "1.18.0",
+    "date": "2026-10-18",
+    "notes": [
+      "New: tournament mode. Race a series for points from Race Setup or the online lobby, and finish on the podium."
+    ]
+  },
+  {
     "version": "1.17.1",
     "date": "2026-10-18",
     "notes": [
