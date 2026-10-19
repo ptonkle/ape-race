@@ -71,6 +71,9 @@ cargo test --workspace      # the core, boundary and online tests
 ./scripts/build.sh          # release WebAssembly build into dist/
 python3 scripts/serve.py    # http://127.0.0.1:8000/
 ./scripts/check.sh          # everything, before a deploy
+git config core.hooksPath scripts/hooks   # once per clone: pre-push guard (emails, private paths and patterns)
+./scripts/bump.sh minor "One plain line."  # next version + patch note (major|minor|x.y.z)
+./scripts/deploy.sh         # after a passing timed check: push main, wait for Pages
 ./scripts/check-online.sh   # WebRTC between tabs (pasted codes, no relay)
 ./scripts/quick-check.sh    # only the tests the change needs, Chromium only (see below)
 ./scripts/pages.sh          # assemble the site copy, thumbnail and tiles in ../ptonkle.github.io (TILES=0: no new tiles)

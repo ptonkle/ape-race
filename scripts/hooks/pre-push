@@ -1,0 +1,68 @@
+#!/usr/bin/env bash
+# Pre-push guard for this public repo. Install once per clone:
+#   git config core.hooksPath scripts/hooks
+# Blocks a push when a commit being pushed:
+#   - has an author or committer email other than the GitHub noreply address,
+#   - adds a line containing an absolute home-directory path (slash home slash),
+#   - adds a line matching a pattern in .git/info/private-patterns
+#     (untracked; one case-insensitive fixed string per line; # comments).
+# Binary files are skipped (git prints no added lines for them).
+# Skip with: git push --no-verify
+set -uo pipefail
+
+ALLOWED_EMAIL="65458712+ptonkle@users.noreply.github.com"
+remote="${1:-origin}"
+patterns="$(git rev-parse --git-common-dir)/info/private-patterns"
+home_path="/""home""/" # split so this file does not trip its own check
+
+block() {
+  echo "pre-push: blocked: $1 (skip with --no-verify)" >&2
+  exit 1
+}
+
+while read -r _local_ref local_sha _remote_ref remote_sha; do
+  [[ "$local_sha" =~ ^0+$ ]] && continue # branch delete
+  if [[ "$remote_sha" =~ ^0+$ ]]; then
+    # New branch: only the commits not already on the remote's main.
+    if git rev-parse -q --verify "refs/remotes/$remote/main" >/dev/null; then
+      range=("refs/remotes/$remote/main..$local_sha")
+    else
+      range=("$local_sha" --not "--remotes=$remote")
+    fi
+  else
+    range=("$remote_sha..$local_sha")
+  fi
+  mapfile -t commits < <(git rev-list "${range[@]}")
+  ((${#commits[@]})) || continue
+
+  while read -r sha ae ce; do
+    [[ "$ae" == "$ALLOWED_EMAIL" ]] || block "commit ${sha:0:7} author email $ae is not $ALLOWED_EMAIL"
+    [[ "$ce" == "$ALLOWED_EMAIL" ]] || block "commit ${sha:0:7} committer email $ce is not $ALLOWED_EMAIL"
+  done < <(git log --no-walk=unsorted --format='%H %ae %ce' "${commits[@]}")
+
+  pf=""
+  [[ -f "$patterns" ]] && pf="$patterns"
+  for sha in "${commits[@]}"; do
+    hit=$(git show --no-color --format= --unified=0 --no-ext-diff --no-textconv "$sha" |
+      awk -v pf="$pf" -v hp="$home_path" '
+        BEGIN {
+          n = 0
+          if (pf != "") while ((getline p < pf) > 0) {
+            sub(/\r$/, "", p)
+            if (p ~ /^[[:space:]]*$/ || p ~ /^[[:space:]]*#/) continue
+            pats[n++] = tolower(p)
+          }
+        }
+        /^\+\+\+ / { f = substr($0, 5); sub(/^b\//, "", f); next }
+        /^@@ / { split($3, a, ","); ln = substr(a[1], 2) + 0; next }
+        /^\+/ {
+          line = substr($0, 2)
+          if (index(line, hp)) { print f ":" ln ": adds an absolute home-directory path"; exit }
+          low = tolower(line)
+          for (i = 0; i < n; i++) if (index(low, pats[i])) { print f ":" ln ": adds a line matching .git/info/private-patterns"; exit }
+          ln++
+        }')
+    [[ -n "$hit" ]] && block "commit ${sha:0:7} $hit"
+  done
+done
+exit 0
