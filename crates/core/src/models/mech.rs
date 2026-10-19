@@ -98,6 +98,10 @@ pub(super) const ARMOUR_GLOW: i32 = ONE / 4;
 /// The visor, the eyes and the boosters: full colour whatever the light.
 pub(super) const GLOW: i32 = ONE;
 
+/// How far paint and trim stand out of the plate under them: faces closer
+/// than this flicker through each other in the depth test.
+pub(super) const PROUD: i32 = cm(1) / 2;
+
 /// The scheme each kind wears in its classic palette (the concept sheet's):
 /// the orangutan olive, the gorilla and the proboscis monkey rust, the
 /// chimpanzee and the lemur white, the gibbon crimson.
@@ -238,7 +242,11 @@ fn torso(rig: &mut Rig, kind: Kind, m: &Dims, s: &Skel, c: &Scheme) {
     let body = &s.body;
     let (w, t, d) = (m.w, m.t, m.d);
     let at = |x: i32, y: i32, z: i32| v3(pct(w, x), pct(t, y), pct(d, z));
-    let wide = if kind == Kind::Gorilla { 116 } else { 108 };
+    let wide = match kind {
+        Kind::Gorilla => 118,
+        Kind::Lemur => 121,
+        _ => 113,
+    };
     plate(
         rig,
         Mesh::Bevel,
@@ -256,7 +264,7 @@ fn torso(rig: &mut Rig, kind: Kind, m: &Dims, s: &Skel, c: &Scheme) {
         plate(
             rig,
             Mesh::Cube,
-            body.shape(at(side * 28, 74, 59), at(26, 12, 4)),
+            body.shape(at(side * 28, 74, 62), at(26, 12, 4)),
             c.second,
         );
     }
@@ -264,7 +272,7 @@ fn torso(rig: &mut Rig, kind: Kind, m: &Dims, s: &Skel, c: &Scheme) {
     plate(
         rig,
         Mesh::Bevel,
-        body.shape(at(0, 14, -2), at(100, 26, 104)),
+        body.shape(at(0, 14, -2), at(104, 26, 104)),
         c.second,
     );
     plate(
@@ -336,9 +344,9 @@ fn limbs(rig: &mut Rig, kind: Kind, m: &Dims, s: &Skel, c: &Scheme) {
             Mesh::Cube,
             body.shape(
                 V3::ZERO,
-                v3(pct(aw, p + 6), pct(aw, p / 6), pct(aw, p * 7 / 10)),
+                v3(pct(aw, p + 16), pct(aw, p / 6), pct(aw, p * 7 / 10)),
             )
-            .at(mid.add(body.y.scale(pct(aw, p * 3 / 10)))),
+            .at(mid.add(body.y.scale(pct(aw, p * 7 / 20)))),
             c.accent,
         );
         // the arm
@@ -397,7 +405,7 @@ fn limbs(rig: &mut Rig, kind: Kind, m: &Dims, s: &Skel, c: &Scheme) {
                 Mesh::Bevel,
                 f.shape(
                     v3(0, pct(aw, 10), pct(aw, 40)),
-                    v3(pct(aw, 170), pct(aw, 100), pct(aw, 170)),
+                    v3(pct(aw, 178), pct(aw, 100), pct(aw, 178)),
                 ),
                 c.second,
             );
@@ -453,8 +461,8 @@ fn limbs(rig: &mut Rig, kind: Kind, m: &Dims, s: &Skel, c: &Scheme) {
             rig,
             Mesh::Bevel,
             f.shape(
-                v3(0, pct(lw, 6), pct(lw, 56)),
-                v3(pct(lw, 150), pct(lw, 82), pct(lw, 214)),
+                v3(0, pct(lw, 8), pct(lw, 56)),
+                v3(pct(lw, 184), pct(lw, 82), pct(lw, 222)),
             ),
             c.second,
         );
@@ -804,8 +812,8 @@ fn stripe(rig: &mut Rig, f: &Frame, size: V3, dark: Rgb) {
             Affine {
                 c0: f.x.scale(bar),
                 // (the bar leans across the band: sheared, not turned)
-                c1: f.y.scale(size.y).add(f.x.scale(size.y)),
-                c2: f.z.scale(size.z + size.z / 2),
+                c1: f.y.scale(size.y * 4 / 5).add(f.x.scale(size.y * 4 / 5)),
+                c2: f.z.scale(size.z + PROUD * 2),
                 t: f.at(i * size.x * 2 / 7, 0, 0),
             },
             HAZARD,
@@ -818,7 +826,7 @@ fn stripe(rig: &mut Rig, f: &Frame, size: V3, dark: Rgb) {
 /// the plate), with `n` dark bars on it.
 fn decal(rig: &mut Rig, f: &Frame, across: i32, n: i32, c: &Scheme) {
     let tall = across * 2 / 3;
-    let thick = across / 12;
+    let thick = (across / 12).max(PROUD);
     rig.glow(
         Mesh::Cube,
         f.shape(V3::ZERO, v3(across, tall, thick)),
@@ -834,8 +842,8 @@ fn decal(rig: &mut Rig, f: &Frame, across: i32, n: i32, c: &Scheme) {
         rig.put(
             Mesh::Cube,
             f.shape(
-                v3(-across / 2 + gap * (i + 1), 0, thick / 2),
-                v3(across / 10, tall * 3 / 5, thick),
+                v3(-across / 2 + gap * (i + 1), 0, thick / 2 + PROUD / 4),
+                v3(across / 10, tall * 3 / 5, PROUD),
             ),
             c.frame,
         );
@@ -1200,6 +1208,126 @@ mod tests {
             }
         }
         assert!(over.is_empty(), "{}", lines.join("; "));
+    }
+
+    /// A flat face of a box-like shape: its middle, its two half-spans and
+    /// its outward normal (length `ONE`).
+    struct Face {
+        mid: V3,
+        u: V3,
+        v: V3,
+        n: V3,
+    }
+
+    /// The flat faces of a cube, a bevelled box (its flat middles, a third
+    /// of the way out each way) or a wedge (its bottom and back).
+    fn faces(x: &Shape) -> Vec<Face> {
+        let all = [(0, 1), (0, -1), (1, 1), (1, -1), (2, 1), (2, -1)];
+        let (which, span): (&[(usize, i32)], i32) = match x.mesh {
+            m if m == Mesh::Cube as u32 => (&all, ONE / 2),
+            m if m == Mesh::Bevel as u32 => (&all, ONE * 33 / 100),
+            m if m == Mesh::Wedge as u32 => (&[(1, -1), (2, -1)], ONE / 2),
+            _ => (&[], 0),
+        };
+        let ax = x.axes;
+        which
+            .iter()
+            .map(|&(k, s)| {
+                let (a, b) = (ax[(k + 1) % 3], ax[(k + 2) % 3]);
+                let n = a.norm().cross(b.norm()).norm();
+                let n = if n.dot64(ax[k]) * (s as i64) < 0 {
+                    n.neg()
+                } else {
+                    n
+                };
+                Face {
+                    mid: x.at.add(ax[k].scale(s * ONE / 2)),
+                    u: a.scale(span),
+                    v: b.scale(span),
+                    n,
+                }
+            })
+            .collect()
+    }
+
+    /// Whether `p` (on `f`'s plane) is inside `f`.
+    fn on_face(f: &Face, p: V3) -> bool {
+        let d = p.sub(f.mid);
+        let (a11, a12, a22) = (
+            f.u.dot64(f.u) as i128,
+            f.u.dot64(f.v) as i128,
+            f.v.dot64(f.v) as i128,
+        );
+        let (b1, b2) = (d.dot64(f.u) as i128, d.dot64(f.v) as i128);
+        let det = a11 * a22 - a12 * a12;
+        if det == 0 {
+            return false;
+        }
+        let s = b1 * a22 - b2 * a12;
+        let t = a11 * b2 - a12 * b1;
+        s.abs() < det.abs() && t.abs() < det.abs()
+    }
+
+    /// Whether two faces lie in one plane (within `gap`), face the same
+    /// way and overlap: the depth test cannot tell them apart, and the
+    /// two colours flicker through each other.
+    fn fight(a: &Face, b: &Face, gap: i32) -> bool {
+        if a.n.dot(b.n) < ONE * 998 / 1000 || b.mid.sub(a.mid).dot(a.n).abs() > gap {
+            return false;
+        }
+        let steps = [-ONE * 4 / 5, -ONE * 2 / 5, 0, ONE * 2 / 5, ONE * 4 / 5];
+        let inside = |x: &Face, y: &Face| {
+            steps.iter().any(|&i| {
+                steps
+                    .iter()
+                    .any(|&j| on_face(y, x.mid.add(x.u.scale(i)).add(x.v.scale(j))))
+            })
+        };
+        inside(a, b) || inside(b, a)
+    }
+
+    /// The armour's flicker (Sam: "theres a lot of texture glitching on
+    /// these outfits"): no plate the armour adds has a face in the plane of
+    /// another shape's face, facing the same way and overlapping it, in
+    /// another colour.
+    #[test]
+    fn no_plate_shares_a_face_with_another_colour() {
+        let gap = cm(1) / 5;
+        let mut bad = Vec::new();
+        for kind in Kind::ALL {
+            for palette in 0..PALETTES {
+                for p in poses() {
+                    let bare = drawn_in(
+                        kind,
+                        palette,
+                        &Pose {
+                            gear: Gear::None,
+                            ..p
+                        },
+                    );
+                    let s = drawn_in(kind, palette, &mech_pose(p));
+                    let new: Vec<bool> =
+                        s.iter().map(|y| !bare.iter().any(|x| same(x, y))).collect();
+                    let f: Vec<Vec<Face>> = s.iter().map(faces).collect();
+                    for i in 0..s.len() {
+                        for j in i + 1..s.len() {
+                            if !(new[i] || new[j])
+                                || (s[i].colour == s[j].colour && s[i].glow == s[j].glow)
+                            {
+                                continue;
+                            }
+                            if f[i].iter().any(|a| f[j].iter().any(|b| fight(a, b, gap))) {
+                                bad.push(format!(
+                                    "{kind:?} {palette}: mesh {} at {:?} / mesh {} at {:?}",
+                                    s[i].mesh, s[i].at, s[j].mesh, s[j].at
+                                ));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        assert!(bad.is_empty(), "{} fights:\n{}", bad.len(), bad.join("\n"));
     }
 
     #[test]

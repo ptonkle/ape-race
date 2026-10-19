@@ -30,3 +30,4 @@ The standard map-build steps (MAPS.md "Build steps"), one row each. Status is on
 | --- | --- | --- |
 | SP-T1 | The map, from the brief (2026-10-18) | Done (MVP; Sam: "the spindle is awesome") |
 | SP-T2 | "the monkey skins are terrible. create mech / armored core 6 / gundam versions of each ape in the design log for the costumes for the apes instead of the neon suits, then implement it in the game, then get the PRs ready for ptonk and then I give permission to open them" (2026-10-19) | Done (mech armour; pull requests opened on Sam's word) |
+| SP-T3 | "theres a lot of texture glitching on these outfits but they look amazing"; "after you finish the map, the walkthrough on the main menu breaks and becomes all white with just vines" (2026-10-19) | Done (SP-M10, SP9) |

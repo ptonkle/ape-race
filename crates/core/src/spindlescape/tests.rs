@@ -90,3 +90,31 @@ fn the_light_goes_over_to_space_at_the_open_end() {
     space::dynamic(&mut near, &c, s, v3(0, int(8), s.mouth), 100);
     assert!(near.count() > 500);
 }
+
+/// The title's flyover round the tube (Sam: "after you finish the map, the
+/// walkthrough on the main menu breaks and becomes all white with just
+/// vines"): however long the game has run, its eye stays on this side of
+/// the seam, among the tube's scenery.
+#[test]
+fn the_flyover_stays_in_the_tube_however_long_the_game_runs() {
+    let c = tube();
+    let s = c.spindle.as_deref().unwrap();
+    let sc = scenery(&c, s);
+    let half = crate::spindle::CIRCUMFERENCE / 2;
+    for minutes in [0u32, 1, 2, 5, 30, 600] {
+        let ticks = minutes * 60 * crate::rules::TICKS_PER_SECOND as u32 + 17;
+        let cam = super::lobby::flyover_camera(&c, ticks, 0);
+        assert!(
+            cam.eye.x.abs() <= half,
+            "{minutes} min: x {}",
+            cam.eye.x / ONE
+        );
+        let fog = super::look_at(&c, s, cam.eye).fog_range.1;
+        let still: usize = sc
+            .draws_in(cam.eye, fog)
+            .chunks(DRAW_VALUES)
+            .map(|d| d[3] as usize)
+            .sum();
+        assert!(still > 500, "{minutes} min: {still} shapes round the eye");
+    }
+}
