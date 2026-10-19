@@ -1072,6 +1072,13 @@ fn off_limits(course: &Course, i: usize, tune: Tuning) -> bool {
             return true;
         }
     }
+    // (The Spindle: round the tube there are no walls; the AI keeps to the
+    // vines in its lane along the route, `SpindleLayout::ai_lane`)
+    if let Some(s) = course.spindle.as_deref() {
+        if !s.ai_lane(course.vines[i].anchor.x) {
+            return true;
+        }
+    }
     // (Sunset Ruins: a pit's vines are for when its trapdoor is open:
     // `drawn_up`)
     !tune.hidden
@@ -1086,6 +1093,10 @@ fn off_limits(course: &Course, i: usize, tune: Tuning) -> bool {
 /// `from`'s height plus 1 m, short of the last 4 m (a ledge vine's anchor
 /// sits at its wall's face).
 fn walled_off(course: &Course, from: V3, to: V3) -> bool {
+    // (The Spindle: a pillar or a wall's spoke between, `SpindleLayout::walled_off`)
+    if let Some(sp) = course.spindle.as_deref() {
+        return sp.walled_off(from, to);
+    }
     let Some(s) = course.ravine_solids() else {
         return false;
     };

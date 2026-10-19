@@ -12,6 +12,9 @@
 //! glare of the open end. No weather.
 
 pub mod lobby;
+pub mod space;
+#[cfg(test)]
+mod tests;
 
 use crate::course::{Course, START_HEIGHT};
 use crate::fx::{cm, int, Dice, ONE};
@@ -64,21 +67,26 @@ const HAZE: Rgb = rgb(236, 240, 250);
 
 /// Wall tiles round the tube, and their length along it.
 pub const TILES_AROUND: i32 = 24;
-pub const TILE_LONG: i32 = int(12);
+pub const TILE_LONG: i32 = int(8);
+/// The axle's blocks are this long.
+pub const AXLE_LONG: i32 = int(24);
+/// The wall's blocks glow a little, so their dyes stay bright in the
+/// even light (a dropper map is bright).
+const WALL_GLOW: i32 = ONE / 5;
 /// The wall's tiles are this thick, under the floor.
 pub const TILE_THICK: i32 = int(2);
 /// The tube's wall sections: each this long, in its dyes (dropper levels,
 /// one after another).
 pub const SECTION: i32 = int(250);
-const SECTIONS: [[u8; 2]; 8] = [
-    [0, 3],
-    [1, 4],
-    [9, 0],
-    [2, 6],
-    [7, 3],
-    [11, 0],
-    [8, 2],
-    [4, 1],
+const SECTIONS: [[u8; 3]; 8] = [
+    [0, 3, 9],
+    [1, 4, 0],
+    [9, 3, 0],
+    [2, 6, 8],
+    [7, 3, 0],
+    [11, 1, 0],
+    [8, 2, 6],
+    [4, 1, 11],
 ];
 /// A lamp block every this many tiles along and round.
 const LAMP_EVERY: i32 = 4;
@@ -101,10 +109,23 @@ pub fn look() -> Look {
     }
 }
 
-/// The light for an eye at `eye` on the course.
-pub fn look_at(_c: &Course, _s: &SpindleLayout, _eye: V3) -> Look {
-    look()
+/// The light for an eye at `eye` on the course: the tube's block light,
+/// going over to Sector Ape's space (its black sky, its sun far below, its
+/// clear distance) over the last `OPENING` before the open end.
+pub fn look_at(_c: &Course, s: &SpindleLayout, eye: V3) -> Look {
+    let into = eye.z - (s.mouth - OPENING);
+    if into <= 0 {
+        return look();
+    }
+    space::blend(
+        &look(),
+        &space::look(),
+        crate::fx::div(into.min(OPENING), OPENING),
+    )
 }
+
+/// Over this much before the open end the tube's light gives way to space.
+pub const OPENING: i32 = int(240);
 
 /// A box in the flat frame from (`x` ± `w`/2, `y0`..`y1`, `z0`..`z1`),
 /// narrowed round the tube for its height so that tiles side by side meet
@@ -145,7 +166,9 @@ pub fn upright(
     for k in 0..pieces {
         let y0 = y.0 + (y.1 - y.0) * k / pieces;
         let y1 = y.0 + (y.1 - y.0) * (k + 1) / pieces;
-        tile(b, w, x, width, (y0, y1), z, c, glow);
+        // (each piece a quarter wider than its share, so the rectangles
+        // overlap where they stand for a wedge and leave no gaps)
+        tile(b, w, x, width + width / 4, (y0, y1), z, c, glow);
     }
 }
 
@@ -159,7 +182,8 @@ pub fn scenery(c: &Course, s: &SpindleLayout) -> Scenery {
     let w = &s.warp;
     let mut dice = Dice(0x5_D1E5_CA9E);
     let step = CIRCUMFERENCE / TILES_AROUND;
-    // the wall and the axle, a ring of tiles every `TILE_LONG`
+    // the wall, a ring of blocks every `TILE_LONG`, each of its section's
+    // dyes at random, lamps in a grid
     let mut z = s.back;
     let mut row = 0;
     while z < s.mouth {
@@ -168,17 +192,15 @@ pub fn scenery(c: &Course, s: &SpindleLayout) -> Scenery {
         let dyes = SECTIONS[((z.max(0) / SECTION) as usize) % SECTIONS.len()];
         for k in 0..TILES_AROUND {
             let x = w.wrap_x(k * step - CIRCUMFERENCE / 2 + step / 2);
-            let lamp = row % LAMP_EVERY == 0 && k % LAMP_EVERY == 0;
+            let lamp = row % LAMP_EVERY == 0 && k % LAMP_EVERY == (row / LAMP_EVERY) % LAMP_EVERY;
             let base = if lamp {
                 LAMP
-            } else if (k + row) % 2 == 0 {
-                DYES[dyes[0] as usize]
             } else {
-                DYES[dyes[1] as usize]
+                DYES[dyes[dice.below(dyes.len() as u32) as usize] as usize]
             };
             // each block a touch lighter or darker, as a block's texture
-            let shade = 92 + dice.below(16) as i32;
-            let glow = if lamp { ONE * 3 / 4 } else { 0 };
+            let shade = 90 + dice.below(20) as i32;
+            let glow = if lamp { ONE * 3 / 4 } else { WALL_GLOW };
             tile(
                 b,
                 w,
@@ -189,7 +211,24 @@ pub fn scenery(c: &Course, s: &SpindleLayout) -> Scenery {
                 crate::render::shade(base, shade),
                 glow,
             );
-            let axle = if lamp { LAMP } else { OBSIDIAN };
+        }
+        z = z1;
+        row += 1;
+    }
+    // the axle, longer blocks, a lamp now and then
+    let mut z = s.back;
+    let mut row = 0;
+    while z < s.mouth {
+        let z1 = (z + AXLE_LONG).min(s.mouth);
+        let b = &mut batches[chunk((z + z1) / 2)];
+        for k in 0..TILES_AROUND {
+            let x = w.wrap_x(k * step - CIRCUMFERENCE / 2 + step / 2);
+            let lamp = (k + row) % 6 == 0;
+            let (c, glow) = if lamp {
+                (LAMP, ONE * 3 / 4)
+            } else {
+                (OBSIDIAN, ONE / 8)
+            };
             tile(
                 b,
                 w,
@@ -197,7 +236,7 @@ pub fn scenery(c: &Course, s: &SpindleLayout) -> Scenery {
                 step,
                 (AXLE_UNDER, AXLE_UNDER + TILE_THICK),
                 (z, z1),
-                axle,
+                c,
                 glow,
             );
         }
@@ -217,6 +256,11 @@ pub fn scenery(c: &Course, s: &SpindleLayout) -> Scenery {
             DISPENSER,
             0,
         );
+    }
+    // the blocks
+    for (k, blk) in s.blocks.iter().enumerate() {
+        let b = &mut batches[chunk((blk.lo.z + blk.hi.z) / 2)];
+        block(b, w, blk, k as u64);
     }
     // the closed back end: a disc of stone
     let back = &mut batches[0];
@@ -286,6 +330,41 @@ pub fn scenery(c: &Course, s: &SpindleLayout) -> Scenery {
     sc
 }
 
+/// A block obstacle (`spindle::Block`), drawn as a dropper map's blocks:
+/// cut into block-sized cubes round the tube and up it (each narrowed for
+/// its height, so they meet once bent), each a shade lighter or darker.
+pub fn block(b: &mut Batch, w: &Warp, blk: &crate::spindle::Block, k: u64) {
+    let mut dice = Dice(0xB10C_0000 + k);
+    let colour = block_colour(blk.kind);
+    let glow = block_glow(blk.kind);
+    let wide = blk.hi.x - blk.lo.x;
+    let high = blk.hi.y - blk.lo.y;
+    let across = (wide / BLOCK).max(1);
+    let up = (high / BLOCK).max(1);
+    for i in 0..across {
+        let x0 = blk.lo.x + wide * i / across;
+        let x1 = blk.lo.x + wide * (i + 1) / across;
+        for j in 0..up {
+            let y0 = blk.lo.y + high * j / up;
+            let y1 = blk.lo.y + high * (j + 1) / up;
+            let shade = 90 + dice.below(20) as i32;
+            tile(
+                b,
+                w,
+                (x0 + x1) / 2,
+                x1 - x0,
+                (y0, y1),
+                (blk.lo.z, blk.hi.z),
+                crate::render::shade(colour, shade),
+                glow,
+            );
+        }
+    }
+}
+
+/// A block obstacle's cubes are about this big.
+pub const BLOCK: i32 = int(6);
+
 /// Every shape in `b`, placed in the flat frame, moved onto the tube.
 pub fn bend(b: &mut Batch, w: &Warp) {
     b.transform(|a| w.affine(&a));
@@ -308,25 +387,33 @@ pub fn camera(w: &Warp, cam: &Camera) -> (Camera, V3) {
 
 /// What moves, in the flat frame (bent with the rest of the frame): the
 /// spinning rings' columns.
-pub fn dynamic(b: &mut Batch, _c: &Course, s: &SpindleLayout, eye: V3, tick: u32) {
+pub fn dynamic(b: &mut Batch, c: &Course, s: &SpindleLayout, eye: V3, tick: u32) {
     for sp in &s.spinners {
         if (sp.z - eye.z).abs() > REACH {
             continue;
         }
         for k in 0..sp.count {
             let x = sp.x_at(k, tick);
-            upright(
+            let column = crate::spindle::Block {
+                lo: v3(x - sp.width / 2, 0, sp.z - sp.depth / 2),
+                hi: v3(x + sp.width / 2, AXLE_UNDER, sp.z + sp.depth / 2),
+                kind: sp.kind,
+            };
+            block(b, &s.warp, &column, k as u64);
+            // a lamp block at its foot and its head, so it reads moving
+            tile(
                 b,
                 &s.warp,
                 x,
                 sp.width,
-                (sp.z - sp.depth / 2, sp.z + sp.depth / 2),
-                (0, AXLE_UNDER),
-                block_colour(sp.kind),
-                block_glow(sp.kind),
+                (0, int(2)),
+                (sp.z - sp.depth / 2 - cm(20), sp.z + sp.depth / 2 + cm(20)),
+                LAMP,
+                ONE * 3 / 4,
             );
         }
     }
+    space::dynamic(b, c, s, eye, tick);
 }
 
 /// A block's colour.

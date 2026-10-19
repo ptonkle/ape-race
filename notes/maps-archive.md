@@ -176,6 +176,13 @@ Gathered on 2026-10-17 from TRIAGE, SECOND-ORDER, the morning and progress notes
 - **Indoors there is no occlusion to chunk by.** Chunk by place (100 m squares with bounds), draw far shelves as bands of colour and near products every frame within a few metres; the frame was 9,388 shapes before (GR7).
 - **A moving bouncer starts where its mover is at tick 0**, not at its `from` (the Ravine's lizards don't, GR2).
 
+### What The Spindle taught (the spinning tube, 2026-10-19, SECOND-ORDER SP rows; built in a fork and offered as pull requests)
+
+- **A curved world can be simulated flat.** As Iron Vector's ring planet: the physics, AI and solids run on the floor unrolled, x wrapping at the seam, and only the drawing is bent (each shape turned about the tube's axis, narrowed for its height when it must tile); the camera rolls with the floor (`Camera::matrix_up`). No shared physics changed (SP1).
+- **Wrap only an ape that holds no vine**, or the rope yanks it across the tube; keep vines and blocks off the seam, and carry the camera and the drawn ape's last position round with it (`spindle_round`, SP3).
+- **Nothing standing on the floor across the lane.** A wall the AI lands in front of keeps it there (gotcha 17): hang obstacles from above, open walls to the floor between spokes, and give every other row long vines across the whole lane (SP4, SP5).
+- **With no walls, give the AI a lane** (`ai::off_limits`), or it wanders half way round the world (SP4).
+
 ## Checklist for a new map
 
 - [ ] **The lobby zone, designed on purpose** (the person, 2026-10-13: a core thing for every map). It's where your ape stands behind Race Setup, Time Trial and the online lobby, so it's the map's first impression. Choose a spot that shows the map at its best (its time of day, its set piece behind), with room for T76's lineup of every player's ape and yours on a pedestal in front. Wire it through `scene::preview(course)` and check `app/menu_dock.rs` `preview_spot` actually uses it: the Jungle's never did; it stood the ape at the world origin on the forest floor, T77. Screenshot the setup screen and the lobby on the new map before calling the map done.

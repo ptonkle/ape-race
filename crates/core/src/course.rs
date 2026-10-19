@@ -574,9 +574,15 @@ impl Course {
         if let Some(h) = self.ravine.as_deref().and_then(|r| self.ravine_top(r, p)) {
             top = top.max(h);
         }
-        // The Spindle: the tops of its blocks
-        if let Some(h) = self.spindle.as_deref().and_then(|s| s.top_under(p)) {
-            top = top.max(h);
+        // The Spindle: the tops of its blocks; past the open end, space,
+        // with nothing under an ape
+        if let Some(s) = self.spindle.as_deref() {
+            if s.in_space(p) {
+                return -int(10_000);
+            }
+            if let Some(h) = s.top_under(p) {
+                top = top.max(h);
+            }
         }
         // Banana Bay Battle: the finish island's ground and its chest
         if let Some(b) = self.bay.as_deref() {

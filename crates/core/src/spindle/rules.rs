@@ -5,7 +5,7 @@
 
 use super::{Block, BlockKind, SpindleLayout, AXLE_UNDER};
 use crate::ape::{Ape, Happening, Mode};
-use crate::fx::{cm, mul, ONE};
+use crate::fx::{cm, int, mul, ONE};
 use crate::geom::{v3, V3};
 use crate::rules::{BODY_DROP, BODY_RADIUS, MUSHROOM_BOUNCE, WALL_BOUNCE};
 
@@ -14,6 +14,15 @@ use crate::rules::{BODY_DROP, BODY_RADIUS, MUSHROOM_BOUNCE, WALL_BOUNCE};
 pub const ON_TOP: i32 = cm(60);
 /// A slime block's sides throw an ape off this much harder than a wall.
 pub const SLIME_SIDE: i32 = ONE * 9 / 10;
+/// Out of the open end, an ape is thrown on at least this fast ...
+pub const LAUNCH: i32 = int(60);
+/// ... and this fast up toward the axis.
+pub const LAUNCH_UP: i32 = int(3);
+/// In space, past this beyond the open end, it eases (at `DRIFT_EASE` a
+/// second) to a drift.
+pub const DRIFT_FROM: i32 = int(50);
+pub const DRIFT: i32 = int(6);
+pub const DRIFT_EASE: i32 = int(40);
 
 impl SpindleLayout {
     /// The top of the highest still block under a body at `p` (the hands)
@@ -32,6 +41,32 @@ impl SpindleLayout {
             })
             .map(|b| b.hi.y)
             .max()
+    }
+
+    /// Whether a block stands on the flat line from `from` to `to` (the AI
+    /// on the floor: never a vine with a pillar between): sampled every 2 m
+    /// at `from`'s height plus 1 m, short of the last 4 m, as on
+    /// Rattlesnake Ravine (`ai::walled_off`).
+    pub fn walled_off(&self, from: V3, to: V3) -> bool {
+        let d = to.sub(from).flat();
+        let len = d.len();
+        let dir = d.norm();
+        let mut k = int(2);
+        while k < len - int(4) {
+            let p = from.add(dir.scale(k)).add(v3(0, ONE, 0));
+            if self.blocks.iter().any(|b| {
+                p.x > b.lo.x
+                    && p.x < b.hi.x
+                    && p.z > b.lo.z
+                    && p.z < b.hi.z
+                    && p.y > b.lo.y
+                    && p.y < b.hi.y
+            }) {
+                return true;
+            }
+            k += int(2);
+        }
+        false
     }
 
     /// The block whose box a body at `p` is in (not on its top), and the way
@@ -64,13 +99,18 @@ impl SpindleLayout {
 
 impl Ape {
     /// The Spindle, after the ape's move (`Ape::collide`).
-    pub(crate) fn hit_spindle(&mut self, s: &SpindleLayout, tick: u32) {
+    pub(crate) fn hit_spindle(&mut self, s: &SpindleLayout, tick: u32, before: V3, gravity: i32) {
         // round the tube, but not while holding a vine: the rope is
         // measured from its anchor, on this side of the seam
         if self.swinging().is_none() {
             self.pos.x = s.warp.wrap_x(self.pos.x);
         }
+        // out of the open end: blasted into space, where nothing pulls
         if s.in_space(self.pos) {
+            if !s.in_space(before) {
+                self.launch();
+            }
+            self.drift(s, gravity);
             return;
         }
         // the axle's underside is the ceiling
@@ -146,6 +186,35 @@ impl Ape {
                 self.mode = Mode::Flying;
                 self.happened.push(Happening::Bounce);
             }
+        }
+    }
+
+    /// Out of the open end: let go of any vine and thrown on along the
+    /// tube, fast, a little up toward the axis.
+    fn launch(&mut self) {
+        if let Mode::Swinging { vine, .. } = self.mode {
+            self.last_vine = Some((vine, 0));
+        }
+        self.mode = Mode::Flying;
+        self.vel = v3(
+            self.vel.x,
+            self.vel.y.max(LAUNCH_UP),
+            self.vel.z.max(LAUNCH),
+        );
+    }
+
+    /// In space: no pull (the tick's gravity given back), and past
+    /// `DRIFT_FROM` the speed along the tube eases down to `DRIFT`, so the
+    /// apes float out among the ships rather than stopping at the course's
+    /// end.
+    fn drift(&mut self, s: &SpindleLayout, gravity: i32) {
+        if self.swinging().is_none() {
+            self.mode = Mode::Flying;
+        }
+        self.vel.y += mul(gravity, crate::rules::DT);
+        if self.pos.z > s.mouth + DRIFT_FROM && self.vel.z > DRIFT {
+            self.vel.z = (self.vel.z - mul(DRIFT_EASE, crate::rules::DT)).max(DRIFT);
+            self.vel.y = self.vel.y - self.vel.y / 60;
         }
     }
 
