@@ -3,7 +3,8 @@
 #   scripts/deploy.sh
 # Refuses unless on main, the tree is clean, and the newest row of
 # notes/check-times.md is a pass for this commit. Prints one final line:
-#   deployed vX.Y.Z (<sha>) in Ns     or     deploy FAILED: <url>
+#   pushed vX.Y.Z (<sha>); ...  (the build is not waited for; a failed
+#   build is reported by the next run)
 set -uo pipefail
 cd "$(dirname "$0")/.."
 
@@ -57,24 +58,13 @@ fi
 fi
 
 version=$(sed -n 's/^pub const VERSION: &str = "\(.*\)";$/\1/p' crates/core/src/app.rs)
-start=$(date +%s)
+
+# No waiting on the build (the person, 2026-10-18: "we don't need to wait on
+# deploy.sh"). Instead, say if the previous Pages run failed, so a broken
+# build shows up at the next deploy.
+last=$(gh run list --workflow deploy.yml -L 1 --json conclusion,url,headSha \
+  --jq '.[0] | "\(.conclusion) \(.url) \(.headSha[0:7])"' 2>/dev/null)
+case "$last" in failure*|cancelled*|timed_out*) echo "note: the last Pages build ($last) did not succeed" ;; esac
 
 git push -q origin main || refuse "git push failed"
-
-# Find the Pages run for this commit (it can take a few seconds to appear).
-id=""
-for _ in $(seq 1 30); do
-  id=$(gh run list --workflow deploy.yml -L 5 --json databaseId,headSha,status \
-    --jq ".[] | select(.headSha == \"$head\") | .databaseId" 2>/dev/null | head -n 1)
-  [[ -n "$id" ]] && break
-  sleep 2
-done
-[[ -n "$id" ]] || { echo "deploy FAILED: no deploy.yml run found for ${head:0:7}"; exit 1; }
-
-if gh run watch "$id" --exit-status >/dev/null 2>&1; then
-  echo "deployed v$version (${head:0:7}) in $(($(date +%s) - start))s"
-else
-  url=$(gh run view "$id" --json url --jq .url 2>/dev/null || echo "run $id")
-  echo "deploy FAILED: $url"
-  exit 1
-fi
+echo "pushed v$version (${head:0:7}); GitHub builds and publishes it in about a minute"
