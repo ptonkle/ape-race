@@ -6,16 +6,17 @@ use crate::fx::{cm, deg, int};
 use crate::geom::{v3, yaw_of, V3};
 use crate::render::Camera;
 
-/// The lobby: the ape on the start's blocks, the camera ahead of it looking
-/// back, so the tube's wall climbs up behind it and over the top.
+/// Where the lobby's ape stands: on the floor `LOBBY_AT` down the tube,
+/// clear of the warm-up's slime pads (at the start the menus' framing
+/// backed the camera through the closed end's wall).
+pub const LOBBY_AT: i32 = int(130);
+
+/// The lobby: the ape on the floor, the camera behind it looking down the
+/// tube, its wall climbing up either side and over the top.
 pub fn preview(c: &Course) -> (V3, i32, Camera) {
-    let feet = v3(
-        c.starts[1].x,
-        c.starts[1].y - crate::rules::BODY_DROP,
-        c.starts[1].z,
-    );
+    let feet = v3(0, 0, LOBBY_AT);
     let fwd = crate::geom::facing(c.start_yaw, 0);
-    let eye = feet.add(fwd.scale(cm(330))).add(v3(0, cm(140), 0));
+    let eye = feet.add(fwd.scale(-cm(330))).add(v3(0, cm(140), 0));
     let target = feet.add(v3(0, cm(90), 0));
     (
         feet,
