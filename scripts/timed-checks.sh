@@ -77,5 +77,10 @@ HEAD
   fi
   rm -f "$out"
 done
+# The site's Test times page (scripts/tests_page.py, built on deploy) reads
+# its tag data from notes/test-dashboard.json; refresh it while the tests are
+# compiled. It never fails the check.
+timeout 90 python3 -B scripts/test_dashboard.py \
+  || echo "warning: notes/test-dashboard.json not refreshed (scripts/test_dashboard.py failed or timed out)" >&2
 echo; tail -n 2 "$LOG"
 exit $status

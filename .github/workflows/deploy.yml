@@ -41,11 +41,13 @@ jobs:
         run: ./scripts/build.sh
 
       # What scripts/pages.sh did for the site folder: drop the transport
-      # test page and add the patch notes as a plain page.
+      # test page and add the patch notes as a plain page. The Test times
+      # page reads committed notes (check-times.md, test-dashboard.json), no cargo.
       - name: Assemble the site
         run: |
           rm -f dist/nettest.html dist/nettest.js
           python3 scripts/patch_notes_html.py dist/patch-notes.html
+          python3 scripts/tests_page.py dist/tests.html
 
       - uses: actions/upload-pages-artifact@v3
         with:

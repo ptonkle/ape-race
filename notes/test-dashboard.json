@@ -1,0 +1,3035 @@
+{
+ "browser_total": 11,
+ "linechange": {
+  "baseline": 13,
+  "rows": [
+   {
+    "browser": 2,
+    "file": "app/weather.rs",
+    "split": false,
+    "tests": 10,
+    "what": "weather picker"
+   },
+   {
+    "browser": 1,
+    "file": "icon.rs",
+    "split": false,
+    "tests": 2,
+    "what": "the tab icon"
+   },
+   {
+    "browser": 0,
+    "file": "app/call_tests.rs",
+    "split": false,
+    "tests": 2,
+    "what": "4 ape-call tests"
+   },
+   {
+    "browser": 1,
+    "file": "app/medals.rs",
+    "split": false,
+    "tests": 24,
+    "what": "medal times"
+   },
+   {
+    "browser": 0,
+    "file": "vinesim.rs",
+    "split": false,
+    "tests": 20,
+    "what": "vine bending (drawn)"
+   },
+   {
+    "browser": 0,
+    "file": "ape/ski_tests.rs",
+    "split": false,
+    "tests": 4,
+    "what": "ski physics tests"
+   },
+   {
+    "browser": 1,
+    "file": "jaguar.rs",
+    "split": true,
+    "tests": 103,
+    "what": "Floor is Lava jaguar"
+   },
+   {
+    "browser": 0,
+    "file": "hype.rs",
+    "split": false,
+    "tests": 35,
+    "what": "hype meter"
+   },
+   {
+    "browser": 1,
+    "file": "models/tourist.rs",
+    "split": false,
+    "tests": 33,
+    "what": "City outfits"
+   },
+   {
+    "browser": 2,
+    "file": "cityscape.rs",
+    "split": false,
+    "tests": 55,
+    "what": "City scenery"
+   },
+   {
+    "browser": 10,
+    "file": "app.rs",
+    "split": true,
+    "tests": 241,
+    "what": "the app's top level"
+   },
+   {
+    "browser": 11,
+    "file": "map.rs",
+    "split": true,
+    "tests": 820,
+    "what": "the list of maps"
+   },
+   {
+    "browser": 3,
+    "file": "course.rs",
+    "split": false,
+    "tests": 109,
+    "what": "Jungle course"
+   },
+   {
+    "browser": 1,
+    "file": "city.rs",
+    "split": false,
+    "tests": 68,
+    "what": "City course"
+   },
+   {
+    "browser": 2,
+    "file": "ski.rs",
+    "split": false,
+    "tests": 66,
+    "what": "Yeti Peak course"
+   },
+   {
+    "browser": 0,
+    "file": "sector.rs",
+    "split": false,
+    "tests": 77,
+    "what": "Sector Ape course"
+   },
+   {
+    "browser": 0,
+    "file": "ruins.rs",
+    "split": false,
+    "tests": 39,
+    "what": "Sunset Ruins course"
+   },
+   {
+    "browser": 0,
+    "file": "bay.rs",
+    "split": false,
+    "tests": 47,
+    "what": "Banana Bay course"
+   },
+   {
+    "browser": 0,
+    "file": "tower.rs",
+    "split": false,
+    "tests": 62,
+    "what": "Mape's Tower course"
+   },
+   {
+    "browser": 0,
+    "file": "ravine.rs",
+    "split": false,
+    "tests": 77,
+    "what": "Rattlesnake Ravine course"
+   },
+   {
+    "browser": 0,
+    "file": "grocery.rs",
+    "split": false,
+    "tests": 18,
+    "what": "Aisle Ape course"
+   }
+  ]
+ },
+ "tags": {
+  "ai": {
+   "browser": [
+    "race"
+   ],
+   "desc": "the AI drivers and their difficulty levels",
+   "files": [
+    "crates/core/src/ai.rs",
+    "crates/core/tests/ai.rs",
+    "crates/core/tests/bay_ai.rs",
+    "crates/core/tests/city_ai.rs",
+    "crates/core/tests/ruins_ai.rs",
+    "crates/core/tests/sector_ai.rs",
+    "crates/core/tests/ski_ai.rs",
+    "crates/core/tests/tower_ai.rs"
+   ],
+   "modules": [
+    [
+     "tests/ai.rs",
+     9
+    ],
+    [
+     "tests/bay_ai.rs",
+     6
+    ],
+    [
+     "tests/city_ai.rs",
+     6
+    ],
+    [
+     "tests/ruins_ai.rs",
+     6
+    ],
+    [
+     "tests/tower_ai.rs",
+     6
+    ],
+    [
+     "tests/sector_ai.rs",
+     5
+    ],
+    [
+     "tests/ski_ai.rs",
+     5
+    ],
+    [
+     "trial::tests",
+     5
+    ],
+    [
+     "ai::tests",
+     3
+    ],
+    [
+     "tests/maps_unchanged.rs",
+     3
+    ],
+    [
+     "tests/jungle_unchanged.rs",
+     2
+    ],
+    [
+     "app::race_tests",
+     1
+    ],
+    [
+     "app::settings_tests",
+     1
+    ],
+    [
+     "tests/sector_finish.rs",
+     1
+    ],
+    [
+     "tests/sector_unchanged.rs",
+     1
+    ]
+   ],
+   "tests": 60
+  },
+  "all": {
+   "browser": [],
+   "desc": "foundations (fixed point, vectors, the core's door, the shim, the build): run everything",
+   "files": [
+    "Cargo.lock",
+    "Cargo.toml",
+    "crates/core/Cargo.toml",
+    "crates/core/src/api.rs",
+    "crates/core/src/fx.rs",
+    "crates/core/src/geom.rs",
+    "crates/core/src/lib.rs",
+    "crates/core/src/map.rs",
+    "crates/shim/Cargo.toml",
+    "crates/shim/src/lib.rs",
+    "scripts/build.sh",
+    "scripts/check.sh",
+    "scripts/wasm_imports.py",
+    "web/index.html",
+    "web/vendor/SHA256SUMS",
+    "web/vendor/trystero-nostr-0.25.4.js"
+   ],
+   "modules": [
+    [
+     "fx::tests",
+     8
+    ],
+    [
+     "geom::tests",
+     7
+    ],
+    [
+     "map::tests",
+     2
+    ]
+   ],
+   "tests": 17
+  },
+  "art-bay": {
+   "browser": [],
+   "desc": "Banana Bay Battle's scenery and ships (bayscape/, baymodels.rs)",
+   "files": [
+    "crates/core/src/baymodels.rs",
+    "crates/core/src/bayscape.rs",
+    "crates/core/src/bayscape/battle.rs",
+    "crates/core/src/bayscape/fleet.rs",
+    "crates/core/src/bayscape/island.rs",
+    "crates/core/src/bayscape/lobby.rs",
+    "crates/core/src/bayscape/tests.rs"
+   ],
+   "modules": [
+    [
+     "scene::tests",
+     15
+    ],
+    [
+     "bayscape::tests",
+     7
+    ],
+    [
+     "baymodels::tests",
+     5
+    ],
+    [
+     "app::gallery::tests",
+     3
+    ],
+    [
+     "bayscape::lobby::tests",
+     3
+    ],
+    [
+     "bayscape::battle::tests",
+     2
+    ],
+    [
+     "bayscape::fleet::tests",
+     2
+    ],
+    [
+     "app::menu_dock::tests",
+     1
+    ],
+    [
+     "bayscape::island::tests",
+     1
+    ],
+    [
+     "tests/map_checks.rs",
+     1
+    ]
+   ],
+   "tests": 40
+  },
+  "art-city": {
+   "browser": [
+    "city_map"
+   ],
+   "desc": "the City's scenery and vehicles (cityscape.rs, vehicles.rs)",
+   "files": [
+    "crates/core/src/cityscape.rs",
+    "crates/core/src/vehicles.rs"
+   ],
+   "modules": [
+    [
+     "scene::tests",
+     15
+    ],
+    [
+     "cityscape::tests",
+     10
+    ],
+    [
+     "app::view_tests",
+     1
+    ],
+    [
+     "tests/map_checks.rs",
+     1
+    ],
+    [
+     "vehicles::tests",
+     1
+    ]
+   ],
+   "tests": 28
+  },
+  "art-grocery": {
+   "browser": [],
+   "desc": "Aisle Ape's art alone (groceryscape/, grocerymodels/, models/food.rs)",
+   "files": [
+    "crates/core/src/grocerymodels.rs",
+    "crates/core/src/grocerymodels/catalogue.rs",
+    "crates/core/src/grocerymodels/gallery.rs",
+    "crates/core/src/grocerymodels/outside.rs",
+    "crates/core/src/grocerymodels/people.rs",
+    "crates/core/src/grocerymodels/products.rs",
+    "crates/core/src/grocerymodels/props.rs",
+    "crates/core/src/grocerymodels/signs.rs",
+    "crates/core/src/grocerymodels/tests.rs",
+    "crates/core/src/groceryscape.rs",
+    "crates/core/src/groceryscape/course.rs",
+    "crates/core/src/groceryscape/fixtures.rs",
+    "crates/core/src/groceryscape/lobby.rs",
+    "crates/core/src/groceryscape/lot.rs",
+    "crates/core/src/groceryscape/movers.rs",
+    "crates/core/src/groceryscape/shelves.rs",
+    "crates/core/src/groceryscape/tests.rs",
+    "crates/core/src/groceryscape/walls.rs",
+    "crates/core/src/models/food.rs",
+    "crates/core/src/models/grocer.rs"
+   ],
+   "modules": [
+    [
+     "grocerymodels::tests",
+     16
+    ],
+    [
+     "models::grocer::tests",
+     4
+    ],
+    [
+     "app::gallery::tests",
+     1
+    ],
+    [
+     "grocerymodels::catalogue::tests",
+     1
+    ],
+    [
+     "groceryscape::tests",
+     1
+    ],
+    [
+     "models::food::tests",
+     1
+    ],
+    [
+     "tests/map_checks.rs",
+     1
+    ]
+   ],
+   "tests": 25
+  },
+  "art-ravine": {
+   "browser": [],
+   "desc": "Rattlesnake Ravine's art alone (its sky and light: ravinescape's own files)",
+   "files": [
+    "crates/core/src/ravine/lobby.rs",
+    "crates/core/src/ravinescape/course.rs",
+    "crates/core/src/ravinescape/course/tests.rs",
+    "crates/core/src/ravinescape/lobby.rs",
+    "crates/core/src/ravinescape/tests.rs"
+   ],
+   "modules": [
+    [
+     "ravinescape::course::tests",
+     8
+    ],
+    [
+     "ravinescape::tests",
+     6
+    ],
+    [
+     "ravinescape::lobby::tests",
+     2
+    ],
+    [
+     "tests/map_checks.rs",
+     1
+    ]
+   ],
+   "tests": 17
+  },
+  "art-ruins": {
+   "browser": [],
+   "desc": "Sunset Ruins' scenery and models (ruinsscape.rs, ruinsmodels.rs)",
+   "files": [
+    "crates/core/src/ruinsmodels.rs",
+    "crates/core/src/ruinsscape.rs"
+   ],
+   "modules": [
+    [
+     "scene::tests",
+     15
+    ],
+    [
+     "ruinsmodels::tests",
+     5
+    ],
+    [
+     "app::gallery::tests",
+     3
+    ],
+    [
+     "app::menu_dock::tests",
+     1
+    ],
+    [
+     "ruinsscape::panel_tests",
+     1
+    ],
+    [
+     "tests/map_checks.rs",
+     1
+    ]
+   ],
+   "tests": 26
+  },
+  "art-sector": {
+   "browser": [],
+   "desc": "Sector Ape's scenery and craft (sectorscape.rs, spacecraft.rs's drawing)",
+   "files": [
+    "crates/core/src/sectorscape.rs",
+    "crates/core/src/spacecraft.rs"
+   ],
+   "modules": [
+    [
+     "scene::tests",
+     15
+    ],
+    [
+     "sectorscape::tests",
+     12
+    ],
+    [
+     "spacecraft::tests",
+     11
+    ],
+    [
+     "app::gallery::tests",
+     3
+    ],
+    [
+     "tests/map_checks.rs",
+     1
+    ]
+   ],
+   "tests": 42
+  },
+  "art-ski": {
+   "browser": [
+    "city_map",
+    "weather"
+   ],
+   "desc": "the Ski Slope's scenery (skiscape.rs; vehicles.rs's snowcats)",
+   "files": [
+    "crates/core/src/skiscape.rs",
+    "crates/core/src/vehicles.rs"
+   ],
+   "modules": [
+    [
+     "scene::tests",
+     15
+    ],
+    [
+     "skiscape::tests",
+     6
+    ],
+    [
+     "app::ski_camera_tests",
+     2
+    ],
+    [
+     "tests/map_checks.rs",
+     1
+    ],
+    [
+     "vehicles::tests",
+     1
+    ]
+   ],
+   "tests": 25
+  },
+  "art-tower": {
+   "browser": [],
+   "desc": "Mape's Tower's scenery and models (towerscape/, towermodels/)",
+   "files": [
+    "crates/core/src/towermodels.rs",
+    "crates/core/src/towermodels/creatures.rs",
+    "crates/core/src/towermodels/deep.rs",
+    "crates/core/src/towermodels/folk.rs",
+    "crates/core/src/towermodels/keep.rs",
+    "crates/core/src/towermodels/magic.rs",
+    "crates/core/src/towermodels/portal.rs",
+    "crates/core/src/towermodels/summit.rs",
+    "crates/core/src/towermodels/tests.rs",
+    "crates/core/src/towermodels/towers.rs",
+    "crates/core/src/towermodels/tube.rs",
+    "crates/core/src/towermodels/zipper.rs",
+    "crates/core/src/towerscape.rs",
+    "crates/core/src/towerscape/art.rs",
+    "crates/core/src/towerscape/lobby.rs"
+   ],
+   "modules": [
+    [
+     "scene::tests",
+     15
+    ],
+    [
+     "towermodels::tests",
+     14
+    ],
+    [
+     "towerscape::tests",
+     5
+    ],
+    [
+     "tower::audit",
+     4
+    ],
+    [
+     "towerscape::art::tests",
+     4
+    ],
+    [
+     "app::gallery::tests",
+     3
+    ],
+    [
+     "towerscape::lobby::tests",
+     2
+    ],
+    [
+     "app::menu_dock::tests",
+     1
+    ],
+    [
+     "tests/map_checks.rs",
+     1
+    ]
+   ],
+   "tests": 49
+  },
+  "boundary": {
+   "browser": [],
+   "desc": "the core's purity scanner, dependency allowlist and CSP (always run: it scans every file)",
+   "files": [
+    "crates/core/tests/boundary.rs",
+    "scripts/checkrun.py",
+    "scripts/quick-check.sh",
+    "scripts/tags.py",
+    "tests/tags.toml"
+   ],
+   "modules": [
+    [
+     "tests/boundary.rs",
+     13
+    ]
+   ],
+   "tests": 13
+  },
+  "camera": {
+   "browser": [
+    "race"
+   ],
+   "desc": "the race camera, focus, spectating, the lobby camera",
+   "files": [
+    "crates/core/src/app.rs",
+    "crates/core/src/app/menu_dock.rs",
+    "crates/core/src/app/replays.rs",
+    "crates/core/src/app/ski_camera_tests.rs",
+    "crates/core/src/app/spectate.rs",
+    "crates/core/src/app/spectate_tests.rs",
+    "crates/core/src/camera.rs",
+    "crates/core/src/camera/hulls.rs",
+    "crates/core/src/camera/keeps.rs",
+    "crates/core/src/focus.rs",
+    "crates/core/src/see.rs"
+   ],
+   "modules": [
+    [
+     "ravine::tests",
+     20
+    ],
+    [
+     "ravine::rules_tests",
+     14
+    ],
+    [
+     "camera::tests",
+     9
+    ],
+    [
+     "app::menu_dock::tests",
+     7
+    ],
+    [
+     "tests/tower_ai.rs",
+     6
+    ],
+    [
+     "app::lava_tests",
+     5
+    ],
+    [
+     "app::spectate_tests",
+     5
+    ],
+    [
+     "focus::tests",
+     4
+    ],
+    [
+     "app::gallery::tests",
+     3
+    ],
+    [
+     "app::ski_camera_tests",
+     2
+    ],
+    [
+     "see::tests",
+     2
+    ],
+    [
+     "app::map_tests",
+     1
+    ],
+    [
+     "app::replay_tests",
+     1
+    ],
+    [
+     "app::view_tests",
+     1
+    ],
+    [
+     "camera::hulls::tests",
+     1
+    ]
+   ],
+   "tests": 81
+  },
+  "costumes": {
+   "browser": [
+    "setup_layout"
+   ],
+   "desc": "palettes and unlockable costumes",
+   "files": [
+    "crates/core/src/app/costume_tests.rs",
+    "crates/core/src/app/costumes.rs",
+    "crates/core/src/app/look_tests.rs",
+    "crates/core/src/costume.rs"
+   ],
+   "modules": [
+    [
+     "tests/online.rs",
+     32
+    ],
+    [
+     "models::tests",
+     15
+    ],
+    [
+     "app::costume_tests",
+     7
+    ],
+    [
+     "app::look_tests",
+     5
+    ],
+    [
+     "models::grocer::tests",
+     4
+    ],
+    [
+     "models::tourist::tests",
+     4
+    ],
+    [
+     "app::tile::tests",
+     3
+    ],
+    [
+     "costume::tests",
+     3
+    ],
+    [
+     "models::cowboy::tests",
+     2
+    ],
+    [
+     "app::settings_tests",
+     1
+    ],
+    [
+     "app::view_tests",
+     1
+    ],
+    [
+     "models::food::tests",
+     1
+    ],
+    [
+     "models::palette_tests",
+     1
+    ]
+   ],
+   "tests": 79
+  },
+  "dock": {
+   "browser": [
+    "setup_layout"
+   ],
+   "desc": "the menus' dock beside the previewed ape and its camera",
+   "files": [
+    "crates/core/src/app/menu_dock.rs"
+   ],
+   "modules": [
+    [
+     "app::menu_dock::tests",
+     2
+    ]
+   ],
+   "tests": 2
+  },
+  "gallery": {
+   "browser": [],
+   "desc": "the model gallery (a viewer for pictures)",
+   "files": [
+    "crates/core/src/app/gallery.rs"
+   ],
+   "modules": [
+    [
+     "towermodels::tests",
+     14
+    ],
+    [
+     "sectorscape::tests",
+     12
+    ],
+    [
+     "baymodels::tests",
+     5
+    ],
+    [
+     "ruinsmodels::tests",
+     5
+    ],
+    [
+     "app::gallery::tests",
+     4
+    ]
+   ],
+   "tests": 40
+  },
+  "gear": {
+   "browser": [
+    "race"
+   ],
+   "desc": "outfit meshes: each map's gear and the costumes' clothes (tourist, wizard, explorer, pirate, space, ski)",
+   "files": [
+    "crates/core/src/models/cowboy.rs",
+    "crates/core/src/models/food.rs",
+    "crates/core/src/models/grocer.rs",
+    "crates/core/src/models/tourist.rs",
+    "crates/core/src/models/wizard.rs"
+   ],
+   "modules": [
+    [
+     "models::tests",
+     16
+    ],
+    [
+     "models::grocer::tests",
+     4
+    ],
+    [
+     "models::tourist::tests",
+     4
+    ],
+    [
+     "app::gallery::tests",
+     3
+    ],
+    [
+     "models::cowboy::tests",
+     2
+    ],
+    [
+     "app::costume_tests",
+     1
+    ],
+    [
+     "app::tile::tests",
+     1
+    ],
+    [
+     "app::weather_tests",
+     1
+    ],
+    [
+     "models::food::tests",
+     1
+    ]
+   ],
+   "tests": 33
+  },
+  "hud": {
+   "browser": [
+    "race",
+    "time_trial",
+    "city_map",
+    "random_map"
+   ],
+   "desc": "the race HUD: place, time, best, minimap, flashes, the speedometer",
+   "files": [
+    "crates/core/src/app/hud.rs",
+    "crates/core/src/app/hud_tests.rs",
+    "crates/core/src/speedo.rs"
+   ],
+   "modules": [
+    [
+     "app::online_play::tests",
+     21
+    ],
+    [
+     "app::items_hype_tests",
+     9
+    ],
+    [
+     "app::map_tests",
+     9
+    ],
+    [
+     "speedo::tests",
+     6
+    ],
+    [
+     "app::lava_tests",
+     5
+    ],
+    [
+     "app::look_tests",
+     5
+    ],
+    [
+     "app::spectate_tests",
+     5
+    ],
+    [
+     "app::hud_tests",
+     4
+    ],
+    [
+     "app::tile::tests",
+     2
+    ],
+    [
+     "app::view_tests",
+     2
+    ],
+    [
+     "app::trial_tests",
+     1
+    ]
+   ],
+   "tests": 69
+  },
+  "hype": {
+   "browser": [],
+   "desc": "the hype meter and its calls",
+   "files": [
+    "crates/core/src/hype.rs"
+   ],
+   "modules": [
+    [
+     "app::items_hype_tests",
+     9
+    ],
+    [
+     "sound::tests",
+     9
+    ],
+    [
+     "sound::call_tests",
+     6
+    ],
+    [
+     "speedo::tests",
+     6
+    ],
+    [
+     "hype::tests",
+     3
+    ],
+    [
+     "sound::voice_tests",
+     2
+    ]
+   ],
+   "tests": 35
+  },
+  "icon": {
+   "browser": [
+    "boot"
+   ],
+   "desc": "the tab icon",
+   "files": [
+    "crates/core/src/icon.rs"
+   ],
+   "modules": [
+    [
+     "icon::tests",
+     1
+    ],
+    [
+     "items::tests",
+     1
+    ]
+   ],
+   "tests": 2
+  },
+  "items": {
+   "browser": [
+    "race",
+    "time_trial",
+    "setup_layout"
+   ],
+   "desc": "item crates, thrown things, summoned vines, boosts",
+   "files": [
+    "crates/core/src/app.rs",
+    "crates/core/src/app/items.rs",
+    "crates/core/src/app/items_hype_tests.rs",
+    "crates/core/src/items.rs",
+    "crates/core/src/items/tests.rs"
+   ],
+   "modules": [
+    [
+     "items::tests",
+     27
+    ],
+    [
+     "race::tests",
+     11
+    ],
+    [
+     "app::items_hype_tests",
+     9
+    ],
+    [
+     "tests/ai.rs",
+     9
+    ],
+    [
+     "tests/bay_ai.rs",
+     6
+    ],
+    [
+     "tests/city_ai.rs",
+     6
+    ],
+    [
+     "tests/ruins_ai.rs",
+     6
+    ],
+    [
+     "tests/sector_ai.rs",
+     5
+    ],
+    [
+     "tests/ski_ai.rs",
+     5
+    ],
+    [
+     "tests/maps_unchanged.rs",
+     3
+    ],
+    [
+     "tests/jungle_unchanged.rs",
+     2
+    ],
+    [
+     "tower::tests",
+     2
+    ],
+    [
+     "app::race_tests",
+     1
+    ],
+    [
+     "app::trial_tests",
+     1
+    ],
+    [
+     "tests/sector_unchanged.rs",
+     1
+    ]
+   ],
+   "tests": 94
+  },
+  "lava": {
+   "browser": [],
+   "desc": "Floor is Lava: the jaguar's timings and eating",
+   "files": [
+    "crates/core/src/jaguar.rs"
+   ],
+   "modules": [
+    [
+     "scene::tests",
+     15
+    ],
+    [
+     "race::tests",
+     11
+    ],
+    [
+     "app::lava_tests",
+     5
+    ],
+    [
+     "app::spectate_tests",
+     5
+    ],
+    [
+     "dance::tests",
+     2
+    ],
+    [
+     "jaguar::tests",
+     2
+    ],
+    [
+     "ski::layout::tests",
+     1
+    ],
+    [
+     "tower::tests",
+     1
+    ]
+   ],
+   "tests": 42
+  },
+  "maps-bay": {
+   "browser": [],
+   "desc": "Banana Bay Battle",
+   "files": [
+    "crates/core/src/bay.rs",
+    "crates/core/src/bay/course_tests.rs",
+    "crates/core/src/bay/island.rs",
+    "crates/core/src/bay/layout.rs",
+    "crates/core/src/bay/rules.rs",
+    "crates/core/src/bay/tests.rs",
+    "crates/core/tests/bay_ai.rs",
+    "crates/core/tests/map_checks.rs"
+   ],
+   "modules": [
+    [
+     "bayscape::tests",
+     7
+    ],
+    [
+     "tests/bay_ai.rs",
+     6
+    ],
+    [
+     "bay::course_tests",
+     5
+    ],
+    [
+     "bay::tests",
+     5
+    ],
+    [
+     "baymodels::tests",
+     5
+    ],
+    [
+     "bayscape::lobby::tests",
+     3
+    ],
+    [
+     "models::tests",
+     3
+    ],
+    [
+     "bay::island::tests",
+     2
+    ],
+    [
+     "bayscape::battle::tests",
+     2
+    ],
+    [
+     "bayscape::fleet::tests",
+     2
+    ],
+    [
+     "tests/map_checks.rs",
+     2
+    ],
+    [
+     "tower::tests",
+     2
+    ],
+    [
+     "app::menu_dock::tests",
+     1
+    ],
+    [
+     "bayscape::island::tests",
+     1
+    ],
+    [
+     "camera::hulls::tests",
+     1
+    ]
+   ],
+   "tests": 47
+  },
+  "maps-city": {
+   "browser": [
+    "city_map"
+   ],
+   "desc": "the City",
+   "files": [
+    "crates/core/src/city.rs",
+    "crates/core/src/city/layout.rs",
+    "crates/core/src/city/tests.rs",
+    "crates/core/tests/city_ai.rs",
+    "crates/core/tests/map_checks.rs",
+    "crates/core/tests/maps_unchanged.rs"
+   ],
+   "modules": [
+    [
+     "city::tests",
+     22
+    ],
+    [
+     "scene::tests",
+     15
+    ],
+    [
+     "cityscape::tests",
+     10
+    ],
+    [
+     "tests/city_ai.rs",
+     6
+    ],
+    [
+     "models::tourist::tests",
+     4
+    ],
+    [
+     "tests/maps_unchanged.rs",
+     3
+    ],
+    [
+     "tests/map_checks.rs",
+     2
+    ],
+    [
+     "tower::tests",
+     2
+    ],
+    [
+     "app::costume_tests",
+     1
+    ],
+    [
+     "app::menu_dock::tests",
+     1
+    ],
+    [
+     "app::view_tests",
+     1
+    ],
+    [
+     "vehicles::tests",
+     1
+    ]
+   ],
+   "tests": 68
+  },
+  "maps-grocery": {
+   "browser": [],
+   "desc": "Aisle Ape (the grocery store; its solids are a Ravine layout, so its tests also carry maps-ravine)",
+   "files": [
+    "crates/core/examples/grocery_list_report.rs",
+    "crates/core/examples/grocery_report.rs",
+    "crates/core/examples/grocery_stalls.rs",
+    "crates/core/examples/grocery_trace.rs",
+    "crates/core/src/grocery.rs",
+    "crates/core/src/grocery/layout.rs",
+    "crates/core/src/grocery/list.rs",
+    "crates/core/src/grocery/swat.rs",
+    "crates/core/src/grocery/tests.rs",
+    "crates/core/tests/grocery_ai.rs"
+   ],
+   "modules": [
+    [
+     "grocery::tests",
+     13
+    ],
+    [
+     "tests/grocery_ai.rs",
+     2
+    ],
+    [
+     "tests/map_checks.rs",
+     2
+    ],
+    [
+     "groceryscape::tests",
+     1
+    ]
+   ],
+   "tests": 18
+  },
+  "maps-jungle": {
+   "browser": [
+    "race",
+    "time_trial",
+    "city_map"
+   ],
+   "desc": "the Jungle course (course.rs)",
+   "files": [
+    "crates/core/src/course.rs",
+    "crates/core/tests/ai.rs",
+    "crates/core/tests/jungle_unchanged.rs",
+    "crates/core/tests/map_checks.rs",
+    "crates/core/tests/maps_unchanged.rs"
+   ],
+   "modules": [
+    [
+     "course::tests",
+     20
+    ],
+    [
+     "ravine::tests",
+     20
+    ],
+    [
+     "scene::tests",
+     15
+    ],
+    [
+     "ravine::rules_tests",
+     14
+    ],
+    [
+     "grocery::tests",
+     13
+    ],
+    [
+     "tests/map_checks.rs",
+     10
+    ],
+    [
+     "tests/ai.rs",
+     9
+    ],
+    [
+     "tests/maps_unchanged.rs",
+     3
+    ],
+    [
+     "tests/jungle_unchanged.rs",
+     2
+    ],
+    [
+     "tower::tests",
+     2
+    ],
+    [
+     "app::view_tests",
+     1
+    ]
+   ],
+   "tests": 109
+  },
+  "maps-ravine": {
+   "browser": [],
+   "desc": "Rattlesnake Ravine (the slot canyon)",
+   "files": [
+    "crates/core/examples/ravine_report.rs",
+    "crates/core/examples/ravine_trace.rs",
+    "crates/core/src/ravine.rs",
+    "crates/core/src/ravine/layout.rs",
+    "crates/core/src/ravine/lobby.rs",
+    "crates/core/src/ravine/rules.rs",
+    "crates/core/src/ravine/rules_tests.rs",
+    "crates/core/src/ravine/solids.rs",
+    "crates/core/src/ravine/tests.rs",
+    "crates/core/src/ravinemodels.rs",
+    "crates/core/src/ravinemodels/dressing.rs",
+    "crates/core/src/ravinemodels/finish.rs",
+    "crates/core/src/ravinemodels/lizard.rs",
+    "crates/core/src/ravinemodels/mine.rs",
+    "crates/core/src/ravinemodels/skull.rs",
+    "crates/core/src/ravinemodels/snake.rs",
+    "crates/core/src/ravinemodels/tests.rs",
+    "crates/core/src/ravinescape.rs",
+    "crates/core/tests/map_checks.rs",
+    "crates/core/tests/ravine_ai.rs"
+   ],
+   "modules": [
+    [
+     "ravine::tests",
+     23
+    ],
+    [
+     "ravine::rules_tests",
+     14
+    ],
+    [
+     "grocery::tests",
+     13
+    ],
+    [
+     "ravinemodels::tests",
+     6
+    ],
+    [
+     "ravinescape::tests",
+     6
+    ],
+    [
+     "ravinescape::course::tests",
+     5
+    ],
+    [
+     "tests/map_checks.rs",
+     4
+    ],
+    [
+     "ai::tests",
+     2
+    ],
+    [
+     "tests/grocery_ai.rs",
+     2
+    ],
+    [
+     "tests/ravine_ai.rs",
+     2
+    ]
+   ],
+   "tests": 77
+  },
+  "maps-ruins": {
+   "browser": [],
+   "desc": "Sunset Ruins",
+   "files": [
+    "crates/core/src/ruins.rs",
+    "crates/core/src/ruins/facade.rs",
+    "crates/core/src/ruins/layout.rs",
+    "crates/core/src/ruins/rules.rs",
+    "crates/core/src/ruins/tests.rs",
+    "crates/core/tests/map_checks.rs",
+    "crates/core/tests/ruins_ai.rs"
+   ],
+   "modules": [
+    [
+     "ruins::tests",
+     16
+    ],
+    [
+     "tests/ruins_ai.rs",
+     6
+    ],
+    [
+     "ruinsmodels::tests",
+     5
+    ],
+    [
+     "models::tests",
+     4
+    ],
+    [
+     "ruins::facade::tests",
+     2
+    ],
+    [
+     "tests/map_checks.rs",
+     2
+    ],
+    [
+     "tower::tests",
+     2
+    ],
+    [
+     "app::menu_dock::tests",
+     1
+    ],
+    [
+     "ruinsscape::panel_tests",
+     1
+    ]
+   ],
+   "tests": 39
+  },
+  "maps-sector": {
+   "browser": [],
+   "desc": "Sector Ape (space)",
+   "files": [
+    "crates/core/src/ape/space.rs",
+    "crates/core/src/sector.rs",
+    "crates/core/src/sector/layout.rs",
+    "crates/core/src/sector/layout/tests.rs",
+    "crates/core/src/sector/rules.rs",
+    "crates/core/src/sector/tests.rs",
+    "crates/core/tests/map_checks.rs",
+    "crates/core/tests/sector_ai.rs",
+    "crates/core/tests/sector_finish.rs",
+    "crates/core/tests/sector_unchanged.rs"
+   ],
+   "modules": [
+    [
+     "sector::tests",
+     17
+    ],
+    [
+     "sector::layout::tests",
+     15
+    ],
+    [
+     "sectorscape::tests",
+     12
+    ],
+    [
+     "spacecraft::tests",
+     11
+    ],
+    [
+     "speedo::tests",
+     6
+    ],
+    [
+     "models::tests",
+     5
+    ],
+    [
+     "tests/sector_ai.rs",
+     5
+    ],
+    [
+     "tests/map_checks.rs",
+     2
+    ],
+    [
+     "tower::tests",
+     2
+    ],
+    [
+     "tests/sector_finish.rs",
+     1
+    ],
+    [
+     "tests/sector_unchanged.rs",
+     1
+    ]
+   ],
+   "tests": 77
+  },
+  "maps-ski": {
+   "browser": [
+    "city_map",
+    "weather"
+   ],
+   "desc": "the Ski Slope (Yeti Peak)",
+   "files": [
+    "crates/core/src/ape/ski_tests.rs",
+    "crates/core/src/ski.rs",
+    "crates/core/src/ski/layout.rs",
+    "crates/core/src/ski/layout/tests.rs",
+    "crates/core/src/snow.rs",
+    "crates/core/tests/map_checks.rs",
+    "crates/core/tests/maps_unchanged.rs",
+    "crates/core/tests/ski_ai.rs"
+   ],
+   "modules": [
+    [
+     "scene::tests",
+     15
+    ],
+    [
+     "ski::layout::tests",
+     13
+    ],
+    [
+     "skiscape::tests",
+     6
+    ],
+    [
+     "models::tests",
+     5
+    ],
+    [
+     "snow::tests",
+     5
+    ],
+    [
+     "tests/ski_ai.rs",
+     5
+    ],
+    [
+     "ape::ski_tests",
+     4
+    ],
+    [
+     "ski::tests",
+     3
+    ],
+    [
+     "tests/maps_unchanged.rs",
+     3
+    ],
+    [
+     "app::ski_camera_tests",
+     2
+    ],
+    [
+     "tests/map_checks.rs",
+     2
+    ],
+    [
+     "tower::tests",
+     2
+    ],
+    [
+     "app::hud_tests",
+     1
+    ]
+   ],
+   "tests": 66
+  },
+  "maps-tower": {
+   "browser": [],
+   "desc": "Mape's Tower (the wizard tower)",
+   "files": [
+    "crates/core/src/tower.rs",
+    "crates/core/src/tower/audit.rs",
+    "crates/core/src/tower/layout.rs",
+    "crates/core/src/tower/rules.rs",
+    "crates/core/src/tower/stone.rs",
+    "crates/core/src/tower/tests.rs",
+    "crates/core/tests/map_checks.rs",
+    "crates/core/tests/tower_ai.rs"
+   ],
+   "modules": [
+    [
+     "tower::tests",
+     21
+    ],
+    [
+     "towermodels::tests",
+     14
+    ],
+    [
+     "tests/tower_ai.rs",
+     6
+    ],
+    [
+     "towerscape::tests",
+     5
+    ],
+    [
+     "tower::audit",
+     4
+    ],
+    [
+     "towerscape::art::tests",
+     4
+    ],
+    [
+     "ai::tests",
+     2
+    ],
+    [
+     "tests/map_checks.rs",
+     2
+    ],
+    [
+     "towerscape::lobby::tests",
+     2
+    ],
+    [
+     "app::menu_dock::tests",
+     1
+    ],
+    [
+     "models::tests",
+     1
+    ]
+   ],
+   "tests": 62
+  },
+  "medals": {
+   "browser": [
+    "time_trial"
+   ],
+   "desc": "each map's medal times (app/medals.rs)",
+   "files": [
+    "crates/core/src/app/medals.rs"
+   ],
+   "modules": [
+    [
+     "app::map_tests",
+     9
+    ],
+    [
+     "tests/ai.rs",
+     9
+    ],
+    [
+     "tests/bay_ai.rs",
+     6
+    ],
+    [
+     "tests/city_ai.rs",
+     6
+    ],
+    [
+     "tests/ruins_ai.rs",
+     6
+    ],
+    [
+     "tests/tower_ai.rs",
+     6
+    ],
+    [
+     "app::costume_tests",
+     5
+    ],
+    [
+     "tests/sector_ai.rs",
+     5
+    ],
+    [
+     "tests/ski_ai.rs",
+     5
+    ],
+    [
+     "trial::tests",
+     5
+    ],
+    [
+     "app::medals::tests",
+     2
+    ],
+    [
+     "app::replay_tests",
+     2
+    ],
+    [
+     "tests/grocery_ai.rs",
+     2
+    ],
+    [
+     "tests/ravine_ai.rs",
+     2
+    ],
+    [
+     "app::trial_tests",
+     1
+    ]
+   ],
+   "tests": 71
+  },
+  "menus": {
+   "browser": [
+    "settings",
+    "race",
+    "secret",
+    "time_trial",
+    "replays_list",
+    "whats_new",
+    "city_map",
+    "weather",
+    "setup_layout",
+    "random_map"
+   ],
+   "desc": "screens, settings, Race Setup, the HUD and speedometer, strings",
+   "files": [
+    "crates/core/src/app.rs",
+    "crates/core/src/app/call_tests.rs",
+    "crates/core/src/app/map_tests.rs",
+    "crates/core/src/app/menus.rs",
+    "crates/core/src/app/setup_tests.rs",
+    "crates/core/tests/map_pictures.rs",
+    "data/maps/bay.webp",
+    "data/maps/city.webp",
+    "data/maps/grocery.webp",
+    "data/maps/jungle.webp",
+    "data/maps/random.svg",
+    "data/maps/ravine.webp",
+    "data/maps/ruins.webp",
+    "data/maps/sector.webp",
+    "data/maps/ski.webp",
+    "data/maps/tower.webp",
+    "data/strings.json"
+   ],
+   "modules": [
+    [
+     "app::online_play::tests",
+     21
+    ],
+    [
+     "app::map_tests",
+     9
+    ],
+    [
+     "app::weather_tests",
+     8
+    ],
+    [
+     "app::costume_tests",
+     7
+    ],
+    [
+     "app::menu_dock::tests",
+     6
+    ],
+    [
+     "app::lava_tests",
+     5
+    ],
+    [
+     "app::look_tests",
+     5
+    ],
+    [
+     "app::race_tests",
+     5
+    ],
+    [
+     "app::notes_tests",
+     4
+    ],
+    [
+     "app::gallery::tests",
+     3
+    ],
+    [
+     "app::settings_tests",
+     3
+    ],
+    [
+     "app::tile::tests",
+     3
+    ],
+    [
+     "api::tests",
+     2
+    ],
+    [
+     "app::hud_tests",
+     2
+    ],
+    [
+     "app::medals::tests",
+     2
+    ],
+    [
+     "app::setup_tests",
+     2
+    ],
+    [
+     "app::view_tests",
+     2
+    ],
+    [
+     "app::call_tests",
+     1
+    ],
+    [
+     "app::sound_tests",
+     1
+    ],
+    [
+     "app::trial_tests",
+     1
+    ],
+    [
+     "tests/map_checks.rs",
+     1
+    ],
+    [
+     "tests/map_pictures.rs",
+     1
+    ],
+    [
+     "tower::tests",
+     1
+    ]
+   ],
+   "tests": 95
+  },
+  "models": {
+   "browser": [
+    "race"
+   ],
+   "desc": "ape and animal meshes and poses (models.rs, the jaguars, the dance)",
+   "files": [
+    "crates/core/src/dance.rs",
+    "crates/core/src/jaguar.rs",
+    "crates/core/src/models.rs",
+    "crates/core/src/models/flame.rs",
+    "crates/core/src/models/spider.rs"
+   ],
+   "modules": [
+    [
+     "models::tests",
+     35
+    ],
+    [
+     "app::look_tests",
+     5
+    ],
+    [
+     "app::gallery::tests",
+     4
+    ],
+    [
+     "models::grocer::tests",
+     4
+    ],
+    [
+     "models::tourist::tests",
+     4
+    ],
+    [
+     "app::settings_tests",
+     2
+    ],
+    [
+     "dance::tests",
+     2
+    ],
+    [
+     "jaguar::tests",
+     2
+    ],
+    [
+     "models::cowboy::tests",
+     2
+    ],
+    [
+     "app::costume_tests",
+     1
+    ],
+    [
+     "app::spectate_tests",
+     1
+    ],
+    [
+     "app::view_tests",
+     1
+    ],
+    [
+     "app::weather_tests",
+     1
+    ],
+    [
+     "models::food::tests",
+     1
+    ],
+    [
+     "models::palette_tests",
+     1
+    ]
+   ],
+   "tests": 66
+  },
+  "notes": {
+   "browser": [
+    "whats_new"
+   ],
+   "desc": "What's New: the patch notes and their screen",
+   "files": [
+    "crates/core/src/app/notes.rs",
+    "crates/core/src/app/notes_tests.rs",
+    "crates/core/src/patch_notes.rs",
+    "data/patch-notes.json"
+   ],
+   "modules": [
+    [
+     "app::notes_tests",
+     4
+    ],
+    [
+     "patch_notes::tests",
+     3
+    ],
+    [
+     "app::view_tests",
+     1
+    ]
+   ],
+   "tests": 8
+  },
+  "online": {
+   "browser": [],
+   "desc": "online play: lobby, protocol, transport",
+   "files": [
+    "crates/core/src/app.rs",
+    "crates/core/src/app/online_play.rs",
+    "crates/core/src/app/online_play_tests.rs",
+    "crates/core/src/online.rs",
+    "crates/core/tests/online.rs",
+    "scripts/check-online.sh",
+    "tests/browser/engines.py",
+    "tests/browser/online.py",
+    "tests/browser/online_race.py",
+    "tests/browser/progress.py",
+    "web/nettest.html",
+    "web/nettest.js",
+    "web/online-config.js",
+    "web/online.js"
+   ],
+   "modules": [
+    [
+     "tests/online.rs",
+     32
+    ],
+    [
+     "app::online_play::tests",
+     21
+    ],
+    [
+     "app::costume_tests",
+     6
+    ],
+    [
+     "online::tests",
+     3
+    ]
+   ],
+   "tests": 62
+  },
+  "page": {
+   "browser": [
+    "boot"
+   ],
+   "desc": "the web page (web/), its browser checks",
+   "files": [
+    "tests/browser/check.py",
+    "tests/browser/engines.py",
+    "tests/browser/interactions.py",
+    "tests/browser/progress.py",
+    "web/app.js",
+    "web/gl.js",
+    "web/online-config.js",
+    "web/online.js",
+    "web/style.css"
+   ],
+   "modules": [
+    [
+     "api::tests",
+     2
+    ]
+   ],
+   "tests": 2
+  },
+  "physics": {
+   "browser": [
+    "race"
+   ],
+   "desc": "ape bodies, vines, collisions: ape.rs, vinesim.rs, the rules' numbers",
+   "files": [
+    "crates/core/src/ape.rs",
+    "crates/core/src/ape/ski_tests.rs",
+    "crates/core/src/ape/tests.rs",
+    "crates/core/src/rules.rs"
+   ],
+   "modules": [
+    [
+     "ape::tests",
+     32
+    ],
+    [
+     "items::tests",
+     27
+    ],
+    [
+     "city::tests",
+     22
+    ],
+    [
+     "ravine::tests",
+     20
+    ],
+    [
+     "tower::tests",
+     19
+    ],
+    [
+     "sector::tests",
+     17
+    ],
+    [
+     "ruins::tests",
+     16
+    ],
+    [
+     "sector::layout::tests",
+     15
+    ],
+    [
+     "ravine::rules_tests",
+     14
+    ],
+    [
+     "grocery::tests",
+     13
+    ],
+    [
+     "ski::layout::tests",
+     13
+    ],
+    [
+     "race::tests",
+     11
+    ],
+    [
+     "tests/ai.rs",
+     9
+    ],
+    [
+     "tests/bay_ai.rs",
+     6
+    ],
+    [
+     "tests/city_ai.rs",
+     6
+    ],
+    [
+     "tests/ruins_ai.rs",
+     6
+    ],
+    [
+     "tests/tower_ai.rs",
+     6
+    ],
+    [
+     "bay::course_tests",
+     5
+    ],
+    [
+     "tests/sector_ai.rs",
+     5
+    ],
+    [
+     "tests/ski_ai.rs",
+     5
+    ],
+    [
+     "ape::ski_tests",
+     4
+    ],
+    [
+     "rules::tests",
+     4
+    ],
+    [
+     "tower::audit",
+     4
+    ],
+    [
+     "ski::tests",
+     3
+    ],
+    [
+     "tests/maps_unchanged.rs",
+     3
+    ],
+    [
+     "ruins::facade::tests",
+     2
+    ],
+    [
+     "tests/jungle_unchanged.rs",
+     2
+    ],
+    [
+     "app::race_tests",
+     1
+    ],
+    [
+     "tests/sector_finish.rs",
+     1
+    ],
+    [
+     "tests/sector_unchanged.rs",
+     1
+    ]
+   ],
+   "tests": 292
+  },
+  "race": {
+   "browser": [
+    "race",
+    "time_trial",
+    "random_map"
+   ],
+   "desc": "a race's flow: countdown, places, finishes, Time Trial, medals, Floor is Lava, hype, the dance",
+   "files": [
+    "crates/core/src/app.rs",
+    "crates/core/src/app/call_tests.rs",
+    "crates/core/src/app/lava_tests.rs",
+    "crates/core/src/app/race.rs",
+    "crates/core/src/app/race_tests.rs",
+    "crates/core/src/race.rs",
+    "crates/core/src/rules.rs"
+   ],
+   "modules": [
+    [
+     "tests/online.rs",
+     32
+    ],
+    [
+     "items::tests",
+     27
+    ],
+    [
+     "app::online_play::tests",
+     21
+    ],
+    [
+     "ravine::tests",
+     20
+    ],
+    [
+     "ravine::rules_tests",
+     14
+    ],
+    [
+     "grocery::tests",
+     13
+    ],
+    [
+     "replay::tests",
+     13
+    ],
+    [
+     "race::tests",
+     11
+    ],
+    [
+     "app::items_hype_tests",
+     9
+    ],
+    [
+     "app::map_tests",
+     9
+    ],
+    [
+     "tests/ai.rs",
+     9
+    ],
+    [
+     "app::race_tests",
+     8
+    ],
+    [
+     "models::tests",
+     6
+    ],
+    [
+     "tests/bay_ai.rs",
+     6
+    ],
+    [
+     "tests/city_ai.rs",
+     6
+    ],
+    [
+     "tests/ruins_ai.rs",
+     6
+    ],
+    [
+     "tests/tower_ai.rs",
+     6
+    ],
+    [
+     "app::lava_tests",
+     5
+    ],
+    [
+     "app::spectate_tests",
+     5
+    ],
+    [
+     "tests/sector_ai.rs",
+     5
+    ],
+    [
+     "tests/ski_ai.rs",
+     5
+    ],
+    [
+     "trial::tests",
+     5
+    ],
+    [
+     "focus::tests",
+     4
+    ],
+    [
+     "rules::tests",
+     4
+    ],
+    [
+     "app::replay_tests",
+     3
+    ],
+    [
+     "hype::tests",
+     3
+    ],
+    [
+     "tests/maps_unchanged.rs",
+     3
+    ],
+    [
+     "app::medals::tests",
+     2
+    ],
+    [
+     "dance::tests",
+     2
+    ],
+    [
+     "jaguar::tests",
+     2
+    ],
+    [
+     "tests/jungle_unchanged.rs",
+     2
+    ],
+    [
+     "app::hud_tests",
+     1
+    ],
+    [
+     "app::trial_tests",
+     1
+    ],
+    [
+     "app::view_tests",
+     1
+    ],
+    [
+     "app::weather_tests",
+     1
+    ],
+    [
+     "tests/sector_finish.rs",
+     1
+    ],
+    [
+     "tests/sector_unchanged.rs",
+     1
+    ],
+    [
+     "tower::tests",
+     1
+    ]
+   ],
+   "tests": 273
+  },
+  "render": {
+   "browser": [
+    "boot",
+    "race",
+    "city_map",
+    "weather"
+   ],
+   "desc": "the drawing's core: mesh.rs, render.rs, scene.rs, shaders, gl.js. Hitting it hits models, gear, sky and scenery too ([implies])",
+   "files": [
+    "crates/core/src/app/view.rs",
+    "crates/core/src/app/view_tests.rs",
+    "crates/core/src/mesh.rs",
+    "crates/core/src/render.rs",
+    "crates/core/src/scene.rs",
+    "crates/core/src/see.rs",
+    "data/shaders/scene.frag",
+    "data/shaders/scene.vert",
+    "web/gl.js"
+   ],
+   "modules": [
+    [
+     "scene::tests",
+     15
+    ],
+    [
+     "app::weather_tests",
+     7
+    ],
+    [
+     "app::look_tests",
+     5
+    ],
+    [
+     "mesh::tests",
+     5
+    ],
+    [
+     "render::tests",
+     4
+    ],
+    [
+     "app::gallery::tests",
+     3
+    ],
+    [
+     "app::tile::tests",
+     3
+    ],
+    [
+     "app::view_tests",
+     3
+    ],
+    [
+     "app::settings_tests",
+     2
+    ],
+    [
+     "see::tests",
+     2
+    ],
+    [
+     "app::map_tests",
+     1
+    ],
+    [
+     "app::menu_dock::tests",
+     1
+    ],
+    [
+     "app::race_tests",
+     1
+    ],
+    [
+     "tests/map_checks.rs",
+     1
+    ]
+   ],
+   "tests": 53
+  },
+  "replay": {
+   "browser": [
+    "race",
+    "replays_list"
+   ],
+   "desc": "replays, ghosts, saved runs",
+   "files": [
+    "crates/core/src/app.rs",
+    "crates/core/src/app/call_tests.rs",
+    "crates/core/src/app/replay_tests.rs",
+    "crates/core/src/app/replays.rs",
+    "crates/core/src/replay.rs"
+   ],
+   "modules": [
+    [
+     "replay::tests",
+     13
+    ],
+    [
+     "app::map_tests",
+     9
+    ],
+    [
+     "app::replay_tests",
+     6
+    ],
+    [
+     "app::lava_tests",
+     5
+    ],
+    [
+     "app::look_tests",
+     5
+    ],
+    [
+     "app::race_tests",
+     3
+    ],
+    [
+     "app::call_tests",
+     1
+    ],
+    [
+     "app::settings_tests",
+     1
+    ],
+    [
+     "app::view_tests",
+     1
+    ]
+   ],
+   "tests": 44
+  },
+  "results": {
+   "browser": [
+    "race",
+    "time_trial",
+    "city_map",
+    "random_map"
+   ],
+   "desc": "the pause menu, the results, the medal table",
+   "files": [
+    "crates/core/src/app/results.rs"
+   ],
+   "modules": [
+    [
+     "app::online_play::tests",
+     21
+    ],
+    [
+     "app::costume_tests",
+     5
+    ],
+    [
+     "app::lava_tests",
+     5
+    ],
+    [
+     "app::look_tests",
+     5
+    ],
+    [
+     "app::spectate_tests",
+     5
+    ],
+    [
+     "app::replay_tests",
+     4
+    ],
+    [
+     "app::hud_tests",
+     2
+    ],
+    [
+     "app::race_tests",
+     2
+    ],
+    [
+     "app::trial_tests",
+     1
+    ],
+    [
+     "app::view_tests",
+     1
+    ]
+   ],
+   "tests": 51
+  },
+  "scenery": {
+   "browser": [
+    "city_map",
+    "weather"
+   ],
+   "desc": "a map's drawn scenery and props (*scape.rs, *models.rs of a map); its maps-* tag carries it too",
+   "files": [
+    "crates/core/src/baymodels.rs",
+    "crates/core/src/bayscape.rs",
+    "crates/core/src/bayscape/battle.rs",
+    "crates/core/src/bayscape/fleet.rs",
+    "crates/core/src/bayscape/island.rs",
+    "crates/core/src/bayscape/lobby.rs",
+    "crates/core/src/bayscape/tests.rs",
+    "crates/core/src/cityscape.rs",
+    "crates/core/src/grocerymodels.rs",
+    "crates/core/src/grocerymodels/catalogue.rs",
+    "crates/core/src/grocerymodels/gallery.rs",
+    "crates/core/src/grocerymodels/outside.rs",
+    "crates/core/src/grocerymodels/people.rs",
+    "crates/core/src/grocerymodels/products.rs",
+    "crates/core/src/grocerymodels/props.rs",
+    "crates/core/src/grocerymodels/signs.rs",
+    "crates/core/src/grocerymodels/tests.rs",
+    "crates/core/src/groceryscape.rs",
+    "crates/core/src/groceryscape/course.rs",
+    "crates/core/src/groceryscape/fixtures.rs",
+    "crates/core/src/groceryscape/lobby.rs",
+    "crates/core/src/groceryscape/lot.rs",
+    "crates/core/src/groceryscape/movers.rs",
+    "crates/core/src/groceryscape/shelves.rs",
+    "crates/core/src/groceryscape/tests.rs",
+    "crates/core/src/groceryscape/walls.rs",
+    "crates/core/src/ravinemodels.rs",
+    "crates/core/src/ravinemodels/dressing.rs",
+    "crates/core/src/ravinemodels/finish.rs",
+    "crates/core/src/ravinemodels/lizard.rs",
+    "crates/core/src/ravinemodels/mine.rs",
+    "crates/core/src/ravinemodels/skull.rs",
+    "crates/core/src/ravinemodels/snake.rs",
+    "crates/core/src/ravinemodels/tests.rs",
+    "crates/core/src/ravinescape.rs",
+    "crates/core/src/ruinsmodels.rs",
+    "crates/core/src/ruinsscape.rs",
+    "crates/core/src/sectorscape.rs",
+    "crates/core/src/skiscape.rs",
+    "crates/core/src/spacecraft.rs",
+    "crates/core/src/towermodels.rs",
+    "crates/core/src/towermodels/creatures.rs",
+    "crates/core/src/towermodels/deep.rs",
+    "crates/core/src/towermodels/folk.rs",
+    "crates/core/src/towermodels/keep.rs",
+    "crates/core/src/towermodels/magic.rs",
+    "crates/core/src/towermodels/portal.rs",
+    "crates/core/src/towermodels/summit.rs",
+    "crates/core/src/towermodels/tests.rs",
+    "crates/core/src/towermodels/towers.rs",
+    "crates/core/src/towermodels/tube.rs",
+    "crates/core/src/towermodels/zipper.rs",
+    "crates/core/src/towerscape.rs",
+    "crates/core/src/towerscape/art.rs",
+    "crates/core/src/towerscape/lobby.rs",
+    "crates/core/src/vehicles.rs"
+   ],
+   "modules": [
+    [
+     "grocerymodels::tests",
+     16
+    ],
+    [
+     "towermodels::tests",
+     14
+    ],
+    [
+     "sectorscape::tests",
+     12
+    ],
+    [
+     "spacecraft::tests",
+     11
+    ],
+    [
+     "cityscape::tests",
+     10
+    ],
+    [
+     "app::weather_tests",
+     7
+    ],
+    [
+     "bayscape::tests",
+     7
+    ],
+    [
+     "ravinemodels::tests",
+     6
+    ],
+    [
+     "ravinescape::tests",
+     6
+    ],
+    [
+     "skiscape::tests",
+     6
+    ],
+    [
+     "baymodels::tests",
+     5
+    ],
+    [
+     "ruinsmodels::tests",
+     5
+    ],
+    [
+     "towerscape::tests",
+     5
+    ],
+    [
+     "towerscape::art::tests",
+     4
+    ],
+    [
+     "bayscape::lobby::tests",
+     3
+    ],
+    [
+     "app::tile::tests",
+     2
+    ],
+    [
+     "app::view_tests",
+     2
+    ],
+    [
+     "bayscape::battle::tests",
+     2
+    ],
+    [
+     "bayscape::fleet::tests",
+     2
+    ],
+    [
+     "towerscape::lobby::tests",
+     2
+    ],
+    [
+     "bayscape::island::tests",
+     1
+    ],
+    [
+     "grocerymodels::catalogue::tests",
+     1
+    ],
+    [
+     "groceryscape::tests",
+     1
+    ],
+    [
+     "ruinsscape::panel_tests",
+     1
+    ],
+    [
+     "vehicles::tests",
+     1
+    ]
+   ],
+   "tests": 132
+  },
+  "settings": {
+   "browser": [
+    "settings",
+    "secret",
+    "weather"
+   ],
+   "desc": "the Settings screen and the title's secret",
+   "files": [
+    "crates/core/src/app/settings_tests.rs"
+   ],
+   "modules": [
+    [
+     "app::weather_tests",
+     7
+    ],
+    [
+     "app::look_tests",
+     5
+    ],
+    [
+     "app::settings_tests",
+     4
+    ],
+    [
+     "app::view_tests",
+     2
+    ]
+   ],
+   "tests": 18
+  },
+  "setup": {
+   "browser": [
+    "race",
+    "time_trial",
+    "city_map",
+    "weather",
+    "setup_layout",
+    "random_map"
+   ],
+   "desc": "the Race Setup and Time Trial setup screens",
+   "files": [
+    "crates/core/src/app/setup.rs"
+   ],
+   "modules": [
+    [
+     "app::online_play::tests",
+     21
+    ],
+    [
+     "app::items_hype_tests",
+     9
+    ],
+    [
+     "app::map_tests",
+     9
+    ],
+    [
+     "app::weather_tests",
+     8
+    ],
+    [
+     "app::costume_tests",
+     6
+    ],
+    [
+     "app::lava_tests",
+     5
+    ],
+    [
+     "app::look_tests",
+     5
+    ],
+    [
+     "app::spectate_tests",
+     5
+    ],
+    [
+     "app::race_tests",
+     4
+    ],
+    [
+     "app::setup_tests",
+     2
+    ],
+    [
+     "app::hud_tests",
+     1
+    ],
+    [
+     "app::settings_tests",
+     1
+    ],
+    [
+     "app::trial_tests",
+     1
+    ],
+    [
+     "app::view_tests",
+     1
+    ]
+   ],
+   "tests": 78
+  },
+  "sky": {
+   "browser": [
+    "weather"
+   ],
+   "desc": "sky, light, fog and each look's colours (sky.rs)",
+   "files": [
+    "crates/core/src/groceryscape.rs",
+    "crates/core/src/ravinescape.rs",
+    "crates/core/src/sky.rs",
+    "crates/core/src/towerscape.rs",
+    "crates/core/src/towerscape/art.rs",
+    "crates/core/src/towerscape/lobby.rs"
+   ],
+   "modules": [
+    [
+     "app::weather_tests",
+     7
+    ],
+    [
+     "ravinescape::tests",
+     6
+    ],
+    [
+     "towerscape::tests",
+     5
+    ],
+    [
+     "sky::tests",
+     4
+    ],
+    [
+     "towerscape::art::tests",
+     4
+    ],
+    [
+     "app::view_tests",
+     2
+    ],
+    [
+     "towerscape::lobby::tests",
+     2
+    ],
+    [
+     "groceryscape::tests",
+     1
+    ]
+   ],
+   "tests": 31
+  },
+  "sound": {
+   "browser": [
+    "settings"
+   ],
+   "desc": "the synthesiser and its cues",
+   "files": [
+    "crates/core/src/app/audio.rs",
+    "crates/core/src/app/call_tests.rs",
+    "crates/core/src/app/sound_tests.rs",
+    "crates/core/src/sound.rs"
+   ],
+   "modules": [
+    [
+     "app::items_hype_tests",
+     9
+    ],
+    [
+     "sound::tests",
+     9
+    ],
+    [
+     "sound::call_tests",
+     6
+    ],
+    [
+     "hype::tests",
+     3
+    ],
+    [
+     "app::call_tests",
+     2
+    ],
+    [
+     "sound::voice_tests",
+     2
+    ],
+    [
+     "app::sound_tests",
+     1
+    ]
+   ],
+   "tests": 32
+  },
+  "tiles": {
+   "browser": [],
+   "desc": "the home page's tiles (?tile=)",
+   "files": [
+    "crates/core/src/app/tile.rs"
+   ],
+   "modules": [
+    [
+     "app::tile::tests",
+     2
+    ]
+   ],
+   "tests": 2
+  },
+  "trial": {
+   "browser": [
+    "time_trial"
+   ],
+   "desc": "Time Trial's rules and targets",
+   "files": [
+    "crates/core/src/app/trial_tests.rs",
+    "crates/core/src/trial.rs"
+   ],
+   "modules": [
+    [
+     "app::map_tests",
+     9
+    ],
+    [
+     "tests/ai.rs",
+     9
+    ],
+    [
+     "tests/bay_ai.rs",
+     6
+    ],
+    [
+     "tests/city_ai.rs",
+     6
+    ],
+    [
+     "tests/ruins_ai.rs",
+     6
+    ],
+    [
+     "tests/tower_ai.rs",
+     6
+    ],
+    [
+     "app::costume_tests",
+     5
+    ],
+    [
+     "tests/sector_ai.rs",
+     5
+    ],
+    [
+     "tests/ski_ai.rs",
+     5
+    ],
+    [
+     "trial::tests",
+     5
+    ],
+    [
+     "app::medals::tests",
+     2
+    ],
+    [
+     "app::replay_tests",
+     2
+    ],
+    [
+     "app::trial_tests",
+     1
+    ]
+   ],
+   "tests": 67
+  },
+  "vines": {
+   "browser": [],
+   "desc": "the drawn vines' bending (vinesim.rs: drawing only, no race reads it)",
+   "files": [
+    "crates/core/src/vinesim.rs"
+   ],
+   "modules": [
+    [
+     "scene::tests",
+     15
+    ],
+    [
+     "vinesim::tests",
+     4
+    ],
+    [
+     "app::race_tests",
+     1
+    ]
+   ],
+   "tests": 20
+  },
+  "weather": {
+   "browser": [
+    "weather",
+    "setup_layout"
+   ],
+   "desc": "the Settings weather and each map's weather",
+   "files": [
+    "crates/core/src/app/weather.rs",
+    "crates/core/src/app/weather_tests.rs",
+    "crates/core/src/snow.rs",
+    "crates/core/src/towerscape.rs"
+   ],
+   "modules": [
+    [
+     "app::weather_tests",
+     8
+    ],
+    [
+     "snow::tests",
+     5
+    ],
+    [
+     "towerscape::tests",
+     5
+    ],
+    [
+     "towerscape::art::tests",
+     4
+    ],
+    [
+     "towerscape::lobby::tests",
+     2
+    ],
+    [
+     "app::settings_tests",
+     1
+    ],
+    [
+     "app::view_tests",
+     1
+    ]
+   ],
+   "tests": 26
+  }
+ },
+ "total": 833
+}
