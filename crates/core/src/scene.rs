@@ -1575,6 +1575,13 @@ pub fn vine_look_on(map: Map, in_reach: bool, vivid: bool, tick: u32) -> VineLoo
             colour: crate::groceryscape::VINE,
             ..look
         },
+        // The Spindle: a bright green, glowing a little so it stays bright
+        // against every section's dyes in the tube's even light
+        (Map::Spindle, false, false) => VineLook {
+            colour: crate::spindlescape::VINE,
+            glow: ONE / 3,
+            ..look
+        },
         // The tower map: spell beams with a soft glow (their colour is the
         // caster's spell, `towerscape::beam_vine`)
         (Map::Tower, false, false) => VineLook {
