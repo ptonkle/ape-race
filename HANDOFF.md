@@ -4,6 +4,13 @@ Stage 9, written by the agent. `C5 Consolidate in your own words`.
 
 A fresh session starts from this file, not from memory.
 
+## Aisle Ape (2026-10-18, branch `grocery` in Sam's fork, held, not deployed)
+
+- The map (key `grocery`, TRIAGE T111, brief `briefs/aisle-ape.md`, progress `notes/grocery-progress.md` with the person's requests GR-T1–T10, pitfalls `notes/grocery-pitfalls.md`), built in a workspace that offers maps to this repository as pull requests. Its solids are a Ravine layout (`grocery.rs` module notes, SECOND-ORDER GR1); `Map::held` keeps it off the map grid and Random. Second pass: store-worker uniforms (`Gear::Grocer`), a shopping list per racer (`grocery/list.rs`), shoppers who swat (`grocery/swat.rs`), a drop ceiling and an ice climb, odd vines (`Course::hang` for the grocery), a parking lot finish and the plane. Route 2,082 m.
+- AI, one ape over 8 layouts: King Kong 7/8 (mean 120 s), Ape 5/8 (152 s), Sloth 4/8 (154 s) (SECOND-ORDER GR12, GR17). Medals Author 1:33, Gold 1:40, Silver 1:50, Bronze 2:05 (the Lemur's time trial 93.47 s; the Chimpanzee's did not finish). Within the 5,500-shape frame budget.
+- Full check before the pull requests (2026-10-18, `./scripts/check.sh` at c7a385f): passed. Format, lint, 816 core and boundary tests (the three `*_unchanged` hashes included), tags, release build, import audit, and the browser check in Chromium, Firefox and WebKit (252 of 252).
+- For the maintainer: the release (drop `Map::Grocery` from `Map::held`, `VERSION`, a patch note, a `PROTOCOL` bump if wanted, the README intro and catch-up colour lists) is left to you; the patch-note draft is in `notes/grocery-progress.md` step 19.
+
 ## Rattlesnake Ravine (2026-10-17, branch `ravine`, held, not deployed)
 
 - The map (key `ravine`, TRIAGE T107, brief `briefs/rattlesnake-ravine.md`, progress `notes/ravine-progress.md`): steps 1–14 and 17 done; 12 (sky shapes), 15 (screenshots), 16 and 18 open; deploy held. `Map::held` keeps it off the map grid and Random until the person releases it (README's How to Play row says so). AI over 16 layouts: Sloth 131.9 s (5 timeouts, accepted), Ape 97.2, King Kong 77.1. Medals Author 1:05, Gold 1:12, Silver 1:22, Bronze 1:37.

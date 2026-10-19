@@ -16,6 +16,7 @@
 use crate::baymodels as bay;
 use crate::fx::{self, deg, int, mul, ratio, ONE, TURN};
 use crate::geom::{facing, v3, Affine, V3};
+use crate::grocerymodels as grocery;
 use crate::models;
 use crate::ravinemodels as ravine;
 use crate::render::{self, Batch, Camera};
@@ -73,6 +74,9 @@ pub struct Gallery {
     /// a Rattlesnake Ravine model instead (`ravinemodels::GALLERY`), drawn
     /// at night
     pub ravine: Option<usize>,
+    /// a Aisle Ape model instead (`grocerymodels::GALLERY`),
+    /// drawn under the store's strip lights
+    pub grocery: Option<usize>,
     /// `cat`: the map whose big cat it is (`map=ruins`; else Sector Ape's)
     pub map: crate::map::Map,
     /// `cat`: Mape's Tower's flame cat (`flame=on`), whatever `map` says
@@ -95,6 +99,7 @@ impl Gallery {
             bay: None,
             tower: None,
             ravine: None,
+            grocery: None,
             map: crate::map::Map::Sector,
             flame: false,
             spider: false,
@@ -106,6 +111,7 @@ impl Gallery {
                 g.bay = bay::GALLERY.iter().position(|m| *m == pair);
                 g.tower = tower::GALLERY.iter().position(|m| *m == pair);
                 g.ravine = ravine::GALLERY.iter().position(|m| *m == pair);
+                g.grocery = grocery::GALLERY.iter().position(|m| *m == pair);
                 continue;
             }
             let Some((k, v)) = pair.split_once('=') else {
@@ -144,6 +150,9 @@ impl Gallery {
         }
         if let Some(r) = self.ravine {
             return ravine::framing(ravine::GALLERY[r]);
+        }
+        if let Some(r) = self.grocery {
+            return grocery::framing(grocery::GALLERY[r]);
         }
         if let Some(r) = self.tower {
             return tower::framing(tower::GALLERY[r]);
@@ -202,6 +211,9 @@ impl Gallery {
         }
         if let Some(r) = self.ravine {
             return ravine::gallery(b, ravine::GALLERY[r], &f, tick);
+        }
+        if let Some(r) = self.grocery {
+            return grocery::gallery(b, grocery::GALLERY[r], &f, tick);
         }
         if let Some(r) = self.tower {
             return tower::gallery(b, tower::GALLERY[r], &f, tick);
@@ -310,6 +322,8 @@ impl App {
             bay::gallery_look()
         } else if g.ravine.is_some() {
             ravine::gallery_look()
+        } else if g.grocery.is_some() {
+            grocery::gallery_look()
         } else if let Some(r) = g.tower {
             tower::gallery_look_of(tower::GALLERY[r])
         } else {
@@ -335,6 +349,8 @@ impl App {
             ruins::sky(&mut b, cam.eye, ruins::SUN_YAW);
         } else if g.bay.is_some() || g.tower.is_some() || g.ravine.is_some() {
             // a clear sky: the clear colour alone
+        } else if g.grocery.is_some() {
+            // indoors: the ceiling's colour alone
         } else {
             sc::stars(&mut b, cam.eye, 500);
         }
@@ -356,6 +372,22 @@ mod tests {
         for (i, key) in ravine::GALLERY.iter().enumerate() {
             assert!(!MODELS.contains(key), "{key}");
             assert_eq!(Gallery::parse(key).ravine, Some(i), "{key}");
+        }
+    }
+
+    #[test]
+    fn the_grocery_models_have_their_own_keys_and_parse() {
+        for (i, key) in grocery::GALLERY.iter().enumerate() {
+            assert!(!MODELS.contains(key), "{key}");
+            assert!(!ravine::GALLERY.contains(key), "{key}");
+            assert!(!ruins::GALLERY.contains(key), "{key}");
+            assert!(!bay::GALLERY.contains(key), "{key}");
+            assert!(!tower::GALLERY.contains(key), "{key}");
+            let g = Gallery::parse(key);
+            assert_eq!(g.grocery, Some(i), "{key}");
+            let mut b = Batch::new();
+            g.draw(&mut b, 0);
+            assert!(b.count() > 0, "{key} draws nothing");
         }
     }
 

@@ -55,6 +55,9 @@ CARDS = {
     # beside the T-rex skull in its torchlight, the teeth and the gap, the
     # snake vines and the glowing canyon winding on beyond
     "ravine": "520",
+    # down the frozen aisle: the glass doors either side, the coffin
+    # freezers, the licorice vines, the meat cases at its end
+    "grocery": "650",
 }
 
 SCALE_TO_WEBP = """async ([w, h, q]) => {

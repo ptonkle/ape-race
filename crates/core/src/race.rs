@@ -170,6 +170,12 @@ pub enum Reward {
     Banana,
     /// Sector Ape: the launch down the wreck's hidden passage (T88)
     Shortcut,
+    /// Aisle Ape: a shopping-list item, and what it gave
+    /// (GR-T2)
+    ListSpeed,
+    ListAir,
+    /// ... and a shopper's swat (GR-T10)
+    Swatted,
 }
 
 impl Reward {
@@ -179,6 +185,9 @@ impl Reward {
             Reward::Catchup => "catchup",
             Reward::Banana => "banana",
             Reward::Shortcut => "shortcut",
+            Reward::ListSpeed => "list_speed",
+            Reward::ListAir => "list_air",
+            Reward::Swatted => "swatted",
         }
     }
 }
@@ -313,7 +322,13 @@ impl Race {
                 Racer {
                     name: e.name.clone(),
                     driver: e.driver,
-                    ape: Ape::new_on(&course, e.kind, equal_stats, start, course.start_yaw),
+                    // (Aisle Ape: its spot in the item aisles, GR-T3)
+                    ape: {
+                        let mut a =
+                            Ape::new_on(&course, e.kind, equal_stats, start, course.start_yaw);
+                        a.slot = (i % crate::grocery::LIST_SLOTS) as u8;
+                        a
+                    },
                     item: None,
                     progress: 0,
                     finish: None,
@@ -426,6 +441,11 @@ impl Race {
             self.hold_doors(i);
             if self.ravine(i) {
                 continue;
+            }
+            // Aisle Ape: the shopping list (GR-T2)
+            if self.course.grocery.is_some() {
+                self.shopping(i);
+                self.swats(i);
             }
             // Rattlesnake Ravine: the snake vines and the teeth
             if self.rattlesnake(i) {

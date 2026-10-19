@@ -273,6 +273,7 @@ impl Difficulty {
                 flight: FLIGHT_TICKS,
                 hidden: true,
                 snake_slip: SNAKE_SLIP[0],
+                list_at: None,
             },
             Difficulty::Ape => Tuning {
                 ideal_hop: int(26),
@@ -286,6 +287,7 @@ impl Difficulty {
                 flight: FLIGHT_TICKS,
                 hidden: true,
                 snake_slip: SNAKE_SLIP[1],
+                list_at: Some(1),
             },
             Difficulty::KingKong => Tuning {
                 ideal_hop: int(28),
@@ -299,6 +301,7 @@ impl Difficulty {
                 flight: FLIGHT_TICKS,
                 hidden: true,
                 snake_slip: SNAKE_SLIP[2],
+                list_at: Some(0),
             },
         }
     }
@@ -456,6 +459,10 @@ struct Tuning {
     /// Rattlesnake Ravine: of every hundred snake vines it makes for this
     /// many (it misses the snake); it steers clear of the rest
     snake_slip: u32,
+    /// Aisle Ape: where among its candidates it puts its own
+    /// shopping-list item's string (GR-T2; none: it takes one only when
+    /// it comes its way)
+    list_at: Option<usize>,
 }
 
 /// Sector Ape's tuning (see [`Difficulty::tuning_on`]), easiest level
@@ -923,7 +930,7 @@ fn ahead(course: &Course, a: &Ape, from: i32, tick: u32, tune: Tuning) -> Vec<us
     };
     // how high its speed could carry it
     let top = a.pos.y + (a.vel.dot64(a.vel) / (2 * course.gravity() as i64)) as i32;
-    ahead_from(
+    let mut out = ahead_from(
         course,
         a.swinging(),
         from,
@@ -931,7 +938,12 @@ fn ahead(course: &Course, a: &Ape, from: i32, tick: u32, tune: Tuning) -> Vec<us
         dir,
         tick,
         tune,
-    )
+    );
+    // (Aisle Ape: its shopping list's strings first, GR-T2)
+    if course.grocery.is_some() {
+        crate::grocery::list::for_ai(course, a, from, tune.look, tune.list_at, &mut out);
+    }
+    out
 }
 
 /// Vines ahead of `from`, as [`ahead`], seen from `origin` heading `dir`:
@@ -1648,7 +1660,9 @@ fn on_vine(a: &Ape, course: &Course, tick: u32, vine: usize, brain: &mut Brain) 
             let error = brain.dice.range(-tune.noise, tune.noise) as i64;
             plan.moments.push(Moment {
                 tick: plan.sim_tick,
-                score: score(course, plan.began, hit) + error,
+                score: score(course, plan.began, hit)
+                    + error
+                    + crate::grocery::list::worth_to(course, a, hit.0),
                 pos: plan.sim.pos,
                 vel: plan.sim.vel,
                 target: steer,
@@ -2023,6 +2037,9 @@ pub struct Trial {
     pub bananas: u32,
     /// Floor is Lava (TRIAGE T37): the race clock when the jaguar ate it
     pub eaten: Option<u32>,
+    /// Aisle Ape: the shopping list's items taken, a bit a
+    /// zone (GR-T2)
+    pub list: u8,
 }
 
 /// Runs a race of AI apes alone on `course` for at most `limit` race ticks,
@@ -2125,6 +2142,7 @@ fn trial_with(
             ground_ticks: 0,
             bananas: 0,
             eaten: None,
+            list: 0,
         })
         .collect();
     let mut sum = vec![0i64; kinds.len()];
@@ -2164,6 +2182,7 @@ fn trial_with(
         t.finish = r.finish;
         t.progress = r.progress;
         t.bananas = r.ape.whole_bananas();
+        t.list = r.ape.list;
         if r.finish.is_none() && r.eaten.is_some() && t.eaten.is_none() {
             t.eaten = Some(race.clock);
         }

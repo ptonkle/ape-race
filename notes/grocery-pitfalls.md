@@ -1,4 +1,4 @@
-# Clean-Up on Aisle Ape: pitfalls to avoid
+# Aisle Ape: pitfalls to avoid
 
 The general list is MAPS.md "Common gotchas". This is what it means for this map.
 

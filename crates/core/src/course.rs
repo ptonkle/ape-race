@@ -214,7 +214,7 @@ pub struct Course {
     /// Rattlesnake Ravine's solids, built from `ravine` on first use
     /// (`Course::ravine_solids`)
     pub ravine_solids: crate::ravine::SolidsCache,
-    /// Clean-Up on Aisle Ape's fixtures, shoppers, balloons and misters
+    /// Aisle Ape's fixtures, shoppers, balloons and misters
     /// (`grocery.rs`); its solids are `ravine`'s. `None` on the other maps
     pub grocery: Option<Box<crate::grocery::GroceryLayout>>,
 }
@@ -390,14 +390,18 @@ impl Course {
             (Some(s), _) => s.hangs.get(i).copied().unwrap_or(crate::sector::DOWN),
             // (Mape's Tower: the spell sets the beam's way, TW6)
             (None, Some(t)) => t.hangs.get(i).copied().unwrap_or(crate::sector::DOWN),
-            (None, None) => crate::sector::DOWN,
+            // (Aisle Ape: the sideways and upward vines, GR-T8)
+            (None, None) => match &self.grocery {
+                Some(g) => g.hangs.get(i).copied().unwrap_or(crate::sector::DOWN),
+                None => crate::sector::DOWN,
+            },
         }
     }
 
     /// Whether vines may hang any way here (Sector Ape, Mape's Tower):
     /// every other map's arithmetic is straight down.
     pub fn any_way(&self) -> bool {
-        self.sector.is_some() || self.tower.is_some()
+        self.sector.is_some() || self.tower.is_some() || self.grocery.is_some()
     }
 
     /// A point vine `i`'s anchor is never further than the second value

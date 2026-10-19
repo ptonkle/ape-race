@@ -517,12 +517,35 @@ function pair(id, kv) {
   if (v.textContent !== kv[1]) v.textContent = kv[1];
 }
 
+// A map's shopping list (Aisle Ape), in place of the bananas: each item
+// by name, those taken struck through. The core says which.
+function drawList(list) {
+  const node = el("hud-list");
+  node.hidden = !list;
+  el("hud-bananas").hidden = !!list;
+  if (!list) return;
+  const key = JSON.stringify(list);
+  if (node.dataset.key === key) return;
+  node.dataset.key = key;
+  node.querySelector(".k").textContent = list.title;
+  const ul = node.querySelector(".v");
+  ul.replaceChildren(
+    ...list.items.map((it) => {
+      const li = document.createElement("li");
+      li.textContent = it.name;
+      if (it.got) li.className = "got";
+      return li;
+    }),
+  );
+}
+
 function drawHud(h) {
   pair("hud-place", h.place);
   pair("hud-time", h.time);
   drawSpeedo(h.speedo);
   pair("hud-best", h.best);
   pair("hud-bananas", h.bananas);
+  drawList(h.list);
   pair("hud-map", h.map);
   pair("hud-item", h.item);
   el("hud-item").className = h.item_key ? "item-slot full" : "item-slot";

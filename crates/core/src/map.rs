@@ -81,8 +81,8 @@ impl Map {
     /// key (settings, replays, online, the tests).
     pub fn held(self) -> bool {
         // Rattlesnake Ravine was held until its real course and art
-        // landed (SECOND-ORDER RV1), released in 1.15.0; Clean-Up on Aisle
-        // Ape is held until Peter releases it
+        // landed (SECOND-ORDER RV1), released in 1.15.0; Aisle Ape is held
+        // until Peter releases it
         self == Map::Grocery
     }
 

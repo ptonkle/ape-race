@@ -1,4 +1,4 @@
-//! The AI on Clean-Up on Aisle Ape: finish times by difficulty over several
+//! The AI on Aisle Ape: finish times by difficulty over several
 //! layouts (the store is fixed; the seeds move the vines' lanes, jitter
 //! and bounce bins), with means and the gaps between the levels.
 //!

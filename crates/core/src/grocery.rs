@@ -1,4 +1,4 @@
-//! Clean-Up on Aisle Ape (2026-10-18, `briefs/clean-up-on-aisle-ape.md`):
+//! Aisle Ape (2026-10-18, `briefs/aisle-ape.md`):
 //! food apes race through a supermarket laid out from a Food Lion floor
 //! plan, from the stockroom doors at the back to the exit doors at the
 //! front, down three of its thirteen aisles. Pitfalls every agent checks:
@@ -32,6 +32,8 @@
 //! random at runtime.
 
 pub mod layout;
+pub mod list;
+pub mod swat;
 #[cfg(test)]
 mod tests;
 
@@ -91,6 +93,26 @@ pub enum Dept {
     WetRack,
 }
 
+/// A stock cart loaded with cases parked across a closed aisle's mouth (a
+/// wet-floor sign beside it: a clean-up on that aisle): `from` and `to`
+/// its face toward the cross aisle on the floor, `out` toward it. Solid as
+/// its wall, `wall` in `RavineLayout.walls`, `BLOCKER_TOP` tall (so its
+/// solid stands 10 m higher: a runner cannot get into the aisle).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Blocker {
+    pub from: V3,
+    pub to: V3,
+    pub out: V3,
+    pub wall: usize,
+    /// its drawn top: `BLOCKER_TOP`, or at an item aisle's pocket (GR-T2)
+    /// cases stacked to `STOCK_TOP`, so it is solid to the ceiling and
+    /// nothing flies over into the closed aisle
+    pub top: i32,
+}
+
+/// A blocker's drawn top: a stock cart and its cases (0.75 m real).
+pub const BLOCKER_TOP: i32 = int(9);
+
 /// A run of cases along a store wall, from `from` to `to` (the cases' front
 /// on the floor), `out` into the store (flat, unit). The store's wall is
 /// solid from the cases' front (`RavineLayout.walls`); the cases and the
@@ -116,6 +138,9 @@ pub enum PostKind {
     Coffin,
     /// a stretch of a checkout counter
     Counter,
+    /// a pole outdoors: the entrance canopy's, a light pole's (drawn with
+    /// the lot, GR-T4)
+    Pole,
 }
 
 /// One of `RavineLayout.rocks`: what it is drawn as, and (for the tables
@@ -155,12 +180,129 @@ pub struct Mister {
     pub phase: u32,
 }
 
-/// Clean-Up on Aisle Ape's own layout: what the store's solids are, and
+/// The shopping list (GR-T2): one item per zone of the store, each in a
+/// side aisle the route passes. ...
+pub const LIST_ZONES: usize = 4;
+/// ... and the spots in each item aisle (GR-T3): racer `k` fetches from
+/// spot `k % LIST_SLOTS`, so in a race of four each is led to its own part
+/// of the aisle, all as far along.
+pub const LIST_SLOTS: usize = 4;
+/// An ape takes its item when its middle comes within this of the item's
+/// middle (plus its body's radius), or when it grabs the item's string.
+pub const ITEM_REACH: i32 = int(7);
+/// The first and third items an ape takes each add this share of its
+/// kind's top speed, the second and fourth this share of its air
+/// steering, added and not compounded (GR-T2: with all four, 1.5 times
+/// each).
+pub const ITEM_GAIN: i32 = ONE / 4;
+
+/// A shopping-list item: zone `zone`'s (0..`LIST_ZONES`, in the route's
+/// order) for spot `slot`, its middle at `at`, hanging on vine `vine` (its
+/// string, from the ceiling).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ListItem {
+    pub zone: u8,
+    pub slot: u8,
+    pub at: V3,
+    pub vine: usize,
+}
+
+/// A vine that does not hang straight down (GR-T8), for the art.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum OddKind {
+    /// a licorice rope standing out level from a hanging sign's arm
+    Sideways,
+    /// a balloon string rising from a weight (its anchor) to the balloons
+    Upward,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct OddVine {
+    pub vine: usize,
+    pub kind: OddKind,
+}
+
+/// The drop ceiling over part of the frozen aisle (GR-T7): its underside
+/// `under` over the floor, a box along the aisle from `from` to `to`,
+/// `half_width` either side. Solid from `under` to the store's ceiling (as
+/// `RavineLayout.rooms` stacked; the vines under it hang from it).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct LowCeiling {
+    pub from: V3,
+    pub to: V3,
+    pub half_width: i32,
+    pub under: i32,
+}
+
+/// The bagged-ice pallets stacked across the frozen aisle past the drop
+/// ceiling (GR-T7: up and over): `from` to `to` its middle line on the
+/// floor, `half` thick, drawn `top` tall. Solid as its wall, `wall` in
+/// `RavineLayout.walls`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct IceWall {
+    pub from: V3,
+    pub to: V3,
+    pub half: i32,
+    pub top: i32,
+    pub wall: usize,
+}
+
+/// A parked car in the lot (GR-T4): its middle on the ground, facing
+/// `yaw`, `look` its paint. Solid as its wall, `wall` in `RavineLayout.walls`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Car {
+    pub centre: V3,
+    pub yaw: i32,
+    pub look: u8,
+    pub wall: usize,
+}
+
+/// A parked car's size, game metres: 4.5 × 1.8 × 1.45 m real (length,
+/// width, height).
+pub const CAR_SIZE: (i32, i32, i32) = (int(54), cm(2160), cm(1740));
+
+/// A parking lot light pole: its foot, its height (the arm's), and the
+/// arm's end (where its vine hangs from).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Lamp {
+    pub foot: V3,
+    pub height: i32,
+    pub arm: V3,
+}
+
+/// The parking lot (GR-T4) out of the exit doors: the entrance canopy
+/// (from the store's front out to `canopy.1`, its underside `canopy_under`
+/// over the ground, `canopy.0` to `canopy.1` its corners), the cars, the
+/// light poles, the cart corrals (each `from` to `to`, its rails), and its
+/// corners on the ground (least x and z, most).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Lot {
+    pub canopy: (V3, V3),
+    pub canopy_under: i32,
+    pub cars: Vec<Car>,
+    pub lamps: Vec<Lamp>,
+    pub corrals: Vec<(V3, V3)>,
+    pub bounds: (V3, V3),
+}
+
+/// The exit doors' opening, across (GR-T4: the route goes out through it).
+pub const DOOR_WIDTH: i32 = int(36);
+/// ... and up to the frame over it.
+pub const DOOR_HEIGHT: i32 = int(34);
+
+/// The plane that picks up an ape's order (GR-T5) when it has finished
+/// with all four items: it comes this many ticks after the finish ...
+pub const PLANE_AFTER: u32 = 120;
+/// ... and is gone this many after that.
+pub const PLANE_TICKS: u32 = 900;
+
+/// Aisle Ape's own layout: what the store's solids are, and
 /// the things the Ravine's layout has no word for (see the module's notes).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct GroceryLayout {
     pub gondolas: Vec<Gondola>,
     pub cases: Vec<Cases>,
+    pub blockers: Vec<Blocker>,
     pub posts: Vec<Post>,
     pub lanes: Vec<Lane>,
     pub shoppers: Vec<Shopper>,
@@ -171,6 +313,33 @@ pub struct GroceryLayout {
     pub doors: (V3, V3),
     /// the lobby spot (where the ape stands behind the menus) and its yaw
     pub lobby: (V3, i32),
+    /// the shopping list's items (GR-T2), zone by zone, spot by spot
+    pub items: Vec<ListItem>,
+    /// for each vine: the unit way it hangs from its anchor (`sector::DOWN`
+    /// for most; `Course::hang`)
+    pub hangs: Vec<V3>,
+    /// the vines that do not hang down (GR-T8)
+    pub odd: Vec<OddVine>,
+    /// the drop ceiling (GR-T7) and the ice past it
+    pub low: Vec<LowCeiling>,
+    pub ice: Vec<IceWall>,
+    /// the parking lot (GR-T4)
+    pub lot: Lot,
+}
+
+impl GroceryLayout {
+    /// Spot `slot`'s item in zone `zone`.
+    pub fn item(&self, zone: usize, slot: usize) -> Option<&ListItem> {
+        self.items
+            .iter()
+            .find(|it| it.zone as usize == zone && it.slot as usize == slot)
+    }
+
+    /// Whether `p` is out of the store (in the parking lot).
+    pub fn outside(&self, p: V3) -> bool {
+        let (_, z) = plan_of(p);
+        z < int(layout::SOUTH)
+    }
 }
 
 /// The slide phase (`Vine.slide`) at which balloon vine `i`'s anchor keeps

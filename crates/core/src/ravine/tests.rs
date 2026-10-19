@@ -10,7 +10,7 @@ fn only_rattlesnake_ravine_has_a_ravine_layout() {
     assert_eq!(Map::from_key("ravine"), Some(Map::Ravine));
     for map in Map::ALL {
         let c = map.course();
-        // (Clean-Up on Aisle Ape's solids are a Ravine layout, `grocery.rs`)
+        // (Aisle Ape's solids are a Ravine layout, `grocery.rs`)
         assert_eq!(
             c.ravine.is_some(),
             matches!(map, Map::Ravine | Map::Grocery),

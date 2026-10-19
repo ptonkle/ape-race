@@ -1,4 +1,4 @@
-//! Clean-Up on Aisle Ape's store and course (2026-10-18): the floor plan
+//! Aisle Ape's store and course (2026-10-18): the floor plan
 //! in its own metres (`plan`: east `x`, north `z`, the front-left inside
 //! corner at 0), the route through it, and everything the course and the
 //! scene share. The journal's route diagram is drawn from these numbers.
@@ -12,7 +12,7 @@
 //! into a lens), six gondolas bowed east. An arc of checkout lanes, produce
 //! tables round a misting U-turn, columns, display bins.
 //!
-//! **The route** (1,995 m): out of the stockroom doors in the back-west
+//! **The route** (1,854 m): out of the stockroom doors in the back-west
 //! corner, east along the back aisle, south down aisle 3 (cereal), east
 //! along the front, north up the frozen aisle (6), east along the back,
 //! south down aisle 9 (snacks), east into produce, a wide U-turn round the
@@ -41,51 +41,56 @@ const SEED: u64 = 0x6E0C_E2E5_0001;
 /// draws move).
 const DICE: u64 = 0x4752_4F43_4552;
 
-/// The start, in plan metres: in the back aisle, 90 m short of the corner
+/// The start, in plan metres: in the back aisle, 140 m short of the corner
 /// into aisle 3 (whose middle line is at x 210 where it meets the aisles'
-/// ends), so that the corner's arc (Leg(32, -90), 20.37 m round) brings
-/// the route onto it.
-pub const START: (i32, i32) = (cm(9963), int(535));
+/// ends), so that the corner's arc (Leg(56, -90), 35.65 m round) brings
+/// the route onto it, past aisle 1's mouth (the first item, GR-T2).
+pub const START: (i32, i32) = (cm(3435), int(525));
 
 /// The route: straights and bends (metres, degrees; + is left).
 const LEGS: &[Leg] = &[
     Leg(60, 0),   // 0 the start, by the stockroom doors
-    Leg(30, 0),   // 1 the back aisle
-    Leg(32, -90), // 2 into aisle 3
+    Leg(62, 0),   // 1 the back aisle, past aisle 1 (the first item)
+    Leg(78, -90), // 2 into aisle 3 (R 50 m: the run-up is long, so fast)
     Leg(6, -7),   // 3 aisle 3 (cereal), bowed west
-    Leg(150, 0),
+    Leg(105, 0),
     Leg(12, 14),
-    Leg(150, 0),
+    Leg(120, 0),
     Leg(6, -7),
-    Leg(32, 90),  // 8 onto the front cross aisle
-    Leg(117, 0),  // 9 east past the checkouts' backs
-    Leg(32, 90),  // 10 into the frozen aisle
-    Leg(334, 0),  // 11 the frozen aisle, north
-    Leg(32, -90), // 12 onto the back aisle
-    Leg(120, 0),  // 13 east under the meat sign
-    Leg(32, -90), // 14 into aisle 9
-    Leg(6, 7),    // 15 aisle 9 (snacks), bowed east
-    Leg(166, 0),  // (its kink at the runs' middles: it starts 12 m further north)
+    Leg(2, 0),
+    Leg(56, 90),  // 9 onto the front cross aisle
+    Leg(86, 0),   // 10 east past the checkouts' backs
+    Leg(56, 90),  // 11 into the frozen aisle
+    Leg(265, 0),  // 12 the frozen aisle, north
+    Leg(56, -90), // 13 onto the back aisle
+    Leg(94, 0),   // 14 east under the meat sign
+    Leg(56, -90), // 15 into aisle 9
+    Leg(6, 7),    // 16 aisle 9 (snacks), bowed east
+    Leg(119, 0),
     Leg(12, -14),
-    Leg(134, 0),
+    Leg(120, 0),
     Leg(6, 7),
-    Leg(24, 0),     // 20 out past the gondolas' ends
-    Leg(32, 90),    // 21 into produce
-    Leg(100, 0),    // 22 east along the produce
-    Leg(170, -180), // 23 the misting U-turn
-    Leg(200, 0),    // 24 the front end, to the doors
+    Leg(2, 0),
+    Leg(56, 90),    // 22 into produce
+    Leg(70, 0),     // 23 east along the produce (room past the last item, GR-T9)
+    Leg(198, -180), // 24 the misting U-turn, down into the front end (R 63 m)
+    Leg(160, 0),    // 25 the front end, toward the doors
+    Leg(56, 90),    // 26 out of the exit doors (GR-T4)
+    Leg(160, 0),    // 27 across the parking lot to the finish
 ];
 
 /// Leg numbers (`Plan.marks`) the art and the tests look up.
 pub mod leg {
     pub const AISLE_A: usize = 3;
-    pub const FRONT: usize = 9;
-    pub const AISLE_B: usize = 11;
-    pub const BACK: usize = 13;
-    pub const AISLE_C: usize = 15;
-    pub const PRODUCE: usize = 22;
-    pub const TURN: usize = 23;
-    pub const FRONT_END: usize = 24;
+    pub const FRONT: usize = 10;
+    pub const AISLE_B: usize = 12;
+    pub const BACK: usize = 14;
+    pub const AISLE_C: usize = 16;
+    pub const PRODUCE: usize = 23;
+    pub const TURN: usize = 24;
+    pub const FRONT_END: usize = 25;
+    pub const DOORS: usize = 26;
+    pub const LOT: usize = 27;
 }
 
 /// Where each leg starts along the route (and, last, its length), metres.
@@ -105,9 +110,9 @@ pub const SOUTH: i32 = 20;
 pub const EAST_WALL: i32 = 762;
 pub const NORTH_WALL: i32 = 570;
 /// The runs' front and back ends, and their middles (bowed `BOW`).
-pub const FRONT: i32 = 190;
+pub const FRONT: i32 = 206;
 pub const BACK: i32 = 510;
-pub const MIDDLE: i32 = 350;
+pub const MIDDLE: i32 = 358;
 pub const BOW: i32 = 20;
 /// A gondola's half thickness, and a freezer run's.
 pub const GONDOLA_HALF: i32 = 5;
@@ -130,6 +135,20 @@ pub const RUNS: [(i32, i32, Run, [u8; 2]); 13] = [
     (601, 1, Run::Shelves, [10, 11]),
     (649, 1, Run::Shelves, [11, 12]),
     (697, 1, Run::Shelves, [12, 13]),
+];
+
+/// The runs' ends cut at an angle where the route turns round them (the
+/// inside of each turn between an aisle and a cross aisle): which run,
+/// which end (0 the front, 2 the back), which face (0 west, 1 east), and how
+/// far up that face the cut starts. A swing round the turn clears the
+/// end; the plan's own ends are angled across the fan.
+pub const CHAMFERS: [(usize, usize, usize, i32); 6] = [
+    (2, 2, 1, 16),
+    (3, 0, 0, 16),
+    (5, 0, 1, 16),
+    (6, 2, 0, 16),
+    (8, 2, 1, 16),
+    (9, 0, 0, 16),
 ];
 
 /// The route's three aisles: between which runs (west, east).
@@ -185,30 +204,38 @@ const COLUMNS: [(i32, i32); 11] = [
 
 /// Produce tables (plan metres, radius): round the U-turn's middle and
 /// beyond its ring, each with a mister.
-const TABLES: [(i32, i32, i32); 7] = [
-    (648, 107, 12),
-    (676, 126, 7),
-    (676, 88, 7),
-    (622, 112, 6),
-    (740, 60, 9),
-    (742, 150, 9),
-    (560, 132, 8),
+const TABLES: [(i32, i32, i32); 6] = [
+    (636, 119, 14),
+    (658, 130, 7),
+    (664, 100, 7),
+    (608, 120, 7),
+    (722, 60, 9),
+    (726, 150, 9),
 ];
 
 /// Display bins (plan metres): kraft cardboard rounds of product on the
 /// corridors' edges.
 const BINS: [(i32, i32, u8); 6] = [
-    (258, 184, 9),
-    (318, 184, 3),
+    (258, 162, 9),
+    (318, 162, 3),
     (420, 180, 10),
     (470, 186, 8),
-    (586, 176, 13),
+    (586, 198, 13),
     (100, 186, 0),
 ];
 
-/// The coffin freezers down the frozen aisle's middle (plan north of their
-/// middles); each is 32 m long, 12 m wide, 11 m tall.
-const COFFINS: [i32; 3] = [300, 350, 400];
+/// The coffin freezers down the frozen aisle's west side (plan north of their
+/// middles); each is 32 m long, 12 m wide, 11 m tall. (Two, past the drop
+/// ceiling and the ice, GR-T7.)
+const COFFINS: [i32; 2] = [400, 446];
+/// The coffins stand this far east of the aisle's middle (plan metres),
+/// where its lens is widest: off the route's line, so an ape that falls
+/// there runs past them (the AI on the ground runs straight at its vine).
+const COFFIN_OFF: i32 = -22;
+/// A coffin freezer's top over the floor.
+pub const COFFIN_TOP: i32 = int(11);
+/// The lobby spot's plan north: by the first coffin, toward its south end.
+const LOBBY_Z: i32 = 396;
 
 /// The shoppers' walks (plan metres): from, to, balloons, cart.
 #[allow(clippy::type_complexity)]
@@ -235,7 +262,7 @@ fn walks() -> Vec<((i32, i32), (i32, i32), bool, bool)> {
     // the back aisle and the front cross aisle
     put(((130, 553), (175, 553)), false, true);
     put(((405, 527), (480, 527)), true, false);
-    put(((250, 182), (330, 182)), false, true);
+    put(((250, 195), (330, 195)), false, true);
     // produce, and the front end
     put(((560, 62), (620, 62)), true, false);
     put(((712, 140), (712, 175)), false, true);
@@ -243,8 +270,78 @@ fn walks() -> Vec<((i32, i32), (i32, i32), bool, bool)> {
     // two aisles the route passes the ends of
     put(along(0, 1, 6, 220, 300), false, true);
     put(along(10, 11, -6, 400, 480), false, false);
+    // GR-T6: more shoppers pushing carts, on the route
+    put(along(2, 3, -9, 300, 360), false, true);
+    put(along(8, 9, 0, 340, 395), false, true);
+    put(((420, 185), (500, 185)), false, true);
+    put(((420, 546), (490, 546)), false, true);
+    put(((692, 88), (692, 150)), false, true);
+    put(((540, 70), (600, 70)), false, true);
+    // ... and in the parking lot, to and from their cars
+    put(((405, -8), (470, -8)), false, true);
+    put(((400, -78), (478, -78)), false, true);
+    put(((478, -128), (400, -128)), true, true);
     out
 }
+
+/// The shopping list's aisles (GR-T2), zone by zone: the aisle (between
+/// runs `a - 1` and `a`) and whether its item hangs at its back mouth (on
+/// the back aisle) or its front one (on the front cross aisle).
+pub const ITEM_AISLES: [(usize, bool); 4] = [(1, true), (4, false), (7, true), (10, false)];
+/// The items hang this far into their aisle's mouth, ...
+pub const ITEM_IN: i32 = 1;
+/// The route's line along the front cross aisle (plan north): the corners
+/// out of aisles 3 and 9 (R 36 m) bring it there.
+pub const FRONT_LINE: i32 = int(188);
+/// The items hang this far off the route's line toward their aisle: at
+/// its mouth, level with the runs' ends (an AI's swing reaches no further
+/// out of its way, GR-T2) ...
+pub const ITEM_OUT: i32 = int(14);
+/// ... spot `k` this far east of the aisle's middle (plan metres, Q16:
+/// east of it, as the angled run ends' solids reach a few metres past
+/// their runs' west faces) ...
+pub const ITEM_SPOTS: [i32; 4] = [int(-10), int(-3), int(4), int(11)];
+/// ... their middles this high.
+pub const ITEM_UP: i32 = int(22);
+/// No other station's ropes hang within this of an item aisle's middle
+/// (metres along the route), so the item strings are the way on there.
+pub const ITEM_CLEAR: i32 = 40;
+/// An item aisle is closed this far in (a pocket for the item; the others
+/// at their mouths).
+pub const POCKET: i32 = 10;
+
+/// The drop ceiling over the frozen aisle (GR-T7): from and to this far
+/// along its leg (`leg::AISLE_B`), its underside `LOW_UNDER` over the
+/// floor; the vines under it hang from it, from `LOW_VINES` long.
+pub const LOW_FROM: i32 = 40;
+pub const LOW_TO: i32 = 92;
+pub const LOW_UNDER: i32 = int(30);
+/// The bagged ice stacked across the aisle past it: its middle this far
+/// along, this thick either side, its top (drawn and solid) this high; the
+/// upward balloon strings on it this long (GR-T8).
+pub const ICE_AT: i32 = 138;
+pub const ICE_HALF: i32 = 4;
+pub const ICE_TOP: i32 = int(18);
+pub const UPWARD_LEN: i32 = int(17);
+/// The bags are heaped in a ramp up the ice's near side, this long: an ape
+/// that falls short runs up it (a deck, `RavineLayout.decks`).
+pub const RAMP_LEN: i32 = 28;
+
+/// The parking lot (GR-T4): the entrance canopy out to plan north
+/// `CANOPY_Z`, its underside `CANOPY_UNDER` up, `CANOPY_HALF` either side
+/// of the doors; the light poles `LAMP_HEIGHT` tall, their arms
+/// `LAMP_ARM` long; the lot's rows of cars `CAR_ROW` either side of the
+/// drive, a car every `STALL`.
+pub const CANOPY_Z: i32 = -40;
+pub const CANOPY_UNDER: i32 = int(40);
+pub const CANOPY_HALF: i32 = 38;
+pub const LAMP_HEIGHT: i32 = int(60);
+pub const LAMP_ARM: i32 = int(20);
+pub const CAR_ROW: i32 = 57;
+pub const STALL: i32 = 32;
+/// The lot's far edge (plan north) and its sides, from the doors.
+pub const LOT_SOUTH: i32 = -330;
+pub const LOT_SIDE: i32 = 140;
 
 /// A shopper walks this fast on average, m/s (half a metre a second real).
 const WALK_SPEED: i32 = 6;
@@ -255,12 +352,12 @@ pub const HAND_OUT: i32 = cm(450);
 /// The hand holding the string, over the floor.
 pub const HAND_UP: i32 = int(19);
 
-/// Clean-Up on Aisle Ape's course, from its fixed seed.
+/// Aisle Ape's course, from its fixed seed.
 pub fn grocery() -> Course {
     grocery_seeded(SEED)
 }
 
-/// Clean-Up on Aisle Ape's course from `seed` (the store is fixed; the
+/// Aisle Ape's course from `seed` (the store is fixed; the
 /// vines' jitter, lanes and bounce bins follow the seed).
 pub fn grocery_seeded(seed: u64) -> Course {
     let mut c = centreline("grocery", LEGS);
@@ -286,6 +383,10 @@ pub fn grocery_seeded(seed: u64) -> Course {
     }
     c.start_yaw = 0;
 
+    // the exit doors, where the route leaves the store (GR-T4)
+    let door = plan_of(c.point(int(marks[leg::LOT])));
+    let door_x = door.0;
+
     // ---- the solids: runs, the store's walls, the ceiling, posts ----
     let mut walls = Vec::new();
     let mut gondolas = Vec::new();
@@ -297,8 +398,22 @@ pub fn grocery_seeded(seed: u64) -> Course {
         let line = [FRONT, MIDDLE, BACK].map(|z| plan(run_x(x0, sign, int(z)), int(z)));
         // a loop round its outline, the inside on the right: north up its
         // west face, east over the back, south down its east face
-        let west: Vec<V3> = line.iter().map(|q| q.sub(EAST.scale(half))).collect();
-        let east: Vec<V3> = line.iter().rev().map(|q| q.add(EAST.scale(half))).collect();
+        let mut west: Vec<V3> = line.iter().map(|q| q.sub(EAST.scale(half))).collect();
+        let mut east: Vec<V3> = line.iter().map(|q| q.add(EAST.scale(half))).collect();
+        let k = gondolas.len();
+        for &(run, end, face, cut) in &CHAMFERS {
+            if run != k {
+                continue;
+            }
+            let along = if end == 0 { NORTH } else { NORTH.neg() };
+            let q = if face == 0 {
+                &mut west[end]
+            } else {
+                &mut east[end]
+            };
+            *q = q.add(along.scale(int(cut)));
+        }
+        east.reverse();
         let mut points: Vec<WallPoint> = west
             .iter()
             .chain(east.iter())
@@ -323,12 +438,14 @@ pub fn grocery_seeded(seed: u64) -> Course {
     }
     // the store's walls at the cases' fronts, the rock outside (on the
     // right going round: east along the front, north, west, south)
+    // (open across the exit doors, GR-T4)
     let corners = [
-        p(WEST, SOUTH),
+        plan(door_x + DOOR_WIDTH / 2, int(SOUTH)),
         p(EAST_WALL, SOUTH),
         p(EAST_WALL, NORTH_WALL),
         p(WEST, NORTH_WALL),
         p(WEST, SOUTH),
+        plan(door_x - DOOR_WIDTH / 2, int(SOUTH)),
     ];
     walls.push(Wall {
         points: corners
@@ -362,6 +479,67 @@ pub fn grocery_seeded(seed: u64) -> Course {
         side: Side::Left,
         depth: cm(150),
     });
+    // the aisles off the route are closed at both ends: a loaded stock
+    // cart across each mouth (an AI that falls by a mouth would run in and
+    // find no vine it can see, `ai::walled_off`)
+    let mut blockers = Vec::new();
+    let mut close = |walls: &mut Vec<Wall>, w: i32, e: i32, z: i32, inward: i32, top: i32| {
+        // (a box from x `w` to `e`, its face at `z`, `inward` deep into the
+        // aisle, 1 m into the runs either side)
+        let (z0, z1) = (z.min(z + inward), z.max(z + inward));
+        let corners = [
+            (w - 1, z0),
+            (w - 1, z1),
+            (e + 1, z1),
+            (e + 1, z0),
+            (w - 1, z0),
+        ];
+        blockers.push(Blocker {
+            from: p(w, z),
+            to: p(e, z),
+            out: if inward > 0 { NORTH.neg() } else { NORTH },
+            wall: walls.len(),
+            top,
+        });
+        walls.push(Wall {
+            points: corners
+                .iter()
+                .map(|&(x, z)| WallPoint {
+                    at: p(x, z),
+                    height: top,
+                })
+                .collect(),
+            side: Side::Right,
+            depth: int(3),
+        });
+    };
+    let half = |k: usize| match RUNS[k].2 {
+        Run::Shelves => GONDOLA_HALF,
+        Run::Freezer => FREEZER_HALF,
+    };
+    for a in 0..=RUNS.len() {
+        if ROUTE_AISLES.iter().any(|&(w, _)| w + 1 == a) {
+            continue;
+        }
+        let w = if a == 0 {
+            WEST
+        } else {
+            RUNS[a - 1].0 + half(a - 1)
+        };
+        let e = if a == RUNS.len() {
+            EAST_WALL
+        } else {
+            RUNS[a].0 - half(a)
+        };
+        // (an item aisle's mouth on the route is a pocket, its cart
+        // `POCKET` in: GR-T2)
+        let pocket = |back: bool| ITEM_AISLES.contains(&(a, back));
+        let front_in = if pocket(false) { POCKET } else { 1 };
+        let back_in = if pocket(true) { POCKET } else { 1 };
+        let top = |pocket: bool| if pocket { STOCK_TOP } else { BLOCKER_TOP };
+        close(&mut walls, w, e, FRONT + front_in, 6, top(pocket(false)));
+        close(&mut walls, w, e, BACK - back_in, -6, top(pocket(true)));
+    }
     let cases = vec![
         Cases {
             dept: Dept::Dairy,
@@ -396,13 +574,48 @@ pub fn grocery_seeded(seed: u64) -> Course {
     ];
     // the ceiling: one room over the whole store, west to east
     let mid_z = (SOUTH + NORTH_WALL) / 2;
-    let rooms = vec![Room {
+    let mut rooms = vec![Room {
         kind: RoomKind::Arch,
         from: p(WEST - 12, mid_z),
         to: p(EAST_WALL + 12, mid_z),
         half_width: int((NORTH_WALL - SOUTH) / 2 + 12),
         height: CEILING_AT,
     }];
+    // the drop ceiling over the frozen aisle (GR-T7): roofs stacked from
+    // its underside to the store's ceiling (each `ROOF_THICK`), so nothing
+    // flies over it
+    let m12 = marks[leg::AISLE_B];
+    let (low_a, low_b) = (c.point(int(m12 + LOW_FROM)), c.point(int(m12 + LOW_TO)));
+    let low_half = int(37);
+    let low_room = rooms.len();
+    for under in [LOW_UNDER, int(38), int(44)] {
+        rooms.push(Room {
+            kind: RoomKind::Arch,
+            from: v3(low_a.x, 0, low_a.z),
+            to: v3(low_b.x, 0, low_b.z),
+            half_width: low_half,
+            height: under,
+        });
+    }
+    // the wall over the exit doors, solid to the ceiling
+    for under in [DOOR_HEIGHT, int(42), int(44)] {
+        rooms.push(Room {
+            kind: RoomKind::Arch,
+            from: plan(door_x, int(SOUTH + 8)),
+            to: plan(door_x, int(SOUTH - 10)),
+            half_width: DOOR_WIDTH / 2,
+            height: under,
+        });
+    }
+    // the entrance canopy out over the lot
+    let canopy_room = rooms.len();
+    rooms.push(Room {
+        kind: RoomKind::Arch,
+        from: plan(door_x, int(SOUTH - 10)),
+        to: plan(door_x, int(CANOPY_Z)),
+        half_width: int(CANOPY_HALF),
+        height: CANOPY_UNDER,
+    });
     let mut rocks = Vec::new();
     let mut posts = Vec::new();
     let mut post = |rocks: &mut Vec<Rock>, at: V3, radius, height, kind, stock| {
@@ -435,9 +648,9 @@ pub fn grocery_seeded(seed: u64) -> Course {
             let zz = int(z + k);
             post(
                 &mut rocks,
-                plan(frozen_x(z + k), zz),
+                plan(frozen_x(z + k) + int(COFFIN_OFF), zz),
                 int(6),
-                int(11),
+                COFFIN_TOP,
                 PostKind::Coffin,
                 0,
             );
@@ -463,9 +676,121 @@ pub fn grocery_seeded(seed: u64) -> Course {
             z += int(8);
         }
     }
+    // the bagged ice across the frozen aisle past the drop ceiling
+    // (GR-T7): its wall stands `WALL_ABOVE` under its drawn top, so it is
+    // solid exactly as drawn
+    let mut ice = Vec::new();
+    let mut decks = Vec::new();
+    {
+        let q = c.point(int(m12 + ICE_AT));
+        let (_, z) = plan_of(q);
+        let w = run_x(RUNS[5].0, RUNS[5].1, z) + int(FREEZER_HALF) - int(1);
+        let e = run_x(RUNS[6].0, RUNS[6].1, z) - int(FREEZER_HALF) + int(1);
+        let half = int(ICE_HALF);
+        let corners = [
+            plan(w, z - half),
+            plan(w, z + half),
+            plan(e, z + half),
+            plan(e, z - half),
+            plan(w, z - half),
+        ];
+        ice.push(IceWall {
+            from: plan(w, z),
+            to: plan(e, z),
+            half,
+            top: ICE_TOP,
+            wall: walls.len(),
+        });
+        let x = aisle_x(5, 6, z);
+        decks.push(crate::ravine::Deck {
+            kind: crate::ravine::DeckKind::Log,
+            from: plan(x, z - half - int(RAMP_LEN)),
+            to: plan(x, z - half).add(v3(0, ICE_TOP, 0)),
+            half_width: (e - w) / 2,
+        });
+        walls.push(Wall {
+            points: corners
+                .iter()
+                .map(|&at| WallPoint {
+                    at,
+                    height: ICE_TOP - crate::ravine::solids::WALL_ABOVE,
+                })
+                .collect(),
+            side: Side::Right,
+            depth: half,
+        });
+    }
+    // the parking lot (GR-T4): rows of cars either side of the drive, solid
+    // as drawn; the canopy's posts and the light poles
+    let mut cars = Vec::new();
+    let mut corrals = Vec::new();
+    let (cl, cw, ch) = CAR_SIZE;
+    for (row, side) in [(0, -1), (1, 1)] {
+        for (k, z) in [-56, -88, -120, -152, -184].into_iter().enumerate() {
+            let x = door_x + int(side * CAR_ROW);
+            if (row, k) == (0, 2) || (row, k) == (1, 3) {
+                corrals.push((plan(x - int(24), int(z)), plan(x + int(24), int(z))));
+                continue;
+            }
+            let (hx, hz) = (cl / 2, cw / 2);
+            let zz = int(z);
+            let corners = [
+                plan(x - hx, zz - hz),
+                plan(x - hx, zz + hz),
+                plan(x + hx, zz + hz),
+                plan(x + hx, zz - hz),
+                plan(x - hx, zz - hz),
+            ];
+            cars.push(Car {
+                centre: plan(x, zz),
+                yaw: yaw_of(if side < 0 { EAST } else { EAST.neg() }),
+                look: ((row * 5 + k as i32 * 3) % 8) as u8,
+                wall: walls.len(),
+            });
+            walls.push(Wall {
+                points: corners
+                    .iter()
+                    .map(|&at| WallPoint {
+                        at,
+                        height: ch - crate::ravine::solids::WALL_ABOVE,
+                    })
+                    .collect(),
+                side: Side::Right,
+                depth: hz,
+            });
+        }
+    }
+    for side in [-1, 1] {
+        post(
+            &mut rocks,
+            plan(door_x + int(side * (CANOPY_HALF - 2)), int(CANOPY_Z + 2)),
+            cm(150),
+            CANOPY_UNDER,
+            PostKind::Pole,
+            0,
+        );
+    }
+    let mut lamps = Vec::new();
+    for (k, along) in [66, 92, 118, 144].into_iter().enumerate() {
+        let s = int(marks[leg::LOT] + along);
+        let q = c.point(s);
+        let r = right_of(c.heading_at(s));
+        for side in [-1, 1] {
+            let side = if k % 2 == 0 { side } else { -side };
+            let foot = q.add(r.scale(side * (LAMP_ARM + int(10))));
+            let arm = q.add(r.scale(side * int(10)));
+            post(&mut rocks, foot, cm(120), LAMP_HEIGHT, PostKind::Pole, 0);
+            lamps.push(Lamp {
+                foot,
+                height: LAMP_HEIGHT,
+                arm: v3(arm.x, LAMP_HEIGHT - int(2), arm.z),
+            });
+        }
+    }
+
     // the water-case pallet display: exactly the Ravine's sphinx box (its
     // `Finish.sphinx` is always solid), behind the glass's east end
-    let pallet = p(590, 120);
+    let pallet = p(255, 125);
     let finish = Finish {
         sphinx: pallet,
         sphinx_yaw: yaw_of(NORTH),
@@ -503,7 +828,7 @@ pub fn grocery_seeded(seed: u64) -> Course {
     // ---- the vines: licorice ropes from the ceiling ----
     let mut vines: Vec<Vine> = Vec::new();
     let mut hangers: Vec<Hanger> = Vec::new();
-    let mut hang = |vines: &mut Vec<Vine>, anchor: V3, length: i32, at: i32| {
+    let mut hang = |vines: &mut Vec<Vine>, anchor: V3, length: i32, at: i32, room: usize| {
         vines.push(Vine {
             anchor,
             length,
@@ -511,23 +836,24 @@ pub fn grocery_seeded(seed: u64) -> Course {
             at,
         });
         hangers.push(Hanger {
-            from: HangFrom::Roof { room: 0 },
+            from: HangFrom::Roof { room },
             at: anchor,
             snake: false,
             snapped_at: None,
         });
         vines.len() - 1
     };
+
     // the start's row across the back aisle
     for k in -3..=3 {
         let at = START_LEN + cm(150);
         let base = c
             .point(at)
             .add(right_of(c.heading_at(at)).scale(int(3) * k));
-        hang(&mut vines, v3(base.x, CEILING_AT, base.z), int(35), at);
+        hang(&mut vines, v3(base.x, CEILING_AT, base.z), int(35), at, 0);
     }
     let mut pins = Vec::new();
-    for k in [2, 8, 10, 12, 14, 21] {
+    for k in [2, 9, 11, 13, 15, 22] {
         pins.push(marks[k] - 14);
         pins.push(marks[k + 1] + 5);
     }
@@ -535,7 +861,40 @@ pub fn grocery_seeded(seed: u64) -> Course {
     let at = stations(32, len - 30, &pins, 25, &mut dice);
     let mut all: Vec<Vec<usize>> = Vec::new();
     let mut mushrooms = Vec::new();
+    // (the drop ceiling, its climb and the lot are hung by hand, below)
+    // (near an item aisle's mouth a station's ropes lean toward the aisle,
+    // GR-T3: a swing along its near rope passes each racer's own item)
+    let item_at: Vec<(i32, V3)> = ITEM_AISLES
+        .iter()
+        .map(|&(a, back)| {
+            let x = (RUNS[a - 1].0 + RUNS[a].0) / 2;
+            let z = if back { BACK } else { FRONT };
+            let q = p(x, z);
+            ((c.progress(q, c.nearest_anywhere(q)).0 >> 16) + 4, q)
+        })
+        .collect();
+    let toward_item = |u: i32| {
+        item_at
+            .iter()
+            .find(|&&(s, _)| (s - ITEM_CLEAR..s + ITEM_CLEAR).contains(&u))
+            .map(|&(_, q)| {
+                let on = c.point(int(u));
+                if q.sub(on).dot(right_of(c.heading_at(int(u)))) > 0 {
+                    1
+                } else {
+                    -1
+                }
+            })
+    };
+    let by_hand = |u: i32| {
+        (m12 + LOW_FROM - 8..m12 + ICE_AT + 12).contains(&u)
+            || u >= marks[leg::LOT] - 6
+            || plan_of(c.point(int(u))).1 < int(SOUTH + 14)
+    };
     for (station, &u) in at.iter().enumerate() {
+        if by_hand(u) {
+            continue;
+        }
         let q = c.point(int(u));
         let h = c.heading_at(int(u));
         let r = right_of(h);
@@ -553,17 +912,23 @@ pub fn grocery_seeded(seed: u64) -> Course {
             }
             let off = if first {
                 (lane - 1) * 6
+            } else if let Some(side) = toward_item(u) {
+                side * (lane * 7 - 3)
             } else {
                 (lane - 1) * 10 + dice.range(-2, 2)
             };
             let base = q.add(r.scale(int(off)));
             let length = if first {
                 int(30)
+            } else if (m12 - 20..m12 + LOW_FROM).contains(&u) {
+                // (the approach to the drop ceiling: lower, GR-T7)
+                int(dice.range(32, 36))
             } else {
                 int(dice.range(23, 31))
             };
             let foot = v3(base.x, CEILING_AT - length, base.z);
-            if !clear(foot, int(3)) || !clear(foot.add(v3(0, length / 2, 0)), int(2)) {
+            // (room to swing: the runs' ends are solid to the ceiling)
+            if !clear(foot, int(7)) || !clear(foot.add(v3(0, length / 2, 0)), int(5)) {
                 continue;
             }
             here.push(hang(
@@ -571,19 +936,24 @@ pub fn grocery_seeded(seed: u64) -> Course {
                 v3(base.x, CEILING_AT, base.z),
                 length,
                 int(u),
+                0,
             ));
             lanes_at.push(off);
         }
         all.push(here);
-        // a low vine every other station, to climb back up by
+        // a low vine every other station, to climb back up by (further
+        // out where the middle is taken: the frozen aisle's coffins)
         if station % 2 == 1 {
-            let off = dice.range(7, 9) * if dice.below(2) == 0 { -1 } else { 1 };
-            let b = c
-                .point(int(u + 7))
-                .add(right_of(c.heading_at(int(u + 7))).scale(int(off)));
+            let sign = if dice.below(2) == 0 { -1 } else { 1 };
+            let off = dice.range(7, 9) * sign;
             let length = CEILING_AT - int(3) - cm(dice.range(0, 40));
-            if clear(v3(b.x, CEILING_AT - length, b.z), int(3)) {
-                hang(&mut vines, v3(b.x, CEILING_AT, b.z), length, int(u + 7));
+            let s7 = int(u + 7);
+            let spot = [off, 14 * sign, 18 * sign, -14 * sign, -18 * sign]
+                .into_iter()
+                .map(|o| c.point(s7).add(right_of(c.heading_at(s7)).scale(int(o))))
+                .find(|b| clear(v3(b.x, CEILING_AT - length, b.z), int(3)));
+            if let Some(b) = spot {
+                hang(&mut vines, v3(b.x, CEILING_AT, b.z), length, s7, 0);
             }
         }
         // a bin of bouncy balls short of a side lane's vine
@@ -602,6 +972,231 @@ pub fn grocery_seeded(seed: u64) -> Course {
         }
     }
 
+    // ---- catch ropes past each corner (GR-T2: an ape with the list's
+    // speed overshoots; on the floor there, these let it climb back up)
+    for k in [
+        leg::AISLE_A - 1,
+        leg::FRONT - 1,
+        leg::AISLE_B - 1,
+        leg::BACK - 1,
+        leg::AISLE_C - 1,
+        leg::DOORS,
+    ] {
+        let start = int(marks[k]);
+        let h = c.heading_at(start);
+        let end = int(marks[k + 1]);
+        let mut here = Vec::new();
+        // (low ones only, to climb back up by: a high one, counted as the
+        // corner's end, lured the AI out of every corner)
+        for (d, length) in [(44, CEILING_AT - int(4)), (70, CEILING_AT - int(4))] {
+            let b = c.point(start).add(h.scale(int(d)));
+            let foot = v3(b.x, CEILING_AT - length, b.z);
+            if clear(foot, int(5)) && clear(v3(b.x, CEILING_AT - int(10), b.z), int(5)) {
+                here.push(hang(&mut vines, v3(b.x, CEILING_AT, b.z), length, end, 0));
+            }
+        }
+        all.push(here);
+    }
+
+    // ---- the drop ceiling and the climb over the ice (GR-T7) ----
+    let mut odd = Vec::new();
+    let mut ups = Vec::new();
+    let along = |d: i32, off: i32| {
+        let s = int(m12 + d);
+        c.point(s).add(right_of(c.heading_at(s)).scale(off))
+    };
+    // under it, rows of short ropes from its tiles: low over the floor
+    for (k, d) in [LOW_FROM + 6, LOW_FROM + 20, LOW_FROM + 34, LOW_FROM + 48]
+        .into_iter()
+        .enumerate()
+    {
+        let lanes: [i32; 3] = if k % 2 == 0 {
+            [-14, 0, 14]
+        } else {
+            [-21, -7, 7]
+        };
+        let mut here = Vec::new();
+        for off in lanes {
+            let b = along(d, int(off) + int(dice.range(-1, 1)));
+            let length = int(dice.range(18, 22));
+            here.push(hang(
+                &mut vines,
+                v3(b.x, LOW_UNDER, b.z),
+                length,
+                int(m12 + d),
+                low_room,
+            ));
+        }
+        all.push(here);
+    }
+    // past it, ropes from the ceiling to climb by, each row higher (and a
+    // low one to climb back up by from the floor), and bins of bouncy balls
+    {
+        for (d, length, lanes) in [
+            (LOW_TO + 10, int(38), [-12, 0, 12]),
+            (LOW_TO + 24, int(32), [-18, -6, 8]),
+            (LOW_TO + 38, int(30), [-12, 2, 16]),
+        ] {
+            let mut here = Vec::new();
+            for off in lanes {
+                let b = along(d, int(off));
+                here.push(hang(
+                    &mut vines,
+                    v3(b.x, CEILING_AT, b.z),
+                    length,
+                    int(m12 + d),
+                    0,
+                ));
+            }
+            all.push(here);
+        }
+        for off in [-18, 4] {
+            let b = along(LOW_TO + 8, int(off));
+            hang(
+                &mut vines,
+                v3(b.x, CEILING_AT, b.z),
+                CEILING_AT - int(4),
+                int(m12 + LOW_TO + 8),
+                0,
+            );
+        }
+        for off in [-22, 22] {
+            let b = along(LOW_TO + 18, int(off));
+            mushrooms.push(Mushroom {
+                top: v3(b.x, MUSHROOM_HEIGHT, b.z),
+                radius: MUSHROOM_RADIUS,
+            });
+        }
+    }
+    // on the ice, balloon strings rising from their weights (GR-T8)
+    for off in [-24, -8, 8, 24] {
+        let b = along(ICE_AT, int(off));
+        let i = hang(
+            &mut vines,
+            v3(b.x, ICE_TOP + int(1), b.z),
+            UPWARD_LEN,
+            int(m12 + ICE_AT),
+            0,
+        );
+        odd.push(OddVine {
+            vine: i,
+            kind: OddKind::Upward,
+        });
+        ups.push(i);
+    }
+
+    // ---- sideways ropes from sale signs' arms along the front end (GR-T8)
+    let mut sideways = Vec::new();
+    for d in [30, 62, 94] {
+        let s = int(marks[leg::FRONT_END] + d);
+        let r = right_of(c.heading_at(s));
+        let b = c.point(s).sub(r.scale(int(7)));
+        let i = hang(&mut vines, v3(b.x, int(36), b.z), int(14), s, 0);
+        odd.push(OddVine {
+            vine: i,
+            kind: OddKind::Sideways,
+        });
+        sideways.push((i, r));
+    }
+
+    // ---- the lot: ropes from the canopy, then from the light poles ----
+    for d in [16, 42] {
+        let s = int(marks[leg::LOT] + d);
+        let r = right_of(c.heading_at(s));
+        let mut here = Vec::new();
+        for off in [-12, 0, 12] {
+            let b = c.point(s).add(r.scale(int(off) + int(dice.range(-1, 1))));
+            let length = int(dice.range(16, 19));
+            here.push(hang(
+                &mut vines,
+                v3(b.x, CANOPY_UNDER, b.z),
+                length,
+                s,
+                canopy_room,
+            ));
+        }
+        all.push(here);
+    }
+    for pair in lamps.chunks(2) {
+        let mut here = Vec::new();
+        for l in pair {
+            let s = c.progress(l.arm, c.nearest_anywhere(l.arm)).0;
+            here.push(hang(&mut vines, l.arm, int(dice.range(28, 32)), s, 0));
+            // and a low one from the arm's middle, down to 4 m over the
+            // asphalt, to climb back up by after a fall (GR-T9)
+            let mid = l.arm.lerp(v3(l.foot.x, l.arm.y, l.foot.z), ONE / 2);
+            hang(&mut vines, mid, mid.y - int(4), s, 0);
+        }
+        all.push(here);
+    }
+    // (and two from the canopy's outer edge)
+    for side in [-1, 1] {
+        let s = int(marks[leg::LOT] + 30);
+        let r = right_of(c.heading_at(s));
+        let b = c.point(s).add(r.scale(int(side * 20)));
+        hang(
+            &mut vines,
+            v3(b.x, CANOPY_UNDER, b.z),
+            CANOPY_UNDER - int(4),
+            s,
+            canopy_room,
+        );
+    }
+
+    // ---- the shopping list (GR-T2, GR-T3): each zone's item aisle, a
+    // string and an item for each spot, and a low rope in the pocket to
+    // climb out by ----
+    let mut items = Vec::new();
+    for (zone, &(a, back)) in ITEM_AISLES.iter().enumerate() {
+        let w = int(RUNS[a - 1].0 + half(a - 1));
+        let e = int(RUNS[a].0 - half(a));
+        let mid = (w + e) / 2;
+        let z = if back {
+            int(BACK - ITEM_IN)
+        } else {
+            int(FRONT + ITEM_IN)
+        };
+        for (slot, &dx) in ITEM_SPOTS.iter().enumerate() {
+            // (at the aisle's mouth, level with the runs' ends: `ITEM_OUT`
+            // off the cross aisle's line toward the aisle)
+            let line = if back { START.1 } else { FRONT_LINE };
+            let toward = if back { -ITEM_OUT } else { ITEM_OUT };
+            let at = plan(mid + dx, line + toward).add(v3(0, ITEM_UP, 0));
+            let s = c.progress(at, c.nearest_anywhere(at)).0;
+            let top = int(2);
+            let vine = hang(
+                &mut vines,
+                v3(at.x, CEILING_AT, at.z),
+                CEILING_AT - ITEM_UP - top,
+                s,
+                0,
+            );
+            items.push(ListItem {
+                zone: zone as u8,
+                slot: slot as u8,
+                at,
+                vine,
+            });
+        }
+        // a low rope in the pocket, to climb back up by
+        let mouth = plan(mid, z);
+        let s = c.progress(mouth, c.nearest_anywhere(mouth)).0;
+        let away = c.point(s).sub(mouth).flat().norm();
+        // (three across it, each counted where it hangs: an ape fallen
+        // anywhere in the pocket has one near and not far behind it)
+        for dx in [-5, 4, 12] {
+            let inside = plan(mid + int(dx), z).sub(away.scale(int(4)));
+            let at = c.progress(inside, c.nearest_anywhere(inside)).0;
+            hang(
+                &mut vines,
+                v3(inside.x, CEILING_AT, inside.z),
+                CEILING_AT - int(3),
+                at,
+                0,
+            );
+        }
+    }
+
     // ---- shoppers: lizards that walk the floor; some hold balloons ----
     c.mushrooms = mushrooms;
     let mut lizards = Vec::new();
@@ -616,7 +1211,7 @@ pub fn grocery_seeded(seed: u64) -> Course {
             let mid = from.lerp(to, ONE / 2);
             let hand = right_of(way).scale(HAND_OUT);
             let anchor = v3(mid.x, BALLOONS_UP, mid.z).add(hand);
-            let i = hang(&mut vines, anchor, BALLOONS_UP - HAND_UP, int(len / 2));
+            let i = hang(&mut vines, anchor, BALLOONS_UP - HAND_UP, int(len / 2), 0);
             vines[i].slide = Some(crate::course::Slide {
                 reach: to.sub(from).scale(ONE / 2),
                 period: period as i32,
@@ -677,12 +1272,31 @@ pub fn grocery_seeded(seed: u64) -> Course {
         s += 240;
     }
 
-    let doors = (p(410, SOUTH), NORTH.neg());
-    let lobby = (c.starts[0], c.start_yaw);
+    let doors = (plan(door_x, int(SOUTH)), NORTH.neg());
+    // the way each vine hangs: down, but the upward strings and the
+    // sideways ropes (GR-T8)
+    let mut hangs = vec![crate::sector::DOWN; c.vines.len()];
+    for &i in &ups {
+        hangs[i] = v3(0, ONE, 0);
+    }
+    for &(i, r) in &sideways {
+        hangs[i] = r;
+    }
+    // the lobby: on the frozen aisle's floor beside the first coffin
+    // freezer, facing the front (the camera before it; the aisle's lens of
+    // glass doors, the coffins, the shoppers and the meat sign behind)
+    let lobby = (
+        plan(
+            aisle_x(5, 6, int(LOBBY_Z)) + int(COFFIN_OFF + 12),
+            int(LOBBY_Z),
+        )
+        .add(v3(0, BODY_DROP, 0)),
+        yaw_of(NORTH.neg()),
+    );
     c.ravine = Some(Box::new(RavineLayout {
         walls,
         rooms,
-        decks: Vec::new(),
+        decks,
         hangers,
         lizards,
         tracks: Vec::new(),
@@ -706,6 +1320,7 @@ pub fn grocery_seeded(seed: u64) -> Course {
     c.grocery = Some(Box::new(GroceryLayout {
         gondolas,
         cases,
+        blockers,
         posts,
         lanes,
         shoppers,
@@ -713,6 +1328,30 @@ pub fn grocery_seeded(seed: u64) -> Course {
         bounds: (p(WEST, SOUTH), p(EAST_WALL, NORTH_WALL)),
         doors,
         lobby,
+        items,
+        hangs,
+        odd,
+        low: vec![LowCeiling {
+            from: v3(low_a.x, 0, low_a.z),
+            to: v3(low_b.x, 0, low_b.z),
+            half_width: low_half,
+            under: LOW_UNDER,
+        }],
+        ice,
+        lot: Lot {
+            canopy: (
+                plan(door_x - int(CANOPY_HALF), int(CANOPY_Z)),
+                plan(door_x + int(CANOPY_HALF), int(SOUTH)),
+            ),
+            canopy_under: CANOPY_UNDER,
+            cars,
+            lamps,
+            corrals,
+            bounds: (
+                plan(door_x - int(LOT_SIDE), int(LOT_SOUTH)),
+                plan(door_x + int(LOT_SIDE), int(SOUTH)),
+            ),
+        },
     }));
     c
 }

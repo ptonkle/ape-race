@@ -167,6 +167,15 @@ Gathered on 2026-10-17 from TRIAGE, SECOND-ORDER, the morning and progress notes
 - **Moving things cost every sim step.** Lizards, carts and decks re-worked every step made the ravine's median step over twice the Tower's, worst 163 ms; a cheap box reject per mover and deck brought it to 188 µs (RP1). Measure with `examples/frame_cost.rs` as soon as moving bouncers land.
 - **Count the sky.** A narrow slot of starry sky still cost 1,028 shapes, which takes the hairpin's worst frame over 5,500 if counted (RP2); cut the dome's stars and haze to fit.
 
+### What Aisle Ape taught (the grocery store, 2026-10-18, SECOND-ORDER GR rows; built in a fork and offered as a pull request)
+
+- **A new map can borrow a finished map's physics.** The store's solids are written as a Ravine layout (walls, one `Arch` room as the ceiling, posts, lizards as walking bouncers), so the Ravine's rules, solids, AI wall checks and camera keeps came free, and only the drawing is new. Cost: every place the scene checks `c.ravine` must check the borrower first, and the store moves if the Ravine is retuned (GR1).
+- **Seal an indoor map under its ceiling.** Real shelves stop short of the ceiling; a wall's solid standing `WALL_ABOVE` over its drawing, drawn to just under the ceiling's roof, seals each aisle, so no ape flies over a shelf into the next one (GR1, `every_aisle_is_sealed_under_the_ceiling`).
+- **A side pocket off the route traps the grounded AI.** An ape that falls by an open aisle mouth runs into it, and `walled_off` then hides every vine: close pockets the route does not use (stock carts across the aisles) and give 90° turns a wide arc with the inside corner cut (GR6).
+- **An open finish fails `map_checks` Finish.** Anything an ape can fly over (counters) beside the line leads somewhere nearer another leg; close the run's sides (the glass storefront, GR3).
+- **Indoors there is no occlusion to chunk by.** Chunk by place (100 m squares with bounds), draw far shelves as bands of colour and near products every frame within a few metres; the frame was 9,388 shapes before (GR7).
+- **A moving bouncer starts where its mover is at tick 0**, not at its `from` (the Ravine's lizards don't, GR2).
+
 ## Checklist for a new map
 
 - [ ] **The lobby zone, designed on purpose** (the person, 2026-10-13: a core thing for every map). It's where your ape stands behind Race Setup, Time Trial and the online lobby, so it's the map's first impression. Choose a spot that shows the map at its best (its time of day, its set piece behind), with room for T76's lineup of every player's ape and yours on a pedestal in front. Wire it through `scene::preview(course)` and check `app/menu_dock.rs` `preview_spot` actually uses it: the Jungle's never did; it stood the ape at the world origin on the forest floor, T77. Screenshot the setup screen and the lobby on the new map before calling the map done.
