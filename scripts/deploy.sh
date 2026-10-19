@@ -19,7 +19,8 @@ parent=$(git rev-parse -q --verify HEAD^ || true)
 
 # Tooling only (the person, 2026-10-18: changes to the test scripts are not
 # changes to the game): when every file changed since origin/main is tagged
-# [] in tests/tags.toml (scripts, notes, docs, the workflow), no game check
+# [] in tests/tags.toml (scripts, notes, docs, the workflow; or the check
+# machinery, tagged boundary), no game check
 # is needed and no row is asked for. Anything else, or a file with no tags,
 # needs the passing row below.
 tooling=$(git diff --name-only origin/main..HEAD | python3 -B -c '
@@ -27,7 +28,11 @@ import sys; sys.path.insert(0, "scripts"); sys.argv = ["t"]
 import tags as T
 cfg = T.load()
 files = [l.strip() for l in sys.stdin if l.strip()]
-print("yes" if files and all(T.file_tags(cfg, f) == set() for f in files) else "no")' 2>/dev/null)
+# the check machinery itself (tags.toml, tags.py, quick-check) is tagged
+# boundary so a change to it proves the checks still run; it is tooling too
+tool = lambda f: T.file_tags(cfg, f) == set() or (
+    T.file_tags(cfg, f) == {"boundary"} and not f.startswith("crates/"))
+print("yes" if files and all(tool(f) for f in files) else "no")' 2>/dev/null)
 
 # The newest row of notes/check-times.md must be a pass for this commit.
 # timed-checks.sh records the commit checked out when the checks ran, with a
