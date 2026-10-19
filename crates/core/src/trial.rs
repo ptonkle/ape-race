@@ -217,14 +217,14 @@ pub const GROCERY: [u32; 4] = [
 ];
 
 /// The Spindle's target times (step 11, SECOND-ORDER SP7): King Kong alone
-/// as a Time Trial finishes in 84.7-107.4 s by kind, the Chimpanzee best
-/// (84.72 s); the Proboscis did not finish; `tests/spindle_ai.rs`
-/// `spindle_time_trial_report`. Author just under the best kind, then the
-/// Jungle's steps of 7, 10 and 15 s.
-pub const SPINDLE_AUTHOR: u32 = 8_400;
-pub const SPINDLE_GOLD: u32 = 9_100;
-pub const SPINDLE_SILVER: u32 = 10_100;
-pub const SPINDLE_BRONZE: u32 = 11_600;
+/// as a Time Trial finishes in 59.5-93.5 s by kind, the Proboscis best
+/// (59.52 s), the Orangutan and the Chimpanzee next (65.5 s, 66.4 s);
+/// `tests/spindle_ai.rs` `spindle_time_trial_report`. Author just under the
+/// best kind, then the Jungle's steps of 7, 10 and 15 s.
+pub const SPINDLE_AUTHOR: u32 = 5_900;
+pub const SPINDLE_GOLD: u32 = 6_600;
+pub const SPINDLE_SILVER: u32 = 7_600;
+pub const SPINDLE_BRONZE: u32 = 9_100;
 
 /// The Spindle's target times, in race ticks, slowest first.
 pub const SPINDLE: [u32; 4] = [

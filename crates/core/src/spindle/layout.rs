@@ -93,7 +93,7 @@ pub fn spindle_seeded(seed: u64) -> Course {
                 continue;
             }
             let jx = dice.range(-int(2), int(2));
-            let low = row % 2 == 0 && x.abs() < step && !walled(z);
+            let low = row % 2 == 0 && x.abs() < 2 * step && !walled(z);
             let length = if low {
                 LOW
             } else {

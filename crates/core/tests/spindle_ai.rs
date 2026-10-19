@@ -2,9 +2,9 @@
 //! Boosts only, every kind, against the map's medal times (SECOND-ORDER SP7).
 
 use tool_core::ai::{time_trial, Trial};
-use tool_core::spindle::spindle;
 use tool_core::map::Map;
 use tool_core::rules::{Kind, TICKS_PER_SECOND};
+use tool_core::spindle::spindle;
 
 const LIMIT: u32 = 150 * TICKS_PER_SECOND as u32;
 

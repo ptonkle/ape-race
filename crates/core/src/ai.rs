@@ -1093,6 +1093,10 @@ fn off_limits(course: &Course, i: usize, tune: Tuning) -> bool {
 /// `from`'s height plus 1 m, short of the last 4 m (a ledge vine's anchor
 /// sits at its wall's face).
 fn walled_off(course: &Course, from: V3, to: V3) -> bool {
+    // (The Spindle: a pillar or a wall's spoke between, `SpindleLayout::walled_off`)
+    if let Some(sp) = course.spindle.as_deref() {
+        return sp.walled_off(from, to);
+    }
     let Some(s) = course.ravine_solids() else {
         return false;
     };

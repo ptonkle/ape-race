@@ -43,6 +43,32 @@ impl SpindleLayout {
             .max()
     }
 
+    /// Whether a block stands on the flat line from `from` to `to` (the AI
+    /// on the floor: never a vine with a pillar between): sampled every 2 m
+    /// at `from`'s height plus 1 m, short of the last 4 m, as on
+    /// Rattlesnake Ravine (`ai::walled_off`).
+    pub fn walled_off(&self, from: V3, to: V3) -> bool {
+        let d = to.sub(from).flat();
+        let len = d.len();
+        let dir = d.norm();
+        let mut k = int(2);
+        while k < len - int(4) {
+            let p = from.add(dir.scale(k)).add(v3(0, ONE, 0));
+            if self.blocks.iter().any(|b| {
+                p.x > b.lo.x
+                    && p.x < b.hi.x
+                    && p.z > b.lo.z
+                    && p.z < b.hi.z
+                    && p.y > b.lo.y
+                    && p.y < b.hi.y
+            }) {
+                return true;
+            }
+            k += int(2);
+        }
+        false
+    }
+
     /// The block whose box a body at `p` is in (not on its top), and the way
     /// out of it with the least move: (block, outward normal, depth).
     fn block_hit(&self, p: V3) -> Option<(&Block, V3, i32)> {
