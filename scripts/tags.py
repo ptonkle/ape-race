@@ -490,6 +490,20 @@ def test_pick(path, chain, ids):
     return None
 
 
+COMMENT = {".rs": "//", ".js": "//", ".py": "#", ".sh": "#", ".toml": "#"}
+
+
+def comment_only(base, rng, path):
+    """Every changed line of a file is blank or a whole-line comment."""
+    lead = COMMENT.get(pathlib.Path(path).suffix)
+    if not lead:
+        return False
+    rows = hunks(base, rng, path)
+    return bool(rows) and all(
+        not t.strip() or t.strip().startswith(lead) for _, _, t in rows
+    )
+
+
 def file_plan(cfg, path, base, rng, ids):
     """One changed file's (tags, cargo test picks, browser step picks).
 
@@ -498,7 +512,10 @@ def file_plan(cfg, path, base, rng, ids):
     `#[cfg(test)] mod` runs that test (or the module's tests, for a helper);
     a line in a function that a [functions] regex names takes its tags; a
     line in a `def step_<name>` of a [steps] file runs that browser step.
-    Any other line takes the file's [sources] tags."""
+    Any other line takes the file's [sources] tags. A change to comments
+    and blank lines only runs nothing."""
+    if comment_only(base, rng, path):
+        return set(), set(), set()
     fallback = file_tags(cfg, path)
     fallback = {ALL} if fallback is None else fallback
     prefix = test_file_prefix(path)
