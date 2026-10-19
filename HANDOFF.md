@@ -4,6 +4,12 @@ Stage 9, written by the agent. `C5 Consolidate in your own words`.
 
 A fresh session starts from this file, not from memory.
 
+## The Spindle (2026-10-19, branch `spindle` in Sam's fork, held, not deployed)
+
+- The map (key `spindle`, TRIAGE T113, brief `briefs/spindle.md`, progress `notes/spindle-progress.md` with the person's requests SP-T1–T2, pitfalls `notes/spindle-pitfalls.md`), built in Sam's workspace and offered as pull requests. After Iron Vector's Spindle: the course is a straight line on a flat floor whose x wraps round the tube (`spindle/rules.rs`, from `Ape::collide`), and the frame is bent onto the cylinder when drawn (`Warp`, `Batch::transform`, the view's bend in `app/view.rs`, `Camera::matrix_up`), so no shared physics changes (SECOND-ORDER SP1). Eight dropper sections of blocks, slime and spinning rings; the launch out of the open end into Sector Ape's space; mech armour (`Gear::Mech`). `Map::held` keeps it off the grid and Random.
+- AI, one ape over 6 layouts: King Kong 6/6 (68–90 s), Sloth 6/6 (115–158 s), Ape 5/6 (SP5). Medals Author 0:59, Gold 1:06, Silver 1:16, Bronze 1:31 (SP7). Within the 5,500-shape frame budget (SP6).
+- For the maintainer: the release (drop `Map::Spindle` from `Map::held`, `VERSION`, a patch note, the README intro and catch-up lists) is left to you; the patch-note draft is in `notes/spindle-progress.md` step 19.
+
 ## Tournament mode, part 1 (2026-10-18, agent branch, not deployed, no version bump)
 
 - TRIAGE T103: rules in `crates/core/src/tournament.rs` (points 10/7/5/3, a racer who doesn't finish scores 0 and is timed at the leg's cutoff; order is points, then combined time, then seat). Solo: Race Setup toggle and a −/+ race count (2..=16, default 4), `Screen::Standings` between races and at the end (`app/tournament.rs`). Online: the host's `tour_races` and recorded legs ride in the Roster (PROTOCOL 16); the lobby shows the standings between races. SECOND-ORDER TN1–TN3.

@@ -19,13 +19,14 @@ The standard map-build steps (MAPS.md "Build steps"), one row each. Status is on
 | 13 | Colourblind and JOJO MODE | Not started | |
 | 14 | Map card | Done (stand-in) | to retake from the finished art |
 | 15 | Screenshots at 1920×1080 | Done | on the design journal |
-| 16 | Other maps unchanged | Not started | |
-| 17 | Docs | Not started | |
+| 16 | Other maps unchanged | Done | the three unchanged-race tests pass; no hash retaken |
+| 17 | Docs | Done | README (How to Play row, held; code table), the archive's lesson, HANDOFF; TRIAGE T113 |
 | 18 | Full checks | Not started | |
-| 19 | Deploy | Not started | Peter's |
+| 19 | Deploy | Peter's | patch-note draft: "New map: The Spindle. Race down the inside of a spinning tube in space, a Minecraft dropper map in mech armour: spin gravity holds you on the wall, vines hang from the axle all the way round, and slime, pillars, spinning rings and walls on spokes stand in the way. Go far enough sideways and you come back round. At the open end you're blasted out into space." |
 
 ## Sam's requests
 
 | # | Request | Status |
 | --- | --- | --- |
-| SP-T1 | The map, from the brief (2026-10-18) | In progress |
+| SP-T1 | The map, from the brief (2026-10-18) | Done (MVP; Sam: "the spindle is awesome") |
+| SP-T2 | "the monkey skins are terrible. create mech / armored core 6 / gundam versions of each ape in the design log for the costumes for the apes instead of the neon suits, then implement it in the game, then get the PRs ready for ptonk and then I give permission to open them" (2026-10-19) | In progress |
