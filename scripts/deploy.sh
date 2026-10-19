@@ -23,7 +23,8 @@ parent=$(git rev-parse -q --verify HEAD^ || true)
 # machinery, tagged boundary), no game check
 # is needed and no row is asked for. Anything else, or a file with no tags,
 # needs the passing row below.
-tooling=$(git diff --name-only origin/main..HEAD | python3 -B -c '
+tooling_since() {
+  git diff --name-only "$1"..HEAD | python3 -B -c '
 import sys; sys.path.insert(0, "scripts"); sys.argv = ["t"]
 import tags as T
 cfg = T.load()
@@ -32,7 +33,9 @@ files = [l.strip() for l in sys.stdin if l.strip()]
 # boundary so a change to it proves the checks still run; it is tooling too
 tool = lambda f: T.file_tags(cfg, f) == set() or (
     T.file_tags(cfg, f) == {"boundary"} and not f.startswith("crates/"))
-print("yes" if files and all(tool(f) for f in files) else "no")' 2>/dev/null)
+print("yes" if files and all(tool(f) for f in files) else "no")' 2>/dev/null
+}
+tooling=$(tooling_since origin/main)
 
 # The newest row of notes/check-times.md must be a pass for this commit.
 # timed-checks.sh records the commit checked out when the checks ran, with a
@@ -40,7 +43,9 @@ print("yes" if files and all(tool(f) for f in files) else "no")' 2>/dev/null)
 # the checks on uncommitted work (row says <parent>+), then commit it (the
 # row itself goes into that commit). So accept a pass row whose commit is
 # HEAD (checked after committing) or HEAD's parent with "+" (checked just
-# before committing). A plain <parent> row checked the parent, not this.
+# before committing). A plain <parent> row checked the parent, not this,
+# unless every commit since the checked one is tooling only (the check's own
+# time row, committed after it, is the usual case).
 if [[ "$tooling" == yes ]]; then
   echo "tooling only: no game check needed"
 else
@@ -57,6 +62,9 @@ if [[ -n "$sha" && -z "$dirty" && "$sha" == "$head" ]]; then
   :
 elif [[ -n "$sha" && -n "$dirty" && "$sha" == "$parent" ]]; then
   :
+elif [[ -n "$sha" && -z "$dirty" ]] && git merge-base --is-ancestor "$sha" HEAD \
+  && [[ "$(tooling_since "$sha")" == yes ]]; then
+  echo "only tooling since the check of ${sha:0:7}"
 else
   refuse "newest passing check is for $commit, not HEAD ${head:0:7} or ${parent:0:7}+ (run scripts/timed-checks.sh)"
 fi
