@@ -29,6 +29,9 @@ fn main() {
                 (Map::Grocery, s) => {
                     tool_core::grocery::grocery_seeded(0x6E0C_E2E5_0001 + s * 7919)
                 }
+                (Map::Spindle, s) => {
+                    tool_core::spindle::spindle_seeded(0x5D1E_0000_0001 + s * 7919)
+                }
             };
             let t = trial_at(course, &[k], &[level], false, 150 * TICKS_PER_SECOND as u32);
             row.push(match t[0].finish {

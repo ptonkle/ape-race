@@ -216,6 +216,21 @@ pub const GROCERY: [u32; 4] = [
     secs(GROCERY_AUTHOR),
 ];
 
+/// The Spindle's target times: a stand-in until the time trial measures
+/// the real course (step 11).
+pub const SPINDLE_AUTHOR: u32 = 8_000;
+pub const SPINDLE_GOLD: u32 = 8_700;
+pub const SPINDLE_SILVER: u32 = 9_700;
+pub const SPINDLE_BRONZE: u32 = 11_200;
+
+/// The Spindle's target times, in race ticks, slowest first.
+pub const SPINDLE: [u32; 4] = [
+    secs(SPINDLE_BRONZE),
+    secs(SPINDLE_SILVER),
+    secs(SPINDLE_GOLD),
+    secs(SPINDLE_AUTHOR),
+];
+
 /// A map's target times, in race ticks, slowest first (Bronze, Silver,
 /// Gold, Author).
 pub fn medals(map: Map) -> [u32; 4] {
@@ -229,6 +244,7 @@ pub fn medals(map: Map) -> [u32; 4] {
         Map::Tower => TOWER,
         Map::Ravine => RAVINE,
         Map::Grocery => GROCERY,
+        Map::Spindle => SPINDLE,
     }
 }
 

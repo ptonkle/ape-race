@@ -58,6 +58,9 @@ CARDS = {
     # down the frozen aisle: the glass doors either side, the coffin
     # freezers, the licorice vines, the meat cases at its end
     "grocery": "650",
+    # down the tube: its wall climbing up overhead, the axle and its
+    # vines on every side
+    "spindle": "300",
 }
 
 SCALE_TO_WEBP = """async ([w, h, q]) => {

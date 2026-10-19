@@ -366,4 +366,5 @@ per_map! {
     tower => Map::Tower,
     ravine => Map::Ravine,
     grocery => Map::Grocery,
+    spindle => Map::Spindle,
 }

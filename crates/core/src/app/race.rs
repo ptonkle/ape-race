@@ -170,6 +170,7 @@ impl App {
         if let Some(track) = p.record.as_mut().and_then(|r| r.track.as_mut()) {
             track.record(&p.race);
         }
+        spindle_round(p);
         follow_speed(p);
         self.hype_tick(p);
         step_chains(p);
@@ -267,5 +268,26 @@ pub(super) fn step_chains(p: &mut Play) {
             .find(|r| r.ape.swinging() == Some(i))
             .map(|r| r.ape.pos);
         p.chains[i].step(a, c.vines[i].length, hands, p.race.tick, i as u32);
+    }
+}
+
+/// The Spindle: an ape that went round the tube's seam this tick (its x
+/// wrapped, `spindle::rules`) is drawn from where it was on the same side,
+/// and the camera following it goes round with it, so neither sweeps back
+/// across the tube.
+fn spindle_round(p: &mut Play) {
+    let Some(w) = p.race.course.spindle.as_deref().map(|s| s.warp) else {
+        return;
+    };
+    for (prev, r) in p.prev.iter_mut().zip(&p.race.racers) {
+        prev.x = r.ape.pos.x - w.wrap_x(r.ape.pos.x - prev.x);
+    }
+    let at = p.race.racers[p.focus.racer].ape.pos;
+    let shift = at.x - w.wrap_x(at.x - p.chase.target.x) - p.chase.target.x;
+    if shift != 0 {
+        let by = crate::geom::v3(shift, 0, 0);
+        let c = &mut p.chase;
+        (c.eye, c.target) = (c.eye.add(by), c.target.add(by));
+        (c.prev_eye, c.prev_target) = (c.prev_eye.add(by), c.prev_target.add(by));
     }
 }
