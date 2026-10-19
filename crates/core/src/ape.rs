@@ -723,7 +723,7 @@ impl Ape {
         }
         // The Spindle: round the tube, the axle, the blocks, the rings
         if let Some(s) = course.spindle.as_deref() {
-            self.hit_spindle(s, tick);
+            self.hit_spindle(s, tick, before, course.gravity());
         }
         // Sector Ape: the ships, the debris and the door
         if course.sector.is_some() {

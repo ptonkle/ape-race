@@ -1072,6 +1072,13 @@ fn off_limits(course: &Course, i: usize, tune: Tuning) -> bool {
             return true;
         }
     }
+    // (The Spindle: round the tube there are no walls; the AI keeps to the
+    // vines in its lane along the route, `SpindleLayout::ai_lane`)
+    if let Some(s) = course.spindle.as_deref() {
+        if !s.ai_lane(course.vines[i].anchor.x) {
+            return true;
+        }
+    }
     // (Sunset Ruins: a pit's vines are for when its trapdoor is open:
     // `drawn_up`)
     !tune.hidden

@@ -52,6 +52,8 @@ pub const CIRCUMFERENCE: i32 = ((RADIUS as i64 * 411_775) >> 16) as i32;
 pub const AXLE: i32 = int(9);
 /// The axle's underside over the floor, in the flat frame: the ceiling.
 pub const AXLE_UNDER: i32 = RADIUS - AXLE;
+/// The AI's lane: the vines within this of the route, round the tube.
+pub const AI_LANE: i32 = int(52);
 /// Ticks for one turn of the tube against the stars (a turn in 40 s).
 pub const SPIN_TICKS: u32 = 40 * crate::rules::TICKS_PER_SECOND as u32;
 
@@ -209,6 +211,13 @@ impl SpindleLayout {
     /// The tube's floor and axle stop here, past the finish.
     pub fn end(&self) -> i32 {
         self.mouth
+    }
+
+    /// Whether a vine hanging at floor distance `x` is in the AI's lane:
+    /// round the tube there are no walls, so the AI keeps to the vines
+    /// within `AI_LANE` of the route (a person may swing anywhere).
+    pub fn ai_lane(&self, x: i32) -> bool {
+        x.abs() <= AI_LANE
     }
 
     /// Whether flat point `p` is out of the tube, in space past its end.

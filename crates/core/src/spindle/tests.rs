@@ -70,7 +70,8 @@ fn bending_turns_a_shape_with_the_floor_and_flat_of_undoes_it() {
 #[test]
 fn running_round_the_tube_comes_back_where_it_began() {
     let c = spindle();
-    let mut a = Ape::new(Kind::Chimpanzee, true, v3(0, BODY_DROP, int(100)), 0);
+    // (between the warm-up's slime pads)
+    let mut a = Ape::new(Kind::Chimpanzee, true, v3(0, BODY_DROP, int(140)), 0);
     // run sideways (yaw a quarter turn) for long enough to pass the seam
     let ctl = Controls {
         fwd: 1,
@@ -105,11 +106,11 @@ fn a_swinging_ape_is_not_wrapped_off_its_vine() {
         vine: 0,
         rope: int(22),
     };
-    a.hit_spindle(s, 0);
+    a.hit_spindle(s, 0, a.pos, int(17));
     assert!(a.pos.x > CIRCUMFERENCE / 2, "wrapped while swinging");
     // let go, it is brought round
     a.mode = Mode::Flying;
-    a.hit_spindle(s, 0);
+    a.hit_spindle(s, 0, a.pos, int(17));
     assert!(a.pos.x < 0, "not wrapped once let go");
 }
 
