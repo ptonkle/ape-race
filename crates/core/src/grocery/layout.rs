@@ -340,7 +340,7 @@ pub const LAMP_ARM: i32 = int(20);
 pub const CAR_ROW: i32 = 57;
 pub const STALL: i32 = 32;
 /// The lot's far edge (plan north) and its sides, from the doors.
-pub const LOT_SOUTH: i32 = -210;
+pub const LOT_SOUTH: i32 = -330;
 pub const LOT_SIDE: i32 = 140;
 
 /// A shopper walks this fast on average, m/s (half a metre a second real).

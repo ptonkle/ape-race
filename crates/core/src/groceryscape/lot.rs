@@ -72,11 +72,68 @@ fn lot(cells: &mut Cells, g: &GroceryLayout) {
         }
         x += 50;
     }
-    // a hedge along the lot's far edge and its sides
-    let hedge = |cells: &mut Cells, a: V3, b: V3| {
+    // the grass on out to the haze, and a row of trees round the lot
+    // (west of it, east of it and past its far end: x0..x1, z0..z1)
+    for (xa, xb, za, zb) in [
+        (x0 - 260, x0 - 60, z0 - 260, SOUTH),
+        (x1 + 60, x1 + 260, z0 - 260, SOUTH),
+        (x0 - 60, x1 + 60, z0 - 260, z0 - 60),
+    ] {
         cells.push(
             Mesh::Cube,
-            &rod(a.add(v3(0, int(4), 0)), b.add(v3(0, int(4), 0)), int(8)),
+            &placed(
+                plan(int(xa + xb) / 2, int(za + zb) / 2).sub(v3(0, cm(60), 0)),
+                0,
+                v3(int(zb - za), cm(100), int(xb - xa)),
+            ),
+            GRASS,
+            ONE / 5,
+        );
+    }
+    let mut k = 0;
+    let mut tree = |cells: &mut Cells, x: i32, z: i32| {
+        let foot = plan(int(x), int(z));
+        let h = int(40 + (k * 7) % 14);
+        cells.push(
+            Mesh::Cyl,
+            &rod(foot, foot.add(v3(0, h / 2, 0)), int(3)),
+            rgb(98, 72, 50),
+            ONE / 6,
+        );
+        cells.push(
+            Mesh::Blob,
+            &placed(
+                foot.add(v3(0, h * 3 / 4, 0)),
+                k * 9_000,
+                v3(int(30), h * 3 / 5, int(30)),
+            ),
+            [HEDGE, GRASS, rgb(70, 118, 60)][k as usize % 3],
+            ONE / 6,
+        );
+        k += 1;
+    };
+    let mut x = x0 - 30;
+    while x <= x1 + 30 {
+        tree(cells, x, z0 - 30);
+        x += 36;
+    }
+    let mut z = z0;
+    while z < SOUTH - 40 {
+        tree(cells, x0 - 30, z);
+        tree(cells, x1 + 30, z);
+        z += 36;
+    }
+    // a hedge along the lot's far edge and its sides
+    // (a low box along the ground from `a` to `b`, 6 m thick, 5 m tall)
+    let hedge = |cells: &mut Cells, a: V3, b: V3| {
+        let run = b.sub(a);
+        cells.push(
+            Mesh::Bevel,
+            &placed(
+                a.lerp(b, ONE / 2).add(v3(0, cm(250), 0)),
+                yaw_of(run),
+                v3(int(6), int(5), run.len()),
+            ),
             HEDGE,
             ONE / 5,
         );

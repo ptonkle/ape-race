@@ -108,8 +108,34 @@ pub fn frozen_share(g: &GroceryLayout, p: V3) -> i32 {
     ONE - fx::div(past, int(30)).min(ONE)
 }
 
+/// The parking lot's light (GR-T4): a clear afternoon, a blue sky, warm
+/// sun from the west, the haze far off.
+pub fn outdoor_look() -> Look {
+    Look {
+        sky: rgb(150, 196, 236),
+        fog: rgb(198, 216, 230),
+        fog_range: (int(140), int(460)),
+        light_dir: v3(cm(-40), cm(100), cm(20)).norm(),
+        light: rgb(255, 246, 226),
+        ground: rgb(140, 146, 130),
+        ..look()
+    }
+}
+
+/// How far out of the store `p` is, 0..=ONE: none inside the front wall,
+/// all of it 40 m out.
+pub fn outdoor_share(p: V3) -> i32 {
+    let (_, z) = crate::grocery::plan_of(p);
+    let out = int(crate::grocery::layout::SOUTH) - z;
+    fx::div(out.clamp(0, int(40)), int(40))
+}
+
 /// The light for an eye at `eye`.
 pub fn look_at(_c: &Course, g: &GroceryLayout, eye: V3) -> Look {
+    let out = outdoor_share(eye);
+    if out > 0 {
+        return blend(&look(), &outdoor_look(), out);
+    }
     let k = frozen_share(g, eye);
     if k <= 0 {
         return look();

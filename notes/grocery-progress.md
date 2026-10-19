@@ -6,7 +6,7 @@ The standard map-build steps (MAPS.md "Build steps"), one row each. Status is on
 | --- | --- | --- | --- |
 | 1 | Brief and answers | Done (defaults) | `briefs/clean-up-on-aisle-ape.md`; `notes/grocery-pitfalls.md`; decisions GR-Q1–Q12 put to the person with defaults, building on the defaults |
 | 2 | Skeleton and contract | Done | `Map::Grocery` held; `GroceryLayout` (`grocery.rs`), the store's solids as a Ravine layout; the models' contract and the 94-product catalogue; GR1–GR5 (branch `grocery-skeleton` marks it) |
-| 3 | Ape costumes | Done | `Gear::Food` (`models/food.rs`): animal cracker, sandwich cookie, fruit snack, soft pretzel, cheese puff, frosted circus cookie, 4 flavours each; costume Food; `GUMMY_JAGUAR`; shots `notes/grocery-shots/costumes/`; GR-G rows |
+| 3 | Ape costumes | Done (second pass: store uniforms, GR-T1) | first `Gear::Food` (`models/food.rs`): animal cracker, sandwich cookie, fruit snack, soft pretzel, cheese puff, frosted circus cookie, 4 flavours each; costume Food; `GUMMY_JAGUAR`; shots `notes/grocery-shots/costumes/`; GR-G rows |
 | 4 | Models | Done | `grocerymodels/`: 12 product shapes × 8 fronts, shoppers (7 looks, walking, balloon hand, carts), balloons, ball bin, tables, bins, mister, aisle sign, banner, department signs, cart, stock cart, pallet; 32 gallery keys; shots `notes/grocery-shots/models/`; GR-M rows |
 | 5 | Sky and lighting | Done | `groceryscape.rs`: strip-light white from overhead, cream bounce, a warm haze (90–250 m); the frozen aisle colder and bluer by place; every store surface carries some glow (`LIT`) |
 | 6 | Course layout | Done | 1,854 m through three aisles; radius-36 turns, angled run ends, closed side aisles, the glass storefront; GR3, GR6 |
@@ -21,7 +21,7 @@ The standard map-build steps (MAPS.md "Build steps"), one row each. Status is on
 | 15 | Screenshots at 1920×1080 | Done | on the design journal |
 | 16 | Other maps unchanged | Done | the three unchanged-race tests pass in the full check |
 | 17 | Docs | Done | README (How to Play row, held; code table), maps-archive lesson, MAPS gotcha 17, HANDOFF; TRIAGE row added before the PR |
-| 18 | Full checks | In progress | |
+| 18 | Full checks | Done (first pass); rerun for the second | GR9 |
 | 19 | Deploy | Waiting on Peter | held. At release: drop `Map::Grocery` from `Map::held`, bump `VERSION`, add the patch note, the README intro and catch-up lists. Patch-note draft: "New map: Clean-Up on Aisle Ape. Race as a snack through a supermarket: down the cereal aisle, up the frozen aisle, down the snacks, round the misting produce and out past the checkouts. Swing from licorice ropes and shoppers' balloons; the apes are an animal cracker, a sandwich cookie, a fruit snack, a soft pretzel, a cheese puff and a frosted cookie." |
 
 ## This map's features
@@ -39,3 +39,16 @@ The standard map-build steps (MAPS.md "Build steps"), one row each. Status is on
 | Lighting, palette and sizes from the photos | brief | n/a | n/a | Done | – |
 | Food apes, small next to the people | brief | Done | n/a | n/a | Done |
 | Gummy jaguar (Floor is Lava) | default GR-Q11 | Done | Done | n/a | Done |
+
+## The person's requests
+
+| # | Request (2026-10-18, after playing the first pass) | Status | Where |
+| --- | --- | --- | --- |
+| GR-T1 | The ape costumes as the store's workers' uniforms, a big banana in a circle as the logo | Done | `models/grocer.rs` (`Gear::Grocer`, six jobs, four palettes), `grocerymodels::banana_logo`; the food apes leave the map (the gummy jaguar stays) |
+| GR-T2 | A shopping list of four items, one per zone, in side aisles, glowing; hit one to take it: 1st and 3rd +25% speed for good, 2nd and 4th +25% air control (added, the person's answer) | Done, with a divergence (GR11) | `grocery/list.rs`; items at four item aisles' mouths; HUD row "List"; the AI goes for its own (GR12) |
+| GR-T3 | Each racer led to a different part of the same aisle, so all get theirs at about the same time | Done | `ITEM_SPOTS`: racer `k` at spot `k % 4`, all four across one mouth; only one's own glows |
+| GR-T4 | At the end, out of the closed doors into the parking lot (about 110 s, the person's answer) | Done | the doors slide open as you come; the lot: canopy, cars, light poles, corrals, trees; 2,110 m |
+| GR-T5 | With all four items, a plane flies by and picks up the order in the lot | Done | `groceryscape/lot.rs` `planes`: the ape holds up the bag, the plane snatches it on a hook |
+| GR-T6 | More shoppers with carts as obstacles | Done | nine more walks (six in the store on the route, three in the lot) |
+| GR-T7 | Swinging low to the ground in one place, then having to go up | Done | the frozen aisle's drop ceiling (ropes to 8–12 m over the floor), then the ice and its ramp (GR14) |
+| GR-T8 | A few sideways and upside-down vines | Done | three ropes standing out level from sale signs along the front end; four balloon strings rising from the ice |
