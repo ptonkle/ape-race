@@ -128,7 +128,10 @@ use crate::tournament::{Entrant, Run, Tour};
 /// of 14 could not read in a Roster or a Start.
 /// 16: tournaments (TRIAGE T103): `tour_races` and `tour` (the races run so
 /// far, recorded by the host) in the Roster.
-pub const PROTOCOL: u32 = 16;
+/// 17: The Spindle (2026-10-19): the map `spindle` offered on the map
+/// choice, which a client of 16 could not offer or race in a Roster or a
+/// Start.
+pub const PROTOCOL: u32 = 17;
 /// The most apes in a race, humans and AI together.
 pub const MAX_APES: usize = 4;
 /// The most AI apes the host may add.
