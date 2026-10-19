@@ -228,3 +228,18 @@ fn the_vines_hang_all_round_the_tube_and_clear_of_the_seam() {
         assert!(v.anchor.y - v.length > 0, "a vine to the floor");
     }
 }
+
+#[test]
+fn a_pillar_walls_off_a_vine_behind_it_from_an_ape_on_the_floor() {
+    let pillar = Block {
+        lo: v3(-int(3), 0, int(120)),
+        hi: v3(int(3), AXLE_UNDER, int(124)),
+        kind: BlockKind::Glass,
+    };
+    let c = with(vec![pillar], Vec::new());
+    let s = c.spindle.as_deref().unwrap();
+    let feet = v3(0, BODY_DROP, int(110));
+    assert!(s.walled_off(feet, v3(0, layout::ANCHOR, int(140))));
+    // beside it, the way is open
+    assert!(!s.walled_off(feet, v3(int(12), layout::ANCHOR, int(140))));
+}
