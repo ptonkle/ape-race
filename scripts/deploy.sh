@@ -1,0 +1,64 @@
+#!/usr/bin/env bash
+# Deploy: push main to GitHub and wait for the Pages workflow.
+#   scripts/deploy.sh
+# Refuses unless on main, the tree is clean, and the newest row of
+# notes/check-times.md is a pass for this commit. Prints one final line:
+#   deployed vX.Y.Z (<sha>) in Ns     or     deploy FAILED: <url>
+set -uo pipefail
+cd "$(dirname "$0")/.."
+
+refuse() { echo "deploy refused: $1" >&2; exit 1; }
+
+branch=$(git symbolic-ref --short -q HEAD || true)
+[[ "$branch" == main ]] || refuse "on '${branch:-detached HEAD}', not main"
+[[ -z "$(git status --porcelain)" ]] || refuse "working tree is not clean"
+
+head=$(git rev-parse HEAD)
+parent=$(git rev-parse -q --verify HEAD^ || true)
+
+# The newest row of notes/check-times.md must be a pass for this commit.
+# timed-checks.sh records the commit checked out when the checks ran, with a
+# trailing "+" when the tree had uncommitted changes. The usual flow is: run
+# the checks on uncommitted work (row says <parent>+), then commit it (the
+# row itself goes into that commit). So accept a pass row whose commit is
+# HEAD (checked after committing) or HEAD's parent with "+" (checked just
+# before committing). A plain <parent> row checked the parent, not this.
+row=$(grep '^| [0-9]' notes/check-times.md | tail -n 1)
+[[ -n "$row" ]] || refuse "no rows in notes/check-times.md"
+IFS='|' read -r _ _when _version commit _load _check _steps _total result _ <<<"$row"
+commit=$(echo "$commit" | tr -d ' ')
+result=$(echo "$result" | sed 's/^ *//; s/ *$//')
+[[ "$result" == pass ]] || refuse "newest check-times row is '$result', not pass"
+dirty=""
+[[ "$commit" == *+ ]] && dirty=1
+sha=$(git rev-parse -q --verify "${commit%+}^{commit}" 2>/dev/null || true)
+if [[ -n "$sha" && -z "$dirty" && "$sha" == "$head" ]]; then
+  :
+elif [[ -n "$sha" && -n "$dirty" && "$sha" == "$parent" ]]; then
+  :
+else
+  refuse "newest passing check is for $commit, not HEAD ${head:0:7} or ${parent:0:7}+ (run scripts/timed-checks.sh)"
+fi
+
+version=$(sed -n 's/^pub const VERSION: &str = "\(.*\)";$/\1/p' crates/core/src/app.rs)
+start=$(date +%s)
+
+git push -q origin main || refuse "git push failed"
+
+# Find the Pages run for this commit (it can take a few seconds to appear).
+id=""
+for _ in $(seq 1 30); do
+  id=$(gh run list --workflow deploy.yml -L 5 --json databaseId,headSha,status \
+    --jq ".[] | select(.headSha == \"$head\") | .databaseId" 2>/dev/null | head -n 1)
+  [[ -n "$id" ]] && break
+  sleep 2
+done
+[[ -n "$id" ]] || { echo "deploy FAILED: no deploy.yml run found for ${head:0:7}"; exit 1; }
+
+if gh run watch "$id" --exit-status >/dev/null 2>&1; then
+  echo "deployed v$version (${head:0:7}) in $(($(date +%s) - start))s"
+else
+  url=$(gh run view "$id" --json url --jq .url 2>/dev/null || echo "run $id")
+  echo "deploy FAILED: $url"
+  exit 1
+fi
