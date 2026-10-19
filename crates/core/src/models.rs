@@ -26,6 +26,7 @@ use crate::render::{rgb, rod, shade, Batch, Camera, Rgb};
 use crate::rules::{Kind, BODY_DROP};
 
 mod cowboy;
+mod errands;
 mod flame;
 mod food;
 mod grocer;
@@ -86,6 +87,9 @@ pub enum Gear {
     /// The Spindle's mech armour: each kind a mech frame, plates over a
     /// dark frame, a glowing visor and boosters (`models::mech`)
     Mech,
+    /// Aisle Ape's second outfit, Grocery Run: each kind an everyday fit
+    /// for doing the groceries (`models::errands`)
+    Errands,
 }
 
 impl Gear {
@@ -105,6 +109,8 @@ impl Gear {
             "grocer" => Some(Gear::Grocer),
             // The Spindle's mech armour
             "mech" => Some(Gear::Mech),
+            // Aisle Ape's Grocery Run
+            "errands" => Some(Gear::Errands),
             _ => None,
         }
     }
@@ -1249,6 +1255,9 @@ pub fn draw_in(b: &mut Batch, kind: Kind, palette: u8, pose: &Pose) {
     if pose.gear == Gear::Grocer {
         grocer::grocer(&mut rig, kind, palette, &l, &m, &skel);
     }
+    if pose.gear == Gear::Errands {
+        errands::errands(&mut rig, kind, palette, &l, &m, &skel);
+    }
     if let Some(from) = &mech_from {
         mech::mech(&mut rig, kind, palette, &l, &m, &skel, pose, from);
     }
@@ -1441,7 +1450,8 @@ fn limbs(rig: &mut Rig, kind: Kind, l: &Look, m: &Dims, s: &Skel, gear: Gear) {
         )
         || (gear == Gear::Cowboy && cowboy::kit(kind).top.sleeved())
         || gear == Gear::Grocer
-        || gear == Gear::Mech;
+        || gear == Gear::Mech
+        || gear == Gear::Errands;
     let kit = pirate_kit(kind);
     let pirate = gear == Gear::Pirate;
     for (i, side) in SIDES.into_iter().enumerate() {
@@ -2899,7 +2909,8 @@ fn head(rig: &mut Rig, kind: Kind, l: &Look, h: &Frame, pose: &Pose) {
         pose.gear,
         Gear::Ski | Gear::Explorer | Gear::Pirate | Gear::Tourist | Gear::Wizard | Gear::Cowboy
     ) || pose.gear == Gear::Grocer
-        || pose.gear == Gear::Mech;
+        || pose.gear == Gear::Mech
+        || (pose.gear == Gear::Errands && errands::kit(kind, 0).hat.covers_head());
     // the skull, and the bare face on its front
     rig.put(Mesh::Geo, h.shape(V3::ZERO, p(100, 94, 96)), l.fur);
     let face_size = match kind {

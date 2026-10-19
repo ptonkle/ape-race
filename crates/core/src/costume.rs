@@ -40,12 +40,15 @@ pub enum Costume {
     Grocer,
     /// The Spindle's mech armour
     Mech,
+    /// Aisle Ape's second outfit, Grocery Run (GR-T11): everyday fits for
+    /// doing the groceries
+    Errands,
 }
 
 impl Costume {
     /// The selector's order: the map's own, none, then the unlockable ones
     /// in the maps' order.
-    pub const ALL: [Costume; 11] = [
+    pub const ALL: [Costume; 12] = [
         Costume::Own,
         Costume::Bare,
         Costume::Ski,
@@ -57,6 +60,7 @@ impl Costume {
         Costume::Cowboy,
         Costume::Grocer,
         Costume::Mech,
+        Costume::Errands,
     ];
 
     /// The key: the settings' and the messages' word, and `costume.<key>`
@@ -74,6 +78,7 @@ impl Costume {
             Costume::Cowboy => "cowboy",
             Costume::Grocer => "grocer",
             Costume::Mech => "mech",
+            Costume::Errands => "errands",
         }
     }
 
@@ -111,6 +116,8 @@ impl Costume {
             Gear::Cowboy => Some(Costume::Cowboy),
             Gear::Grocer => Some(Costume::Grocer),
             Gear::Mech => Some(Costume::Mech),
+            // (no map's own gear: Grocery Run is Aisle Ape's second outfit)
+            Gear::Errands => Some(Costume::Errands),
         }
     }
 
@@ -128,6 +135,7 @@ impl Costume {
             Costume::Cowboy => Gear::Cowboy,
             Costume::Grocer => Gear::Grocer,
             Costume::Mech => Gear::Mech,
+            Costume::Errands => Gear::Errands,
         }
     }
 
@@ -205,11 +213,13 @@ mod tests {
         for c in Costume::ALL {
             assert_eq!(Costume::from_key(c.key()), Some(c));
         }
-        // (the cowboy's map, Rattlesnake Ravine, is wired by its skeleton)
+        // (the cowboy's map, Rattlesnake Ravine, is wired by its skeleton;
+        // Grocery Run is unlocked on Aisle Ape by its own rule, GR-T11)
         for c in Costume::ALL {
             assert_eq!(
                 c.free(),
-                c.map().is_none() && !matches!(c, Costume::Wizard | Costume::Cowboy),
+                c.map().is_none()
+                    && !matches!(c, Costume::Wizard | Costume::Cowboy | Costume::Errands),
                 "{c:?}"
             );
         }
