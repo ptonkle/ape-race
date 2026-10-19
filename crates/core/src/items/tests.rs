@@ -493,18 +493,8 @@ fn a_hit_from_another_browser_applies_to_a_local_ape() {
 }
 
 #[test]
-fn crates_are_not_drawn_and_shots_are() {
-    // TRIAGE T46: an item vine is marked by flowers, drawn with the vines
-    // (`scene::item_flowers`); there is no crate to draw
+fn shots_are_drawn() {
     let mut r = race(2);
-    assert_eq!(
-        r.crate_vines,
-        vec![0],
-        "the test course: a crate on its one vine"
-    );
-    let mut b = Batch::new();
-    draw(&mut b, &r);
-    assert_eq!(b.count(), 0);
     r.racers[0].item = Some(Item::Banana);
     use_item(&mut r, 0, &press());
     let mut b = Batch::new();

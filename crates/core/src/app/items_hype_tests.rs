@@ -40,9 +40,13 @@ fn unticked_items_stay_out_of_the_race_and_the_choice_is_kept() {
     assert_eq!(a.screen, Screen::Setup);
     let ui = ui_of(&mut a);
     let boxes = checks(&ui);
-    // only the Speed Boost and the Vine are offered (the person, 2026-10-15)
+    // the Hook, the Speed Boost and the Vine are offered (the Banana and
+    // Stick off, the person, 2026-10-15; the Hook back in 1.17.0)
     let ids: Vec<&str> = boxes.iter().map(|(id, _)| id.as_str()).collect();
-    assert_eq!(ids, ["setup.item.boost", "setup.item.vine"]);
+    assert_eq!(
+        ids,
+        ["setup.item.hook", "setup.item.boost", "setup.item.vine"]
+    );
     assert!(boxes.iter().all(|(_, on)| *on));
     a.act("setup.item.vine", "off");
     a.act("setup.item.banana", "on");
@@ -88,8 +92,7 @@ fn a_time_trial_shows_no_item_boxes_and_keeps_boost_only() {
 
 #[test]
 fn stored_settings_with_stray_bits_are_cleaned() {
-    // stray bits and the items no longer offered (Banana, Stick, Hook)
-    // are taken out
+    // stray bits and the items not offered (Banana, Stick) are taken out
     let s = Settings::parse(r#"{"items": 255}"#);
     assert_eq!(s.items, ItemSet::ALL.offered());
     assert!(s.items.has(Item::Boost) && s.items.has(Item::Vine) && !s.items.has(Item::Banana));
@@ -214,4 +217,17 @@ fn the_hud_counts_whole_bananas_out_of_twenty() {
     p.race.racers[me].ape.bananas = 37;
     let ui = ui_of(&mut a);
     assert_eq!(ui["hud"]["bananas"][1], "7/20");
+}
+
+#[test]
+fn settings_saved_before_the_hook_came_back_get_it_ticked_once() {
+    let old = ItemSet::only(Item::Boost).with(Item::Vine, true);
+    let text = format!(r#"{{"items": {}}}"#, serde_json::to_string(&old).unwrap());
+    let s = Settings::parse(&text);
+    assert!(s.items.has(Item::Hook), "the Hook ticked on an older save");
+    // unticked after that, it stays off
+    let mut s = s;
+    s.items = s.items.with(Item::Hook, false);
+    let again = Settings::parse(&serde_json::to_string(&s).unwrap());
+    assert!(!again.items.has(Item::Hook), "the Hook ticked again");
 }

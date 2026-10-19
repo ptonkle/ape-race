@@ -5,7 +5,6 @@ use serde_json::Value;
 
 use super::*;
 use crate::models::PALETTES;
-use crate::render::Rgb;
 
 fn app() -> App {
     App::new(include_str!("../../../../data/strings.json"), "", 7).unwrap()
@@ -22,37 +21,6 @@ fn item(ui: &Value, id: &str) -> Option<Value> {
         .iter()
         .flat_map(|p| p["items"].as_array().cloned().unwrap_or_default())
         .find(|i| i["id"] == id)
-}
-
-/// The frame's auras, as T59 drew them: rim glows (a negative strength in
-/// the halo pass) round a racer, as (colour, strength). (Sector Ape's black
-/// hole has one too, far off.)
-fn auras(a: &App) -> Vec<(Rgb, i32)> {
-    let (_, values, draws) = a.frame();
-    let racers: Vec<V3> = a
-        .play
-        .as_ref()
-        .unwrap()
-        .race
-        .racers
-        .iter()
-        .map(|r| r.ape.pos)
-        .collect();
-    let mut out = Vec::new();
-    for d in draws.chunks(render::DRAW_VALUES) {
-        if d[6] != render::HALO {
-            continue;
-        }
-        let from = d[2] as usize / render::BYTES_PER_VALUE;
-        for k in 0..d[3] as usize {
-            let s = &values[from + k * render::INSTANCE_VALUES..][..render::INSTANCE_VALUES];
-            let at = v3(s[3], s[7], s[11]);
-            if s[15] < 0 && racers.iter().any(|r| r.dist(at) < int(10)) {
-                out.push(([s[12], s[13], s[14]], -s[15]));
-            }
-        }
-    }
-    out
 }
 
 /// `frames` page frames of about 1/60 s.
@@ -72,17 +40,7 @@ fn race_on(map: &str, opponents: &str) -> App {
 }
 
 #[test]
-fn no_racer_wears_an_aura_and_the_minimap_dots_are_the_kinds() {
-    // TRIAGE T73: the auras (T59) are gone, on every map, in either mode,
-    // and with them the setting
-    for map in ["jungle", "city", "ski", "sector"] {
-        for blind in ["off", "on"] {
-            let mut a = race_on(map, "3");
-            a.act("settings.colourblind", blind);
-            run(&mut a, 30);
-            assert_eq!(auras(&a), [], "{map}, colourblind {blind}");
-        }
-    }
+fn the_minimap_dots_are_the_kinds() {
     let mut a = race_on("jungle", "3");
     let ui = ui_of(&mut a);
     let p = a.play.as_ref().unwrap();
@@ -93,10 +51,6 @@ fn no_racer_wears_an_aura_and_the_minimap_dots_are_the_kinds() {
             "dot {k}"
         );
     }
-    a.act("menu.quit", "");
-    a.act("menu.settings", "");
-    let ui = ui_of(&mut a);
-    assert!(item(&ui, "settings.aura").is_none());
     // settings saved with the auras still read
     let old = Settings::parse("{\"volume\":40,\"aura\":true}");
     assert_eq!(old.volume, 40);

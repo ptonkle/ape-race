@@ -112,8 +112,8 @@ def step_race(page, check):
     page.click("[id='setup.equal']")
     # TRIAGE T42: a checkbox per item, all ticked at first; one unticks
     boxes = page.evaluate("() => [...document.querySelectorAll('.checks input')].map(b => b.checked)")
-    # only the Speed Boost and the Vine are offered (2026-10-15)
-    check(boxes == [True] * 2, f"two item checkboxes, both ticked {boxes}")
+    # the Hook, the Speed Boost and the Vine are offered (1.17.0)
+    check(boxes == [True] * 3, f"three item checkboxes, all ticked {boxes}")
     page.click("[id='setup.item.vine']")
     page.wait_for_timeout(100)
     check(not page.is_checked("[id='setup.item.vine']"), "the Vine box unticks")

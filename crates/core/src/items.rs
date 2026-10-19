@@ -239,10 +239,11 @@ impl ItemSet {
         ItemSet(self.0 & ItemSet::ALL.0)
     }
 
-    /// The items a player can switch on: the Speed Boost and the Vine. The
-    /// Banana, Stick and Hook stay off (the person, 2026-10-15: "we never
-    /// turn them on anyway"); their code is kept.
-    pub const OFFERED: [Item; 2] = [Item::Boost, Item::Vine];
+    /// The items a player can switch on: the Hook, the Speed Boost and the
+    /// Vine. The Banana and Stick stay off (the person, 2026-10-15: "we
+    /// never turn them on anyway"); their code is kept. The Hook came back
+    /// in 1.17.0 once it towed you forward (T90)
+    pub const OFFERED: [Item; 3] = [Item::Hook, Item::Boost, Item::Vine];
 
     /// This set with every item that isn't offered taken out.
     pub fn offered(self) -> ItemSet {

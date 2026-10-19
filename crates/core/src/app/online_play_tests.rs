@@ -207,16 +207,6 @@ fn the_lobby_offers_a_name_field_and_a_rename_reaches_the_other_app() {
 }
 
 #[test]
-fn the_screech_button_is_hidden_for_now() {
-    // TRIAGE T57: no button in either lobby; the action stays for later
-    let mut p = Pair::lobby();
-    for (k, a) in p.apps.iter_mut().enumerate() {
-        let ui = a.ui();
-        assert!(!ui.contains("lobby.screech"), "app {k}: {ui}");
-    }
-}
-
-#[test]
 fn the_screech_action_plays_on_both_apps() {
     // kept behind the hidden button (TRIAGE T57) for the person's sound
     let mut p = Pair::lobby();

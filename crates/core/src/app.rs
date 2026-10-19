@@ -123,6 +123,11 @@ pub struct Settings {
     pub ghost: bool,
     /// the items crates may give in a race (TRIAGE T42)
     pub items: crate::items::ItemSet,
+    /// the Hook has been ticked once since it came back (1.17.0): settings
+    /// saved while it was not offered get it ticked when read (missing
+    /// from a save reads false; new settings start true)
+    #[serde(default)]
+    pub hook_back: bool,
     /// the colourblind mode (TRIAGE T33): the world muted, the vines vivid
     pub colourblind: bool,
     /// the map last chosen for a race, a Time Trial or a hosted lobby (the
@@ -181,6 +186,7 @@ impl Default for Settings {
             trial_best: None,
             ghost: true,
             items: crate::items::ItemSet::ALL.offered(),
+            hook_back: true,
             colourblind: false,
             map: Map::default(),
             random_map: false,
@@ -205,6 +211,10 @@ impl Settings {
         // the solo run); a saved 0 reads as 1
         s.ai_count = s.ai_count.clamp(1, 3);
         s.items = s.items.clean().offered();
+        if !s.hook_back {
+            s.items = s.items.with(crate::race::Item::Hook, true);
+            s.hook_back = true;
+        }
         // Speed Colours is a secret until unlocked (TRIAGE row 26), even for
         // settings saved while it was on by default
         s.speed_colours &= s.colours_unlocked;
@@ -367,7 +377,7 @@ pub struct Play {
 /// Slope, 1.4 the map grid and kept best replays, 1.5 auras and palettes,
 /// 1.6 finish dances),
 /// patch (fixes only).
-pub const VERSION: &str = "1.16.0";
+pub const VERSION: &str = "1.17.0";
 
 pub struct App {
     strings: BTreeMap<String, String>,

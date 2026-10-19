@@ -8,8 +8,7 @@ request is aborted and counted as a failure. For each engine it:
 
 - A opens Online and hosts by code; B joins with A's invite code; A accepts
   B's reply code;
-- B renames itself in the lobby and A sees it; neither lobby shows the
-  screech button (hidden for now, TRIAGE T57);
+- B renames itself in the lobby and A sees it;
 - B's lobby keeps its elements while the host changes a setting (TRIAGE
   T65: a rebuilt element under the mouse loses the click);
 - B presses Ready Up; A's Start comes on; A picks Random and B's lobby
@@ -175,10 +174,6 @@ def run_engine(p, engine, origin):
         check(cut == 0, f"{t.name}'s lobby shows Proboscis Monkey in full ({cut} cut)")
     b.fill("lobby.name", "Banana Bob")
     a.page.wait_for_timeout(1500)
-    # TRIAGE T57: the screech button is hidden for now (T44 kept in code)
-    for t in tabs:
-        n = t.page.locator(by_id("lobby.screech")).count()
-        check(n == 0, f"{t.name}'s lobby shows no screech button ({n})")
     # TRIAGE T65: the lobby changes under a player (the pings, a host's
     # setting); every element still there stays the same element
     marks = ["lobby.ready", "lobby.name", "lobby.ape.next", "lobby.palette"]

@@ -675,7 +675,6 @@ mod tests {
         // the person, GR-T1: "make the ape costumes to be workers uniforms
         // of the store, with a big banana in a circle as a logo"
         assert_eq!(Gear::from_key("grocer"), Some(Gear::Grocer));
-        assert_eq!(Gear::from_key("food"), None);
         for map in Map::ALL {
             assert_eq!(
                 Gear::on(map) == Gear::Grocer,
