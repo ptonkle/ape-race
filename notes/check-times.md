@@ -74,3 +74,4 @@ One row per run of `scripts/timed-checks.sh`, newest last. Seconds per step; `lo
 | 2026-10-18 23:03 | 1.18.0 | 0f120c8+ | 1.81 | quick (chromium; tags boundary, notes) | format=1.0 lint=7.0 list=26.6 core=0.3 release=8.9 WebAssembly=0.1 browser=12.8 | 56.6 | pass |
 | 2026-10-19 07:36 | 1.18.0 | fcb10e1+ | 2.50 | quick (chromium; tags boundary, online, setup) | format=0.8 lint=7.4 list=17.7 core=1.7 release=8.7 WebAssembly=0.1 browser=21.7 online-transport=6.0 online-race=15.9 | 80.0 | pass |
 | 2026-10-19 07:52 | 1.18.2 | 8b22444+ | 1.60 | quick (chromium; tags boundary, notes, page) | format=0.9 lint=3.1 list=9.9 core=0.3 release=8.5 WebAssembly=0.1 browser=23.2 | 45.9 | pass |
+| 2026-10-19 07:57 | 1.18.3 | 0ba5f5b+ | 4.33 | quick (chromium; tags boundary, maps-grocery, notes) | format=0.8 lint=2.8 list=15.7 core=1.2 release=8.5 WebAssembly=0.1 browser=12.8 | 41.9 | pass |

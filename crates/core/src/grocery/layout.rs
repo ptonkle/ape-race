@@ -234,8 +234,8 @@ const COFFINS: [i32; 2] = [400, 446];
 const COFFIN_OFF: i32 = -22;
 /// A coffin freezer's top over the floor.
 pub const COFFIN_TOP: i32 = int(11);
-/// The lobby spot's plan north: by the first coffin, toward its south end.
-const LOBBY_Z: i32 = 396;
+/// The lobby's produce table (`TABLES`): a small one by the misting U-turn.
+const LOBBY_TABLE: usize = 1;
 
 /// The shoppers' walks (plan metres): from, to, balloons, cart.
 #[allow(clippy::type_complexity)]
@@ -1282,15 +1282,12 @@ pub fn grocery_seeded(seed: u64) -> Course {
     for &(i, r) in &sideways {
         hangs[i] = r;
     }
-    // the lobby: on the frozen aisle's floor beside the first coffin
-    // freezer, facing the front (the camera before it; the aisle's lens of
-    // glass doors, the coffins, the shoppers and the meat sign behind)
+    // the lobby: on top of a misting produce table's heap (the person,
+    // 2026-10-19), facing the front; the misters, the other tables and the
+    // store behind
+    let (tx, tz, _) = TABLES[LOBBY_TABLE];
     let lobby = (
-        plan(
-            aisle_x(5, 6, int(LOBBY_Z)) + int(COFFIN_OFF + 12),
-            int(LOBBY_Z),
-        )
-        .add(v3(0, BODY_DROP, 0)),
+        p(tx, tz).add(v3(0, int(10) + cm(330) + BODY_DROP, 0)),
         yaw_of(NORTH.neg()),
     );
     c.ravine = Some(Box::new(RavineLayout {
