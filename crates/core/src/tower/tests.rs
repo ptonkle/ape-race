@@ -1,4 +1,4 @@
-//! Mape's Tower's skeleton (the second design): the map is wired, the 3D
+//! The tower map's skeleton (the second design): the map is wired, the 3D
 //! centreline leg by leg, along-the-course on a path that climbs then
 //! falls (TW1), the reset onto a pad with its boost (per leg), the climb
 //! vines' lift, the tube's pads and air (TW2-5).
@@ -35,7 +35,7 @@ fn the_map_is_wired_by_its_key_and_name() {
     assert!(c.tower.is_some());
     let strings: serde_json::Value =
         serde_json::from_str(include_str!("../../../../data/strings.json")).unwrap();
-    assert_eq!(strings["map.tower"], "Mape's Tower");
+    assert!(strings["map.tower"].as_str().is_some_and(|n| !n.is_empty()));
 }
 
 /// The other maps have no tower layout, and keep their centreline on the

@@ -1,4 +1,4 @@
-//! The AI on Mape's Tower: every difficulty climbs the tower, falls down
+//! The AI on the tower map: every difficulty climbs the tower, falls down
 //! the zipper and finishes (TW1), and King Kong beats the Sloth on average
 //! over sixteen layouts, as on the other maps (TC5, DM-3).
 
@@ -46,7 +46,7 @@ fn every_difficulty_climbs_falls_and_finishes() {
         .collect();
     assert!(
         stuck.is_empty(),
-        "every level finishes Mape's Tower: {}",
+        "every level finishes the tower map: {}",
         stuck.join(", ")
     );
     let times: Vec<u32> = all.iter().map(|(_, (f, _, _))| f.unwrap()).collect();
@@ -84,7 +84,7 @@ fn leg_times(k: u64, level: Difficulty) -> (Option<u32>, i32, Vec<(Leg, u32)>) {
     (race.racers[0].finish, best, legs)
 }
 
-/// Layout `k` of Mape's Tower (0 is the course everyone races; the seeds
+/// Layout `k` of the tower map (0 is the course everyone races; the seeds
 /// are `examples/tower_report.rs`'s).
 fn layout(k: u64) -> Course {
     if k == 0 {
@@ -190,7 +190,7 @@ fn secs(ticks: u32) -> f64 {
     ticks as f64 / TICKS_PER_SECOND as f64
 }
 
-/// Mape's Tower's medal report: King Kong alone as a Time Trial runs,
+/// The tower map's medal report: King Kong alone as a Time Trial runs,
 /// every kind and Equal Stats, against its medal times (TM rows).
 #[test]
 #[ignore]

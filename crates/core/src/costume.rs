@@ -32,7 +32,7 @@ pub enum Costume {
     Pirate,
     /// Concrete Jungle's tourist pieces
     Tourist,
-    /// Mape's Tower's wizard and witch outfits
+    /// The tower map's wizard and witch outfits
     Wizard,
     /// Rattlesnake Ravine's Wild West outfits
     Cowboy,
@@ -156,7 +156,7 @@ mod tests {
 
     #[test]
     fn the_wizard_costume_is_the_wizard_gear_and_comes_from_its_map() {
-        // Mape's Tower (briefs/mapes-tower.md): its costume is "Wizard",
+        // The tower map (briefs/mapes-tower.md): its costume is "Wizard",
         // the gear's key round trips, and every map with the wizard gear
         // unlocks it (the tower, once `Gear::on(Map::Tower)` is wired)
         assert_eq!(Costume::from_key("wizard"), Some(Costume::Wizard));

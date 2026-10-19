@@ -1,4 +1,4 @@
-//! Mape's Tower, second design (2026-10-16, `briefs/mapes-tower-v2.md`,
+//! The tower map, second design (2026-10-16, `briefs/mapes-tower-v2.md`,
 //! `notes/tower2-plan.md`): two great stone towers joined by two long
 //! straight bridges. The apes start at the foot of tower 1, swing under
 //! the lower bridge to tower 2, climb tower 2's outside, swing back under
@@ -190,7 +190,7 @@ pub struct LegSpan {
     pub from: i32,
 }
 
-/// Everything on Mape's Tower that the Jungle's `Course` has no word for.
+/// Everything on the tower map that the Jungle's `Course` has no word for.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TowerLayout {
     /// tower 1 (the start, hollow, climbed inside) and tower 2 (climbed

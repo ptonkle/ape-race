@@ -1,4 +1,4 @@
-//! Mape's Tower's course (the second design's stand-in, 2026-10-16): the
+//! The tower map's course (the second design's stand-in, 2026-10-16): the
 //! 3D centreline leg by leg and its placement.
 //!
 //! The legs (`LEGS`), each a straight or a turn with its rise, start
@@ -210,7 +210,7 @@ fn boost(from: V3, to: V3) -> V3 {
         .add(v3(0, vy, 0))
 }
 
-/// Mape's Tower, laid out from its fixed seed.
+/// The tower map, laid out from its fixed seed.
 pub fn tower() -> Course {
     tower_seeded(SEED)
 }
@@ -338,7 +338,7 @@ pub(crate) fn tube_discs(axis: V3, lo: i32, hi: i32, n: usize) -> Vec<Disc> {
     discs
 }
 
-/// Mape's Tower from another seed (the beams shift a little).
+/// The tower map from another seed (the beams shift a little).
 pub fn tower_seeded(seed: u64) -> Course {
     let mut c = centreline("tower", &[]);
     let legs: Vec<Climb> = LEGS.iter().map(|l| l.1).collect();

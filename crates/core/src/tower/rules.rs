@@ -1,4 +1,4 @@
-//! Mape's Tower's rules, each run only when `Course.tower` is set: the 3D
+//! The tower map's rules, each run only when `Course.tower` is set: the 3D
 //! "along the course" (TW1), the boundary and the reset onto a pad with
 //! its boost (per leg: the tube's and the sling's resets go to the
 //! portal), the climb vines' lift, and the tube's air, its entry (T99)
@@ -38,7 +38,7 @@ const DODGE_LOOK: i32 = int(30);
 const DODGE_CLEAR: i32 = int(2);
 
 impl Course {
-    /// Mape's Tower's `nearest`: the nearest centreline sample to `p` in
+    /// The tower map's `nearest`: the nearest centreline sample to `p` in
     /// 3D, searched 40 samples either side of `hint` (of two as near, the
     /// first).
     pub(crate) fn nearest_3d(&self, p: V3, hint: usize) -> usize {
@@ -58,7 +58,7 @@ impl Course {
         best
     }
 
-    /// Mape's Tower's `nearest_anywhere`: the whole centreline, in 3D.
+    /// The tower map's `nearest_anywhere`: the whole centreline, in 3D.
     pub(crate) fn nearest_anywhere_3d(&self, p: V3) -> usize {
         let mut best = 0;
         let mut best_d = i64::MAX;
@@ -73,7 +73,7 @@ impl Course {
         best
     }
 
-    /// Mape's Tower's `progress`: along the 3D tangent at sample `i`, and
+    /// The tower map's `progress`: along the 3D tangent at sample `i`, and
     /// across (level, right of it).
     pub(crate) fn progress_3d(&self, p: V3, i: usize) -> (i32, i32) {
         let d = p.sub(self.path[i]);
@@ -83,7 +83,7 @@ impl Course {
     }
 
     /// Whether a body at `p` (the hands; `hint` its nearest sample) is out
-    /// of Mape's Tower's bounds: too far from the centreline, too far under
+    /// of the tower map's bounds: too far from the centreline, too far under
     /// it, or standing on the open ground. Never on another map, and never
     /// in the tube (its wall holds; its floor is the tunnel's).
     pub fn tower_out(&self, p: V3, hint: usize) -> bool {
@@ -168,7 +168,7 @@ impl TowerLayout {
 }
 
 impl Ape {
-    /// Mape's Tower: a climb vine let go of while rising adds `CLIMB_LIFT`
+    /// The tower map: a climb vine let go of while rising adds `CLIMB_LIFT`
     /// upward.
     pub(crate) fn climb_lift(&mut self, vine: usize, course: &Course) {
         if let Some(t) = course.tower.as_deref() {
@@ -178,7 +178,7 @@ impl Ape {
         }
     }
 
-    /// Whether the ape is in Mape's Tower's tube.
+    /// Whether the ape is in the tower map's tube.
     pub(crate) fn in_tube(&self, course: &Course) -> bool {
         course
             .tower
@@ -186,7 +186,7 @@ impl Ape {
             .is_some_and(|t| t.tube.holds(self.pos))
     }
 
-    /// Mape's Tower's tube: the steering's strength there (`TUBE_AIR`
+    /// The tower map's tube: the steering's strength there (`TUBE_AIR`
     /// times the kind's), else the kind's.
     pub(crate) fn air_now(&self, course: &Course) -> i32 {
         match course.tower.as_deref() {
@@ -195,7 +195,7 @@ impl Ape {
         }
     }
 
-    /// Mape's Tower's tube: the thick air settles a fall faster than
+    /// The tower map's tube: the thick air settles a fall faster than
     /// `TUBE_TERMINAL` back toward it (after gravity, each flying tick).
     pub(crate) fn tube_air(&mut self, course: &Course) {
         let Some(t) = course.tower.as_deref() else {
@@ -210,7 +210,7 @@ impl Ape {
         }
     }
 
-    /// Mape's Tower's tube (T99): an ape flying into the tube's column
+    /// The tower map's tube (T99): an ape flying into the tube's column
     /// past the portal (from outside its radius, or from over its top,
     /// to within it under its top) loses its speed across, so the fall
     /// starts straight down whatever the entry. Whether it did.
@@ -228,7 +228,7 @@ impl Ape {
         true
     }
 
-    /// Mape's Tower's tube (T100): feet crossing a trampoline's face from
+    /// The tower map's tube (T100): feet crossing a trampoline's face from
     /// above bounce off it: the speed into the face becomes `DISC_BOUNCE`
     /// out of it and `DISC_KEEP` of the speed along it is kept, so a
     /// leaning disc throws the ape sideways too. Whether it bounced.
@@ -257,7 +257,7 @@ impl Ape {
 }
 
 impl Race {
-    /// Mape's Tower's boundary for local ape `i` after its step: out of
+    /// The tower map's boundary for local ape `i` after its step: out of
     /// bounds, it is put on the pad its leg resets to and leaves it flying
     /// with the pad's boost (`Event::Reset` with the pad's platform), or
     /// with Floor is Lava it is eaten. Returns whether it is now out.

@@ -1,4 +1,4 @@
-//! Mape's Tower's stonework is solid (TW12): tower 2, tower 1's hollow
+//! The tower map's stonework is solid (TW12): tower 2, tower 1's hollow
 //! wall (its doorway open, its top open), the bridges' masonry under
 //! their decks and the tube's wall (its mouth into the tunnel open). A
 //! body that runs into stone is put back out by the way it is least far

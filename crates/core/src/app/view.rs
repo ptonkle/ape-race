@@ -53,7 +53,7 @@ impl App {
         let vivid = self.settings.colourblind;
         // each map has its own sky, fog and light (the City at dusk)
         // the Ski Slope's snow greys the sky and closes the fog in (a
-        // blizzard whitens it and closes it right in); Mape's Tower's sky
+        // blizzard whitens it and closes it right in); the tower map's sky
         // follows the height and the zipper too
         let weather = self.weather_shown();
         let look = match (&self.play, self.stage) {
@@ -164,7 +164,7 @@ impl App {
                     );
                     batch.append(own);
                 }
-                // Mape's Tower's sky: its dome, stars, sun and cloud sea
+                // The tower map's sky: its dome, stars, sun and cloud sea
                 if let Some(t) = &c.tower {
                     let mut own = Batch::new();
                     crate::towerscape::dynamic(&mut own, t, cam.eye, self.ticks, weather);

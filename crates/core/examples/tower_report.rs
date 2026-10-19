@@ -1,4 +1,4 @@
-//! Mape's Tower's AI pace: every level (one Chimpanzee, Equal Stats) over
+//! The tower map's AI pace: every level (one Chimpanzee, Equal Stats) over
 //! `N` layouts (default 16; layout 0 is the course everyone races), mean
 //! and max finish. `cargo run --release -p tool_core --example tower_report -- [N]`
 use tool_core::ai::{trial_at, Difficulty};

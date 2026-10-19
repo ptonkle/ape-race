@@ -40,7 +40,7 @@ impl Ape {
     /// anchor along the way it hangs.
     pub(super) fn reach_any_way(&self, course: &Course, tick: u32) -> Option<usize> {
         let Some(s) = course.sector.as_deref() else {
-            // (Mape's Tower: every vine, each cheaply boxed out)
+            // (the tower map: every vine, each cheaply boxed out)
             return self.reach_among(course, tick, 0..course.vines.len());
         };
         // only the course's vines hanging near along the course (and every

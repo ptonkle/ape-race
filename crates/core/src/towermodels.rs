@@ -1,4 +1,4 @@
-//! Mape's Tower's models for the climbing half (2026-10-15,
+//! The tower map's models for the climbing half (2026-10-15,
 //! `briefs/mapes-tower.md`, step 4 "Models"): stand-alone builders in the
 //! faceted low-poly style of `ruinsmodels.rs` and `baymodels.rs`. No course
 //! places them yet. Each is built in its own metres, +y up, +z its front

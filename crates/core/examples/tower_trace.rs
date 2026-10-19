@@ -1,4 +1,4 @@
-//! One AI ape on Mape's Tower, traced: every half second its progress, mode,
+//! One AI ape on the tower map, traced: every half second its progress, mode,
 //! height and speed, and where it hit walls, landed, swam or was stuck.
 //!
 //! `cargo run --release -p tool_core --example tower_trace -- LEVEL [SEED [KIND [RUN]]]` (a kind other than the

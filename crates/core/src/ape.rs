@@ -183,7 +183,7 @@ impl Ape {
 
     /// The nearest vine in reach of the hands, if any.
     pub fn vine_in_reach(&self, course: &Course, tick: u32) -> Option<usize> {
-        // (Sector Ape, Mape's Tower: vines hang every way)
+        // (Sector Ape, the tower map: vines hang every way)
         if course.any_way() {
             return self.reach_any_way(course, tick);
         }
@@ -265,7 +265,7 @@ impl Ape {
                 if course.sector.is_some() {
                     self.sling(vine, course);
                 }
-                // (Mape's Tower: a climb vine's lift)
+                // (the tower map: a climb vine's lift)
                 if course.tower.is_some() {
                     self.climb_lift(vine, course);
                 }
@@ -481,10 +481,10 @@ impl Ape {
 
     fn fly(&mut self, wish: V3, course: &Course) {
         // steering in the air: across the motion, or braking, never faster
-        // (Mape's Tower: stronger in the tube)
+        // (the tower map: stronger in the tube)
         let mut acc = wish.scale(self.air_now(course));
         let flat = self.vel.flat();
-        // (no wish, nothing to take off: `acc` is zero; in Mape's Tower's
+        // (no wish, nothing to take off: `acc` is zero; in the tower map's
         // tube the whole push applies, since a straight fall has no motion
         // across to steer: the weave for the gaps builds sideways speed)
         if wish != V3::ZERO && flat.longer_than(ONE) && !self.in_tube(course) {
@@ -497,7 +497,7 @@ impl Ape {
         self.vel = self.vel.add(acc.scale(DT));
         self.drag(course);
         self.vel.y -= mul(course.gravity(), DT);
-        // (Mape's Tower: the tube's thick air)
+        // (the tower map: the tube's thick air)
         if course.tower.is_some() {
             self.tube_air(course);
         }
@@ -700,7 +700,7 @@ impl Ape {
                 self.happened.push(Happening::Wall);
             }
         }
-        // Mape's Tower: the stonework is solid (TW12), coming into the
+        // The tower map: the stonework is solid (TW12), coming into the
         // tube stops the speed across (T99), its trampolines bounce (T100)
         if let Some(t) = course.tower.as_deref() {
             self.tube_entry(course, before);

@@ -34,7 +34,7 @@ LINE_FILES = [  # (file under crates/core/src/, what it is)
     ("app.rs", "the app's top level"), ("map.rs", "the list of maps"),
     ("course.rs", "Jungle course"), ("city.rs", "City course"), ("ski.rs", "Yeti Peak course"),
     ("sector.rs", "Sector Ape course"), ("ruins.rs", "Sunset Ruins course"),
-    ("bay.rs", "Banana Bay course"), ("tower.rs", "Mape's Tower course"),
+    ("bay.rs", "Banana Bay course"), ("tower.rs", "tower map course"),
     ("ravine.rs", "Rattlesnake Ravine course"), ("grocery.rs", "Aisle Ape course"),
 ]
 

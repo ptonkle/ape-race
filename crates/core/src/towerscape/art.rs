@@ -1,4 +1,4 @@
-//! Mape's Tower's still scenery, placed from the layout (step 8,
+//! The tower map's still scenery, placed from the layout (step 8,
 //! SECOND-ORDER TA and TA2 rows). Everything is read from `TowerLayout`
 //! and the `Course` (the towers, bridges, doorway, windows, balconies,
 //! clouds, portal, tube, tunnel, pads, hangers, vines), never from fixed
@@ -139,7 +139,7 @@ const VOID_PARTS: [&str; 8] = [
     "void platforms",
 ];
 
-/// Mape's Tower's scenery: the parts in cells of `CELL` (each knowing its
+/// The tower map's scenery: the parts in cells of `CELL` (each knowing its
 /// box and heights, drawn within `REACH`), and per side one always-drawn
 /// chunk (the towers' far panels; the zip and the banana sea). The climb
 /// and the void share their space, so each chunk is drawn only from its

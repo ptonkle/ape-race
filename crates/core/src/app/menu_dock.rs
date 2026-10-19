@@ -221,7 +221,7 @@ impl App {
         self.turned(feet, look, mark, focus, &cam)
     }
 
-    /// Mape's Tower's lobby camera (`towerscape::lobby`), framed beside the
+    /// The tower map's lobby camera (`towerscape::lobby`), framed beside the
     /// menus and turned so the keep's edge sits between the docked panels
     /// and the ape: the wall beside the menus, the ape against the sky.
     fn tower_camera(&self, c: &Course, focus: V3) -> Camera {
@@ -347,7 +347,7 @@ impl App {
             let keep = |i: usize| match (c.bay.as_deref(), c.tower.as_deref(), c.ravine.as_deref())
             {
                 (Some(bay), _, _) => !crate::bayscape::lobby::start_row(c, bay, i),
-                // Mape's Tower: the start's beams too (TL1)
+                // The tower map: the start's beams too (TL1)
                 (_, Some(t), _) => !crate::towerscape::lobby::hidden_in_lobby(c, t, i),
                 // (Aisle Ape's solids are a Ravine layout: every
                 // vine shows in its lobby)

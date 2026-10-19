@@ -120,7 +120,7 @@ use crate::tournament::{Entrant, Run, Tour};
 /// could not read in a Roster or a Start.
 /// 12: costumes (TRIAGE T89): `costume` in `Hello`, `Pick` and each
 /// roster seat, so every browser draws each player's chosen costume.
-/// 13: Mape's Tower (2026-10-15): the map `tower`, which a client of 12
+/// 13: the tower map (2026-10-15): the map `tower`, which a client of 12
 /// could not read in a Roster or a Start.
 /// 14: ape calls (TRIAGE T58): `LobbyCall` (a lobby ape's call, by kind)
 /// and `Call` (a racer's call, heard by distance).

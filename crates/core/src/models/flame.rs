@@ -1,4 +1,4 @@
-//! Mape's Tower's Floor is Lava cat (`FLAME_CAT`, 2026-10-15; the person:
+//! The tower map's Floor is Lava cat (`FLAME_CAT`, 2026-10-15; the person:
 //! "can you make it look like the balrog somehow?"): a huge cat-shaped
 //! demon of shadow and flame. The jaguar's body in smoke-black with glowing
 //! ember cracks where the rosettes were, a crest of flame along the spine

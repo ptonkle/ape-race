@@ -175,7 +175,7 @@ pub fn look_at(c: &Course, eye: V3) -> Look {
 }
 
 /// The look for an eye at `eye` on a course in weather `w`: `look_at` in
-/// the weather (`snow::sky_in`), except on Mape's Tower, whose sky follows
+/// the weather (`snow::sky_in`), except on the tower map, whose sky follows
 /// the height climbed and the zipper (`towerscape::look_in`).
 pub fn look_in(c: &Course, eye: V3, w: crate::snow::Weather) -> Look {
     match &c.tower {
@@ -346,10 +346,10 @@ pub struct Chunk {
     /// pops in where the fog would show it.
     pub bounds: Option<[i32; 4]>,
     /// the heights its shapes span (least, most); None counts the flat
-    /// distance only. Mape's Tower sets it (`bound_heights`): its course
+    /// distance only. the tower map sets it (`bound_heights`): its course
     /// climbs, so a chunk far above or below the eye is far off.
     pub heights: Option<[i32; 2]>,
-    /// drawn only from one side of Mape's Tower's void (true: only for an
+    /// drawn only from one side of the tower map's void (true: only for an
     /// eye in it, false: only for one not in it); None from anywhere. The
     /// climb and the void share their space but are two places.
     pub side: Option<(crate::tower::Void, bool)>,
@@ -1566,7 +1566,7 @@ pub fn vine_look_on(map: Map, in_reach: bool, vivid: bool, tick: u32) -> VineLoo
             colour: crate::groceryscape::VINE,
             ..look
         },
-        // Mape's Tower: spell beams with a soft glow (their colour is the
+        // The tower map: spell beams with a soft glow (their colour is the
         // caster's spell, `towerscape::beam_vine`)
         (Map::Tower, false, false) => VineLook {
             halo: look.width * crate::towermodels::BEAM_HALO,
@@ -1609,7 +1609,7 @@ pub fn dynamic(f: &Frame) -> (Batch, Batch) {
     } else {
         int(230)
     };
-    // Mape's Tower: past the tear only the sling row is drawn, and on
+    // The tower map: past the tear only the sling row is drawn, and on
     // the towers' side everything but it (the second design: the tube
     // stands apart from the towers, so the halves are told by the plane,
     // not the course's middle, TC2-2)
@@ -1634,7 +1634,7 @@ pub fn dynamic(f: &Frame) -> (Batch, Batch) {
             continue;
         }
         let look = vine_look_on(map, Some(i) == reach, f.vivid, f.tick);
-        // Mape's Tower: each vine is a spell beam in its caster's colour
+        // The tower map: each vine is a spell beam in its caster's colour
         let look = match &c.tower {
             Some(t) if Some(i) != reach && !f.vivid => crate::towerscape::beam_vine(t, i, look),
             _ => look,
@@ -2018,7 +2018,7 @@ pub fn catch_up_colour(map: Map, vivid: bool) -> Rgb {
         // Banana Bay Battle: a hot scarlet against its tan hemp ropes and
         // the turquoise sea
         (Map::Bay, false) => crate::bayscape::fleet::CATCH_UP,
-        // Mape's Tower: a deep crimson, apart from every spell beam (the
+        // The tower map: a deep crimson, apart from every spell beam (the
         // stand-in's hot orange was the fire beam's colour, TL3)
         (Map::Tower, false) => rgb(230, 20, 30),
         // Rattlesnake Ravine: a bright cyan against its pale moss-green
@@ -2536,7 +2536,7 @@ pub fn vines_where(
         }
         let a = c.anchor(i, tick);
         let t = tick + i as u32 * 37;
-        // Mape's Tower: spell beams in their casters' colours, as in a race
+        // The tower map: spell beams in their casters' colours, as in a race
         // (the title and the menus drew them the shared green, TL4)
         let look = match &c.tower {
             Some(tw) if !vivid => crate::towerscape::beam_vine(tw, i, look),
@@ -2669,7 +2669,7 @@ mod tests {
         assert!(gone < eating - 60, "and the jaguar: {gone}");
     }
 
-    /// TA2-8: no speed lines inside Mape's Tower's hollow; outside it,
+    /// TA2-8: no speed lines inside the tower map's hollow; outside it,
     /// at the same speed, the lines as ever.
     #[test]
     fn no_speed_lines_inside_tower_1() {

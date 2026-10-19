@@ -1,4 +1,4 @@
-//! Mape's Tower's vines from FROM to TO on layout K: index, place along the
+//! The tower map's vines from FROM to TO on layout K: index, place along the
 //! course, anchor and bottom.
 //! `cargo run --release -p tool_core --example tower_vines -- K FROM TO`
 use tool_core::fx::ONE;

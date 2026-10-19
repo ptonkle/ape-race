@@ -61,7 +61,7 @@ pub const MOON_HIGH: i32 = deg(34);
 /// The moon's bearing off the course's first heading (ahead, to the right).
 pub const MOON_OFF: i32 = deg(24);
 
-/// The sky dome's radius (inside the far plane, as Mape's Tower's).
+/// The sky dome's radius (inside the far plane, as the tower map's).
 const DOME: i32 = int(560);
 /// Stars scattered over the whole sky (320 before the sky was cut to 600
 /// shapes, RA-15).

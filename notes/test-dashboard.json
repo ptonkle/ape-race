@@ -134,7 +134,7 @@
     "file": "tower.rs",
     "split": false,
     "tests": 62,
-    "what": "Mape's Tower course"
+    "what": "tower map course"
    },
    {
     "browser": 0,
@@ -547,7 +547,7 @@
   },
   "art-tower": {
    "browser": [],
-   "desc": "Mape's Tower's scenery and models (towerscape/, towermodels/)",
+   "desc": "the tower map's scenery and models (towerscape/, towermodels/)",
    "files": [
     "crates/core/src/towermodels.rs",
     "crates/core/src/towermodels/creatures.rs",
@@ -1602,7 +1602,7 @@
   },
   "maps-tower": {
    "browser": [],
-   "desc": "Mape's Tower (the wizard tower)",
+   "desc": "the tower map (map.tower in data/strings.json)",
    "files": [
     "crates/core/src/tower.rs",
     "crates/core/src/tower/audit.rs",

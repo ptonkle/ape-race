@@ -81,7 +81,7 @@ const SKI_CANDS: usize = 16;
 /// A search tries steering for this many of them in turn.
 const STEERS: usize = 3;
 
-/// How many candidates a search steers for in turn: on Mape's Tower every
+/// How many candidates a search steers for in turn: on the tower map every
 /// one (inside the hollow and over the rim the first three often lie across
 /// the hollow or a station too high, and the ape whirled 8-40 s on one beam,
 /// TC2-7, TC2-12).
@@ -176,7 +176,7 @@ impl Difficulty {
     /// release go by (stuck whirling on a vine): it reacts sooner there
     /// (`SKI_HESITATE`), and looks further ahead. Sunset Ruins and Banana
     /// Bay Battle have their own reaction times, arms and misjudging
-    /// (`RUINS_*`, `BAY_*`), and so does Mape's Tower (`TOWER_*`).
+    /// (`RUINS_*`, `BAY_*`), and so does the tower map (`TOWER_*`).
     fn tuning_on(self, on: On) -> Tuning {
         let On {
             city,
@@ -326,7 +326,7 @@ const SKI_DRIVE: [u32; 3] = [2, 8, DUTY];
 const SKI_NOISE: [i32; 3] = [int(6), int(2), 0];
 const SKI_HOP: [i32; 3] = [int(22), int(26), int(28)];
 
-/// Mape's Tower's handicaps, easiest level first (see
+/// The tower map's handicaps, easiest level first (see
 /// [`Difficulty::tuning_on`]). Down the zipper the swings run fast, as on
 /// the Ski Slope, so a level's Jungle reaction let the release go by: the
 /// reactions are the Ski Slope's (the Monkey 113 → 106 s over four
@@ -339,7 +339,7 @@ const TOWER_HESITATE: [u32; 3] = [10, 2, 0];
 const TOWER_JITTER: [u32; 3] = [10, 2, 0];
 const TOWER_DRIVE: [u32; 3] = [3, 6, DUTY];
 const TOWER_NOISE: [i32; 3] = [int(6), int(3), 0];
-/// Mape's Tower's arms on the climbs, easiest level first: round tower 2
+/// The tower map's arms on the climbs, easiest level first: round tower 2
 /// (`TOWER_SPIRAL_DRIVE`) and up the hollow and over the rim
 /// (`TOWER_INSIDE_DRIVE`). A climb is won by pumping: with the bridges'
 /// weak arms the Sloth and the Monkey whirled on one beam for 20-80 s
@@ -347,7 +347,7 @@ const TOWER_NOISE: [i32; 3] = [int(6), int(3), 0];
 const TOWER_SPIRAL_DRIVE: [u32; 3] = [6, 0, 0];
 const TOWER_INSIDE_DRIVE: [u32; 3] = [DUTY, DUTY, DUTY];
 
-/// The arms a level swings with at least on Mape's Tower where `a` is
+/// The arms a level swings with at least on the tower map where `a` is
 /// (none off the climbs; see `TOWER_INSIDE_DRIVE`).
 fn tower_climb_drive(
     t: &crate::tower::TowerLayout,
@@ -366,14 +366,14 @@ fn tower_climb_drive(
         _ => 0,
     }
 }
-/// Mape's Tower: a beam whose bottom hangs more than this over the top a
+/// The tower map: a beam whose bottom hangs more than this over the top a
 /// swing's speed could carry the ape (the climb lift and the arms' reach)
 /// is out of its reach.
 /// (6 m before T96 thinned the rings to every 10.5 m: then the next
 /// ring's beams were out of reach and the climb inside took 16-69 s; at
 /// 12 m King Kong finishes in 88-108 s over sixteen layouts, TF-3.)
 const TOWER_OVERHEAD: i32 = int(12);
-/// Mape's Tower: a beam whose bottom hangs this much higher than the one
+/// The tower map: a beam whose bottom hangs this much higher than the one
 /// held is ahead of it, though placed up to `TOWER_BEHIND` behind it along
 /// the course (see `ahead_from_cached`).
 const TOWER_CLIMB: i32 = int(5);
@@ -528,7 +528,7 @@ pub struct Brain {
     ruins: bool,
     /// racing on Banana Bay Battle (set by [`think`] each tick)
     bay: bool,
-    /// racing on Mape's Tower (set by [`think`] each tick)
+    /// racing on the tower map (set by [`think`] each tick)
     tower: bool,
     /// its own dice, for the handicaps
     dice: Dice,
@@ -770,7 +770,7 @@ pub fn think(race: &Race, who: usize, brain: &mut Brain) -> Controls {
         // (and off the deck it drives at its best a while: from a standstill
         // a weak swing only whirls)
         brain.rescue_until = race.tick + 1 + RESCUE;
-        // (Mape's Tower: thrown off a reset pad, it picks its vines afresh
+        // (the tower map: thrown off a reset pad, it picks its vines afresh
         // from where it is now, not from where it fell)
         if race.course.tower.is_some() {
             brain.cands.clear();
@@ -897,8 +897,8 @@ pub fn think(race: &Race, who: usize, brain: &mut Brain) -> Controls {
     c
 }
 
-/// The level way along the course at `s`: the heading, except on Mape's
-/// Tower, where the heading climbs and falls: there its plan direction,
+/// The level way along the course at `s`: the heading, except on the
+/// tower map, where the heading climbs and falls: there its plan direction,
 /// and up tower 1's axis (no plan direction at all) the way the course
 /// goes on at the top, the left of `Course.right` (TW2-9).
 fn way_at(course: &Course, s: i32) -> V3 {
@@ -975,7 +975,7 @@ fn ahead_from_cached(
 ) -> Vec<usize> {
     let mut good: Vec<(i64, usize)> = Vec::new();
     let mut rest = Vec::new();
-    // (Mape's Tower: at the shaft's top a beam's place along the course
+    // (the tower map: at the shaft's top a beam's place along the course
     // stops following its height (the top rings lie along the portal leg
     // by their nearest point), so from a beam placed far along a higher
     // one can be placed behind it and was never a candidate: the ape fell
@@ -1000,7 +1000,7 @@ fn ahead_from_cached(
             continue;
         }
         let low = bottom - course.terrain(an.x, an.z) < int(5);
-        // (Mape's Tower: inside tower 1 the beams hang at every height
+        // (the tower map: inside tower 1 the beams hang at every height
         // over the ape; one whose bottom is above anything a release
         // from this swing can reach is no candidate at all, or the
         // candidates are the highest beams and the ape whirls on its
@@ -1319,7 +1319,7 @@ fn flight_controls(
     cands: &[usize],
     last_grab: bool,
 ) -> Controls {
-    // (Mape's Tower: down the tube it steers round the trampolines (T100), the
+    // (the tower map: down the tube it steers round the trampolines (T100), the
     // same steering the measurement used, TW2-5; the sling row at the
     // bottom is grabbed as any beam in reach)
     if let Some(t) = course.tower.as_deref() {
@@ -1330,7 +1330,7 @@ fn flight_controls(
     }
     let grab = !last_grab
         && (in_reach(a, course, tick, cands, GRAB_MARGIN, aim_at(course, target)).is_some()
-            // (Mape's Tower: any beam in reach not behind it will do; the
+            // (the tower map: any beam in reach not behind it will do; the
             // coils and branches turn too sharply for a planned target to
             // stay the one it meets, TC rows)
             || (course.tower.is_some()
@@ -1497,7 +1497,7 @@ fn fly_ahead(
         if course.sector.is_some() && course.out_of_bounds(a.pos, a.hint) {
             return None;
         }
-        // (Mape's Tower: so is leaving its bounds)
+        // (the tower map: so is leaving its bounds)
         if false && course.tower_out(a.pos, a.hint) {
             return None;
         }
@@ -1869,7 +1869,7 @@ fn on_ground(a: &Ape, course: &Course, tick: u32, brain: &mut Brain) -> Controls
         // over vines hanging below it)
         // (Banana Bay Battle: a deck too: running off it at a rope out of
         // reach only drops the ape into the water and back on the deck)
-        // (Mape's Tower: a reset pad too)
+        // (the tower map: a reset pad too)
         if (!raised || course.sector.is_some() || course.bay.is_some() || course.tower.is_some())
             && course.vine_bottom(i, tick) > top
         {
@@ -2281,7 +2281,7 @@ mod tests {
         }
     }
 
-    /// Mape's Tower's climbs (TC2-17): inside tower 1's hollow every level
+    /// The tower map's climbs (TC2-17): inside tower 1's hollow every level
     /// swings with full arms, round tower 2 the Sloth with
     /// stronger arms than on the bridges, and on the start row nothing is
     /// added to a level's own arms.
@@ -2325,7 +2325,7 @@ mod tests {
         );
     }
 
-    /// Mape's Tower, at the shaft's top: a beam hanging higher than the one
+    /// The tower map, at the shaft's top: a beam hanging higher than the one
     /// held is a candidate though the course places it behind (TC2-13).
     /// On layout 3 the Ape held beam 251 (placed at 1286 m along the portal
     /// leg) and never saw 277 and 278 (1278 m, 23 m higher): it fell back

@@ -1,4 +1,4 @@
-//! Prints Mape's Tower's layout (the art agent's look at the data).
+//! Prints the tower map's layout (the art agent's look at the data).
 use tool_core::fx::ONE;
 use tool_core::geom::V3;
 

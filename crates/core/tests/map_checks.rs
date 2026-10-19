@@ -8,7 +8,7 @@
 //!    physically be (across the open width, at any reachable height)
 //!    finishes, not only one on the narrow path.
 //! 3. Drawn walls are solid: no generic form. Only some maps keep wall or
-//!    solid lists (Rattlesnake Ravine's `walls`/`Solids`, Mape's Tower's
+//!    solid lists (Rattlesnake Ravine's `walls`/`Solids`, the tower map's
 //!    stone, Sunset Ruins' facade, Banana Bay's chest), each its own type,
 //!    and the drawing is unlabelled shapes in the scenery, so nothing
 //!    common says which drawn shape is a wall. Each map's own tests cover

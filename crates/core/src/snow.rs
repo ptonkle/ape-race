@@ -43,9 +43,9 @@ pub enum Weather {
     Blizzard,
     /// Banana Bay Battle's storm: rain, a dark sky, a rough sea, lightning
     Squall,
-    /// Mape's Tower at twilight (a light, nothing falls; STAND-IN sky)
+    /// The tower map at twilight (a light, nothing falls; STAND-IN sky)
     Twilight,
-    /// Mape's Tower at dawn (a light, nothing falls; STAND-IN sky)
+    /// The tower map at dawn (a light, nothing falls; STAND-IN sky)
     Dawn,
 }
 
@@ -72,7 +72,7 @@ impl Weather {
         }
     }
 
-    /// Whether snow or rain falls in it (Mape's Tower's twilight and dawn
+    /// Whether snow or rain falls in it (the tower map's twilight and dawn
     /// are lights only).
     pub fn falls(self) -> bool {
         fall_of(self).is_some()

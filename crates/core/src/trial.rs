@@ -151,7 +151,7 @@ pub const BAY: [u32; 4] = [
     secs(BAY_AUTHOR),
 ];
 
-/// Mape's Tower's target times in hundredths of a second (the second
+/// The tower map's target times in hundredths of a second (the second
 /// design, set as the others' were: King Kong alone as a Time Trial runs
 /// finishes in 90.6-109.0 s by kind, the Chimpanzee best (90.58 s), the
 /// Gibbon and the Proboscis 2-3 s behind, the Orangutan slowest;
@@ -166,7 +166,7 @@ pub const TOWER_GOLD: u32 = 10_150;
 pub const TOWER_SILVER: u32 = 11_150;
 pub const TOWER_BRONZE: u32 = 12_650;
 
-/// Mape's Tower's target times, in race ticks, slowest first.
+/// The tower map's target times, in race ticks, slowest first.
 pub const TOWER: [u32; 4] = [
     secs(TOWER_BRONZE),
     secs(TOWER_SILVER),

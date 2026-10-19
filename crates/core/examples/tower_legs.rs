@@ -1,4 +1,4 @@
-//! Mape's Tower: each level over layouts 0..N (default 16), the second it
+//! The tower map: each level over layouts 0..N (default 16), the second it
 //! reached each leg and its finish, as `tests/tower_ai.rs`'s races (one
 //! Chimpanzee, Equal Stats, limit 200 s).
 //! `cargo run --release -p tool_core --example tower_legs -- [N [LEVEL]]`

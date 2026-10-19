@@ -1,4 +1,4 @@
-//! Mape's Tower's menus (step 9, second design: TA2 rows): the lobby spot
+//! The tower map's menus (step 9, second design: TA2 rows): the lobby spot
 //! on the lower bridge's deck, tower 2 ahead at the deck's end with its
 //! spiral of balconies, mages and dragons, and the title's flyover, a
 //! closed lap round both towers.
@@ -122,7 +122,7 @@ pub fn lobby_camera(feet: V3, look: V3) -> Camera {
     lobby_camera_at(feet, look, LOBBY_BACK)
 }
 
-/// The menus' preview on Mape's Tower: the ape on the lower bridge's
+/// The menus' preview on the tower map: the ape on the lower bridge's
 /// deck, the camera behind it looking along the deck to tower 2.
 pub fn preview(c: &Course) -> (V3, i32, Camera) {
     let (feet, look) = match c.tower.as_deref() {
@@ -235,7 +235,7 @@ fn fly_eye(t: &TowerLayout, s: i32) -> V3 {
     v3(p.x, mid + mul(amp, crate::fx::cos(phase)), p.z)
 }
 
-/// The title's flyover on Mape's Tower: `from` metres round the lap at
+/// The title's flyover on the tower map: `from` metres round the lap at
 /// `ticks`, looking at the tear over tower 1's end, at tower 2's axis
 /// round tower 2, and smoothly between along the straights.
 pub fn flyover_camera(c: &Course, ticks: u32, from: i32) -> Camera {

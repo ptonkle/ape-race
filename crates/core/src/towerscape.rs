@@ -1,4 +1,4 @@
-//! Mape's Tower's scenery and light (`tower.rs` is the contract it draws
+//! The tower map's scenery and light (`tower.rs` is the contract it draws
 //! from).
 //!
 //! **The time of day (step 5, 2026-10-15, SECOND-ORDER TS rows):** three
@@ -249,7 +249,7 @@ fn look_from(s: Sky, w: Weather, zipper: bool) -> Look {
     }
 }
 
-/// Mape's Tower's light before a course is built: Clear, at the base.
+/// The tower map's light before a course is built: Clear, at the base.
 pub fn look() -> Look {
     look_from(sky_of(Weather::Clear, 0), Weather::Clear, false)
 }
@@ -289,7 +289,7 @@ pub fn in_tube(t: &TowerLayout, eye: V3) -> bool {
         && eye.y > tube.bottom - int(2)
 }
 
-/// Mape's Tower at twilight, at the base (`snow::sky_in`, where no eye is
+/// The tower map at twilight, at the base (`snow::sky_in`, where no eye is
 /// known; the frame uses `look_in`).
 pub fn twilight(look: Look) -> Look {
     Look {
@@ -298,7 +298,7 @@ pub fn twilight(look: Look) -> Look {
     }
 }
 
-/// Mape's Tower at dawn, at the base (as `twilight`).
+/// The tower map at dawn, at the base (as `twilight`).
 pub fn dawn(look: Look) -> Look {
     Look {
         far: look.far,
@@ -462,7 +462,7 @@ fn cloud_sea(b: &mut Batch, t: &TowerLayout, eye: V3, c: Rgb) {
     }
 }
 
-/// The title's flyover on Mape's Tower: up round the keep to the tear
+/// The title's flyover on the tower map: up round the keep to the tear
 /// (`lobby::flyover_camera`).
 pub fn flyover_camera(c: &Course, ticks: u32, from: i32) -> crate::render::Camera {
     lobby::flyover_camera(c, ticks, from)

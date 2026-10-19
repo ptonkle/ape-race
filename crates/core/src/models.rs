@@ -65,7 +65,7 @@ pub struct Pose {
 /// or on Banana Bay Battle (`Pirate`, 2026-10-15) an assortment of pirate
 /// pieces, each kind its own mix (`pirate_kit`), on the City (`Tourist`,
 /// 2026-10-15) tourist pieces, each kind its own mix and shirt
-/// (`tourist::kit`), or on Mape's Tower (`Wizard`, 2026-10-15) wizard and
+/// (`tourist::kit`), or on the tower map (`Wizard`, 2026-10-15) wizard and
 /// witch outfits (`wizard::kit`). Only the drawing changes.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub enum Gear {
@@ -3181,7 +3181,7 @@ pub struct BigCat {
     /// Battle's jaguar)
     pub navy: bool,
     /// a demon of shadow and flame: ember cracks, horns, smoke wings and a
-    /// fire-whip tail (Mape's Tower's cat, `models::flame`)
+    /// fire-whip tail (the tower map's cat, `models::flame`)
     pub flame: bool,
     /// a spider-jaguar: eight banded legs, a ring of extra eyes, fangs and
     /// a spider's abdomen over the haunches (Rattlesnake Ravine's cat,
@@ -3234,7 +3234,7 @@ pub const NAVY_JAGUAR: BigCat = BigCat {
     ..JAGUAR
 };
 
-/// Mape's Tower's big cat (the person, 2026-10-15: "can you make it look
+/// The tower map's big cat (the person, 2026-10-15: "can you make it look
 /// like the balrog somehow?"): a huge cat-shaped demon of shadow and flame,
 /// smoke-black with glowing ember cracks, horns, ragged smoke wings,
 /// burning eyes and a tail like a fire whip (`models::flame`).

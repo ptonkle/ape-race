@@ -9,7 +9,7 @@
 //! model), `at` (the tick to start at), `hold` (`on`: stay at `at`) and `x`, `y`,
 //! `z` (metres: the camera's target, off the model's middle) and, for
 //! `cat`, `map` (whose big cat: `map=ruins` is the pith-helmeted jaguar,
-//! `map=bay` the navy officer; `flame=on`: Mape's Tower's flame cat;
+//! `map=bay` the navy officer; `flame=on`: the tower map's flame cat;
 //! `spider=on`: Rattlesnake Ravine's eight-legged spider-jaguar).
 //! E.g. `?gallery=wreck,yaw=40,pitch=12,at=300,hold=on`.
 
@@ -68,7 +68,7 @@ pub struct Gallery {
     /// a Banana Bay Battle model instead (`baymodels::GALLERY`), drawn
     /// under the 3 pm sun on a patch of sea
     pub bay: Option<usize>,
-    /// a Mape's Tower model instead (`towermodels::GALLERY`), drawn in
+    /// a the tower map model instead (`towermodels::GALLERY`), drawn in
     /// the twilight
     pub tower: Option<usize>,
     /// a Rattlesnake Ravine model instead (`ravinemodels::GALLERY`), drawn
@@ -79,7 +79,7 @@ pub struct Gallery {
     pub grocery: Option<usize>,
     /// `cat`: the map whose big cat it is (`map=ruins`; else Sector Ape's)
     pub map: crate::map::Map,
-    /// `cat`: Mape's Tower's flame cat (`flame=on`), whatever `map` says
+    /// `cat`: the tower map's flame cat (`flame=on`), whatever `map` says
     pub flame: bool,
     /// `cat`: Rattlesnake Ravine's spider-jaguar (`spider=on`)
     pub spider: bool,

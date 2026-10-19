@@ -80,7 +80,7 @@ impl Eaten {
     pub fn new(course: &Course, at: V3, hint: usize, tick: u32) -> Eaten {
         let hint = hint.min(course.heading.len().saturating_sub(1));
         let (s, side) = course.progress(at, hint);
-        // (Mape's Tower too: no floor to come along)
+        // (the tower map too: no floor to come along)
         if course.sector.is_some() || course.tower.is_some() {
             // out of nowhere, right beside the ape: to its inside and a
             // little ahead, so the chase camera sees it

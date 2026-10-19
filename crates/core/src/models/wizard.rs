@@ -1,4 +1,4 @@
-//! Mape's Tower's outfit (`Gear::Wizard`, 2026-10-15; the person: "different
+//! The tower map's outfit (`Gear::Wizard`, 2026-10-15; the person: "different
 //! wizard and witch outfits, with scepters and wands and pipes potentially,
 //! think gandalf"). Each kind wears its own mix (`kit`), as the pirates do:
 //! a tall pointed hat (crooked at the tip) or a witch's hat with a buckle, a

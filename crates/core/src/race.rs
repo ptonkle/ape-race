@@ -455,7 +455,7 @@ impl Race {
             if self.bay_water(i) {
                 continue;
             }
-            // Mape's Tower: the boundary and the reset pads
+            // The tower map: the boundary and the reset pads
             if self.tower_rules(i) {
                 continue;
             }
@@ -701,7 +701,7 @@ impl Race {
         self.let_go_of(s.slot);
         self.summons.retain(|o| o.slot != s.slot);
         self.forget_used(s.slot);
-        // (Mape's Tower: along the course from the vine's bottom, by the
+        // (the tower map: along the course from the vine's bottom, by the
         // summoner's hands: from the anchor, high over its coil, the nearest
         // sample was often on the coil above, 400 m further on)
         let from = match self.course.tower {

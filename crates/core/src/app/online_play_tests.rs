@@ -770,7 +770,7 @@ fn the_joiner_sees_the_hosts_bay_lobby_camera() {
     }
 }
 
-/// Mape's Tower: the joiner's lobby camera is the host's, the keep's edge
+/// The tower map: the joiner's lobby camera is the host's, the keep's edge
 /// between the panels and the ape (`menu_dock`'s Tower test checks where).
 #[test]
 fn the_joiner_sees_the_hosts_tower_lobby_camera() {
