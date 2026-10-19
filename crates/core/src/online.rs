@@ -131,7 +131,9 @@ use crate::tournament::{Entrant, Run, Tour};
 /// 17: The Spindle (2026-10-19): the map `spindle` offered on the map
 /// choice, which a client of 16 could not offer or race in a Roster or a
 /// Start.
-pub const PROTOCOL: u32 = 17;
+/// 18: Grocery Run (GR-T11, 2026-10-19): the costume `errands` in `Hello`,
+/// `Pick` and each roster seat, which a client of 17 could not read.
+pub const PROTOCOL: u32 = 18;
 /// The most apes in a race, humans and AI together.
 pub const MAX_APES: usize = 4;
 /// The most AI apes the host may add.
