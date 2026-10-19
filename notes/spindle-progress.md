@@ -6,7 +6,7 @@ The standard map-build steps (MAPS.md "Build steps"), one row each. Status is on
 | --- | --- | --- | --- |
 | 1 | Brief and answers | Done (defaults) | `briefs/spindle.md`; `notes/spindle-pitfalls.md`; questions SP-Q1… below, building on the defaults |
 | 2 | Skeleton and contract | Done | `Map::Spindle` held; `SpindleLayout` and `Warp` (`spindle.rs`); the tube simulated flat and drawn bent; SP1–SP3 |
-| 3 | Ape costumes | Done | `Gear::Morph` (`models/morph.rs`): one suit colour per racer (seven colourways), glowing seams, the face covered; the cat in ocelot colours (`BLOCK_OCELOT`); shots `notes/spindle-shots/costumes/`; SP-G1–G9 |
+| 3 | Ape costumes | Done (redone, SP-T2) | `Gear::Mech` (`models/mech.rs`): each kind a mech frame (concept sheet `notes/spindle-shots/mech/concepts.svg`), plates over a dark frame, a glowing visor or mono-eye and boosters, four schemes picked by palette; replaces the morph suits; the cat in ocelot colours (`BLOCK_OCELOT`); shots `notes/spindle-shots/mech/`; SP-M1–M9 |
 | 4 | Models | Done (reused) | the blocks are cubes; space reuses Sector Ape's `spacecraft` and backdrop |
 | 5 | Sky and lighting | Done (first pass) | `spindlescape::look`: an even block light from every side, a pale haze toward the open end |
 | 6 | Course layout | Done (MVP) | 2,000 m, eight dropper sections; a lattice of vines round the axle; SP4 |
@@ -29,4 +29,4 @@ The standard map-build steps (MAPS.md "Build steps"), one row each. Status is on
 | # | Request | Status |
 | --- | --- | --- |
 | SP-T1 | The map, from the brief (2026-10-18) | Done (MVP; Sam: "the spindle is awesome") |
-| SP-T2 | "the monkey skins are terrible. create mech / armored core 6 / gundam versions of each ape in the design log for the costumes for the apes instead of the neon suits, then implement it in the game, then get the PRs ready for ptonk and then I give permission to open them" (2026-10-19) | In progress |
+| SP-T2 | "the monkey skins are terrible. create mech / armored core 6 / gundam versions of each ape in the design log for the costumes for the apes instead of the neon suits, then implement it in the game, then get the PRs ready for ptonk and then I give permission to open them" (2026-10-19) | In progress: the mech armour is done (`Gear::Mech`, concept sheet `notes/spindle-shots/mech/concepts.svg`, SP-M1–M9, shots `notes/spindle-shots/mech/`); the PRs to come |

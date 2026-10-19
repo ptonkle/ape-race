@@ -69,7 +69,7 @@ art-bay = "Banana Bay Battle's scenery and ships (bayscape/, baymodels.rs)"
 art-tower = "the tower map's scenery and models (towerscape/, towermodels/)"
 art-ravine = "Rattlesnake Ravine's art alone (its sky and light: ravinescape's own files)"
 art-grocery = "Aisle Ape's art alone (groceryscape/, grocerymodels/, models/food.rs)"
-art-spindle = "The Spindle's art alone (spindlescape/, spindlemodels/, models/morph.rs)"
+art-spindle = "The Spindle's art alone (spindlescape/, spindlemodels/, models/mech.rs)"
 
 # A hit tag on the left also hits the tags on the right: a change to the
 # drawing's core can break any drawn thing.
@@ -140,7 +140,7 @@ tags = ["boundary"]
 "crates/core/src/models/spider.rs" = ["models"]
 "crates/core/src/models/food.rs" = ["gear", "art-grocery"]
 "crates/core/src/models/grocer.rs" = ["gear", "art-grocery"]
-"crates/core/src/models/morph.rs" = ["gear", "art-spindle"]
+"crates/core/src/models/mech.rs" = ["gear", "art-spindle"]
 "crates/core/src/models/flame.rs" = ["models"]
 "crates/core/src/sky.rs" = ["sky"]
 "crates/core/src/icon.rs" = ["icon"]
@@ -560,7 +560,7 @@ tags = ["boundary"]
 "lib:models::cowboy::" = ["gear", "models", "costumes"]
 "lib:models::food::" = ["models", "gear", "costumes", "art-grocery"]
 "lib:models::grocer::" = ["models", "gear", "costumes", "art-grocery"]
-"lib:models::morph::" = ["models", "gear", "costumes", "art-spindle"]
+"lib:models::mech::" = ["models", "gear", "costumes", "art-spindle"]
 "lib:online::" = ["online"]
 "lib:patch_notes::" = ["notes"]
 "lib:race::" = ["race", "physics", "items", "lava"]

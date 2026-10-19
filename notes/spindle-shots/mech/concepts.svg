@@ -1,0 +1,466 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="1080" viewBox="0 0 1920 1080" font-family="Helvetica, Arial, sans-serif">
+  <title>The Spindle: mech frames for the six ape kinds</title>
+  <style>
+    .p { stroke: #101218; stroke-width: 1.6; stroke-linejoin: round; }
+    .ln { stroke: #101218; stroke-width: 1.2; fill: none; opacity: 0.7; }
+    .jt { fill: #15161b; stroke: #050608; stroke-width: 1.5; }
+    .name { font-size: 25px; font-weight: 700; fill: #ffffff; letter-spacing: 1px; }
+    .sub { font-size: 14px; fill: #d6dbe6; }
+    .ch { font-size: 15px; font-weight: 700; fill: #ffffff; }
+    .ct { font-size: 14px; fill: #e4e8f0; }
+    .lead { stroke: #ffffff; stroke-width: 1.4; fill: none; }
+    .dot { fill: #ffffff; stroke: #101218; stroke-width: 1.2; }
+    .dec { font-size: 15px; font-weight: 700; }
+    .sw { stroke: #0c0e12; stroke-width: 1.2; }
+    .swl { font-size: 11px; fill: #c8cfdc; }
+  </style>
+  <defs>
+    <pattern id="haz" width="10" height="10" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+      <rect width="5" height="10" fill="#f0be28"/>
+      <rect x="5" width="5" height="10" fill="#18181c"/>
+    </pattern>
+    <pattern id="grid" width="24" height="24" patternUnits="userSpaceOnUse">
+      <path d="M24 0H0V24" fill="none" stroke="#56627a" stroke-width="0.6"/>
+    </pattern>
+  </defs>
+
+  <rect width="1920" height="1080" fill="#1a1e26"/>
+
+  <!-- header -->
+  <text x="24" y="44" font-size="32" font-weight="700" fill="#ffffff" letter-spacing="2">THE SPINDLE · MECH FRAMES</text>
+  <text x="24" y="74" font-size="16" fill="#c8cfdc">Gear::Mech concept: every ape kind as an armoured frame. Hard plates over each body part, dark joints between them, a glowing visor or mono-eye, boosters on the back.</text>
+  <text x="1474" y="40" font-size="14" fill="#c8cfdc">Kept clear of the map's own colours:</text>
+  <rect x="1474" y="52" width="26" height="22" fill="rgb(70,255,120)" class="sw"/>
+  <text x="1508" y="68" font-size="13" fill="#c8cfdc">vines 70,255,120</text>
+  <rect x="1660" y="52" width="26" height="22" fill="rgb(255,30,160)" class="sw"/>
+  <text x="1694" y="68" font-size="13" fill="#c8cfdc">catch-up 255,30,160</text>
+
+  <!-- ============ panel 1: Orangutan ============ -->
+  <g transform="translate(20,100)">
+    <rect width="620" height="420" rx="6" fill="#4b5568"/>
+    <rect width="330" height="420" rx="6" fill="url(#grid)"/>
+    <g transform="translate(175,0)">
+      <g id="or-half">
+        <!-- booster -->
+        <rect x="60" y="116" width="36" height="52" fill="#c4b080" class="p"/>
+        <rect x="64" y="106" width="28" height="12" fill="#2a2c24" class="p"/>
+        <ellipse cx="78" cy="104" rx="15" ry="6" fill="#ff8c1e"/>
+        <ellipse cx="78" cy="104" rx="22" ry="10" fill="#ff8c1e" opacity="0.3"/>
+        <!-- arm -->
+        <polygon points="92,190 116,190 132,282 110,282" fill="#2a2c24" class="p"/>
+        <circle cx="122" cy="288" r="13" class="jt"/>
+        <polygon points="104,298 142,298 148,370 100,370" fill="#808c40" class="p"/>
+        <line x1="108" y1="334" x2="144" y2="334" class="ln"/>
+        <polygon points="98,368 150,368 152,402 96,402" fill="#c4b080" class="p"/>
+        <line x1="110" y1="380" x2="110" y2="400" class="ln"/><line x1="124" y1="380" x2="124" y2="400" class="ln"/><line x1="138" y1="380" x2="138" y2="400" class="ln"/>
+        <!-- leg -->
+        <polygon points="26,302 58,302 60,340 28,340" fill="#2a2c24" class="p"/>
+        <circle cx="44" cy="346" r="12" class="jt"/>
+        <polygon points="20,354 68,354 66,390 22,390" fill="#808c40" class="p"/>
+        <polygon points="10,390 80,390 84,406 6,406" fill="#c4b080" class="p"/>
+        <!-- pauldron -->
+        <polygon points="72,160 124,168 132,218 84,226 70,196" fill="#808c40" class="p"/>
+        <polygon points="78,172 124,178 126,188 76,182" fill="#e26e1e" class="p"/>
+        <!-- cheek flange -->
+        <polygon points="36,98 84,106 90,162 42,172" fill="#c4b080" class="p"/>
+        <line x1="50" y1="112" x2="56" y2="160" class="ln"/>
+        <line x1="66" y1="112" x2="72" y2="158" class="ln"/>
+      </g>
+      <use href="#or-half" transform="scale(-1,1)"/>
+      <!-- torso -->
+      <polygon points="-84,170 84,170 96,210 84,262 -84,262 -96,210" fill="#808c40" class="p"/>
+      <line x1="0" y1="176" x2="0" y2="258" class="ln"/>
+      <line x1="-80" y1="214" x2="80" y2="214" class="ln"/>
+      <polygon points="-60,262 60,262 68,300 -68,300" fill="#c4b080" class="p"/>
+      <rect x="-56" y="282" width="112" height="12" fill="url(#haz)" class="p"/>
+      <text x="40" y="244" class="dec" fill="#e26e1e" text-anchor="middle">02</text>
+      <!-- head -->
+      <polygon points="-36,100 36,100 42,130 30,166 -30,166 -42,130" fill="#808c40" class="p"/>
+      <rect x="-32" y="120" width="64" height="14" fill="#101114" class="p"/>
+      <rect x="-28" y="123" width="56" height="8" fill="#ff8c1e"/>
+      <rect x="-34" y="119" width="68" height="16" fill="#ff8c1e" opacity="0.25"/>
+      <polygon points="-24,142 24,142 20,164 -20,164" fill="#c4b080" class="p"/>
+      <line x1="-14" y1="148" x2="-14" y2="160" class="ln"/><line x1="0" y1="148" x2="0" y2="162" class="ln"/><line x1="14" y1="148" x2="14" y2="160" class="ln"/>
+    </g>
+    <text x="350" y="40" class="name">OR-02 WARDEN</text>
+    <text x="350" y="64" class="sub">Orangutan · bulky frame</text>
+    <text x="350" y="84" class="sub">Classic scheme: Field Olive</text>
+    <!-- callouts -->
+    <text x="350" y="134" class="ch">Cheek-flange armour</text>
+    <text x="350" y="154" class="ct">Two broad tan plates frame the</text>
+    <text x="350" y="172" class="ct">face, as the flanges do.</text>
+    <polyline points="344,130 300,130 259,135" class="lead"/><circle cx="259" cy="135" r="4" class="dot"/>
+    <text x="350" y="226" class="ch">Long arms, heavy fists</text>
+    <text x="350" y="246" class="ct">Big pauldrons, fists that reach</text>
+    <text x="350" y="264" class="ct">past the knees.</text>
+    <polyline points="344,222 320,222 320,385 300,385" class="lead"/><circle cx="300" cy="385" r="4" class="dot"/>
+    <text x="350" y="318" class="ch">Belly plate, hazard stripe</text>
+    <text x="350" y="338" class="ct">Unit 02 on the chest; the visor</text>
+    <text x="350" y="356" class="ct">bar above glows amber.</text>
+    <polyline points="344,314 210,288" class="lead"/><circle cx="210" cy="288" r="4" class="dot"/>
+  </g>
+
+  <!-- ============ panel 2: Gorilla ============ -->
+  <g transform="translate(650,100)">
+    <rect width="620" height="420" rx="6" fill="#4b5568"/>
+    <rect width="330" height="420" rx="6" fill="url(#grid)"/>
+    <g transform="translate(175,0)">
+      <g id="go-half">
+        <rect x="52" y="104" width="34" height="48" fill="#5c626c" class="p"/>
+        <rect x="56" y="94" width="26" height="12" fill="#242428" class="p"/>
+        <ellipse cx="69" cy="92" rx="14" ry="6" fill="#50dcff"/>
+        <ellipse cx="69" cy="92" rx="21" ry="10" fill="#50dcff" opacity="0.3"/>
+        <!-- arm -->
+        <polygon points="100,196 126,196 138,290 112,290" fill="#242428" class="p"/>
+        <circle cx="125" cy="294" r="14" class="jt"/>
+        <polygon points="104,304 148,304 152,368 100,368" fill="#d66c24" class="p"/>
+        <line x1="108" y1="336" x2="148" y2="336" class="ln"/>
+        <polygon points="98,366 154,366 156,404 96,404" fill="#5c626c" class="p"/>
+        <line x1="112" y1="378" x2="112" y2="402" class="ln"/><line x1="126" y1="378" x2="126" y2="402" class="ln"/><line x1="140" y1="378" x2="140" y2="402" class="ln"/>
+        <!-- leg -->
+        <polygon points="28,302 64,302 66,344 30,344" fill="#242428" class="p"/>
+        <circle cx="47" cy="350" r="13" class="jt"/>
+        <polygon points="20,358 76,358 72,392 24,392" fill="#d66c24" class="p"/>
+        <polygon points="10,390 88,390 92,406 6,406" fill="#5c626c" class="p"/>
+        <!-- pauldron -->
+        <polygon points="82,148 142,156 154,216 98,226 78,190" fill="#d66c24" class="p"/>
+        <polygon points="86,162 144,170 146,182 84,174" fill="#5c626c" class="p"/>
+        <line x1="96" y1="196" x2="148" y2="200" class="ln"/>
+      </g>
+      <use href="#go-half" transform="scale(-1,1)"/>
+      <polygon points="-92,168 92,168 104,212 80,270 -80,270 -104,212" fill="#d66c24" class="p"/>
+      <line x1="0" y1="174" x2="0" y2="266" class="ln"/>
+      <rect x="-60" y="226" width="40" height="8" fill="#5c626c" class="p"/>
+      <rect x="-60" y="240" width="40" height="8" fill="#5c626c" class="p"/>
+      <rect x="20" y="226" width="40" height="8" fill="#5c626c" class="p"/>
+      <rect x="20" y="240" width="40" height="8" fill="#5c626c" class="p"/>
+      <rect x="-40" y="264" width="80" height="22" fill="#242428" class="p"/>
+      <polygon points="-64,282 64,282 72,318 -72,318" fill="#5c626c" class="p"/>
+      <rect x="-66" y="292" width="48" height="16" fill="url(#haz)" class="p"/>
+      <rect x="22" y="292" width="34" height="16" fill="#f0be28" class="p"/>
+      <text x="39" y="306" class="dec" fill="#242428" text-anchor="middle">01</text>
+      <!-- head: low between the shoulders -->
+      <polygon points="-34,126 34,126 40,158 26,184 -26,184 -40,158" fill="#5c626c" class="p"/>
+      <polygon points="-40,134 40,134 36,148 -36,148" fill="#d66c24" class="p"/>
+      <rect x="-28" y="151" width="56" height="13" fill="#0c0e12" class="p"/>
+      <circle cx="10" cy="157" r="12" fill="#50dcff" opacity="0.3"/>
+      <circle cx="10" cy="157" r="6" fill="#50dcff"/>
+      <polygon points="-20,168 20,168 16,182 -16,182" fill="#d66c24" class="p"/>
+    </g>
+    <text x="350" y="40" class="name">GR-01 BULWARK</text>
+    <text x="350" y="64" class="sub">Gorilla · heavy tank frame</text>
+    <text x="350" y="84" class="sub">Classic scheme: AC Rust</text>
+    <text x="350" y="134" class="ch">Tank frame</text>
+    <text x="350" y="154" class="ct">Widest chest, slab pauldrons,</text>
+    <text x="350" y="172" class="ct">knuckle-walk fists.</text>
+    <polyline points="344,130 325,130 325,180 301,184" class="lead"/><circle cx="301" cy="184" r="4" class="dot"/>
+    <text x="350" y="226" class="ch">Mono-eye on a rail</text>
+    <text x="350" y="246" class="ct">Sits low under a brow visor;</text>
+    <text x="350" y="264" class="ct">cyan boosters on the back.</text>
+    <polyline points="344,222 230,222 191,157" class="lead"/><circle cx="191" cy="157" r="4" class="dot"/>
+    <text x="350" y="318" class="ch">Unit 01 and a caution stripe</text>
+    <text x="350" y="338" class="ct">Painted blocks on the hip</text>
+    <text x="350" y="356" class="ct">skirt, under the vents.</text>
+    <polyline points="344,314 230,302" class="lead"/><circle cx="230" cy="302" r="4" class="dot"/>
+  </g>
+
+  <!-- ============ panel 3: Chimpanzee ============ -->
+  <g transform="translate(1280,100)">
+    <rect width="620" height="420" rx="6" fill="#4b5568"/>
+    <rect width="330" height="420" rx="6" fill="url(#grid)"/>
+    <g transform="translate(175,0)">
+      <g id="ch-half">
+        <rect x="40" y="120" width="26" height="50" fill="#2454d6" class="p"/>
+        <rect x="43" y="110" width="20" height="12" fill="#2c303c" class="p"/>
+        <ellipse cx="53" cy="108" rx="12" ry="5" fill="#ffd228"/>
+        <ellipse cx="53" cy="108" rx="18" ry="9" fill="#ffd228" opacity="0.3"/>
+        <!-- arm -->
+        <polygon points="82,180 102,180 108,250 88,250" fill="#2c303c" class="p"/>
+        <circle cx="99" cy="255" r="11" class="jt"/>
+        <polygon points="84,264 118,264 122,318 82,318" fill="#eef0f6" class="p"/>
+        <line x1="86" y1="292" x2="120" y2="292" class="ln"/>
+        <rect x="86" y="318" width="32" height="28" fill="#2c303c" class="p"/>
+        <!-- leg -->
+        <polygon points="18,272 48,272 50,320 22,320" fill="#2c303c" class="p"/>
+        <circle cx="36" cy="326" r="11" class="jt"/>
+        <polygon points="14,334 60,334 64,380 12,380" fill="#eef0f6" class="p"/>
+        <polygon points="2,380 72,380 78,402 -4,402" fill="#dc2228" class="p"/>
+        <!-- pauldron -->
+        <polygon points="62,150 112,156 118,202 72,208 58,180" fill="#eef0f6" class="p"/>
+        <line x1="66" y1="176" x2="116" y2="180" class="ln"/>
+      </g>
+      <use href="#ch-half" transform="scale(-1,1)"/>
+      <rect x="22" y="340" width="34" height="12" fill="url(#haz)" class="p"/>
+      <polygon points="-70,158 70,158 78,196 60,236 -60,236 -78,196" fill="#2454d6" class="p"/>
+      <rect x="-50" y="174" width="28" height="18" fill="#ffd228" class="p"/>
+      <rect x="22" y="174" width="28" height="18" fill="#ffd228" class="p"/>
+      <line x1="-46" y1="179" x2="-26" y2="179" class="ln"/><line x1="-46" y1="186" x2="-26" y2="186" class="ln"/>
+      <line x1="26" y1="179" x2="46" y2="179" class="ln"/><line x1="26" y1="186" x2="46" y2="186" class="ln"/>
+      <polygon points="-40,236 40,236 36,262 -36,262" fill="#eef0f6" class="p"/>
+      <line x1="-36" y1="249" x2="36" y2="249" class="ln"/>
+      <polygon points="-58,262 58,262 64,294 18,300 -18,300 -64,294" fill="#eef0f6" class="p"/>
+      <polygon points="-16,264 16,264 14,298 -14,298" fill="#dc2228" class="p"/>
+      <text x="-92" y="190" class="dec" fill="#2454d6" text-anchor="middle">03</text>
+      <!-- head -->
+      <rect x="-12" y="128" width="24" height="16" fill="#2c303c" class="p"/>
+      <polygon points="-4,100 -42,62 -36,58 0,92" fill="#f0c428" class="p"/>
+      <polygon points="4,100 42,62 36,58 0,92" fill="#f0c428" class="p"/>
+      <polygon points="-26,96 26,96 32,120 24,142 -24,142 -32,120" fill="#eef0f6" class="p"/>
+      <polygon points="-5,90 5,90 4,104 -4,104" fill="#dc2228" class="p"/>
+      <rect x="-24" y="109" width="48" height="13" fill="#0c0e12" class="p"/>
+      <polygon points="-21,112 -6,113 -6,119 -21,118" fill="#ffd228"/>
+      <polygon points="21,112 6,113 6,119 21,118" fill="#ffd228"/>
+      <rect x="-26" y="107" width="52" height="17" fill="#ffd228" opacity="0.2"/>
+      <polygon points="-14,124 14,124 10,140 -10,140" fill="#eef0f6" class="p"/>
+      <line x1="-6" y1="128" x2="-6" y2="136" class="ln"/><line x1="6" y1="128" x2="6" y2="136" class="ln"/>
+    </g>
+    <text x="350" y="40" class="name">CH-03 VANGUARD</text>
+    <text x="350" y="64" class="sub">Chimpanzee · balanced middleweight</text>
+    <text x="350" y="84" class="sub">Classic scheme: RX White</text>
+    <text x="350" y="134" class="ch">V-fin and twin-eye visor</text>
+    <text x="350" y="154" class="ct">The Gundam head: a gold V-fin,</text>
+    <text x="350" y="172" class="ct">a red crest, yellow eyes.</text>
+    <polyline points="344,130 260,130 207,80" class="lead"/><circle cx="207" cy="80" r="4" class="dot"/>
+    <text x="350" y="226" class="ch">Middleweight plating</text>
+    <text x="350" y="246" class="ct">Even plates, mid-size pauldrons,</text>
+    <text x="350" y="264" class="ct">a blue chest with yellow vents.</text>
+    <polyline points="344,222 322,222 322,180 291,180" class="lead"/><circle cx="291" cy="180" r="4" class="dot"/>
+    <text x="350" y="318" class="ch">Caution stripe on the shin</text>
+    <text x="350" y="338" class="ct">Unit 03 on the right pauldron;</text>
+    <text x="350" y="356" class="ct">red feet and a red hip plate.</text>
+    <polyline points="344,314 270,314 222,346" class="lead"/><circle cx="222" cy="346" r="4" class="dot"/>
+  </g>
+
+  <!-- ============ panel 4: Gibbon ============ -->
+  <g transform="translate(20,530)">
+    <rect width="620" height="420" rx="6" fill="#4b5568"/>
+    <rect width="330" height="420" rx="6" fill="url(#grid)"/>
+    <g transform="translate(175,0)">
+      <g id="gi-half">
+        <rect x="30" y="140" width="18" height="50" fill="#2e2c34" class="p"/>
+        <rect x="32" y="130" width="14" height="12" fill="#18161a" class="p"/>
+        <ellipse cx="39" cy="128" rx="9" ry="4" fill="#ff3024"/>
+        <ellipse cx="39" cy="128" rx="14" ry="7" fill="#ff3024" opacity="0.3"/>
+        <!-- arm: long -->
+        <polygon points="50,168 64,168 86,262 72,262" fill="#18161a" class="p"/>
+        <circle cx="79" cy="267" r="9" class="jt"/>
+        <polygon points="70,276 96,276 106,364 80,364" fill="#b81628" class="p"/>
+        <polygon points="96,284 112,300 108,350 102,352" fill="#2e2c34" class="p"/>
+        <polygon points="80,364 104,364 110,400 84,400" fill="#18161a" class="p"/>
+        <!-- leg -->
+        <polygon points="12,282 32,282 34,330 16,330" fill="#18161a" class="p"/>
+        <circle cx="25" cy="336" r="9" class="jt"/>
+        <polygon points="8,344 40,344 42,388 8,388" fill="#b81628" class="p"/>
+        <polygon points="2,388 46,388 50,404 -2,404" fill="#2e2c34" class="p"/>
+        <!-- pauldron: small, swept -->
+        <polygon points="40,146 72,152 76,180 50,186 40,166" fill="#2e2c34" class="p"/>
+        <line x1="44" y1="164" x2="74" y2="168" class="ln"/>
+      </g>
+      <use href="#gi-half" transform="scale(-1,1)"/>
+      <rect x="80" y="296" width="20" height="40" fill="url(#haz)" class="p" transform="rotate(-6,90,316)"/>
+      <polygon points="-46,150 46,150 50,180 36,218 -36,218 -50,180" fill="#b81628" class="p"/>
+      <line x1="0" y1="156" x2="0" y2="214" class="ln"/>
+      <polygon points="-26,218 26,218 22,250 -22,250" fill="#18161a" class="p"/>
+      <line x1="-22" y1="228" x2="22" y2="228" stroke="#3c3a44" stroke-width="2"/>
+      <line x1="-22" y1="239" x2="22" y2="239" stroke="#3c3a44" stroke-width="2"/>
+      <polygon points="-40,250 40,250 44,282 -44,282" fill="#2e2c34" class="p"/>
+      <rect x="-40" y="166" width="26" height="18" fill="#dcb446" class="p"/>
+      <text x="-27" y="181" class="dec" fill="#18161a" text-anchor="middle">04</text>
+      <!-- head -->
+      <rect x="-8" y="136" width="16" height="16" fill="#18161a" class="p"/>
+      <polygon points="-3,108 -36,70 -31,67 0,101" fill="#dcb446" class="p"/>
+      <polygon points="3,108 36,70 31,67 0,101" fill="#dcb446" class="p"/>
+      <polygon points="-20,104 20,104 24,124 16,140 -16,140 -24,124" fill="#b81628" class="p"/>
+      <rect x="-18" y="116" width="36" height="9" fill="#0c0e12" class="p"/>
+      <rect x="-15" y="118" width="30" height="5" fill="#ff3024"/>
+      <rect x="-20" y="114" width="40" height="13" fill="#ff3024" opacity="0.25"/>
+    </g>
+    <text x="350" y="40" class="name">GB-04 LONGREACH</text>
+    <text x="350" y="64" class="sub">Gibbon · long-armed light frame</text>
+    <text x="350" y="84" class="sub">Classic scheme: Black Crimson</text>
+    <text x="350" y="134" class="ch">Slim V-fin, visor slit</text>
+    <text x="350" y="154" class="ct">A gold fin over a red slit</text>
+    <text x="350" y="172" class="ct">that glows.</text>
+    <polyline points="344,130 260,130 202,82" class="lead"/><circle cx="202" cy="82" r="4" class="dot"/>
+    <text x="350" y="226" class="ch">Small swept pauldrons</text>
+    <text x="350" y="246" class="ct">Light plating; unit 04 on a</text>
+    <text x="350" y="264" class="ct">gold block on the chest.</text>
+    <polyline points="344,222 300,222 241,172" class="lead"/><circle cx="241" cy="172" r="4" class="dot"/>
+    <text x="350" y="318" class="ch">Arms to the ankles</text>
+    <text x="350" y="338" class="ct">Long forearm plates, a blade fin</text>
+    <text x="350" y="356" class="ct">and a caution stripe.</text>
+    <polyline points="344,314 300,314 268,322" class="lead"/><circle cx="268" cy="322" r="4" class="dot"/>
+  </g>
+
+  <!-- ============ panel 5: Proboscis ============ -->
+  <g transform="translate(650,530)">
+    <rect width="620" height="420" rx="6" fill="#4b5568"/>
+    <rect width="330" height="420" rx="6" fill="url(#grid)"/>
+    <g transform="translate(175,0)">
+      <g id="pb-half">
+        <rect x="36" y="128" width="26" height="50" fill="#5c626c" class="p"/>
+        <rect x="39" y="118" width="20" height="12" fill="#242428" class="p"/>
+        <ellipse cx="49" cy="116" rx="12" ry="5" fill="#50dcff"/>
+        <ellipse cx="49" cy="116" rx="18" ry="9" fill="#50dcff" opacity="0.3"/>
+        <!-- arm: short -->
+        <polygon points="56,172 74,172 80,224 62,224" fill="#242428" class="p"/>
+        <circle cx="71" cy="229" r="10" class="jt"/>
+        <polygon points="58,238 88,238 90,278 58,278" fill="#d66c24" class="p"/>
+        <rect x="60" y="278" width="28" height="22" fill="#242428" class="p"/>
+        <!-- leg: long -->
+        <polygon points="14,282 42,282 44,326 18,326" fill="#242428" class="p"/>
+        <circle cx="31" cy="332" r="10" class="jt"/>
+        <polygon points="10,342 52,342 54,388 10,388" fill="#d66c24" class="p"/>
+        <line x1="12" y1="364" x2="52" y2="364" class="ln"/>
+        <polygon points="2,388 60,388 64,404 -2,404" fill="#5c626c" class="p"/>
+        <!-- pauldron -->
+        <polygon points="48,152 84,158 86,192 56,198 46,174" fill="#d66c24" class="p"/>
+        <polygon points="52,164 84,168 85,176 51,172" fill="#5c626c" class="p"/>
+      </g>
+      <use href="#pb-half" transform="scale(-1,1)"/>
+      <polygon points="-54,158 54,158 60,190 50,214 -50,214 -60,190" fill="#d66c24" class="p"/>
+      <!-- the pot belly -->
+      <polygon points="-62,210 62,210 74,240 58,272 -58,272 -74,240" fill="#5c626c" class="p"/>
+      <line x1="-66" y1="240" x2="66" y2="240" class="ln"/>
+      <rect x="-50" y="252" width="100" height="12" fill="url(#haz)" class="p"/>
+      <rect x="20" y="218" width="30" height="18" fill="#f0be28" class="p"/>
+      <text x="35" y="233" class="dec" fill="#242428" text-anchor="middle">05</text>
+      <polygon points="-44,272 44,272 46,286 -46,286" fill="#242428" class="p"/>
+      <!-- head -->
+      <polygon points="-24,94 24,94 28,114 20,134 -20,134 -28,114" fill="#d66c24" class="p"/>
+      <rect x="-21" y="104" width="42" height="11" fill="#0c0e12" class="p"/>
+      <circle cx="-6" cy="109.5" r="10" fill="#50dcff" opacity="0.3"/>
+      <circle cx="-6" cy="109.5" r="4.5" fill="#50dcff"/>
+      <!-- the armoured nose: ring segments and a ram plate -->
+      <polygon points="-9,118 9,118 10,132 -10,132" fill="#5c626c" class="p"/>
+      <polygon points="-11,133 11,133 12,146 -12,146" fill="#5c626c" class="p"/>
+      <polygon points="-13,147 13,147 15,160 -15,160" fill="#5c626c" class="p"/>
+      <polygon points="-22,160 22,160 26,176 15,190 -15,190 -26,176" fill="#f0be28" class="p"/>
+      <line x1="-18" y1="176" x2="18" y2="176" class="ln"/>
+    </g>
+    <text x="350" y="40" class="name">PB-05 RAMNOSE</text>
+    <text x="350" y="64" class="sub">Proboscis monkey · armoured nose</text>
+    <text x="350" y="84" class="sub">Classic scheme: AC Rust</text>
+    <text x="350" y="134" class="ch">Mono-eye</text>
+    <text x="350" y="154" class="ct">Cyan, in a dark rail across</text>
+    <text x="350" y="172" class="ct">the helmet.</text>
+    <polyline points="344,130 310,130 310,88 169,88 169,104" class="lead"/><circle cx="169" cy="109" r="4" class="dot"/>
+    <text x="350" y="226" class="ch">Armoured nose</text>
+    <text x="350" y="246" class="ct">Three ring segments and a ram</text>
+    <text x="350" y="264" class="ct">plate in yellow over the chest.</text>
+    <polyline points="344,222 290,222 200,180" class="lead"/><circle cx="200" cy="180" r="4" class="dot"/>
+    <text x="350" y="318" class="ch">Pot-belly plate</text>
+    <text x="350" y="338" class="ct">Caution stripe and unit 05;</text>
+    <text x="350" y="356" class="ct">short arms, long legs.</text>
+    <polyline points="344,314 300,314 300,258 225,258" class="lead"/><circle cx="225" cy="258" r="4" class="dot"/>
+  </g>
+
+  <!-- ============ panel 6: Lemur ============ -->
+  <g transform="translate(1280,530)">
+    <rect width="620" height="420" rx="6" fill="#4b5568"/>
+    <rect width="330" height="420" rx="6" fill="url(#grid)"/>
+    <g transform="translate(175,0)">
+      <!-- the ringed tail, behind -->
+      <polyline points="30,270 84,256 116,220 128,172 120,126 100,96" fill="none" stroke="#101218" stroke-width="21" stroke-linejoin="round"/>
+      <polyline points="30,270 84,256 116,220 128,172 120,126 100,96" fill="none" stroke="#eef0f6" stroke-width="18" stroke-linejoin="round"/>
+      <polyline points="30,270 84,256 116,220 128,172 120,126 100,96" fill="none" stroke="#2c303c" stroke-width="18" stroke-dasharray="12 14" stroke-linejoin="round"/>
+      <polygon points="100,96 108,86 86,72 92,92" fill="#2454d6" class="p"/>
+      <g id="lm-half">
+        <rect x="26" y="150" width="18" height="40" fill="#2454d6" class="p"/>
+        <rect x="28" y="140" width="14" height="12" fill="#2c303c" class="p"/>
+        <ellipse cx="35" cy="138" rx="9" ry="4" fill="#ffd228"/>
+        <ellipse cx="35" cy="138" rx="14" ry="7" fill="#ffd228" opacity="0.3"/>
+        <!-- arm: short -->
+        <polygon points="44,176 58,176 64,222 50,222" fill="#2c303c" class="p"/>
+        <circle cx="57" cy="227" r="8" class="jt"/>
+        <polygon points="46,234 70,234 72,268 46,268" fill="#eef0f6" class="p"/>
+        <rect x="48" y="268" width="24" height="18" fill="#2c303c" class="p"/>
+        <!-- leg: long -->
+        <polygon points="10,264 34,264 38,320 14,320" fill="#2c303c" class="p"/>
+        <circle cx="26" cy="326" r="9" class="jt"/>
+        <polygon points="6,334 42,334 44,388 8,388" fill="#eef0f6" class="p"/>
+        <line x1="8" y1="360" x2="43" y2="360" class="ln"/>
+        <polygon points="0,388 50,388 56,404 -4,404" fill="#2454d6" class="p"/>
+        <!-- pauldron -->
+        <polygon points="36,162 58,166 62,188 42,194 34,178" fill="#2454d6" class="p"/>
+        <!-- antenna ear -->
+        <polygon points="14,116 42,76 47,80 22,118" fill="#f0c428" class="p"/>
+      </g>
+      <use href="#lm-half" transform="scale(-1,1)"/>
+      <rect x="14" y="276" width="22" height="34" fill="url(#haz)" class="p"/>
+      <polygon points="-42,166 42,166 46,192 34,224 -34,224 -46,192" fill="#eef0f6" class="p"/>
+      <line x1="0" y1="172" x2="0" y2="220" class="ln"/>
+      <rect x="8" y="178" width="28" height="18" fill="#2454d6" class="p"/>
+      <text x="22" y="193" class="dec" fill="#ffffff" text-anchor="middle">06</text>
+      <polygon points="-24,224 24,224 20,246 -20,246" fill="#2c303c" class="p"/>
+      <polygon points="-34,246 34,246 38,266 -38,266" fill="#2454d6" class="p"/>
+      <!-- head -->
+      <rect x="-8" y="146" width="16" height="22" fill="#2c303c" class="p"/>
+      <polygon points="-22,112 22,112 26,130 16,148 -16,148 -26,130" fill="#eef0f6" class="p"/>
+      <rect x="-20" y="121" width="40" height="14" fill="#0c0e12" class="p"/>
+      <circle cx="-9" cy="128" r="9" fill="#ffd228" opacity="0.3"/>
+      <circle cx="9" cy="128" r="9" fill="#ffd228" opacity="0.3"/>
+      <circle cx="-9" cy="128" r="5" fill="#ffd228"/>
+      <circle cx="9" cy="128" r="5" fill="#ffd228"/>
+      <polygon points="-8,137 8,137 4,154 -4,154" fill="#eef0f6" class="p"/>
+    </g>
+    <text x="350" y="40" class="name">LM-06 RINGTAIL</text>
+    <text x="350" y="64" class="sub">Ring-tailed lemur · light and fast</text>
+    <text x="350" y="84" class="sub">Classic scheme: RX White</text>
+    <text x="350" y="134" class="ch">Segmented ringed tail</text>
+    <text x="350" y="154" class="ct">White plates and dark joints</text>
+    <text x="350" y="172" class="ct">alternate up the tail.</text>
+    <polyline points="344,130 330,130 330,160 306,160" class="lead"/><circle cx="302" cy="160" r="4" class="dot"/>
+    <text x="350" y="226" class="ch">Antenna ears, round eyes</text>
+    <text x="350" y="246" class="ct">Gold antennae for the pricked</text>
+    <text x="350" y="264" class="ct">ears; two round yellow lenses.</text>
+    <polyline points="344,222 250,222 205,104" class="lead"/><circle cx="205" cy="104" r="4" class="dot"/>
+    <text x="350" y="318" class="ch">Light, fast frame</text>
+    <text x="350" y="338" class="ct">Long legs, small plates; a</text>
+    <text x="350" y="356" class="ct">caution stripe on the thigh.</text>
+    <polyline points="344,314 300,314 215,296" class="lead"/><circle cx="215" cy="296" r="4" class="dot"/>
+  </g>
+
+  <!-- ============ the schemes ============ -->
+  <text x="24" y="980" font-size="15" font-weight="700" fill="#ffffff">SCHEMES · the racer's colour choice picks one (main, secondary, accent, frame, glow)</text>
+  <g transform="translate(24,992)">
+    <text x="0" y="16" font-size="16" font-weight="700" fill="#ffffff">RX White</text>
+    <rect x="110" y="0" width="56" height="30" fill="#eef0f6" class="sw"/>
+    <rect x="180" y="0" width="56" height="30" fill="#2454d6" class="sw"/>
+    <rect x="250" y="0" width="56" height="30" fill="#dc2228" class="sw"/>
+    <rect x="320" y="0" width="56" height="30" fill="#2c303c" class="sw"/>
+    <rect x="390" y="0" width="56" height="30" fill="#ffd228" class="sw"/>
+    <text x="0" y="36" class="swl">Gundam</text>
+    <text x="110" y="48" class="swl">238,240,246</text><text x="180" y="48" class="swl">36,84,214</text><text x="250" y="48" class="swl">220,34,40</text><text x="320" y="48" class="swl">44,48,60</text><text x="390" y="48" class="swl">255,210,40</text>
+  </g>
+  <g transform="translate(497,992)">
+    <text x="0" y="16" font-size="16" font-weight="700" fill="#ffffff">AC Rust</text>
+    <rect x="110" y="0" width="56" height="30" fill="#d66c24" class="sw"/>
+    <rect x="180" y="0" width="56" height="30" fill="#5c626c" class="sw"/>
+    <rect x="250" y="0" width="56" height="30" fill="#f0be28" class="sw"/>
+    <rect x="320" y="0" width="56" height="30" fill="#242428" class="sw"/>
+    <rect x="390" y="0" width="56" height="30" fill="#50dcff" class="sw"/>
+    <text x="0" y="36" class="swl">Armored Core</text>
+    <text x="110" y="48" class="swl">214,108,36</text><text x="180" y="48" class="swl">92,98,108</text><text x="250" y="48" class="swl">240,190,40</text><text x="320" y="48" class="swl">36,36,40</text><text x="390" y="48" class="swl">80,220,255</text>
+  </g>
+  <g transform="translate(970,992)">
+    <text x="0" y="16" font-size="16" font-weight="700" fill="#ffffff">Field Olive</text>
+    <rect x="110" y="0" width="56" height="30" fill="#808c40" class="sw"/>
+    <rect x="180" y="0" width="56" height="30" fill="#c4b080" class="sw"/>
+    <rect x="250" y="0" width="56" height="30" fill="#e26e1e" class="sw"/>
+    <rect x="320" y="0" width="56" height="30" fill="#2a2c24" class="sw"/>
+    <rect x="390" y="0" width="56" height="30" fill="#ff8c1e" class="sw"/>
+    <text x="0" y="36" class="swl">military</text>
+    <text x="110" y="48" class="swl">128,140,64</text><text x="180" y="48" class="swl">196,176,128</text><text x="250" y="48" class="swl">226,110,30</text><text x="320" y="48" class="swl">42,44,36</text><text x="390" y="48" class="swl">255,140,30</text>
+  </g>
+  <g transform="translate(1443,992)">
+    <text x="0" y="16" font-size="16" font-weight="700" fill="#ffffff">Black Crimson</text>
+    <rect x="124" y="0" width="56" height="30" fill="#b81628" class="sw"/>
+    <rect x="194" y="0" width="56" height="30" fill="#2e2c34" class="sw"/>
+    <rect x="264" y="0" width="56" height="30" fill="#dcb446" class="sw"/>
+    <rect x="334" y="0" width="56" height="30" fill="#18161a" class="sw"/>
+    <rect x="404" y="0" width="56" height="30" fill="#ff3024" class="sw"/>
+    <text x="0" y="36" class="swl">ace custom</text>
+    <text x="124" y="48" class="swl">184,22,40</text><text x="194" y="48" class="swl">46,44,52</text><text x="264" y="48" class="swl">220,180,70</text><text x="334" y="48" class="swl">24,22,26</text><text x="404" y="48" class="swl">255,48,36</text>
+  </g>
+</svg>

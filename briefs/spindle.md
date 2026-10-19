@@ -17,7 +17,7 @@ Iron Vector's Spindle (`sgilson7/iron-vector`, `render.rs` `Warp`, PLAN-M2 row 6
 - [ ] The tube spins; the gravity is spread along the tube as in Iron Vector.
 - [ ] It looks like a Minecraft dropper map: blocky, bright block colours, block obstacles.
 - [ ] At the finish the apes are blasted out of the tube's end into space that looks like Sector Ape (its assets may be reused).
-- [ ] The apes wear morph suits: each whole body one reflective colour, with a Tron look.
+- [ ] The apes wear morph suits: each whole body one reflective colour, with a Tron look. (Replaced at Sam's request by mech armour, SP-T2 in `notes/spindle-progress.md`.)
 - [ ] A playable MVP, shown in the design journal for Sam's review.
 - [ ] Built for two pull requests to ptonkle/ape-race (skeleton, then map): shared code by addition only, other maps byte-identical.
 
