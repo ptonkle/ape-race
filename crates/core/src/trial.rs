@@ -196,7 +196,7 @@ pub const RAVINE: [u32; 4] = [
 ];
 
 /// Clean-Up on Aisle Ape's target times in hundredths of a second (GR8;
-/// GR10, 2026-10-18, the second pass's 2,110 m route with the shopping
+/// GR10, 2026-10-18, the second pass's 2,022 m route with the shopping
 /// list): King Kong alone as a Time Trial finishes in 91.2-131.9 s by
 /// kind, the Gibbon best (91.24 s), the Chimpanzee and the Proboscis next
 /// (101-102 s), the Orangutan, Gorilla and Lemur slowest (131 s), Equal

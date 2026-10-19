@@ -47,7 +47,7 @@ The standard map-build steps (MAPS.md "Build steps"), one row each. Status is on
 | GR-T1 | The ape costumes as the store's workers' uniforms, a big banana in a circle as the logo | Done | `models/grocer.rs` (`Gear::Grocer`, six jobs, four palettes), `grocerymodels::banana_logo`; the food apes leave the map (the gummy jaguar stays) |
 | GR-T2 | A shopping list of four items, one per zone, in side aisles, glowing; hit one to take it: 1st and 3rd +25% speed for good, 2nd and 4th +25% air control (added, the person's answer) | Done, with a divergence (GR11) | `grocery/list.rs`; items at four item aisles' mouths; HUD row "List"; the AI goes for its own (GR12) |
 | GR-T3 | Each racer led to a different part of the same aisle, so all get theirs at about the same time | Done | `ITEM_SPOTS`: racer `k` at spot `k % 4`, all four across one mouth; only one's own glows |
-| GR-T4 | At the end, out of the closed doors into the parking lot (about 110 s, the person's answer) | Done | the doors slide open as you come; the lot: canopy, cars, light poles, corrals, trees; 2,110 m |
+| GR-T4 | At the end, out of the closed doors into the parking lot (about 110 s, the person's answer) | Done | the doors slide open as you come; the lot: canopy, cars, light poles, corrals, trees; 2,022 m |
 | GR-T5 | With all four items, a plane flies by and picks up the order in the lot | Done | `groceryscape/lot.rs` `planes`: the ape holds up the bag, the plane snatches it on a hook |
 | GR-T6 | More shoppers with carts as obstacles | Done | nine more walks (six in the store on the route, three in the lot) |
 | GR-T7 | Swinging low to the ground in one place, then having to go up | Done | the frozen aisle's drop ceiling (ropes to 8–12 m over the floor), then the ice and its ramp (GR14) |
