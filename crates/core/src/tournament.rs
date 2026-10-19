@@ -11,9 +11,11 @@
 //! (the order the racers first appeared: online the lobby's seats, solo
 //! the player then the AI apes).
 //!
-//! A racer who does not finish a race (eaten by the jaguar, still racing
-//! when the race was ended, or gone) scores 0 and counts the leg's cutoff
-//! as its time: the race clock when the race was ended, never less than the
+//! A racer who has not finished when the race is ended (on Standings)
+//! places below every finisher: first those still racing, by how far along
+//! the course they got, then those out (eaten by the jaguar, or gone), by
+//! the same. It scores that place's points and counts the leg's cutoff as
+//! its time: the race clock when the race was ended, never less than the
 //! slowest finish.
 
 use serde::{Deserialize, Serialize};
@@ -49,40 +51,83 @@ pub struct Entrant {
     pub costume: Costume,
 }
 
+/// One racer's race, as it stood when the race was ended.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Run {
+    /// its finish (race ticks), or `None`
+    pub fin: Option<u32>,
+    /// out without finishing: eaten by the jaguar, or its player left
+    #[serde(default)]
+    pub out: bool,
+    /// how far along the course (metres, Q16): the HUD place's measure
+    #[serde(default)]
+    pub s: i32,
+}
+
+impl Run {
+    /// Finished at `t`.
+    pub fn done(t: u32) -> Run {
+        Run {
+            fin: Some(t),
+            out: false,
+            s: 0,
+        }
+    }
+
+    /// Not finished, `s` along; `out`: eaten or gone.
+    pub fn short(s: i32, out: bool) -> Run {
+        Run { fin: None, out, s }
+    }
+}
+
 /// One race of the tournament, once it is over.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Leg {
     pub map: Map,
     /// the race clock when the race was ended (ticks since Go)
     pub cutoff: u32,
-    /// each entrant's finish (race ticks), by its place in
-    /// [`Tour::entrants`]; `None`: did not finish. Shorter than the
-    /// entrants when some joined later.
-    pub fin: Vec<Option<u32>>,
+    /// each entrant's run, by its place in [`Tour::entrants`]; `None`: not
+    /// in this race. Shorter than the entrants when some joined later.
+    pub runs: Vec<Option<Run>>,
 }
 
 impl Leg {
     /// The cutoff a non-finisher counts: never less than the slowest finish.
     pub fn cutoff(&self) -> u32 {
-        self.fin
+        self.runs
             .iter()
             .flatten()
-            .copied()
+            .filter_map(|r| r.fin)
             .fold(self.cutoff, u32::max)
     }
 
-    /// Each entrant's points in this leg (`n` entrants): finishers by time
-    /// (a tie by seat), [`POINTS`] down from the top; non-finishers 0.
-    pub fn points(&self, n: usize) -> Vec<u32> {
-        let mut done: Vec<(u32, usize)> = self
-            .fin
+    /// The entrants who raced, in place order: finishers by time, then
+    /// those still racing by progress, then those out by progress (a tie
+    /// by seat).
+    pub fn order(&self) -> Vec<usize> {
+        let mut raced: Vec<((u8, i64), usize)> = self
+            .runs
             .iter()
             .enumerate()
-            .filter_map(|(i, f)| f.map(|t| (t, i)))
+            .filter_map(|(i, r)| r.map(|r| (r, i)))
+            .map(|(r, i)| {
+                let key = match (r.fin, r.out) {
+                    (Some(t), _) => (0, t as i64),
+                    (None, false) => (1, -(r.s as i64)),
+                    (None, true) => (2, -(r.s as i64)),
+                };
+                (key, i)
+            })
             .collect();
-        done.sort();
-        let mut out = vec![0; n.max(self.fin.len())];
-        for (rank, (_, i)) in done.into_iter().enumerate() {
+        raced.sort();
+        raced.into_iter().map(|(_, i)| i).collect()
+    }
+
+    /// Each entrant's points in this leg (`n` entrants): [`POINTS`] down
+    /// the place order from the top; an entrant not in the race 0.
+    pub fn points(&self, n: usize) -> Vec<u32> {
+        let mut out = vec![0; n.max(self.runs.len())];
+        for (rank, i) in self.order().into_iter().enumerate() {
             out[i] = POINTS.get(rank).copied().unwrap_or(0);
         }
         out.truncate(n);
@@ -91,10 +136,11 @@ impl Leg {
 
     /// Each entrant's time for the tiebreak: its finish, or the cutoff.
     pub fn ticks(&self, i: usize) -> u32 {
-        self.fin
+        self.runs
             .get(i)
             .copied()
             .flatten()
+            .and_then(|r| r.fin)
             .unwrap_or_else(|| self.cutoff())
     }
 }
@@ -145,10 +191,10 @@ impl Tour {
         self.legs.len() + 1
     }
 
-    /// Records a race: each racer with its finish (`None`: did not finish).
-    /// A racer not yet an entrant (by key) joins at the end; an entrant not
-    /// in this race did not finish it. Nothing once the tour is done.
-    pub fn record(&mut self, map: Map, cutoff: u32, racers: &[(Entrant, Option<u32>)]) {
+    /// Records a race: each racer with its run. A racer not yet an entrant
+    /// (by key) joins at the end; an entrant not in this race scores
+    /// nothing in it. Nothing once the tour is done.
+    pub fn record(&mut self, map: Map, cutoff: u32, racers: &[(Entrant, Run)]) {
         if self.done() {
             return;
         }
@@ -157,13 +203,13 @@ impl Tour {
                 self.entrants.push(e.clone());
             }
         }
-        let mut fin = vec![None; self.entrants.len()];
-        for (e, f) in racers {
+        let mut runs = vec![None; self.entrants.len()];
+        for (e, r) in racers {
             if let Some(i) = self.entrants.iter().position(|x| x.key == e.key) {
-                fin[i] = *f;
+                runs[i] = Some(*r);
             }
         }
-        self.legs.push(Leg { map, cutoff, fin });
+        self.legs.push(Leg { map, cutoff, runs });
     }
 
     /// The standings after the legs so far: most points, then the lowest
@@ -222,18 +268,35 @@ mod tests {
     }
 
     #[test]
-    fn places_score_ten_seven_five_three_and_a_non_finisher_nothing() {
+    fn places_score_ten_seven_five_three_finishers_first_then_by_progress() {
         let leg = Leg {
             map: Map::Jungle,
             cutoff: 0,
-            fin: vec![Some(300), None, Some(100), Some(200)],
+            runs: vec![
+                Some(Run::done(300)),
+                Some(Run::short(50, false)),
+                Some(Run::done(100)),
+                Some(Run::done(200)),
+            ],
         };
-        assert_eq!(leg.points(4), [5, 0, 10, 7]);
+        assert_eq!(leg.points(4), [5, 3, 10, 7]);
+        // still racing ranks above eaten or gone, each by progress
+        let out = Leg {
+            map: Map::Jungle,
+            cutoff: 0,
+            runs: vec![
+                Some(Run::done(50)),
+                Some(Run::short(900, true)),
+                Some(Run::short(100, false)),
+                Some(Run::short(200, true)),
+            ],
+        };
+        assert_eq!(out.points(4), [10, 5, 7, 3]);
         // two racers: the same table from the top
         let two = Leg {
             map: Map::Jungle,
             cutoff: 0,
-            fin: vec![Some(50), Some(40)],
+            runs: vec![Some(Run::done(50)), Some(Run::done(40))],
         };
         assert_eq!(two.points(2), [7, 10]);
     }
@@ -242,50 +305,55 @@ mod tests {
     fn a_points_tie_goes_to_the_lower_combined_time_then_the_seat() {
         let mut t = Tour::new(4, false);
         let (a, b, c) = (e("a"), e("b"), e("c"));
+        let short = Run::short(0, false);
         // a wins race 1 and b race 2: 17 each; b (the later seat) has the
         // lower combined time
         t.record(
             Map::Jungle,
             0,
             &[
-                (a.clone(), Some(100)),
-                (b.clone(), Some(150)),
-                (c.clone(), None),
+                (a.clone(), Run::done(100)),
+                (b.clone(), Run::done(150)),
+                (c.clone(), short),
             ],
         );
         t.record(
             Map::City,
             500,
             &[
-                (a.clone(), Some(260)),
-                (b.clone(), Some(200)),
-                (c.clone(), None),
+                (a.clone(), Run::done(260)),
+                (b.clone(), Run::done(200)),
+                (c.clone(), short),
             ],
         );
         assert_eq!(order(&t), ["b", "a", "c"]);
         let s = t.standings();
-        assert_eq!((s[0].points, s[1].points, s[2].points), (17, 17, 0));
+        assert_eq!((s[0].points, s[1].points, s[2].points), (17, 17, 10));
         assert_eq!(s[0].ticks, 350);
         // c did not finish either: the cutoffs (the slowest finish, 150,
         // then the race's own 500)
         assert_eq!(s[2].ticks, 650);
         // all equal: seat order
         let mut u = Tour::new(2, false);
-        u.record(Map::Jungle, 90, &[(b.clone(), None), (a.clone(), None)]);
+        u.record(Map::Jungle, 90, &[(b.clone(), short), (a.clone(), short)]);
         assert_eq!(order(&u), ["b", "a"]);
     }
 
     #[test]
-    fn a_late_entrant_joins_at_the_end_and_a_missing_one_did_not_finish() {
+    fn a_late_entrant_joins_at_the_end_and_a_missing_one_scores_nothing() {
         let mut t = Tour::new(2, true);
-        t.record(Map::Jungle, 400, &[(e("a"), Some(300))]);
-        t.record(Map::City, 400, &[(e("b"), Some(100)), (e("a"), Some(200))]);
+        t.record(Map::Jungle, 400, &[(e("a"), Run::done(300))]);
+        t.record(
+            Map::City,
+            400,
+            &[(e("b"), Run::done(100)), (e("a"), Run::done(200))],
+        );
         assert_eq!(t.entrants.len(), 2);
-        assert_eq!(t.legs[0].fin, [Some(300)]);
+        assert_eq!(t.legs[0].runs, [Some(Run::done(300))]);
         assert_eq!(order(&t), ["a", "b"]);
         assert!(t.done());
         // a done tour records nothing more
-        t.record(Map::City, 1, &[(e("c"), Some(1))]);
+        t.record(Map::City, 1, &[(e("c"), Run::done(1))]);
         assert_eq!(t.legs.len(), 2);
     }
 

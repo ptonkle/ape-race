@@ -45,6 +45,7 @@ impl App {
             // on the map, framed beside the docked menus (TRIAGE T47)
             Stage::Showcase => self.preview_camera(),
             Stage::Lineup => models::lineup_camera(self.aspect()),
+            Stage::Podium => self.podium_camera(),
         }
     }
 

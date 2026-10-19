@@ -84,7 +84,7 @@
     "browser": 11,
     "file": "map.rs",
     "split": true,
-    "tests": 829,
+    "tests": 830,
     "what": "the list of maps"
    },
    {
@@ -2923,9 +2923,13 @@
     [
      "tournament::tests",
      4
+    ],
+    [
+     "podium::tests",
+     1
     ]
    ],
-   "tests": 41
+   "tests": 42
   },
   "trial": {
    "browser": [
@@ -3059,5 +3063,5 @@
    "tests": 26
   }
  },
- "total": 842
+ "total": 843
 }

@@ -1384,7 +1384,8 @@ fn a_hosts_tournament_reaches_every_lobby_and_each_computes_the_same_standings()
         net.race_mut(0).racers[0].finish = Some(500);
         net.run(1000);
         let (now, clock) = (net.now, net.race(0).clock);
-        net.nodes[0].record_leg(clock).unwrap();
+        let along: Vec<i32> = net.race(0).racers.iter().map(|r| r.progress).collect();
+        net.nodes[0].record_leg(clock, &along).unwrap();
         net.nodes[0].rematch(now).unwrap();
         net.run(1000);
     }
@@ -1396,7 +1397,7 @@ fn a_hosts_tournament_reaches_every_lobby_and_each_computes_the_same_standings()
         .iter()
         .map(|s| (host.entrants[s.entrant].key.as_str(), s.points))
         .collect();
-    assert_eq!(order, [("client1", 20), ("client0", 14), ("ai1", 0)]);
+    assert_eq!(order, [("client1", 20), ("client0", 14), ("ai1", 10)]);
     // over: no race until the host ends it
     let now = net.now;
     assert_eq!(net.nodes[0].start(1, now), Err(OnlineError::TourOver));

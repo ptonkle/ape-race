@@ -149,7 +149,8 @@ fn dock_for(w: i32, h: i32, panels: usize, menus_h: i32) -> Dock {
 
 impl App {
     pub(super) fn dock(&self) -> Dock {
-        if self.stage != Stage::Showcase {
+        // the ape preview, and the tournament's podium (TRIAGE T103)
+        if !matches!(self.stage, Stage::Showcase | Stage::Podium) {
             return Dock::Centre;
         }
         dock_for(self.view_w, self.view_h, self.panel_count(), self.menus_h)

@@ -322,6 +322,9 @@ enum Stage {
     /// all six side by side (the thumbnail)
     Lineup,
     Race,
+    /// a tournament's final standings: every ape dancing on the podium
+    /// (TRIAGE T103)
+    Podium,
 }
 
 /// A race in progress, as this browser runs it.
@@ -580,6 +583,8 @@ impl App {
     fn shown_map(&self) -> Map {
         match (&self.play, self.stage) {
             (Some(p), Stage::Race) => Map::of(&p.race.course),
+            // the podium stands on the small jungle stage, in its light
+            (_, Stage::Podium) => Map::Jungle,
             _ => self.map(),
         }
     }
@@ -587,7 +592,7 @@ impl App {
     fn wanted_scene(&self) -> Shown {
         let map = self.shown_map();
         match self.stage {
-            Stage::Lineup => Shown::StageSet,
+            Stage::Lineup | Stage::Podium => Shown::StageSet,
             Stage::Showcase if map == Map::Jungle => Shown::StageSet,
             _ => Shown::World(map),
         }
@@ -767,12 +772,12 @@ impl App {
             Screen::Title | Screen::Settings | Screen::Online | Screen::Replays | Screen::Notes => {
                 Stage::Flyover
             }
-            // T103 part 2: the final standings' podium stage goes here
             Screen::Setup | Screen::Lobby | Screen::Standings => Stage::Showcase,
             Screen::Lineup => Stage::Lineup,
             Screen::Race => Stage::Race,
         };
         self.stage = stage;
+        self.podium_stage();
         // leaving the races and their standings drops a solo tournament
         // (TRIAGE T103: quitting returns to the setup)
         if !matches!(screen, Screen::Race | Screen::Standings) {
@@ -804,6 +809,10 @@ impl App {
         }
         if id == "flag.fast" {
             self.fast_mode = true;
+            return;
+        }
+        if id == "flag.podium" {
+            self.demo_podium();
             return;
         }
         if id == "flag.fly_at" {
@@ -895,7 +904,9 @@ impl App {
         self.now_ms = now_us / 1000;
         self.online_frame();
         self.alpha = ((self.acc * ONE as i64) / TICK_COST) as i32;
-        // a joiner's lobby follows the host's map
+        // a joiner's lobby follows the host's map, and its tournament's
+        // end shows the podium
+        self.podium_stage();
         self.settle_scene();
         // mouse movement is applied once a frame
         let (dx, dy) = std::mem::take(&mut self.mouse);

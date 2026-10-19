@@ -918,6 +918,8 @@ async function start() {
   resize();
   bindInput();
   if (new URLSearchParams(location.search).has("lineup")) game.act("screen.lineup", "");
+  // `?podium`: a finished tournament's podium, for screenshots (TRIAGE T103)
+  if (new URLSearchParams(location.search).has("podium")) game.act("flag.podium", "");
   // `?map=city`: a look at another map (a test hook until the map selector)
   const map = new URLSearchParams(location.search).get("map");
   if (map) game.act("flag.map", map);

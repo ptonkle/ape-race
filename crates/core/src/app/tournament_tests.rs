@@ -42,6 +42,8 @@ fn finish(a: &mut App, fin: [Option<u32>; 4]) {
     let p = a.play.as_mut().unwrap();
     for (r, f) in p.race.racers.iter_mut().zip(fin) {
         r.finish = f;
+        // the unfinished level: placed by seat
+        r.progress = 0;
     }
     p.race.clock = 1000;
     a.act("tour.standings", "");
@@ -81,7 +83,7 @@ fn a_solo_tournament_keeps_its_lineup_and_ends_on_the_final_order() {
             .collect()
     };
     let first = kinds(&a);
-    // the player wins, ai1 second, ai2 eaten or out there, ai3 third
+    // the player wins, ai1 second, ai3 third, ai2 still out there
     finish(&mut a, [Some(100), Some(200), None, Some(300)]);
     assert_eq!(a.screen, Screen::Standings);
     assert!(ui(&mut a).get("podium").is_none(), "not over yet");
@@ -98,8 +100,9 @@ fn a_solo_tournament_keeps_its_lineup_and_ends_on_the_final_order() {
         .iter()
         .map(|p| (p["place"].as_u64().unwrap(), p["points"].as_u64().unwrap()))
         .collect();
-    // you 10+7, ai2 0+10, ai1 7+0, ai3 5+0
-    assert_eq!(order, [(1, 17), (2, 10), (3, 7), (4, 5)]);
+    // unfinished apes place below the finishers (TN1): you 10+7, ai2
+    // 3+10, ai1 7+5, ai3 5+3
+    assert_eq!(order, [(1, 17), (2, 13), (3, 12), (4, 8)]);
     assert_eq!(podium[0]["me"], true);
     assert_eq!(podium[1]["kind"], first[2].key());
     a.act("tour.next", "");

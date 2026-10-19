@@ -4,7 +4,7 @@
 //! (points, tiebreak) are `crate::tournament`.
 
 use super::*;
-use crate::tournament::{self as tm, Entrant, Tour};
+use crate::tournament::{self as tm, Entrant, Run, Tour};
 
 /// The solo player's key in a tournament (the AI apes are `ai1`..).
 const YOU: &str = "you";
@@ -112,11 +112,14 @@ impl App {
             "tour.standings" if self.screen == Screen::Race => {
                 if let (Some(t), Some(p)) = (&mut self.tour, &self.play) {
                     if p.replay.is_none() {
-                        let racers: Vec<(Entrant, Option<u32>)> = t
+                        let racers: Vec<(Entrant, Run)> = t
                             .entrants
                             .iter()
                             .cloned()
-                            .zip(p.race.racers.iter().map(|r| r.finish))
+                            .zip(p.race.racers.iter().map(|r| match r.finish {
+                                Some(t) => Run::done(t),
+                                None => Run::short(r.progress, r.eaten.is_some()),
+                            }))
                             .collect();
                         t.record(Map::of(&p.race.course), p.race.clock, &racers);
                     }
@@ -195,10 +198,17 @@ impl App {
             .iter()
             .map(|s| {
                 let e = &t.entrants[s.entrant];
+                // the ape after the name when they differ (the AI apes are
+                // named after their kind)
+                let ape = self.t(&format!("ape.{}", e.kind.key()));
+                let name = if ape == e.name {
+                    ape
+                } else {
+                    format!("{} ({ape})", e.name)
+                };
                 json!([
                     ordinal(s.place),
-                    e.name.clone(),
-                    self.t(&format!("ape.{}", e.kind.key())),
+                    name,
                     format!("+{}", s.last),
                     s.points.to_string(),
                     clock_text(s.ticks.min(u32::MAX as u64) as u32),
@@ -207,7 +217,7 @@ impl App {
             })
             .collect();
         json!({ "type": "table", "id": "tour.table", "head": [
-            self.t("results.place"), self.t("results.name"), self.t("results.ape"),
+            self.t("results.place"), self.t("results.name"),
             self.t("tour.this_race"), self.t("tour.points"), self.t("tour.time")
         ], "rows": rows })
     }
@@ -215,17 +225,7 @@ impl App {
     /// The final order for the podium (T103 part 2), once a tournament is
     /// over and its final standings show: each ape by overall place.
     pub(super) fn podium(&self) -> Option<Value> {
-        let (t, me) = match self.screen {
-            Screen::Standings => (self.tour.as_ref()?, YOU.to_string()),
-            Screen::Lobby => {
-                let o = self.online.session.as_ref()?;
-                (o.tour()?, o.client_id().to_string())
-            }
-            _ => return None,
-        };
-        if !t.done() {
-            return None;
-        }
+        let (t, me) = self.finished_tour()?;
         let order: Vec<Value> = t
             .standings()
             .iter()
@@ -237,5 +237,88 @@ impl App {
             })
             .collect();
         Some(Value::Array(order))
+    }
+
+    /// The tournament whose final standings show, and this player's key.
+    fn finished_tour(&self) -> Option<(&Tour, String)> {
+        let (t, me) = match self.screen {
+            Screen::Standings => (self.tour.as_ref()?, YOU.to_string()),
+            Screen::Lobby => {
+                let o = self.online.session.as_ref()?;
+                (o.tour()?, o.client_id().to_string())
+            }
+            _ => return None,
+        };
+        t.done().then_some((t, me))
+    }
+
+    /// The podium's apes by overall place: kind, colours, and the gear
+    /// their costume wears on the last race's map.
+    pub(super) fn podium_apes(&self) -> Vec<(Kind, u8, models::Gear)> {
+        let Some((t, _)) = self.finished_tour() else {
+            return Vec::new();
+        };
+        let map = t.legs.last().map(|l| l.map).unwrap_or_default();
+        t.standings()
+            .iter()
+            .map(|s| {
+                let e = &t.entrants[s.entrant];
+                (e.kind, e.palette, e.costume.gear(map))
+            })
+            .collect()
+    }
+
+    /// The final standings (solo or in the lobby) show the podium; the
+    /// setup and the lobby otherwise the ape preview.
+    pub(super) fn podium_stage(&mut self) {
+        if !matches!(self.screen, Screen::Standings | Screen::Lobby) {
+            return;
+        }
+        self.stage = if self.finished_tour().is_some() {
+            Stage::Podium
+        } else {
+            Stage::Showcase
+        };
+    }
+
+    /// A test hook (`?podium` on the page, for screenshots): the final
+    /// standings of a made-up two-race tournament of all six kinds, the
+    /// player first.
+    pub(super) fn demo_podium(&mut self) {
+        let mut t = Tour::new(tm::MIN_RACES, false);
+        let racers: Vec<(Entrant, Run)> = Kind::ALL
+            .iter()
+            .enumerate()
+            .map(|(i, k)| {
+                let key = if i == 0 {
+                    YOU.to_string()
+                } else {
+                    format!("ai{i}")
+                };
+                let e = Entrant {
+                    key,
+                    name: self.t(&format!("ape.{}", k.key())),
+                    kind: *k,
+                    palette: 0,
+                    costume: Costume::Own,
+                };
+                (e, Run::done(1000 + 100 * i as u32))
+            })
+            .collect();
+        for _ in 0..tm::MIN_RACES {
+            t.record(Map::Jungle, 2000, &racers);
+        }
+        self.tour = Some(t);
+        self.go(Screen::Standings);
+    }
+
+    /// The podium's camera, the podium centred in the view the docked
+    /// panels leave open.
+    pub(super) fn podium_camera(&self) -> Camera {
+        let right = match self.dock() {
+            super::menu_dock::Dock::Side(w) => fx::div(w, self.view_w.max(1)),
+            _ => 0,
+        };
+        crate::podium::camera(self.aspect(), right)
     }
 }

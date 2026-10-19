@@ -369,11 +369,16 @@ impl App {
         if id == "menu.rematch" {
             let now = self.now_ms;
             let clock = self.play.as_ref().map(|p| p.race.clock).unwrap_or(0);
+            let along: Vec<i32> = self
+                .play
+                .iter()
+                .flat_map(|p| p.race.racers.iter().map(|r| r.progress))
+                .collect();
             if let Some(o) = &mut self.online.session {
                 // a tournament race: recorded first, from the host's
                 // results (TRIAGE T103); the roster takes it to everyone
                 if o.tour().is_some() {
-                    let _ = o.record_leg(clock);
+                    let _ = o.record_leg(clock, &along);
                 }
                 if o.rematch(now).is_ok() {
                     self.go(Screen::Lobby);

@@ -23,7 +23,7 @@ impl App {
     /// the shown map offers it (the Ski Slope's snow, Banana Bay Battle's
     /// squall; not on the lineup), else clear.
     pub(crate) fn weather_shown(&self) -> crate::snow::Weather {
-        if self.stage != Stage::Lineup {
+        if !matches!(self.stage, Stage::Lineup | Stage::Podium) {
             self.weather().on(self.shown_map())
         } else {
             crate::snow::Weather::Clear

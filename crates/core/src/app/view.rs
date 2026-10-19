@@ -134,6 +134,11 @@ impl App {
                 .map(|c| scene::flyover_dynamic(c, self.ticks, vivid, cam.eye))
                 .unwrap_or_default(),
             Stage::Showcase => self.preview_batches(vivid),
+            Stage::Podium => {
+                let mut b = Batch::new();
+                crate::podium::draw(&mut b, &self.podium_apes(), self.ticks);
+                (Batch::new(), b)
+            }
             Stage::Lineup => {
                 let mut b = Batch::new();
                 let gear = self.dress.unwrap_or(models::Gear::on(self.map()));
@@ -144,7 +149,7 @@ impl App {
         let (mut vines, mut batch) = (vines, batch);
         // Banana Bay Battle's sky and sea round the eye, in its weather (in
         // a race the swell at the race's tick, where the physics has it)
-        if self.stage != Stage::Lineup {
+        if !matches!(self.stage, Stage::Lineup | Stage::Podium) {
             let shown = match (&self.play, self.stage) {
                 (Some(p), Stage::Race) => Some((&p.race.course, p.race.tick)),
                 _ => self.course_of(self.shown_map()).map(|c| (c, self.ticks)),

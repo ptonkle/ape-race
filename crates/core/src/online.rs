@@ -98,7 +98,7 @@ use crate::map::Map;
 use crate::race::{Driver, Entry, Item, Race, Summon};
 use crate::rules::{Kind, TICKS_PER_SECOND};
 use crate::snow::Weather;
-use crate::tournament::{Entrant, Tour};
+use crate::tournament::{Entrant, Run, Tour};
 
 /// The protocol version. A joiner with another one is refused. 2: the Vine
 /// item's summoned vines (TRIAGE T12) and the Item `vine`. 3: renaming in
@@ -1759,10 +1759,11 @@ impl Online {
     }
 
     /// Host, at the end of a tournament race (before [`Online::rematch`]):
-    /// records the race from its results, `cutoff` its race clock. A racer
-    /// still racing or eaten did not finish. Reaches the joiners with the
-    /// rematch's roster.
-    pub fn record_leg(&mut self, cutoff: u32) -> Result<(), OnlineError> {
+    /// records the race from its results, `cutoff` its race clock and
+    /// `along` each racer's progress in its race (metres, Q16), which
+    /// places those not finished. Reaches the joiners with the rematch's
+    /// roster.
+    pub fn record_leg(&mut self, cutoff: u32, along: &[i32]) -> Result<(), OnlineError> {
         if !self.is_host {
             return Err(OnlineError::NotHost);
         }
@@ -1770,12 +1771,13 @@ impl Online {
             return Err(OnlineError::NotRacing);
         };
         let mut ai = 0;
-        let racers: Vec<(Entrant, Option<u32>)> = race
+        let racers: Vec<(Entrant, Run)> = race
             .entries
             .iter()
             .zip(&race.owners)
             .zip(&race.fin)
-            .map(|((e, owner), fin)| {
+            .enumerate()
+            .map(|(i, ((e, owner), fin))| {
                 let key = match owner {
                     Owner::Human(id) => id.clone(),
                     Owner::Ai => {
@@ -1783,9 +1785,12 @@ impl Online {
                         format!("ai{ai}")
                     }
                 };
-                let done = match fin {
-                    Fin::Done(t) => Some(*t),
-                    _ => None,
+                let s = along.get(i).copied().unwrap_or(0);
+                let run = match fin {
+                    Fin::Done(t) => Run::done(*t),
+                    Fin::Racing => Run::short(s, false),
+                    Fin::Dnf => Run::short(s, true),
+                    Fin::Eaten(at, _) => Run::short(*at, true),
                 };
                 let who = Entrant {
                     key,
@@ -1794,7 +1799,7 @@ impl Online {
                     palette: e.palette,
                     costume: e.costume,
                 };
-                (who, done)
+                (who, run)
             })
             .collect();
         t.record(self.map, cutoff, &racers);

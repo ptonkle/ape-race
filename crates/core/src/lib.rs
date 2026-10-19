@@ -42,6 +42,7 @@ pub mod mesh;
 pub mod models;
 pub mod online;
 pub mod patch_notes;
+pub mod podium;
 pub mod race;
 pub mod ravine;
 pub mod ravinemodels;
