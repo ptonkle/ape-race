@@ -166,7 +166,9 @@ pub fn upright(
     for k in 0..pieces {
         let y0 = y.0 + (y.1 - y.0) * k / pieces;
         let y1 = y.0 + (y.1 - y.0) * (k + 1) / pieces;
-        tile(b, w, x, width, (y0, y1), z, c, glow);
+        // (each piece a quarter wider than its share, so the rectangles
+        // overlap where they stand for a wedge and leave no gaps)
+        tile(b, w, x, width + width / 4, (y0, y1), z, c, glow);
     }
 }
 
