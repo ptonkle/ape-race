@@ -21,8 +21,8 @@ The standard map-build steps (MAPS.md "Build steps"), one row each. Status is on
 | 15 | Screenshots at 1920×1080 | Done | on the design journal |
 | 16 | Other maps unchanged | Done | the three unchanged-race tests pass in the full check |
 | 17 | Docs | Done | README (How to Play row, held; code table), maps-archive lesson, MAPS gotcha 17, HANDOFF; TRIAGE row added before the PR |
-| 18 | Full checks | Done (first pass); rerun for the second | GR9 |
-| 19 | Deploy | Waiting on Peter | held. At release: drop `Map::Grocery` from `Map::held`, bump `VERSION`, add the patch note, the README intro and catch-up lists. Patch-note draft: "New map: Aisle Ape. Race as a snack through a supermarket: down the cereal aisle, up the frozen aisle, down the snacks, round the misting produce and out past the checkouts. Swing from licorice ropes and shoppers' balloons; the apes are an animal cracker, a sandwich cookie, a fruit snack, a soft pretzel, a cheese puff and a frosted cookie." |
+| 18 | Full checks | Done (first pass, GR9); rerun before the PRs | HANDOFF |
+| 19 | Deploy | Waiting on Peter | held. At release: drop `Map::Grocery` from `Map::held`, bump `VERSION`, add the patch note, the README intro and catch-up lists. Patch-note draft: "New map: Aisle Ape. Race the store's staff through a supermarket: down the cereal aisle, under the frozen aisle's drop ceiling and over the ice, down the snacks, round the misting produce and out of the doors into the parking lot. Swing from licorice ropes and shoppers' balloons, dodge their swats, and grab the four items on your shopping list for speed and air control; finish with all four and a plane picks up your order." |
 
 ## This map's features
 
