@@ -38,12 +38,14 @@ pub enum Costume {
     Cowboy,
     /// Aisle Ape's store uniforms
     Grocer,
+    /// The Spindle's morph suits
+    Morph,
 }
 
 impl Costume {
     /// The selector's order: the map's own, none, then the unlockable ones
     /// in the maps' order.
-    pub const ALL: [Costume; 10] = [
+    pub const ALL: [Costume; 11] = [
         Costume::Own,
         Costume::Bare,
         Costume::Ski,
@@ -54,6 +56,7 @@ impl Costume {
         Costume::Wizard,
         Costume::Cowboy,
         Costume::Grocer,
+        Costume::Morph,
     ];
 
     /// The key: the settings' and the messages' word, and `costume.<key>`
@@ -70,6 +73,7 @@ impl Costume {
             Costume::Wizard => "wizard",
             Costume::Cowboy => "cowboy",
             Costume::Grocer => "grocer",
+            Costume::Morph => "morph",
         }
     }
 
@@ -106,6 +110,7 @@ impl Costume {
             Gear::Wizard => Some(Costume::Wizard),
             Gear::Cowboy => Some(Costume::Cowboy),
             Gear::Grocer => Some(Costume::Grocer),
+            Gear::Morph => Some(Costume::Morph),
         }
     }
 
@@ -122,6 +127,7 @@ impl Costume {
             Costume::Wizard => Gear::Wizard,
             Costume::Cowboy => Gear::Cowboy,
             Costume::Grocer => Gear::Grocer,
+            Costume::Morph => Gear::Morph,
         }
     }
 
@@ -194,6 +200,7 @@ mod tests {
             assert_eq!(Costume::Wizard.gear(map), Gear::Wizard);
             assert_eq!(Costume::Cowboy.gear(map), Gear::Cowboy);
             assert_eq!(Costume::Grocer.gear(map), Gear::Grocer);
+            assert_eq!(Costume::Morph.gear(map), Gear::Morph);
         }
         for c in Costume::ALL {
             assert_eq!(Costume::from_key(c.key()), Some(c));

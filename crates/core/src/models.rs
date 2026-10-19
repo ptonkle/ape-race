@@ -29,6 +29,7 @@ mod cowboy;
 mod flame;
 mod food;
 mod grocer;
+mod morph;
 mod spider;
 mod tourist;
 mod wizard;
@@ -82,6 +83,9 @@ pub enum Gear {
     /// Aisle Ape's store uniforms: each kind a job
     /// (`models::grocer`)
     Grocer,
+    /// The Spindle's morph suits: each ape one glossy colour with
+    /// glowing seams (`models::morph`)
+    Morph,
 }
 
 impl Gear {
@@ -99,6 +103,8 @@ impl Gear {
             "cowboy" => Some(Gear::Cowboy),
             // Aisle Ape's store uniforms
             "grocer" => Some(Gear::Grocer),
+            // The Spindle's morph suits
+            "morph" => Some(Gear::Morph),
             _ => None,
         }
     }
@@ -114,6 +120,7 @@ impl Gear {
             crate::map::Map::Tower => Gear::Wizard,
             crate::map::Map::Ravine => Gear::Cowboy,
             crate::map::Map::Grocery => Gear::Grocer,
+            crate::map::Map::Spindle => Gear::Morph,
             _ => Gear::None,
         }
     }
@@ -1206,6 +1213,8 @@ pub fn draw_in(b: &mut Batch, kind: Kind, palette: u8, pose: &Pose) {
         base = base.then(&Affine::translate(v3(0, SKI_THICK, 0)));
     }
     let mut rig = Rig { b, base };
+    // (The Spindle's morph suit recolours everything the ape is drawn as)
+    let morph_from = (pose.gear == Gear::Morph).then(|| rig.b.marks());
     let space = pose.gear == Gear::Space;
     let explorer = pose.gear == Gear::Explorer;
     torso(&mut rig, kind, &l, &m, &skel);
@@ -1239,6 +1248,9 @@ pub fn draw_in(b: &mut Batch, kind: Kind, palette: u8, pose: &Pose) {
     }
     if pose.gear == Gear::Grocer {
         grocer::grocer(&mut rig, kind, palette, &l, &m, &skel);
+    }
+    if let Some(from) = &morph_from {
+        morph::morph(&mut rig, kind, palette, &l, &m, &skel, pose.tick, from);
     }
     if pose.stunned {
         stars(&mut rig, &skel.head, m.head, pose.tick);
@@ -1428,7 +1440,8 @@ fn limbs(rig: &mut Rig, kind: Kind, l: &Look, m: &Dims, s: &Skel, gear: Gear) {
             Gear::Explorer | Gear::Pirate | Gear::Tourist | Gear::Wizard
         )
         || (gear == Gear::Cowboy && cowboy::kit(kind).top.sleeved())
-        || gear == Gear::Grocer;
+        || gear == Gear::Grocer
+        || gear == Gear::Morph;
     let kit = pirate_kit(kind);
     let pirate = gear == Gear::Pirate;
     for (i, side) in SIDES.into_iter().enumerate() {
@@ -2885,7 +2898,8 @@ fn head(rig: &mut Rig, kind: Kind, l: &Look, h: &Frame, pose: &Pose) {
     let helmeted = matches!(
         pose.gear,
         Gear::Ski | Gear::Explorer | Gear::Pirate | Gear::Tourist | Gear::Wizard | Gear::Cowboy
-    ) || pose.gear == Gear::Grocer;
+    ) || pose.gear == Gear::Grocer
+        || pose.gear == Gear::Morph;
     // the skull, and the bare face on its front
     rig.put(Mesh::Geo, h.shape(V3::ZERO, p(100, 94, 96)), l.fur);
     let face_size = match kind {
@@ -3272,6 +3286,20 @@ pub const GUMMY_JAGUAR: BigCat = BigCat {
     ..JAGUAR
 };
 
+/// The Spindle's big cat: a blocky ocelot as Minecraft draws one, as near
+/// as `BigCat` comes (the jaguar's build in its colours): yellow-tan with
+/// dark brown spots, a pale belly, green eyes and a thinner tail
+/// (`models::morph`).
+pub const BLOCK_OCELOT: BigCat = BigCat {
+    coat: morph::OCELOT_COAT,
+    deep: morph::OCELOT_DEEP,
+    cream: morph::OCELOT_CREAM,
+    spot: morph::OCELOT_SPOT,
+    eye: morph::OCELOT_EYE,
+    tail: 80,
+    ..JAGUAR
+};
+
 /// Smoky grey-white with charcoal rosettes round grey middles, pale
 /// green-grey eyes and a very thick tail.
 pub const SNOW_LEOPARD: BigCat = BigCat {
@@ -3301,6 +3329,7 @@ impl BigCat {
             crate::map::Map::Tower => FLAME_CAT,
             crate::map::Map::Ravine => SPIDER_JAGUAR,
             crate::map::Map::Grocery => GUMMY_JAGUAR,
+            crate::map::Map::Spindle => BLOCK_OCELOT,
             _ => JAGUAR,
         }
     }
