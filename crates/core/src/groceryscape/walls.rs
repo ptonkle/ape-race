@@ -87,7 +87,7 @@ pub fn scenery(cells: &mut Cells, c: &Course, r: &RavineLayout, g: &GroceryLayou
     }
     bare_walls(cells, g);
     stockroom_doors(cells);
-    front(cells);
+    front(cells, g);
     glass(cells);
 }
 
@@ -443,76 +443,70 @@ fn stockroom_doors(cells: &mut Cells) {
     }
 }
 
-/// The front: windows along the front wall, the exit doors by the finish,
-/// the wall over them.
-fn front(cells: &mut Cells) {
+/// The front: windows along the front wall either side of the exit doors'
+/// opening (left open: the sliding doors, `lot::dynamic`, and the lot show
+/// through it, GR-T9), the wall over them.
+fn front(cells: &mut Cells, g: &GroceryLayout) {
     let yaw = yaw_of(EAST);
     let z = SOUTH;
-    let (x0, x1) = (WEST, EAST_WALL);
-    let mid = at(int(x0 + x1) / 2, int(z), 0);
-    let len = int(x1 - x0);
-    // the wall over the windows, and under them
+    let (x0, x1) = (int(WEST), int(EAST_WALL));
+    let dx = crate::grocery::plan_of(g.doors.0).0;
+    let (dw, de) = (
+        dx - crate::grocery::DOOR_WIDTH / 2,
+        dx + crate::grocery::DOOR_WIDTH / 2,
+    );
+    // the wall over the windows and the doors
+    let mid = at((x0 + x1) / 2, int(z), 0);
     cells.block(
         mid.sub(NORTH.scale(int(1))).add(v3(0, int(44), 0)),
         yaw,
-        v3(int(2), int(16), len),
+        v3(int(2), int(16), x1 - x0),
         WALL,
     );
-    cells.block(
-        mid.sub(NORTH.scale(int(1))).add(v3(0, int(2), 0)),
-        yaw,
-        v3(int(2), int(4), len),
-        BAND_DARK,
-    );
-    // the windows: daylight beyond, mullions every 18 m
-    cells.push(
-        Mesh::Cube,
-        &placed(
-            mid.sub(NORTH.scale(int(2))).add(v3(0, int(20), 0)),
-            yaw,
-            v3(cm(40), int(32), len),
-        ),
-        rgb(220, 236, 250),
-        ONE,
-    );
-    let mut x = x0;
-    while x <= x1 {
+    for (a, b) in [(x0, dw), (de, x1)] {
+        let mid = at((a + b) / 2, int(z), 0);
+        let len = b - a;
+        // under the windows
         cells.block(
-            at(int(x), int(z), int(20)).sub(NORTH.scale(cm(60))),
+            mid.sub(NORTH.scale(int(1))).add(v3(0, int(2), 0)),
             yaw,
-            v3(cm(80), int(32), cm(80)),
-            MULLION,
+            v3(int(2), int(4), len),
+            BAND_DARK,
         );
+        // the windows: daylight beyond
+        cells.push(
+            Mesh::Cube,
+            &placed(
+                mid.sub(NORTH.scale(int(2))).add(v3(0, int(20), 0)),
+                yaw,
+                v3(cm(40), int(32), len),
+            ),
+            rgb(220, 236, 250),
+            ONE,
+        );
+    }
+    // mullions every 18 m, and one each side of the opening
+    let mut x = WEST;
+    while x <= EAST_WALL {
+        let xx = int(x);
+        if xx < dw - int(2) || xx > de + int(2) {
+            cells.block(
+                at(xx, int(z), int(20)).sub(NORTH.scale(cm(60))),
+                yaw,
+                v3(cm(80), int(32), cm(80)),
+                MULLION,
+            );
+        }
         x += 18;
     }
-    // the exit doors: two sliding leaves, a frame, a green exit light
-    let d = at(int(410), int(z), 0);
-    cells.block(
-        d.add(v3(0, int(30), 0)).sub(NORTH.scale(cm(40))),
-        yaw,
-        v3(cm(80), cm(80), int(40)),
-        MULLION,
-    );
-    for s in [-1, 1] {
+    for side in [dw, de] {
         cells.block(
-            d.add(EAST.scale(s * int(16)))
-                .add(v3(0, int(15), 0))
-                .sub(NORTH.scale(cm(30))),
+            at(side, int(z), int(17)).sub(NORTH.scale(cm(60))),
             yaw,
-            v3(cm(60), int(30), cm(80)),
+            v3(int(2), int(34), int(2)),
             MULLION,
         );
     }
-    cells.push(
-        Mesh::Cube,
-        &placed(
-            d.add(v3(0, int(33), 0)).add(NORTH.scale(cm(20))),
-            yaw,
-            v3(cm(30), int(2), int(6)),
-        ),
-        rgb(60, 220, 120),
-        ONE,
-    );
 }
 
 /// The glass storefront between the checkouts and the front-end run: an

@@ -72,9 +72,9 @@ const LEGS: &[Leg] = &[
     Leg(6, 7),
     Leg(2, 0),
     Leg(56, 90),    // 22 into produce
-    Leg(40, 0),     // 23 east along the produce
+    Leg(70, 0),     // 23 east along the produce (room past the last item, GR-T9)
     Leg(198, -180), // 24 the misting U-turn, down into the front end (R 63 m)
-    Leg(130, 0),    // 25 the front end, toward the doors
+    Leg(160, 0),    // 25 the front end, toward the doors
     Leg(56, 90),    // 26 out of the exit doors (GR-T4)
     Leg(160, 0),    // 27 across the parking lot to the finish
 ];
@@ -205,12 +205,12 @@ const COLUMNS: [(i32, i32); 11] = [
 /// Produce tables (plan metres, radius): round the U-turn's middle and
 /// beyond its ring, each with a mister.
 const TABLES: [(i32, i32, i32); 6] = [
-    (606, 119, 14),
-    (628, 130, 7),
-    (634, 100, 7),
-    (578, 120, 7),
-    (700, 60, 9),
-    (702, 150, 9),
+    (636, 119, 14),
+    (658, 130, 7),
+    (664, 100, 7),
+    (608, 120, 7),
+    (722, 60, 9),
+    (726, 150, 9),
 ];
 
 /// Display bins (plan metres): kraft cardboard rounds of product on the
@@ -275,7 +275,7 @@ fn walks() -> Vec<((i32, i32), (i32, i32), bool, bool)> {
     put(along(8, 9, 0, 340, 395), false, true);
     put(((420, 185), (500, 185)), false, true);
     put(((420, 546), (490, 546)), false, true);
-    put(((662, 88), (662, 150)), false, true);
+    put(((692, 88), (692, 150)), false, true);
     put(((540, 70), (600, 70)), false, true);
     // ... and in the parking lot, to and from their cars
     put(((405, -8), (470, -8)), false, true);
@@ -1122,8 +1122,25 @@ pub fn grocery_seeded(seed: u64) -> Course {
         for l in pair {
             let s = c.progress(l.arm, c.nearest_anywhere(l.arm)).0;
             here.push(hang(&mut vines, l.arm, int(dice.range(28, 32)), s, 0));
+            // and a low one from the arm's middle, down to 4 m over the
+            // asphalt, to climb back up by after a fall (GR-T9)
+            let mid = l.arm.lerp(v3(l.foot.x, l.arm.y, l.foot.z), ONE / 2);
+            hang(&mut vines, mid, mid.y - int(4), s, 0);
         }
         all.push(here);
+    }
+    // (and two from the canopy's outer edge)
+    for side in [-1, 1] {
+        let s = int(marks[leg::LOT] + 30);
+        let r = right_of(c.heading_at(s));
+        let b = c.point(s).add(r.scale(int(side * 20)));
+        hang(
+            &mut vines,
+            v3(b.x, CANOPY_UNDER, b.z),
+            CANOPY_UNDER - int(4),
+            s,
+            canopy_room,
+        );
     }
 
     // ---- the shopping list (GR-T2, GR-T3): each zone's item aisle, a

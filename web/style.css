@@ -219,6 +219,10 @@ table.cells tr.me td { color: var(--banana); font-weight: 800; }
 
 .pair .k { font-size: 0.75rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.1em; }
 .pair .v { font-size: 1.5rem; font-weight: 800; font-variant-numeric: tabular-nums; }
+.pair[hidden] { display: none; }
+/* a map's shopping list (Aisle Ape): small, the taken items struck through */
+.pair.list ul.v { list-style: none; margin: 0; padding: 0; font-size: 0.85rem; line-height: 1.25; }
+.pair.list li.got { text-decoration: line-through; text-decoration-thickness: 2px; opacity: 0.55; }
 
 .item-slot {
   position: absolute;

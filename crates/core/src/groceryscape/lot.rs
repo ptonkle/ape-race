@@ -51,7 +51,11 @@ fn lot(cells: &mut Cells, g: &GroceryLayout) {
     let mut x = x0 - 60;
     while x < x1 + 60 {
         let mut z = z0 - 60;
-        while z < z1 {
+        // (up to the store's front wall's outside face, never under the
+        // store's own floor: the two tops at one height flickered, GR-T9)
+        let wall = z1 - 10;
+        while z < wall {
+            let d = (wall - z).min(50);
             let inside = x >= x0 && x < x1 && z >= z0;
             let tone = match (inside, ((x / 50) + (z / 50)) % 2 == 0) {
                 (false, _) => GRASS,
@@ -61,9 +65,9 @@ fn lot(cells: &mut Cells, g: &GroceryLayout) {
             cells.push(
                 Mesh::Cube,
                 &placed(
-                    plan(int(x + 25), int(z + 25)).sub(v3(0, cm(50), 0)),
+                    plan(int(x + 25), int(z) + int(d) / 2).sub(v3(0, cm(52), 0)),
                     0,
-                    v3(int(50), cm(100), int(50)),
+                    v3(int(d), cm(100), int(50)),
                 ),
                 tone,
                 ONE / 5,
@@ -75,8 +79,8 @@ fn lot(cells: &mut Cells, g: &GroceryLayout) {
     // the grass on out to the haze, and a row of trees round the lot
     // (west of it, east of it and past its far end: x0..x1, z0..z1)
     for (xa, xb, za, zb) in [
-        (x0 - 260, x0 - 60, z0 - 260, SOUTH),
-        (x1 + 60, x1 + 260, z0 - 260, SOUTH),
+        (x0 - 260, x0 - 60, z0 - 260, SOUTH - 10),
+        (x1 + 60, x1 + 260, z0 - 260, SOUTH - 10),
         (x0 - 60, x1 + 60, z0 - 260, z0 - 60),
     ] {
         cells.push(
@@ -152,12 +156,14 @@ fn lot(cells: &mut Cells, g: &GroceryLayout) {
     // the sidewalk under the canopy, and its curb
     let (ca, cb) = (plan_of(l.canopy.0), plan_of(l.canopy.1));
     let mid = plan((ca.0 + cb.0) / 2, (ca.1 + cb.1) / 2);
+    // (out from the front wall's outside face, not under the store's floor)
+    let walk_end = int(SOUTH - 10);
     cells.push(
         Mesh::Cube,
         &placed(
-            mid.add(v3(0, cm(15), 0)),
+            plan(int(WEST + EAST_WALL) / 2, (ca.1 + walk_end) / 2).add(v3(0, cm(15), 0)),
             0,
-            v3(cb.1 - ca.1, cm(30), int(EAST_WALL - WEST)),
+            v3(walk_end - ca.1, cm(30), int(EAST_WALL - WEST)),
         ),
         CURB,
         ONE / 4,
