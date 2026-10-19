@@ -67,4 +67,4 @@ last=$(gh run list --workflow deploy.yml -L 1 --json conclusion,url,headSha \
 case "$last" in failure*|cancelled*|timed_out*) echo "note: the last Pages build ($last) did not succeed" ;; esac
 
 git push -q origin main || refuse "git push failed"
-echo "pushed v$version (${head:0:7}); GitHub builds and publishes it in about a minute"
+echo "pushed v$version (${head:0:7}); GitHub builds it in about a minute (scripts/deploy-watch.sh waits for it, in the background)"
