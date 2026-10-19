@@ -296,6 +296,8 @@ tags = ["boundary"]
 "scripts/tiles.py" = []
 "scripts/map_cards.py" = []
 "scripts/patch_notes_html.py" = []
+"scripts/tests_page.py" = []
+"scripts/test_dashboard.py" = []
 "scripts/second-order-archive.py" = []
 
 # ---------------------------------------------------------------------------

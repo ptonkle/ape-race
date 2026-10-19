@@ -54,7 +54,7 @@ def page(entries):
         "<body>",
         "  <main>",
         "    <h1>Ape Race patch notes</h1>",
-        '    <p class="links"><a href="./">Play Ape Race</a> · <a href="../">ptonk</a></p>',
+        '    <p class="links"><a href="./">Play Ape Race</a> · <a href="tests.html">Test times</a> · <a href="../">ptonk</a></p>',
     ]
     for e in entries:
         v = html.escape(e["version"])
