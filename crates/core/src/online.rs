@@ -98,6 +98,7 @@ use crate::map::Map;
 use crate::race::{Driver, Entry, Item, Race, Summon};
 use crate::rules::{Kind, TICKS_PER_SECOND};
 use crate::snow::Weather;
+use crate::tournament::{Entrant, Tour};
 
 /// The protocol version. A joiner with another one is refused. 2: the Vine
 /// item's summoned vines (TRIAGE T12) and the Item `vine`. 3: renaming in
@@ -125,7 +126,9 @@ use crate::snow::Weather;
 /// and `Call` (a racer's call, heard by distance).
 /// 15: Rattlesnake Ravine (2026-10-17): the map `ravine`, which a client
 /// of 14 could not read in a Roster or a Start.
-pub const PROTOCOL: u32 = 15;
+/// 16: tournaments (TRIAGE T103): `tour_races` and `tour` (the races run so
+/// far, recorded by the host) in the Roster.
+pub const PROTOCOL: u32 = 16;
 /// The most apes in a race, humans and AI together.
 pub const MAX_APES: usize = 4;
 /// The most AI apes the host may add.
@@ -286,6 +289,9 @@ pub enum OnlineError {
     TooFew,
     /// Not in a race.
     NotRacing,
+    /// The tournament's races are all run: the host ends it first
+    /// (TRIAGE T103).
+    TourOver,
 }
 
 /// One ape's finish as the results know it.
@@ -381,6 +387,8 @@ pub struct LobbyView {
     pub ready: bool,
     /// The host may press Start.
     pub can_start: bool,
+    /// the host's tournament race count, 0 for none (TRIAGE T103)
+    pub tour_races: u8,
 }
 
 /// One row of the results, in place order.
@@ -431,6 +439,13 @@ enum Msg {
         /// the Ski Slope's weather (TRIAGE T67, PROTOCOL 8)
         #[serde(default)]
         weather: Weather,
+        /// the host's tournament race count, 0 for none (TRIAGE T103,
+        /// PROTOCOL 16)
+        #[serde(default)]
+        tour_races: u8,
+        /// the tournament under way: its races so far (PROTOCOL 16)
+        #[serde(default)]
+        tour: Option<Tour>,
     },
     Pick {
         kind: Kind,
@@ -693,6 +708,13 @@ pub struct Online {
     /// T58), by kind.
     lobby_calls: Vec<Kind>,
     race: Option<RaceState>,
+    /// Host: a tournament of this many races starts with the next race (0:
+    /// none; TRIAGE T103). In the roster.
+    tour_races: u8,
+    /// The tournament under way: the host's, recorded race by race; a
+    /// joiner's copy from the roster. Every browser computes the standings
+    /// from it.
+    tour: Option<Tour>,
     /// Host: its own start, held until the joiners have theirs.
     host_start_at: Option<i64>,
     start: Option<RaceStart>,
@@ -736,6 +758,8 @@ impl Online {
             screeches: 0,
             lobby_calls: Vec::new(),
             race: None,
+            tour_races: 0,
+            tour: None,
             host_start_at: None,
             start: None,
         }
@@ -861,6 +885,8 @@ impl Online {
             random: self.random_map,
             lava: self.lava,
             weather: self.weather,
+            tour_races: self.tour_races,
+            tour: self.tour.clone(),
         }
     }
 
@@ -1058,9 +1084,16 @@ impl Online {
                 random,
                 lava,
                 weather,
-            } if from_host => {
-                self.on_roster(round, humans, ai, equal, (map, random, lava, weather))
-            }
+                tour_races,
+                tour,
+            } if from_host => self.on_roster(
+                round,
+                humans,
+                ai,
+                equal,
+                (map, random, lava, weather),
+                (tour_races, tour),
+            ),
             Msg::Underway if from_host => {
                 if self.status == Status::Joining {
                     self.underway = true;
@@ -1358,6 +1391,7 @@ impl Online {
         ai: usize,
         equal: bool,
         (map, random, lava, weather): (Map, bool, bool, Weather),
+        (tour_races, tour): (u8, Option<Tour>),
     ) {
         if round < self.round {
             return;
@@ -1381,6 +1415,8 @@ impl Online {
         self.random_map = random;
         self.lava = lava;
         self.weather = weather;
+        self.tour_races = tour_races;
+        self.tour = tour;
         let seated = self.humans.iter().any(|h| h.id == self.client_id);
         // a roster is the lobby: seated again after a race under way
         // (TRIAGE T72)
@@ -1693,6 +1729,88 @@ impl Online {
         Ok(())
     }
 
+    /// Host: a tournament of `races` races with the next start, or none
+    /// (0); not while one is under way (TRIAGE T103). Ready marks stay.
+    pub fn set_tour_races(&mut self, races: u8, now_ms: i64) -> Result<(), OnlineError> {
+        self.host_lobby()?;
+        if self.tour.is_some() {
+            return Err(OnlineError::NotInLobby);
+        }
+        let races = if races == 0 {
+            0
+        } else {
+            crate::tournament::clamp_races(races)
+        };
+        if self.tour_races != races {
+            self.tour_races = races;
+            self.roster_changed(now_ms);
+        }
+        Ok(())
+    }
+
+    /// The host's tournament race count (0: none).
+    pub fn tour_races(&self) -> u8 {
+        self.tour_races
+    }
+
+    /// The tournament under way, if any: its races so far.
+    pub fn tour(&self) -> Option<&Tour> {
+        self.tour.as_ref()
+    }
+
+    /// Host, at the end of a tournament race (before [`Online::rematch`]):
+    /// records the race from its results, `cutoff` its race clock. A racer
+    /// still racing or eaten did not finish. Reaches the joiners with the
+    /// rematch's roster.
+    pub fn record_leg(&mut self, cutoff: u32) -> Result<(), OnlineError> {
+        if !self.is_host {
+            return Err(OnlineError::NotHost);
+        }
+        let (Some(t), Some(race)) = (&mut self.tour, &self.race) else {
+            return Err(OnlineError::NotRacing);
+        };
+        let mut ai = 0;
+        let racers: Vec<(Entrant, Option<u32>)> = race
+            .entries
+            .iter()
+            .zip(&race.owners)
+            .zip(&race.fin)
+            .map(|((e, owner), fin)| {
+                let key = match owner {
+                    Owner::Human(id) => id.clone(),
+                    Owner::Ai => {
+                        ai += 1;
+                        format!("ai{ai}")
+                    }
+                };
+                let done = match fin {
+                    Fin::Done(t) => Some(*t),
+                    _ => None,
+                };
+                let who = Entrant {
+                    key,
+                    name: e.name.clone(),
+                    kind: e.kind,
+                    palette: e.palette,
+                    costume: e.costume,
+                };
+                (who, done)
+            })
+            .collect();
+        t.record(self.map, cutoff, &racers);
+        Ok(())
+    }
+
+    /// Host: ends the tournament (after its final standings, or to drop it
+    /// part way); the lobby is an ordinary lobby again.
+    pub fn end_tour(&mut self, now_ms: i64) -> Result<(), OnlineError> {
+        self.host_lobby()?;
+        if self.tour.take().is_some() {
+            self.roster_changed(now_ms);
+        }
+        Ok(())
+    }
+
     /// The lobby's map, as the host set it.
     pub fn map(&self) -> Map {
         self.map
@@ -1747,6 +1865,13 @@ impl Online {
         }
         if self.apes() < 2 {
             return Err(OnlineError::TooFew);
+        }
+        if self.tour.as_ref().is_some_and(|t| t.done()) {
+            return Err(OnlineError::TourOver);
+        }
+        // the first race of a tournament starts it (TRIAGE T103)
+        if self.tour_races > 0 && self.tour.is_none() {
+            self.tour = Some(Tour::new(self.tour_races, self.random_map));
         }
         if self.random_map {
             self.map = Map::random(seed.rotate_left(17), self.map);
@@ -2128,7 +2253,12 @@ impl Online {
             lava: self.lava,
             weather: self.weather,
             ready,
-            can_start: self.is_host && self.in_lobby() && self.all_ready() && self.apes() >= 2,
+            can_start: self.is_host
+                && self.in_lobby()
+                && self.all_ready()
+                && self.apes() >= 2
+                && !self.tour.as_ref().is_some_and(|t| t.done()),
+            tour_races: self.tour_races,
         }
     }
 

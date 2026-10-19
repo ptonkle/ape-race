@@ -68,6 +68,9 @@ impl App {
                 self.settings.lava = value == "on";
                 self.save = true;
             }
+            "setup.tournament" | "setup.races.dec" | "setup.races.inc" => {
+                self.tour_setting(id, value)
+            }
             _ if id.starts_with("setup.item.") => self.tick_item(id, value),
             "setup.weather" => self.choose_weather(value),
             _ => {}
@@ -131,6 +134,13 @@ impl App {
           "value": self.settings.equal_stats }),
         );
         if !self.trial {
+            // a series of races for points (TRIAGE T103)
+            items.extend(self.tour_items(
+                "setup",
+                self.settings.tournament,
+                self.settings.tour_races,
+                true,
+            ));
             items.push(self.lava_toggle("setup.lava"));
             items.extend(self.item_toggles());
         }

@@ -4,6 +4,12 @@ Stage 9, written by the agent. `C5 Consolidate in your own words`.
 
 A fresh session starts from this file, not from memory.
 
+## Tournament mode, part 1 (2026-10-18, agent branch, not deployed, no version bump)
+
+- TRIAGE T103: rules in `crates/core/src/tournament.rs` (points 10/7/5/3, a racer who doesn't finish scores 0 and is timed at the leg's cutoff; order is points, then combined time, then seat). Solo: Race Setup toggle and a −/+ race count (2..=16, default 4), `Screen::Standings` between races and at the end (`app/tournament.rs`). Online: the host's `tour_races` and recorded legs ride in the Roster (PROTOCOL 16); the lobby shows the standings between races. SECOND-ORDER TN1–TN3.
+- Part 2's hook: `ui.podium` on the final standings; the stage there is still `Stage::Showcase` (`App::go`).
+- Check (2026-10-18, `scripts/timed-checks.sh quick`, Chromium, `BUILDER_PYTHON` set to the main checkout's `.venv` because the worktree has none): passed. Format, lint, 842 core tests, release build, import audit, browser check, online transport and race.
+
 ## Aisle Ape (2026-10-18, branch `grocery` in Sam's fork, held, not deployed)
 
 - The map (key `grocery`, TRIAGE T111, brief `briefs/aisle-ape.md`, progress `notes/grocery-progress.md` with the person's requests GR-T1–T10, pitfalls `notes/grocery-pitfalls.md`), built in a workspace that offers maps to this repository as pull requests. Its solids are a Ravine layout (`grocery.rs` module notes, SECOND-ORDER GR1); `Map::held` keeps it off the map grid and Random. Second pass: store-worker uniforms (`Gear::Grocer`), a shopping list per racer (`grocery/list.rs`), shoppers who swat (`grocery/swat.rs`), a drop ceiling and an ice climb, odd vines (`Course::hang` for the grocery), a parking lot finish and the plane. Route 2,082 m.

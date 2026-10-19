@@ -77,14 +77,14 @@
     "browser": 10,
     "file": "app.rs",
     "split": true,
-    "tests": 241,
+    "tests": 242,
     "what": "the app's top level"
    },
    {
     "browser": 11,
     "file": "map.rs",
     "split": true,
-    "tests": 820,
+    "tests": 829,
     "what": "the list of maps"
    },
    {
@@ -719,7 +719,7 @@
    "modules": [
     [
      "tests/online.rs",
-     32
+     33
     ],
     [
      "models::tests",
@@ -770,7 +770,7 @@
      1
     ]
    ],
-   "tests": 79
+   "tests": 80
   },
   "dock": {
    "browser": [
@@ -1987,7 +1987,7 @@
    "modules": [
     [
      "tests/online.rs",
-     32
+     33
     ],
     [
      "app::online_play::tests",
@@ -2002,7 +2002,7 @@
      3
     ]
    ],
-   "tests": 62
+   "tests": 63
   },
   "page": {
    "browser": [
@@ -2182,7 +2182,7 @@
    "modules": [
     [
      "tests/online.rs",
-     32
+     33
     ],
     [
      "items::tests",
@@ -2333,7 +2333,7 @@
      1
     ]
    ],
-   "tests": 273
+   "tests": 274
   },
   "render": {
    "browser": [
@@ -2771,6 +2771,10 @@
      4
     ],
     [
+     "app::tournament_tests",
+     4
+    ],
+    [
      "app::setup_tests",
      2
     ],
@@ -2791,7 +2795,7 @@
      1
     ]
    ],
-   "tests": 78
+   "tests": 82
   },
   "sky": {
    "browser": [
@@ -2898,6 +2902,30 @@
     ]
    ],
    "tests": 2
+  },
+  "tournament": {
+   "browser": [],
+   "desc": "tournament mode (T103): points, standings, the series of races solo and online",
+   "files": [
+    "crates/core/src/app/tournament.rs",
+    "crates/core/src/app/tournament_tests.rs",
+    "crates/core/src/tournament.rs"
+   ],
+   "modules": [
+    [
+     "tests/online.rs",
+     33
+    ],
+    [
+     "app::tournament_tests",
+     4
+    ],
+    [
+     "tournament::tests",
+     4
+    ]
+   ],
+   "tests": 41
   },
   "trial": {
    "browser": [
@@ -3031,5 +3059,5 @@
    "tests": 26
   }
  },
- "total": 833
+ "total": 842
 }

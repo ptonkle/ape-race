@@ -14,7 +14,18 @@ impl App {
             return vec![self.replay_panel(p, pb)];
         }
         let mut out = Vec::new();
-        if p.paused {
+        let tour = self.tour.is_some();
+        if p.paused && tour {
+            // a tournament race is not restarted; quitting leaves the
+            // tournament (TRIAGE T103)
+            out.push(
+                json!({ "kind": "overlay", "heading": self.t("menu.paused"), "items": [
+                    self.button("menu.resume"),
+                    self.quiet_button("menu.replay"),
+                    self.button("tour.quit"),
+                ]}),
+            );
+        } else if p.paused {
             out.push(
                 json!({ "kind": "overlay", "heading": self.t("menu.paused"), "items": [
                     self.button("menu.resume"),
@@ -55,11 +66,21 @@ impl App {
                 } else {
                     items.push(self.best_row(p));
                 }
-                items.extend([
-                    self.button("menu.rematch"),
-                    self.quiet_button("menu.replay"),
-                    self.button("menu.main"),
-                ]);
+                if tour {
+                    // the standings next (TRIAGE T103): a racer still out
+                    // there then scores nothing
+                    items.extend([
+                        self.button("tour.standings"),
+                        self.quiet_button("menu.replay"),
+                        self.button("tour.quit"),
+                    ]);
+                } else {
+                    items.extend([
+                        self.button("menu.rematch"),
+                        self.quiet_button("menu.replay"),
+                        self.button("menu.main"),
+                    ]);
+                }
                 let kind = if racing { "spectate" } else { "results" };
                 out.push(
                     json!({ "kind": kind, "heading": self.t("results.heading"), "items": items }),

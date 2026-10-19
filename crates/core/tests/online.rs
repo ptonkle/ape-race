@@ -1365,3 +1365,42 @@ fn a_player_back_from_a_refresh_mid_race_waits_for_the_next_round() {
         assert_eq!(net.nodes[3].local_index(), Some(1));
     }
 }
+
+#[test]
+fn a_hosts_tournament_reaches_every_lobby_and_each_computes_the_same_standings() {
+    let mut net = Net::lobby(2);
+    let now = net.now;
+    net.nodes[0].set_ai_count(1, now).unwrap();
+    net.nodes[0].set_tour_races(2, now).unwrap();
+    net.run(1000);
+    assert_eq!(net.nodes[1].lobby().tour_races, 2, "the joiner sees it");
+    for leg in 0..2u64 {
+        net.ready_all();
+        let now = net.now;
+        net.nodes[0].start(42 + leg, now).unwrap();
+        net.run(4000);
+        // the joiner's ape first, the host's second, the AI still racing
+        net.race_mut(1).racers[1].finish = Some(300);
+        net.race_mut(0).racers[0].finish = Some(500);
+        net.run(1000);
+        let (now, clock) = (net.now, net.race(0).clock);
+        net.nodes[0].record_leg(clock).unwrap();
+        net.nodes[0].rematch(now).unwrap();
+        net.run(1000);
+    }
+    let host = net.nodes[0].tour().unwrap().clone();
+    assert_eq!(net.nodes[1].tour(), Some(&host), "the same races on both");
+    assert!(host.done());
+    let order: Vec<(&str, u32)> = host
+        .standings()
+        .iter()
+        .map(|s| (host.entrants[s.entrant].key.as_str(), s.points))
+        .collect();
+    assert_eq!(order, [("client1", 20), ("client0", 14), ("ai1", 0)]);
+    // over: no race until the host ends it
+    let now = net.now;
+    assert_eq!(net.nodes[0].start(1, now), Err(OnlineError::TourOver));
+    net.nodes[0].end_tour(now).unwrap();
+    net.run(1000);
+    assert_eq!(net.nodes[1].tour(), None);
+}

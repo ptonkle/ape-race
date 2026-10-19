@@ -188,6 +188,23 @@ table.cells th { color: var(--muted); font-weight: 400; text-align: left; paddin
 table.cells td { padding: 0.3rem 0.5rem; }
 table.cells tr.me td { color: var(--banana); font-weight: 800; }
 
+/* a count with − and + (TRIAGE T103: a tournament's races) */
+.stepper { display: flex; align-items: center; justify-content: space-between; margin: 0.5rem 0; gap: 1rem; }
+.stepper > span { color: var(--muted); }
+.stepper-box { display: flex; align-items: center; gap: 0.5rem; }
+.stepper-value { min-width: 2rem; text-align: center; font-weight: 800; color: var(--banana); }
+.stepper button {
+  font: inherit;
+  font-size: 1.1rem;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 50%;
+  border: 2px solid var(--panel-line);
+  background: rgba(0, 0, 0, 0.25);
+  color: var(--ink);
+  cursor: pointer;
+}
+.stepper button:disabled { opacity: 0.4; cursor: default; }
 .toggle { display: flex; align-items: center; justify-content: space-between; margin: 0.5rem 0; gap: 1rem; }
 .toggle span { color: var(--muted); }
 .toggle input { width: 1.2rem; height: 1.2rem; accent-color: var(--leaf); }

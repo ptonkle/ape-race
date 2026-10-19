@@ -63,6 +63,7 @@ pub mod snow;
 pub mod sound;
 pub mod spacecraft;
 pub mod speedo;
+pub mod tournament;
 pub mod tower;
 pub mod towermodels;
 pub mod towerscape;

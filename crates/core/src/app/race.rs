@@ -33,6 +33,18 @@ impl App {
                 costume: crate::costume::Costume::Own,
             });
         }
+        // a tournament (TRIAGE T103) races the same lineup every race: it is
+        // fixed when the setup starts it
+        if !self.trial
+            && self.settings.tournament
+            && self.tour.is_none()
+            && self.screen == Screen::Setup
+        {
+            self.tour = Some(self.new_tour(&entries));
+        }
+        if let Some(t) = &self.tour {
+            entries = App::tour_entries(t);
+        }
         // Random (TRIAGE T64): a map other than the last, from the page's
         // seed and the clock; it becomes the last map (the preview's)
         if self.settings.random_map {

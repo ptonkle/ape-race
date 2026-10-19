@@ -250,5 +250,20 @@
   "mode.online": "Online",
   "focus.watching": "Watching",
   "hud.spectate": "A / D: watch another racer",
-  "hud.replay": "A / D: switch racer · Drag: turn the camera · Wheel: zoom"
+  "hud.replay": "A / D: switch racer · Drag: turn the camera · Wheel: zoom",
+  "tour.label": "Tournament",
+  "tour.races": "Races",
+  "tour.races_unit": "races",
+  "tour.standings": "Standings",
+  "tour.standings_button": "Standings",
+  "tour.final": "Final Standings",
+  "tour.race": "Race",
+  "tour.next_map": "Next map",
+  "tour.this_race": "This race",
+  "tour.points": "Points",
+  "tour.time": "Total time",
+  "tour.next": "Next Race",
+  "tour.quit": "Quit Tournament",
+  "tour.done": "Back to Setup",
+  "lobby.tour_end": "Back to Lobby"
 }

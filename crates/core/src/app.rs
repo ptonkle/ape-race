@@ -50,6 +50,7 @@ mod replays;
 mod results;
 mod setup;
 mod spectate;
+mod tournament;
 mod view;
 mod weather;
 use self::audio::cue_for;
@@ -158,6 +159,11 @@ pub struct Settings {
     pub costume: Costume,
     /// the costumes unlocked by beating a map's Author time (T89), by key
     pub costumes: BTreeSet<String>,
+    /// Race Setup's (and the host's lobby's) tournament choice (TRIAGE
+    /// T103): the next race starts a series of `tour_races` races
+    pub tournament: bool,
+    /// how many races a tournament has (2..=16, default 4)
+    pub tour_races: u8,
 }
 
 /// One map's personal bests, in race ticks.
@@ -198,6 +204,8 @@ impl Default for Settings {
             notes_minor: false,
             costume: Costume::Own,
             costumes: BTreeSet::new(),
+            tournament: false,
+            tour_races: crate::tournament::DEFAULT_RACES,
         }
     }
 }
@@ -211,6 +219,7 @@ impl Settings {
         // the solo run); a saved 0 reads as 1
         s.ai_count = s.ai_count.clamp(1, 3);
         s.items = s.items.clean().offered();
+        s.tour_races = crate::tournament::clamp_races(s.tour_races);
         if !s.hook_back {
             s.items = s.items.with(crate::race::Item::Hook, true);
             s.hook_back = true;
@@ -281,6 +290,9 @@ pub enum Screen {
     Replays,
     /// what each version changed (`patch_notes.rs`)
     Notes,
+    /// a solo tournament's standings between races, and the final ones
+    /// after the last (TRIAGE T103)
+    Standings,
 }
 
 /// The static scenery the page holds: `scene_version` changes with it.
@@ -457,6 +469,9 @@ pub struct App {
     /// inputs, so the race and its replay are unchanged; only the wait
     /// goes. Never on unless the page's address asks.
     pub fast_mode: bool,
+    /// the solo tournament in progress (TRIAGE T103); online, the session
+    /// holds the host's
+    pub tour: Option<crate::tournament::Tour>,
 }
 
 fn s(map: &BTreeMap<String, String>, key: &str) -> String {
@@ -511,6 +526,7 @@ impl App {
             replay_exit: Screen::Title,
             gallery: None,
             fast_mode: false,
+            tour: None,
         };
         // only the map the title flies over is built now; the others when
         // first chosen
@@ -712,7 +728,9 @@ impl App {
             && self
                 .play
                 .as_ref()
-                .is_some_and(|p| !p.online && p.replay.is_none());
+                .is_some_and(|p| !p.online && p.replay.is_none())
+            // a tournament race is not restarted (TRIAGE T103)
+            && self.tour.is_none();
         match self.last_r {
             Some(t) if offline && self.ticks.wrapping_sub(t) <= DOUBLE_TAP => {
                 self.last_r = None;
@@ -749,11 +767,17 @@ impl App {
             Screen::Title | Screen::Settings | Screen::Online | Screen::Replays | Screen::Notes => {
                 Stage::Flyover
             }
-            Screen::Setup | Screen::Lobby => Stage::Showcase,
+            // T103 part 2: the final standings' podium stage goes here
+            Screen::Setup | Screen::Lobby | Screen::Standings => Stage::Showcase,
             Screen::Lineup => Stage::Lineup,
             Screen::Race => Stage::Race,
         };
         self.stage = stage;
+        // leaving the races and their standings drops a solo tournament
+        // (TRIAGE T103: quitting returns to the setup)
+        if !matches!(screen, Screen::Race | Screen::Standings) {
+            self.tour = None;
+        }
         if screen != Screen::Race {
             if let Some(mut p) = self.play.take() {
                 self.keep_recording(&mut p);
@@ -825,7 +849,12 @@ impl App {
             "version" if self.version_opens_notes() => self.open_notes(),
             "notes.minor" => self.notes_minor(value),
             "menu.back" | "menu.main" | "menu.quit" => self.go(Screen::Title),
-            "menu.start" | "menu.restart" | "menu.rematch" => self.start_race(),
+            _ if id.starts_with("tour.") => self.tour_act(id, value),
+            "menu.start" => {
+                self.tour = None;
+                self.start_race()
+            }
+            "menu.restart" | "menu.rematch" if self.tour.is_none() => self.start_race(),
             "menu.resume" => {
                 if let Some(p) = &mut self.play {
                     p.paused = false;
@@ -964,6 +993,7 @@ impl App {
             Screen::Lobby => self.lobby_panels(),
             Screen::Replays => self.replays_panels(),
             Screen::Notes => self.notes_panels(),
+            Screen::Standings => self.standings_panels(),
         };
         let still = self.play.as_ref().and_then(|p| p.still);
         let bare = still.is_some() || self.gallery.is_some();
@@ -977,6 +1007,10 @@ impl App {
             v["hud"]["hint"] = json!("");
         }
         self.online_ui(&mut v);
+        // T103 part 2's hook: the final order, for the podium
+        if let Some(podium) = self.podium() {
+            v["podium"] = podium;
+        }
         self.dock_ui(&mut v);
         if !self.sounds.is_empty() {
             v["sounds"] = json!(std::mem::take(&mut self.sounds));
@@ -1054,6 +1088,8 @@ mod replay_tests;
 mod settings_tests;
 #[cfg(test)]
 mod sound_tests;
+#[cfg(test)]
+mod tournament_tests;
 #[cfg(test)]
 mod trial_tests;
 #[cfg(test)]

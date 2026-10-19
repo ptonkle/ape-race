@@ -165,6 +165,28 @@ function picker(item) {
   return box;
 }
 
+// A count with − and + beside it (TRIAGE T103: a tournament's races); the
+// core says when either end is reached.
+function stepper(item) {
+  const wrap = make("div", "stepper");
+  const dec = make("button", "", "−");
+  dec.type = "button";
+  dec.id = item.id + ".dec";
+  dec.disabled = item.dec_disabled === true;
+  on(dec.id, "click", () => send(dec.id, ""));
+  const inc = make("button", "", "+");
+  inc.type = "button";
+  inc.id = item.id + ".inc";
+  inc.disabled = item.inc_disabled === true;
+  on(inc.id, "click", () => send(inc.id, ""));
+  const value = make("span", "stepper-value", item.text);
+  value.id = item.id;
+  const box = make("div", "stepper-box");
+  box.append(dec, value, inc);
+  wrap.append(make("span", "", item.label), box);
+  return wrap;
+}
+
 function stats(item) {
   const box = make("div", "stats");
   item.rows.forEach((row) => {
@@ -368,7 +390,7 @@ function notes(item) {
   return box;
 }
 
-const builders = { button, picker, stats, select, tiles, slider, toggle, checks, list, table: cells, field, copy, notes };
+const builders = { button, picker, stepper, stats, select, tiles, slider, toggle, checks, list, table: cells, field, copy, notes };
 
 // The menus as the core gives them, built as a fresh tree off the page.
 function buildMenus() {

@@ -130,6 +130,7 @@ impl App {
             let _ = o.set_equal_stats(self.settings.equal_stats, self.now_ms);
             let _ = o.set_lava(self.settings.lava, self.now_ms);
             let _ = o.set_weather(self.settings.weather, self.now_ms);
+            let _ = o.set_tour_races(self.tour_wanted(), self.now_ms);
         }
         self.online.session = Some(o);
         self.online.status = String::new();
@@ -332,6 +333,21 @@ impl App {
                     self.save = true;
                 }
             }
+            // the host's tournament (TRIAGE T103)
+            "lobby.tournament" | "lobby.races.dec" | "lobby.races.inc" => {
+                if self.hosting() {
+                    self.tour_setting(id, value);
+                    let races = self.tour_wanted();
+                    if let Some(o) = &mut self.online.session {
+                        let _ = o.set_tour_races(races, now);
+                    }
+                }
+            }
+            "lobby.tour_end" => {
+                if let Some(o) = &mut self.online.session {
+                    let _ = o.end_tour(now);
+                }
+            }
             "lobby.start" => {
                 let seed = self.seed ^ (now as u64).rotate_left(29) ^ self.ticks as u64;
                 if let Some(o) = &mut self.online.session {
@@ -352,7 +368,13 @@ impl App {
     pub(super) fn online_race_menu(&mut self, id: &str) {
         if id == "menu.rematch" {
             let now = self.now_ms;
+            let clock = self.play.as_ref().map(|p| p.race.clock).unwrap_or(0);
             if let Some(o) = &mut self.online.session {
+                // a tournament race: recorded first, from the host's
+                // results (TRIAGE T103); the roster takes it to everyone
+                if o.tour().is_some() {
+                    let _ = o.record_leg(clock);
+                }
                 if o.rematch(now).is_ok() {
                     self.go(Screen::Lobby);
                 }
@@ -719,9 +741,33 @@ impl App {
             );
             mine.push(self.lava_toggle("lobby.lava"));
             mine.extend(self.item_toggles());
-            let mut start = self.button("lobby.start");
-            start["disabled"] = json!(!view.can_start);
-            mine.push(start);
+            match o.tour() {
+                // T103: the races so far; then Next race, or after the
+                // last, back to an ordinary lobby
+                Some(t) if t.done() => mine.push(self.button("lobby.tour_end")),
+                Some(t) => {
+                    let mut start = self.button("lobby.start");
+                    start["disabled"] = json!(!view.can_start);
+                    if !t.legs.is_empty() {
+                        start["text"] = json!(self.t("tour.next"));
+                    }
+                    mine.push(start);
+                    let mut end = self.quiet_button("lobby.tour_end");
+                    end["text"] = json!(self.t("tour.quit"));
+                    mine.push(end);
+                }
+                None => {
+                    mine.extend(self.tour_items(
+                        "lobby",
+                        view.tour_races > 0,
+                        self.settings.tour_races,
+                        true,
+                    ));
+                    let mut start = self.button("lobby.start");
+                    start["disabled"] = json!(!view.can_start);
+                    mine.push(start);
+                }
+            }
         } else {
             // the host's pick, read-only (TRIAGE T54)
             mine.insert(
@@ -732,6 +778,9 @@ impl App {
                 self.t(if view.equal_stats { "on" } else { "off" })]] }));
             mine.push(json!({ "type": "list", "rows": [[self.t("setup.lava"),
                 self.t(if view.lava { "on" } else { "off" })]] }));
+            if o.tour().is_none() {
+                mine.extend(self.tour_items("lobby", view.tour_races > 0, view.tour_races, false));
+            }
             let mut ready = self.button("lobby.ready");
             ready["text"] = json!(self.t(if view.ready {
                 "online.cancel_ready"
@@ -749,8 +798,19 @@ impl App {
             mine.push(screech);
         }
         mine.push(self.button("lobby.leave"));
+        // a tournament under way (TRIAGE T103): the standings head the
+        // seats once a race is run; each browser computes them from the
+        // host's recorded races
+        let first = match o.tour() {
+            Some(t) if !t.legs.is_empty() => {
+                let mut items = vec![self.standings_table(t, o.client_id())];
+                items.extend(seats);
+                self.standings_panel(t, items)
+            }
+            _ => json!({ "kind": "setup", "heading": self.t("online.lobby"), "items": seats }),
+        };
         let mut out = vec![
-            json!({ "kind": "setup", "heading": self.t("online.lobby"), "items": seats }),
+            first,
             json!({ "kind": "setup", "heading": self.t("setup.heading"), "items": mine }),
         ];
         if self.online.codes {
@@ -785,8 +845,18 @@ impl App {
         if !done {
             items.push(self.focus_picker(p));
         }
+        let tour = self
+            .online
+            .session
+            .as_ref()
+            .is_some_and(|o| o.tour().is_some());
         if host {
-            items.push(self.button("menu.rematch"));
+            let mut next = self.button("menu.rematch");
+            if tour {
+                // the standings next, in the lobby (TRIAGE T103)
+                next["text"] = json!(self.t("tour.standings_button"));
+            }
+            items.push(next);
         } else {
             items.push(json!({ "type": "list", "rows": [[self.t("online.status"), self.t("online.wait_rematch")]] }));
         }
