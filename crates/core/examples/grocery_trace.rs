@@ -1,4 +1,4 @@
-//! One AI ape on Clean-Up on Aisle Ape, traced: where it stalls (3 s with
+//! One AI ape on Aisle Ape, traced: where it stalls (3 s with
 //! under 25 m gained), with its mode, height and side, and its finish.
 //!
 //! `cargo run --release -p tool_core --example grocery_trace -- LEVEL [SEED [full] [solids] [slot=K]]`

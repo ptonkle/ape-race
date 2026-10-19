@@ -1,10 +1,10 @@
-# Clean-Up on Aisle Ape: build progress
+# Aisle Ape: build progress
 
 The standard map-build steps (MAPS.md "Build steps"), one row each. Status is one of: **Done**, **In progress**, **Not started**, **Waiting on you**, **Blocked**. Branch `grocery`, from upstream `main` d6d4106 (1.15.0); held until Peter releases it. The person's requests are numbered here, `GR-T1` …; one `TRIAGE.md` row for the whole map is added just before the PR.
 
 | # | Step | Status | Notes |
 | --- | --- | --- | --- |
-| 1 | Brief and answers | Done (defaults) | `briefs/clean-up-on-aisle-ape.md`; `notes/grocery-pitfalls.md`; decisions GR-Q1–Q12 put to the person with defaults, building on the defaults |
+| 1 | Brief and answers | Done (defaults) | `briefs/aisle-ape.md`; `notes/grocery-pitfalls.md`; decisions GR-Q1–Q12 put to the person with defaults, building on the defaults |
 | 2 | Skeleton and contract | Done | `Map::Grocery` held; `GroceryLayout` (`grocery.rs`), the store's solids as a Ravine layout; the models' contract and the 94-product catalogue; GR1–GR5 (branch `grocery-skeleton` marks it) |
 | 3 | Ape costumes | Done (second pass: store uniforms, GR-T1) | first `Gear::Food` (`models/food.rs`): animal cracker, sandwich cookie, fruit snack, soft pretzel, cheese puff, frosted circus cookie, 4 flavours each; costume Food; `GUMMY_JAGUAR`; shots `notes/grocery-shots/costumes/`; GR-G rows |
 | 4 | Models | Done | `grocerymodels/`: 12 product shapes × 8 fronts, shoppers (7 looks, walking, balloon hand, carts), balloons, ball bin, tables, bins, mister, aisle sign, banner, department signs, cart, stock cart, pallet; 32 gallery keys; shots `notes/grocery-shots/models/`; GR-M rows |
@@ -22,7 +22,7 @@ The standard map-build steps (MAPS.md "Build steps"), one row each. Status is on
 | 16 | Other maps unchanged | Done | the three unchanged-race tests pass in the full check |
 | 17 | Docs | Done | README (How to Play row, held; code table), maps-archive lesson, MAPS gotcha 17, HANDOFF; TRIAGE row added before the PR |
 | 18 | Full checks | Done (first pass); rerun for the second | GR9 |
-| 19 | Deploy | Waiting on Peter | held. At release: drop `Map::Grocery` from `Map::held`, bump `VERSION`, add the patch note, the README intro and catch-up lists. Patch-note draft: "New map: Clean-Up on Aisle Ape. Race as a snack through a supermarket: down the cereal aisle, up the frozen aisle, down the snacks, round the misting produce and out past the checkouts. Swing from licorice ropes and shoppers' balloons; the apes are an animal cracker, a sandwich cookie, a fruit snack, a soft pretzel, a cheese puff and a frosted cookie." |
+| 19 | Deploy | Waiting on Peter | held. At release: drop `Map::Grocery` from `Map::held`, bump `VERSION`, add the patch note, the README intro and catch-up lists. Patch-note draft: "New map: Aisle Ape. Race as a snack through a supermarket: down the cereal aisle, up the frozen aisle, down the snacks, round the misting produce and out past the checkouts. Swing from licorice ropes and shoppers' balloons; the apes are an animal cracker, a sandwich cookie, a fruit snack, a soft pretzel, a cheese puff and a frosted cookie." |
 
 ## This map's features
 
@@ -52,3 +52,5 @@ The standard map-build steps (MAPS.md "Build steps"), one row each. Status is on
 | GR-T6 | More shoppers with carts as obstacles | Done | nine more walks (six in the store on the route, three in the lot) |
 | GR-T7 | Swinging low to the ground in one place, then having to go up | Done | the frozen aisle's drop ceiling (ropes to 8–12 m over the floor), then the ice and its ramp (GR14) |
 | GR-T8 | A few sideways and upside-down vines | Done | three ropes standing out level from sale signs along the front end; four balloon strings rising from the ice |
+| GR-T9 | After playing the second pass: the floor near the exit flickers; the turn after the last item is hard; more low ropes in the lot; the list as a small list in the HUD, each item struck through when taken; the manager's suit fuller, in the logo's colour; the doorway shows a pane, not the outside; the map called Aisle Ape | Done | the lot's asphalt and grass stop at the front wall; 30 m more straight past the last item (the U-turn and its tables moved east); a low rope from every light pole's arm and two from the canopy; HUD "Shopping list" (four names, struck through); the suit in the logo's navy, cut full, a yellow tie; the windows stop at the doorway and the old doors are gone; "Aisle Ape" everywhere |
+| GR-T10 | Shoppers swat apes that come too close, blasting them side to side in the aisle | Done | `grocery/swat.rs`: within 7 m of a shopper's body, under their head, swinging or flying, an ape is let go of its vine and thrown 22 m/s across the route away from them; "Swatted!" and a white swoosh |

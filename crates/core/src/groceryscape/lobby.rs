@@ -1,4 +1,4 @@
-//! Clean-Up on Aisle Ape's lobby and title flyover (step 9).
+//! Aisle Ape's lobby and title flyover (step 9).
 //!
 //! STAND-IN (the skeleton): the ape on the start's stock cart, looking down
 //! the back aisle; the flyover glides along the route under the ceiling.

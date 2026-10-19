@@ -1,4 +1,4 @@
-//! Clean-Up on Aisle Ape's art (step 8).
+//! Aisle Ape's art (step 8).
 
 use super::course::{dynamic, scenery};
 use crate::course::Course;

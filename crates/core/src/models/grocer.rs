@@ -1,4 +1,4 @@
-//! Clean-Up on Aisle Ape's outfit (`Gear::Grocer`, 2026-10-18; the person,
+//! Aisle Ape's outfit (`Gear::Grocer`, 2026-10-18; the person,
 //! GR-T1: "make the ape costumes to be workers uniforms of the store, with
 //! a big banana in a circle as a logo"). The apes keep their own bodies at
 //! their own size and each kind works a different job in the store, so the
@@ -48,9 +48,10 @@ pub(super) const TROUSER_DENIM: Rgb = rgb(50, 70, 110);
 pub(super) const TROUSER_GREY: Rgb = rgb(78, 80, 88);
 pub(super) const TROUSER_KHAKI: Rgb = rgb(170, 148, 106);
 pub(super) const TROUSER_NAVY: Rgb = rgb(28, 34, 58);
-pub(super) const CHARCOAL: Rgb = rgb(56, 58, 64);
-/// the manager's jacket
-pub(super) const BLAZER: Rgb = rgb(52, 56, 76);
+/// the manager's suit: the logo ring's navy (the person, GR-T9: "the same
+/// color as the company logos"), and the banana's yellow for the tie
+pub(super) const BLAZER: Rgb = rgb(31, 44, 92);
+pub(super) const TIE_YELLOW: Rgb = rgb(246, 212, 40);
 pub(super) const BELT: Rgb = rgb(36, 28, 24);
 pub(super) const BUCKLE: Rgb = rgb(200, 204, 212);
 pub(super) const CUTTER: Rgb = rgb(248, 196, 30);
@@ -195,10 +196,10 @@ pub(super) fn kit(kind: Kind, palette: u8) -> Kit {
             sleeve: 150,
             collar: true,
             jacket: Some(BLAZER),
-            tie: Some(BANNER_RED),
+            tie: Some(TIE_YELLOW),
             name_tag: true,
             belt: true,
-            trousers: CHARCOAL,
+            trousers: BLAZER,
             ..base
         },
         Kind::Lemur => Kit {
@@ -362,23 +363,25 @@ fn shirt(rig: &mut Rig, kind: Kind, m: &Dims, s: &Skel, k: &Kit, wide: i32, deep
     }
 }
 
-/// The manager's jacket over the shirt, hips to shoulders (over the
-/// gorilla's chest slabs too): sleeves to the forearm with the shirt's
-/// cuffs showing, open down the front where the shirt shows, dark lapels
-/// and the shirt's collar at the neck.
+/// The manager's jacket over the shirt, below the hips to the shoulders,
+/// cut full (over the gorilla's chest slabs too, as the captain's coat is:
+/// GR-T9, filled in): sleeves nearly to the wrists with the shirt's cuffs
+/// showing, a narrow opening down the front where the shirt shows, dark
+/// lapels and the shirt's collar at the neck.
 #[allow(clippy::too_many_arguments)]
 fn jacket(rig: &mut Rig, kind: Kind, m: &Dims, s: &Skel, wide: i32, deep: i32, c: Rgb, shirt: Rgb) {
     let body = &s.body;
     let (w, t, d) = (m.w, m.t, m.d);
     let at = |x: i32, y: i32, z: i32| v3(pct(w, x), pct(t, y), pct(d, z));
-    garment(rig, m, s, 6, 104, wide, deep, c);
+    let (wide, deep) = (wide.max(116), deep.max(130));
+    garment(rig, m, s, -14, 104, wide, deep, c);
     if kind == Kind::Gorilla {
-        rig.put(Mesh::Bevel, body.shape(at(0, 70, 40), at(100, 34, 44)), c);
+        rig.put(Mesh::Bevel, body.shape(at(0, 70, 44), at(108, 40, 50)), c);
     }
-    sleeves(rig, m, s, 150, 162, c, shirt);
+    sleeves(rig, m, s, 185, 170, c, shirt);
     rig.put(
         Mesh::Cube,
-        body.shape(at(0, 70, deep / 2 + 1), at(22, 62, 3)),
+        body.shape(at(0, 74, deep / 2 + 1), at(14, 50, 3)),
         shirt,
     );
     for side in SIDES {

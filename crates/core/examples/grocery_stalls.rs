@@ -1,4 +1,4 @@
-//! Where the AI stalls on Clean-Up on Aisle Ape: every level over N
+//! Where the AI stalls on Aisle Ape: every level over N
 //! layouts, each stall (3 s with under 25 m gained) by where it began, in
 //! 50 m bins, with the time lost; and the finish times.
 //!

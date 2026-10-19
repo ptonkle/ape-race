@@ -160,7 +160,7 @@ pub fn look_of(c: &Course) -> Look {
 /// chamber, and on Rattlesnake Ravine, lit warm in the mine tunnel, teal in
 /// the caves and opening out on the mesa.
 pub fn look_at(c: &Course, eye: V3) -> Look {
-    // (Clean-Up on Aisle Ape's solids are a Ravine layout: its own light
+    // (Aisle Ape's solids are a Ravine layout: its own light
     // first)
     if let Some(g) = &c.grocery {
         return crate::groceryscape::look_at(c, g, eye);
@@ -1560,7 +1560,7 @@ pub fn vine_look_on(map: Map, in_reach: bool, vivid: bool, tick: u32) -> VineLoo
             halo: look.width * crate::ravinescape::VINE_HALO,
             ..look
         },
-        // Clean-Up on Aisle Ape's licorice ropes: sour-apple green on the
+        // Aisle Ape's licorice ropes: sour-apple green on the
         // store's cream (the colourblind mode keeps the shared vivid green)
         (Map::Grocery, false, false) => VineLook {
             colour: crate::groceryscape::VINE,
@@ -1768,11 +1768,12 @@ pub fn dynamic(f: &Frame) -> (Batch, Batch) {
         );
     }
     course_bananas(&mut b, race, f.local, eye, f.tick);
-    // (Clean-Up on Aisle Ape: the shopping list, and the planes that pick
+    // (Aisle Ape: the shopping list, and the planes that pick
     // up a full order, GR-T2, GR-T5)
     if let Some(g) = &race.course.grocery {
         crate::groceryscape::lot::items(&mut b, race, g, f.local, eye, f.tick);
         crate::groceryscape::lot::planes(&mut b, race, f.tick);
+        crate::groceryscape::lot::swats(&mut b, race);
     }
     crate::items::draw(&mut b, race);
     speed_lines(&mut b, f);
@@ -2023,7 +2024,7 @@ pub fn catch_up_colour(map: Map, vivid: bool) -> Rgb {
         // Rattlesnake Ravine: a bright cyan against its pale moss-green
         // vines, the red walls and the night
         (Map::Ravine, false) => rgb(40, 230, 255),
-        // Clean-Up on Aisle Ape: a hot magenta against the green licorice
+        // Aisle Ape: a hot magenta against the green licorice
         // and the store's cream
         (Map::Grocery, false) => crate::groceryscape::CATCH_UP,
         // the colourblind mode (TRIAGE T33): told from the map's vivid

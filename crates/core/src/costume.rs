@@ -36,7 +36,7 @@ pub enum Costume {
     Wizard,
     /// Rattlesnake Ravine's Wild West outfits
     Cowboy,
-    /// Clean-Up on Aisle Ape's store uniforms
+    /// Aisle Ape's store uniforms
     Grocer,
 }
 

@@ -55,7 +55,7 @@ maps-ruins = "Sunset Ruins"
 maps-bay = "Banana Bay Battle"
 maps-tower = "Mape's Tower (the wizard tower)"
 maps-ravine = "Rattlesnake Ravine (the slot canyon)"
-maps-grocery = "Clean-Up on Aisle Ape (the grocery store; its solids are a Ravine layout, so its tests also carry maps-ravine)"
+maps-grocery = "Aisle Ape (the grocery store; its solids are a Ravine layout, so its tests also carry maps-ravine)"
 # a map's art: its scenery and model files. Carried by that map's drawing,
 # scene and scenery tests, not its AI, physics or course tests (a mesh
 # change cannot move a racer). Narrow: it runs a map's test on its own.
@@ -66,7 +66,7 @@ art-ruins = "Sunset Ruins' scenery and models (ruinsscape.rs, ruinsmodels.rs)"
 art-bay = "Banana Bay Battle's scenery and ships (bayscape/, baymodels.rs)"
 art-tower = "Mape's Tower's scenery and models (towerscape/, towermodels/)"
 art-ravine = "Rattlesnake Ravine's art alone (its sky and light: ravinescape's own files)"
-art-grocery = "Clean-Up on Aisle Ape's art alone (groceryscape/, grocerymodels/, models/food.rs)"
+art-grocery = "Aisle Ape's art alone (groceryscape/, grocerymodels/, models/food.rs)"
 
 # A hit tag on the left also hits the tags on the right: a change to the
 # drawing's core can break any drawn thing.

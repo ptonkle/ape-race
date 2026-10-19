@@ -1,4 +1,4 @@
-//! The AI on Clean-Up on Aisle Ape's shopping list (GR-T2, GR-T3): races
+//! The AI on Aisle Ape's shopping list (GR-T2, GR-T3): races
 //! of four AI apes (one at each item spot) by level over several layouts,
 //! each ape's finish time and how many of its four items it took.
 //!

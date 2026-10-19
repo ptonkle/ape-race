@@ -214,7 +214,7 @@ pub struct Course {
     /// Rattlesnake Ravine's solids, built from `ravine` on first use
     /// (`Course::ravine_solids`)
     pub ravine_solids: crate::ravine::SolidsCache,
-    /// Clean-Up on Aisle Ape's fixtures, shoppers, balloons and misters
+    /// Aisle Ape's fixtures, shoppers, balloons and misters
     /// (`grocery.rs`); its solids are `ravine`'s. `None` on the other maps
     pub grocery: Option<Box<crate::grocery::GroceryLayout>>,
 }
@@ -390,7 +390,7 @@ impl Course {
             (Some(s), _) => s.hangs.get(i).copied().unwrap_or(crate::sector::DOWN),
             // (Mape's Tower: the spell sets the beam's way, TW6)
             (None, Some(t)) => t.hangs.get(i).copied().unwrap_or(crate::sector::DOWN),
-            // (Clean-Up on Aisle Ape: the sideways and upward vines, GR-T8)
+            // (Aisle Ape: the sideways and upward vines, GR-T8)
             (None, None) => match &self.grocery {
                 Some(g) => g.hangs.get(i).copied().unwrap_or(crate::sector::DOWN),
                 None => crate::sector::DOWN,

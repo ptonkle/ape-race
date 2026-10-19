@@ -136,8 +136,9 @@ pub(super) fn cue_for(e: &Event, local: usize) -> Option<Cue> {
             crate::race::Reward::Catchup => Cue::Catchup,
             crate::race::Reward::Banana => Cue::Banana,
             crate::race::Reward::Shortcut => Cue::Boost,
-            // (Clean-Up on Aisle Ape: a shopping-list item, GR-T2)
+            // (Aisle Ape: a shopping-list item, GR-T2)
             crate::race::Reward::ListSpeed | crate::race::Reward::ListAir => Cue::Boost,
+            crate::race::Reward::Swatted => Cue::Hit,
         }),
         _ => None,
     }

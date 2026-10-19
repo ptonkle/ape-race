@@ -127,7 +127,7 @@ pub fn worth_to(course: &Course, a: &Ape, v: usize) -> i64 {
 }
 
 impl Race {
-    /// Clean-Up on Aisle Ape after ape `i`'s step: the item it touched or
+    /// Aisle Ape after ape `i`'s step: the item it touched or
     /// caught, if any.
     pub(crate) fn shopping(&mut self, i: usize) {
         let Some(g) = self.course.grocery.as_deref() else {

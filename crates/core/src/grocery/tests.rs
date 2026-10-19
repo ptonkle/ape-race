@@ -1,4 +1,4 @@
-//! Clean-Up on Aisle Ape's store and course (`notes/grocery-pitfalls.md`).
+//! Aisle Ape's store and course (`notes/grocery-pitfalls.md`).
 
 use super::layout::{aisle_x, leg, marks, BACK, FRONT, ROUTE_AISLES};
 use super::*;
@@ -363,4 +363,63 @@ fn a_racer_takes_only_its_own_spot_s_item_once() {
     ]);
     assert_eq!(r.racers[0].ape.swinging(), Some(it.vine));
     assert_eq!(r.racers[0].ape.list, 0b11);
+}
+
+/// A shopper swats an ape that comes within arm's reach of their body
+/// (GR-T10): off its vine, thrown across the route away from them, once
+/// (not again until the cool-down ends); an ape out of reach, or over
+/// their head, is left alone.
+#[test]
+fn a_shopper_swats_an_ape_in_reach_across_the_aisle() {
+    use crate::ape::Controls;
+    use crate::race::{Driver, Entry, Phase, Race};
+    use swat::{SWAT_COOL, SWAT_PUSH, SWAT_REACH};
+    let c = grocery();
+    let g = c.grocery.clone().unwrap();
+    let e = [Entry {
+        name: String::new(),
+        kind: crate::rules::Kind::Gorilla,
+        driver: Driver::Ai,
+        palette: 0,
+        costume: crate::costume::Costume::Own,
+    }];
+    let mut r = Race::new(c, &e, true, 7);
+    r.phase = Phase::Running;
+    let l = g.shoppers[0].lizard;
+    let tick = r.tick + 1;
+    let (feet, _) = r.course.ravine.as_ref().unwrap().lizard_at(l, tick);
+    let (s, _) = r.course.progress(feet, r.course.nearest_anywhere(feet));
+    let across = crate::geom::right_of(r.course.heading_at(s));
+    let put = |r: &mut Race, off: i32, up: i32| {
+        let a = &mut r.racers[0].ape;
+        a.pos = feet.add(across.scale(off)).add(v3(0, up, 0));
+        a.vel = V3::ZERO;
+        a.swat_cool = 0;
+    };
+    // out of reach, and over the head: nothing
+    put(&mut r, SWAT_REACH + int(3), int(8));
+    r.step(&[Controls::default()]);
+    assert_eq!(r.racers[0].ape.swat_cool, 0, "swatted from out of reach");
+    // in reach on the right: thrown right, across the route
+    let mut r2 = r.clone();
+    put(&mut r2, int(4), int(8));
+    r2.step(&[Controls::default()]);
+    let a = &r2.racers[0].ape;
+    assert_eq!(a.swat_cool, SWAT_COOL);
+    assert!(
+        a.vel.dot(across) >= SWAT_PUSH - int(1),
+        "thrown {} vel {:?} across {:?} mode {:?}",
+        a.vel.dot(across) / ONE,
+        a.vel,
+        across,
+        a.mode
+    );
+    // once: still in reach the next tick, not again
+    let v = r2.racers[0].ape.vel;
+    r2.racers[0].ape.vel = V3::ZERO;
+    r2.step(&[Controls::default()]);
+    assert!(
+        r2.racers[0].ape.vel.dot(across) < v.dot(across) / 2,
+        "swatted twice"
+    );
 }

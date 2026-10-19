@@ -1,4 +1,4 @@
-//! Clean-Up on Aisle Ape's course art (step 8): the store drawn from its
+//! Aisle Ape's course art (step 8): the store drawn from its
 //! layout (`GroceryLayout`, and the solids' `RavineLayout`), so what is
 //! drawn is what is solid (MAPS "Common gotchas" 1–2).
 //!
@@ -88,7 +88,7 @@ pub fn at(x: i32, z: i32, y: i32) -> V3 {
     plan(x, z).add(v3(0, y, 0))
 }
 
-/// Clean-Up on Aisle Ape's scenery, chunked by place.
+/// Aisle Ape's scenery, chunked by place.
 pub fn scenery(c: &Course, g: &GroceryLayout) -> Scenery {
     let Some(r) = c.ravine.as_deref() else {
         return Scenery::default();

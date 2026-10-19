@@ -1,4 +1,4 @@
-//! Clean-Up on Aisle Ape's Floor is Lava cat, the gummy jaguar
+//! Aisle Ape's Floor is Lava cat, the gummy jaguar
 //! (`GUMMY_JAGUAR`, GR-Q11): raspberry gummy, glossy (`gummy_cat`). The
 //! map's apes wore food costumes here until GR-T1 put them in the store's
 //! uniforms (`models::grocer`); only the cat is left.

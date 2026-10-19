@@ -1,4 +1,4 @@
-//! Clean-Up on Aisle Ape's store and course (2026-10-18): the floor plan
+//! Aisle Ape's store and course (2026-10-18): the floor plan
 //! in its own metres (`plan`: east `x`, north `z`, the front-left inside
 //! corner at 0), the route through it, and everything the course and the
 //! scene share. The journal's route diagram is drawn from these numbers.
@@ -308,7 +308,7 @@ pub const ITEM_UP: i32 = int(22);
 pub const ITEM_CLEAR: i32 = 40;
 /// An item aisle is closed this far in (a pocket for the item; the others
 /// at their mouths).
-pub const POCKET: i32 = 26;
+pub const POCKET: i32 = 10;
 
 /// The drop ceiling over the frozen aisle (GR-T7): from and to this far
 /// along its leg (`leg::AISLE_B`), its underside `LOW_UNDER` over the
@@ -352,12 +352,12 @@ pub const HAND_OUT: i32 = cm(450);
 /// The hand holding the string, over the floor.
 pub const HAND_UP: i32 = int(19);
 
-/// Clean-Up on Aisle Ape's course, from its fixed seed.
+/// Aisle Ape's course, from its fixed seed.
 pub fn grocery() -> Course {
     grocery_seeded(SEED)
 }
 
-/// Clean-Up on Aisle Ape's course from `seed` (the store is fixed; the
+/// Aisle Ape's course from `seed` (the store is fixed; the
 /// vines' jitter, lanes and bounce bins follow the seed).
 pub fn grocery_seeded(seed: u64) -> Course {
     let mut c = centreline("grocery", LEGS);
@@ -1182,14 +1182,19 @@ pub fn grocery_seeded(seed: u64) -> Course {
         let mouth = plan(mid, z);
         let s = c.progress(mouth, c.nearest_anywhere(mouth)).0;
         let away = c.point(s).sub(mouth).flat().norm();
-        let inside = mouth.sub(away.scale(int(12)));
-        hang(
-            &mut vines,
-            v3(inside.x, CEILING_AT, inside.z),
-            CEILING_AT - int(3),
-            s,
-            0,
-        );
+        // (three across it, each counted where it hangs: an ape fallen
+        // anywhere in the pocket has one near and not far behind it)
+        for dx in [-5, 4, 12] {
+            let inside = plan(mid + int(dx), z).sub(away.scale(int(4)));
+            let at = c.progress(inside, c.nearest_anywhere(inside)).0;
+            hang(
+                &mut vines,
+                v3(inside.x, CEILING_AT, inside.z),
+                CEILING_AT - int(3),
+                at,
+                0,
+            );
+        }
     }
 
     // ---- shoppers: lizards that walk the floor; some hold balloons ----

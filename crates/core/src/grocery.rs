@@ -1,4 +1,4 @@
-//! Clean-Up on Aisle Ape (2026-10-18, `briefs/clean-up-on-aisle-ape.md`):
+//! Aisle Ape (2026-10-18, `briefs/aisle-ape.md`):
 //! food apes race through a supermarket laid out from a Food Lion floor
 //! plan, from the stockroom doors at the back to the exit doors at the
 //! front, down three of its thirteen aisles. Pitfalls every agent checks:
@@ -33,6 +33,7 @@
 
 pub mod layout;
 pub mod list;
+pub mod swat;
 #[cfg(test)]
 mod tests;
 
@@ -295,7 +296,7 @@ pub const PLANE_AFTER: u32 = 120;
 /// ... and is gone this many after that.
 pub const PLANE_TICKS: u32 = 900;
 
-/// Clean-Up on Aisle Ape's own layout: what the store's solids are, and
+/// Aisle Ape's own layout: what the store's solids are, and
 /// the things the Ravine's layout has no word for (see the module's notes).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct GroceryLayout {

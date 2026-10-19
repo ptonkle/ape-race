@@ -1,4 +1,4 @@
-# Brief: Clean-Up on Aisle Ape (the grocery store map)
+# Brief: Aisle Ape (the grocery store map)
 
 Given by the person (Sam) on 2026-10-18, in a workspace that builds maps for Ape Race and offers them upstream as pull requests. Their words are kept exactly below; the answers and notes after them are the integrator's. Read `MAPS.md` first. The design journal for this map (mockups, route plan, scale, decisions) is Sam's, outside this repository.
 
@@ -10,7 +10,7 @@ The floor plan (a Food Lion prototype: angled, bowed aisles; frozen food as two 
 
 ## Defaults built on (the person may change any; GR-Q1 … GR-Q12 in the journal)
 
-- **Name: Clean-Up on Aisle Ape**, map key `grocery`, row prefix `GR`.
+- **Name: Aisle Ape**, map key `grocery`, row prefix `GR`.
 - **No brand in the game:** no store name, logo or mascot; the plan, palette and fixtures follow the photos.
 - **Scale 1:12:** an ape (3.3 m drawn) is a 27 cm snack; shoppers are 20 m, shelves 23 m, the ceiling 52 m. Aisles are widened to 38 m.
 - **Sealed aisles:** top stock to 42 m; a wall's solid reaches 10 m past its drawing (the Ravine's `WALL_ABOVE`), up to the ceiling's roof.

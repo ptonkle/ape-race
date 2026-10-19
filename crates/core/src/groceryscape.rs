@@ -1,4 +1,4 @@
-//! Clean-Up on Aisle Ape's scenery and light (`grocery.rs` is the contract
+//! Aisle Ape's scenery and light (`grocery.rs` is the contract
 //! it draws from, with the store's solids in `Course.ravine`).
 //!
 //! **The light (step 5):** a supermarket at opening time, lit only by its

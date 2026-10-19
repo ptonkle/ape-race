@@ -4,9 +4,9 @@ Stage 9, written by the agent. `C5 Consolidate in your own words`.
 
 A fresh session starts from this file, not from memory.
 
-## Clean-Up on Aisle Ape (2026-10-18, branch `grocery` in Sam's fork, held, not deployed)
+## Aisle Ape (2026-10-18, branch `grocery` in Sam's fork, held, not deployed)
 
-- The map (key `grocery`, brief `briefs/clean-up-on-aisle-ape.md`, progress `notes/grocery-progress.md`, pitfalls `notes/grocery-pitfalls.md`), built in a workspace that offers maps to this repository as pull requests. Its solids are a Ravine layout (`grocery.rs` module notes, SECOND-ORDER GR1); `Map::held` keeps it off the map grid and Random. AI over 16 layouts: King Kong 16/16 (87.0 s), Ape 15/16 (105.7 s), Sloth 11/16 (131.8 s). Medals Author 1:15, Gold 1:22, Silver 1:32, Bronze 1:47. Worst frame 5,379 shapes.
+- The map (key `grocery`, brief `briefs/aisle-ape.md`, progress `notes/grocery-progress.md`, pitfalls `notes/grocery-pitfalls.md`), built in a workspace that offers maps to this repository as pull requests. Its solids are a Ravine layout (`grocery.rs` module notes, SECOND-ORDER GR1); `Map::held` keeps it off the map grid and Random. AI over 16 layouts: King Kong 16/16 (87.0 s), Ape 15/16 (105.7 s), Sloth 11/16 (131.8 s). Medals Author 1:15, Gold 1:22, Silver 1:32, Bronze 1:47. Worst frame 5,379 shapes.
 - For the maintainer: the release (drop `Map::Grocery` from `Map::held`, `VERSION`, a patch note, a `PROTOCOL` bump if wanted, the README intro and catch-up colour lists) is left to you; the patch-note draft is in `notes/grocery-progress.md` step 19.
 
 ## Rattlesnake Ravine (2026-10-17, branch `ravine`, held, not deployed)

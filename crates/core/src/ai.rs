@@ -459,7 +459,7 @@ struct Tuning {
     /// Rattlesnake Ravine: of every hundred snake vines it makes for this
     /// many (it misses the snake); it steers clear of the rest
     snake_slip: u32,
-    /// Clean-Up on Aisle Ape: where among its candidates it puts its own
+    /// Aisle Ape: where among its candidates it puts its own
     /// shopping-list item's string (GR-T2; none: it takes one only when
     /// it comes its way)
     list_at: Option<usize>,
@@ -939,7 +939,7 @@ fn ahead(course: &Course, a: &Ape, from: i32, tick: u32, tune: Tuning) -> Vec<us
         tick,
         tune,
     );
-    // (Clean-Up on Aisle Ape: its shopping list's strings first, GR-T2)
+    // (Aisle Ape: its shopping list's strings first, GR-T2)
     if course.grocery.is_some() {
         crate::grocery::list::for_ai(course, a, from, tune.look, tune.list_at, &mut out);
     }
@@ -2037,7 +2037,7 @@ pub struct Trial {
     pub bananas: u32,
     /// Floor is Lava (TRIAGE T37): the race clock when the jaguar ate it
     pub eaten: Option<u32>,
-    /// Clean-Up on Aisle Ape: the shopping list's items taken, a bit a
+    /// Aisle Ape: the shopping list's items taken, a bit a
     /// zone (GR-T2)
     pub list: u8,
 }

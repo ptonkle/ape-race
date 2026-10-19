@@ -79,7 +79,7 @@ pub enum Gear {
     Wizard,
     /// Rattlesnake Ravine's Wild West outfits (`models::cowboy`)
     Cowboy,
-    /// Clean-Up on Aisle Ape's store uniforms: each kind a job
+    /// Aisle Ape's store uniforms: each kind a job
     /// (`models::grocer`)
     Grocer,
 }
@@ -97,7 +97,7 @@ impl Gear {
             "tourist" => Some(Gear::Tourist),
             "wizard" => Some(Gear::Wizard),
             "cowboy" => Some(Gear::Cowboy),
-            // Clean-Up on Aisle Ape's store uniforms
+            // Aisle Ape's store uniforms
             "grocer" => Some(Gear::Grocer),
             _ => None,
         }
@@ -3187,7 +3187,7 @@ pub struct BigCat {
     /// a spider's abdomen over the haunches (Rattlesnake Ravine's cat,
     /// `models::spider`)
     pub spider: bool,
-    /// a gummy: glossy, lit from inside (Clean-Up on Aisle Ape's cat,
+    /// a gummy: glossy, lit from inside (Aisle Ape's cat,
     /// `models::food`)
     pub gummy: bool,
     /// drawn size, percent of the jaguar's (the flame cat is huge)
@@ -3259,7 +3259,7 @@ pub const SPIDER_JAGUAR: BigCat = BigCat {
     ..JAGUAR
 };
 
-/// Clean-Up on Aisle Ape's big cat (GR-Q11): a gummy jaguar, raspberry
+/// Aisle Ape's big cat (GR-Q11): a gummy jaguar, raspberry
 /// gummy coat, deeper red rosettes, glossy and lit from inside
 /// (`models::food::gummy_cat`).
 pub const GUMMY_JAGUAR: BigCat = BigCat {

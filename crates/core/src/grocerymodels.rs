@@ -1,4 +1,4 @@
-//! Clean-Up on Aisle Ape's models (step 4): the products, the shoppers and
+//! Aisle Ape's models (step 4): the products, the shoppers and
 //! their carts and balloons, and the store's smaller fixtures, as
 //! stand-alone builders taking plain values (a point, a yaw, sizes, a look
 //! number, the tick), in the store's own palette (`groceryscape`).

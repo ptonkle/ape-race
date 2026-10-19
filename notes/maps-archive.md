@@ -167,7 +167,7 @@ Gathered on 2026-10-17 from TRIAGE, SECOND-ORDER, the morning and progress notes
 - **Moving things cost every sim step.** Lizards, carts and decks re-worked every step made the ravine's median step over twice the Tower's, worst 163 ms; a cheap box reject per mover and deck brought it to 188 µs (RP1). Measure with `examples/frame_cost.rs` as soon as moving bouncers land.
 - **Count the sky.** A narrow slot of starry sky still cost 1,028 shapes, which takes the hairpin's worst frame over 5,500 if counted (RP2); cut the dome's stars and haze to fit.
 
-### What Clean-Up on Aisle Ape taught (the grocery store, 2026-10-18, SECOND-ORDER GR rows; built in a fork and offered as a pull request)
+### What Aisle Ape taught (the grocery store, 2026-10-18, SECOND-ORDER GR rows; built in a fork and offered as a pull request)
 
 - **A new map can borrow a finished map's physics.** The store's solids are written as a Ravine layout (walls, one `Arch` room as the ceiling, posts, lizards as walking bouncers), so the Ravine's rules, solids, AI wall checks and camera keeps came free, and only the drawing is new. Cost: every place the scene checks `c.ravine` must check the borrower first, and the store moves if the Ravine is retuned (GR1).
 - **Seal an indoor map under its ceiling.** Real shelves stop short of the ceiling; a wall's solid standing `WALL_ABOVE` over its drawing, drawn to just under the ceiling's roof, seals each aisle, so no ape flies over a shelf into the next one (GR1, `every_aisle_is_sealed_under_the_ceiling`).

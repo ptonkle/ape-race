@@ -442,3 +442,38 @@ pub fn planes(b: &mut Batch, race: &Race, t: u32) {
         let _ = (BODY_DROP, QUARTER);
     }
 }
+
+/// A shopper's swat (GR-T10): for a fifth of a second after it, a white
+/// swoosh of the hand's arc round the ape, on the side the shopper hit from.
+pub fn swats(b: &mut Batch, race: &Race) {
+    use crate::grocery::swat::SWAT_COOL;
+    for r in &race.racers {
+        let a = &r.ape;
+        let since = SWAT_COOL.saturating_sub(a.swat_cool) as i32;
+        if a.swat_cool == 0 || since > 24 {
+            continue;
+        }
+        let flat = a.vel.flat();
+        if !flat.longer_than(ONE) {
+            continue;
+        }
+        // (the hand came from behind the throw: the arc is on that side)
+        let back = flat.norm().neg();
+        let up = v3(0, ONE, 0);
+        let fade = ONE - fx::ratio(since, 24);
+        let at = a.middle();
+        let point = |k: i32| {
+            let ang = fx::deg(-60 + k * 30);
+            at.add(back.scale(mul(int(3), fx::cos(ang))))
+                .add(up.scale(mul(int(3), fx::sin(ang))))
+        };
+        for k in 0..4 {
+            b.push(
+                Mesh::Cyl,
+                &rod(point(k), point(k + 1), mul(cm(40), fade).max(cm(5))),
+                rgb(255, 255, 255),
+                ONE,
+            );
+        }
+    }
+}

@@ -1,4 +1,4 @@
-//! The AI on Clean-Up on Aisle Ape as a Time Trial: King Kong alone, Speed
+//! The AI on Aisle Ape as a Time Trial: King Kong alone, Speed
 //! Boosts only, every kind, against the map's medal times (SECOND-ORDER GR8).
 
 use tool_core::ai::{time_trial, Trial};
@@ -24,7 +24,7 @@ fn every_kind(equal: bool) -> Vec<Trial> {
     runs.into_iter().map(|r| r.join().unwrap()).collect()
 }
 
-/// Clean-Up on Aisle Ape's medal report: every kind and Equal Stats.
+/// Aisle Ape's medal report: every kind and Equal Stats.
 #[test]
 #[ignore]
 fn grocery_time_trial_report() {

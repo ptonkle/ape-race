@@ -50,4 +50,4 @@ Most frequent first. Full text with row ids: archive "Common gotchas, full text"
 14. **The AI's copies pay for everything per tick.** Index solids by place, reject with a cheap box first, count the sky's shapes, measure as soon as moving things land.
 15. **Token burn.** Route first, art last, small time-boxed agents, ranged reads.
 16. **Don't hand off red.** Fix a failing test or record it with the person's say-so.
-17. **No side pockets off the route.** A grounded AI that falls into an open side passage the route does not use can be left with no vine it can see (`walled_off`): close it, or hang a low vine in it (archive "What Clean-Up on Aisle Ape taught").
+17. **No side pockets off the route.** A grounded AI that falls into an open side passage the route does not use can be left with no vine it can see (`walled_off`): close it, or hang a low vine in it (archive "What Aisle Ape taught").

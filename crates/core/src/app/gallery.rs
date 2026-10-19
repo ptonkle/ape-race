@@ -74,7 +74,7 @@ pub struct Gallery {
     /// a Rattlesnake Ravine model instead (`ravinemodels::GALLERY`), drawn
     /// at night
     pub ravine: Option<usize>,
-    /// a Clean-Up on Aisle Ape model instead (`grocerymodels::GALLERY`),
+    /// a Aisle Ape model instead (`grocerymodels::GALLERY`),
     /// drawn under the store's strip lights
     pub grocery: Option<usize>,
     /// `cat`: the map whose big cat it is (`map=ruins`; else Sector Ape's)
