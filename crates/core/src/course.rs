@@ -217,6 +217,9 @@ pub struct Course {
     /// Aisle Ape's fixtures, shoppers, balloons and misters
     /// (`grocery.rs`); its solids are `ravine`'s. `None` on the other maps
     pub grocery: Option<Box<crate::grocery::GroceryLayout>>,
+    /// The Spindle's tube, blocks and spinning rings (`spindle.rs`): the
+    /// course is the tube's floor unrolled. `None` on the other maps
+    pub spindle: Option<Box<crate::spindle::SpindleLayout>>,
 }
 
 /// A straight street of a course with sharp corners (the City). The
@@ -571,6 +574,10 @@ impl Course {
         if let Some(h) = self.ravine.as_deref().and_then(|r| self.ravine_top(r, p)) {
             top = top.max(h);
         }
+        // The Spindle: the tops of its blocks
+        if let Some(h) = self.spindle.as_deref().and_then(|s| s.top_under(p)) {
+            top = top.max(h);
+        }
         // Banana Bay Battle: the finish island's ground and its chest
         if let Some(b) = self.bay.as_deref() {
             let isl = &b.island;
@@ -706,6 +713,9 @@ impl Course {
             (pos, vel, hit) = self.contain_streets(pos, vel);
         } else if self.ski.is_some() {
             (pos, vel, hit) = self.contain_lanes(pos, vel, i, s, side);
+        } else if self.spindle.is_some() {
+            // (The Spindle: no side walls, round the tube is open; its
+            // ceiling and blocks are `spindle::rules`)
         } else if self.ravine.as_deref().is_some_and(|r| !r.walls.is_empty()) {
             // (Rattlesnake Ravine: its canyon walls are the walls, solid
             // where drawn, `ravine::solids`)
@@ -875,6 +885,7 @@ pub(crate) fn centreline(name: &'static str, legs: &[Leg]) -> Course {
         ravine: None,
         ravine_solids: Default::default(),
         grocery: None,
+        spindle: None,
     }
 }
 

@@ -165,6 +165,29 @@ impl Batch {
         }
     }
 
+    /// Gives every shape and halo the placement `f` makes of its placement
+    /// (The Spindle: the flat frame bent onto its tube,
+    /// `spindlescape::bend`).
+    pub fn transform(&mut self, f: impl Fn(Affine) -> Affine + Copy) {
+        for list in &mut self.lists {
+            for s in list.chunks_mut(INSTANCE_VALUES) {
+                let a = f(Affine {
+                    c0: crate::geom::v3(s[0], s[4], s[8]),
+                    c1: crate::geom::v3(s[1], s[5], s[9]),
+                    c2: crate::geom::v3(s[2], s[6], s[10]),
+                    t: crate::geom::v3(s[3], s[7], s[11]),
+                });
+                s[..12].copy_from_slice(&[
+                    a.c0.x, a.c1.x, a.c2.x, a.t.x, a.c0.y, a.c1.y, a.c2.y, a.t.y, a.c0.z, a.c1.z,
+                    a.c2.z, a.t.z,
+                ]);
+            }
+        }
+        if let Some(h) = self.halos.as_deref_mut() {
+            h.transform(f);
+        }
+    }
+
     /// The instance values, and one draw per mesh that has any.
     pub fn finish(self, buffer: u32) -> (Vec<i32>, Vec<u32>) {
         let mut values = Vec::new();
@@ -255,6 +278,12 @@ impl Camera {
     /// `scene::Look.far`).
     pub fn matrix_to(&self, aspect: i32, far: i32) -> Mat4 {
         Mat4::perspective(self.fov, aspect, NEAR, far).mul(&Mat4::look(self.eye, self.fwd, V3::UP))
+    }
+
+    /// The matrix with its far plane at `far` and the screen's up along
+    /// `up` (The Spindle: the camera rolls with the tube's floor).
+    pub fn matrix_up(&self, aspect: i32, far: i32, up: V3) -> Mat4 {
+        Mat4::perspective(self.fov, aspect, NEAR, far).mul(&Mat4::look(self.eye, self.fwd, up))
     }
 
     /// Where a world point lands on screen, in hundredths of the width and

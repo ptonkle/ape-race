@@ -103,6 +103,33 @@ impl App {
             _ => None,
         };
         let mut view = view;
+        // The Spindle: the view bent onto the tube and rolled with the
+        // floor under the eye, the see-through hole round the bent ape (the
+        // frame's shapes are bent below)
+        let spun = self.spindle_shown();
+        let mut hole = hole;
+        if let Some(w) = spun {
+            let (bent, up) = crate::spindlescape::camera(&w, &cam);
+            view = render::view_values(
+                &bent,
+                self.aspect(),
+                look.fog_range,
+                colours,
+                world,
+                mute,
+                (look.light_dir, look.light, look.ground),
+                look.rim,
+                look.far,
+            );
+            view[..16].copy_from_slice(&bent.matrix_up(self.aspect(), look.far, up).0);
+            if let (Some(p), Stage::Race) = (&self.play, self.stage) {
+                let r = &p.race.racers[p.focus.racer];
+                let prev = p.prev.get(p.focus.racer).copied().unwrap_or(r.ape.pos);
+                hole = Some(crate::see::Hole::on(
+                    w.point(prev.lerp(r.ape.pos, self.alpha)),
+                ));
+            }
+        }
         view.extend(crate::see::values(hole));
         let (vines, batch) = match self.stage {
             Stage::Race => match &self.play {
@@ -198,6 +225,10 @@ impl App {
         {
             crate::ruinsmodels::follow_sky(&mut batch, colours.0, colours.1);
         }
+        if let Some(w) = spun {
+            crate::spindlescape::bend(&mut vines, &w);
+            crate::spindlescape::bend(&mut batch, &w);
+        }
         let halos = (vines.take_halos(), batch.take_halos());
         let mut draws = self.scenery().draws_in(cam.eye, look.fog_range.1);
         let mut values = Vec::new();
@@ -211,6 +242,20 @@ impl App {
             draws.extend(h.finish_as(render::DYNAMIC_BUFFER, Some(render::HALO), &mut values));
         }
         (view, values, draws)
+    }
+}
+
+impl App {
+    /// The Spindle's bend, when the shown course is its tube (not the
+    /// lineup, which stands on no course).
+    pub(super) fn spindle_shown(&self) -> Option<crate::spindle::Warp> {
+        match (&self.play, self.stage) {
+            (_, Stage::Lineup) => None,
+            (Some(p), Stage::Race) => p.race.course.spindle.as_deref().map(|s| s.warp),
+            _ => self
+                .course_of(self.shown_map())
+                .and_then(|c| c.spindle.as_deref().map(|s| s.warp)),
+        }
     }
 }
 

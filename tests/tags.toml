@@ -57,6 +57,7 @@ maps-bay = "Banana Bay Battle"
 maps-tower = "the tower map (map.tower in data/strings.json)"
 maps-ravine = "Rattlesnake Ravine (the slot canyon)"
 maps-grocery = "Aisle Ape (the grocery store; its solids are a Ravine layout, so its tests also carry maps-ravine)"
+maps-spindle = "The Spindle (the spinning tube, simulated flat and drawn bent)"
 # a map's art: its scenery and model files. Carried by that map's drawing,
 # scene and scenery tests, not its AI, physics or course tests (a mesh
 # change cannot move a racer). Narrow: it runs a map's test on its own.
@@ -68,6 +69,7 @@ art-bay = "Banana Bay Battle's scenery and ships (bayscape/, baymodels.rs)"
 art-tower = "the tower map's scenery and models (towerscape/, towermodels/)"
 art-ravine = "Rattlesnake Ravine's art alone (its sky and light: ravinescape's own files)"
 art-grocery = "Aisle Ape's art alone (groceryscape/, grocerymodels/, models/food.rs)"
+art-spindle = "The Spindle's art alone (spindlescape/, spindlemodels/)"
 
 # A hit tag on the left also hits the tags on the right: a change to the
 # drawing's core can break any drawn thing.
@@ -230,6 +232,10 @@ tags = ["boundary"]
 "crates/core/src/grocerymodels/**" = ["art-grocery", "scenery"]
 "crates/core/src/groceryscape.rs" = ["art-grocery", "scenery", "sky"]
 "crates/core/src/groceryscape/**" = ["art-grocery", "scenery"]
+"crates/core/src/spindle.rs" = ["maps-spindle"]
+"crates/core/src/spindle/**" = ["maps-spindle"]
+"crates/core/src/spindlescape.rs" = ["art-spindle", "maps-spindle", "scenery", "sky"]
+"crates/core/src/spindlescape/**" = ["art-spindle", "scenery"]
 
 # integration tests: a change to one runs it
 "crates/core/tests/ai.rs" = ["ai", "maps-jungle"]
@@ -257,6 +263,7 @@ tags = ["boundary"]
 "crates/core/examples/**" = []
 "crates/core/examples/ravine_*.rs" = ["maps-ravine"]
 "crates/core/examples/grocery_*.rs" = ["maps-grocery"]
+"crates/core/examples/spindle_*.rs" = ["maps-spindle"]
 
 # data
 "data/strings.json" = ["menus"]
@@ -574,6 +581,8 @@ tags = ["boundary"]
 "lib:grocery::" = ["maps-grocery", "maps-ravine", "physics", "race", "maps-jungle"]
 "lib:grocerymodels::" = ["art-grocery", "scenery"]
 "lib:groceryscape::" = ["art-grocery", "maps-grocery", "scenery", "sky"]
+"lib:spindle::" = ["maps-spindle", "physics", "race"]
+"lib:spindlescape::" = ["art-spindle", "maps-spindle", "scenery", "sky"]
 "lib:rules::" = ["physics", "race"]
 "lib:scene::" = ["render", "maps-city", "maps-jungle", "maps-ski", "lava", "vines", "art-city", "art-ski", "art-sector", "art-ruins", "art-bay", "art-tower"]
 "lib:sector::" = ["maps-sector", "physics"]
@@ -622,6 +631,7 @@ tags = ["boundary"]
 "test:map_checks:start::tower" = ["maps-tower", "art-tower"]
 "test:map_checks:start::ravine" = ["maps-ravine", "art-ravine"]
 "test:map_checks:start::grocery" = ["maps-grocery", "art-grocery", "maps-ravine"]
+"test:map_checks:start::spindle" = ["maps-spindle", "art-spindle"]
 "test:map_checks:finish::jungle" = ["maps-jungle"]
 "test:map_checks:finish::city" = ["maps-city", "maps-jungle"]
 "test:map_checks:finish::ski" = ["maps-ski", "maps-jungle"]
@@ -631,6 +641,7 @@ tags = ["boundary"]
 "test:map_checks:finish::tower" = ["maps-tower", "maps-jungle"]
 "test:map_checks:finish::ravine" = ["maps-ravine", "maps-jungle"]
 "test:map_checks:finish::grocery" = ["maps-grocery", "maps-ravine", "maps-jungle"]
+"test:map_checks:finish::spindle" = ["maps-spindle", "maps-jungle"]
 "test:map_checks:every_map_is_checked" = ["menus"]
 
 # ---------------------------------------------------------------------------
