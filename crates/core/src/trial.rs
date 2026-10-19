@@ -195,6 +195,21 @@ pub const RAVINE: [u32; 4] = [
     secs(RAVINE_AUTHOR),
 ];
 
+/// Clean-Up on Aisle Ape's target times in hundredths of a second.
+/// STAND-IN (the skeleton): the Ravine's, until its time trial (step 11).
+pub const GROCERY_AUTHOR: u32 = 6_500;
+pub const GROCERY_GOLD: u32 = 7_200;
+pub const GROCERY_SILVER: u32 = 8_200;
+pub const GROCERY_BRONZE: u32 = 9_700;
+
+/// Clean-Up on Aisle Ape's target times, in race ticks, slowest first.
+pub const GROCERY: [u32; 4] = [
+    secs(GROCERY_BRONZE),
+    secs(GROCERY_SILVER),
+    secs(GROCERY_GOLD),
+    secs(GROCERY_AUTHOR),
+];
+
 /// A map's target times, in race ticks, slowest first (Bronze, Silver,
 /// Gold, Author).
 pub fn medals(map: Map) -> [u32; 4] {
@@ -207,6 +222,7 @@ pub fn medals(map: Map) -> [u32; 4] {
         Map::Bay => BAY,
         Map::Tower => TOWER,
         Map::Ravine => RAVINE,
+        Map::Grocery => GROCERY,
     }
 }
 

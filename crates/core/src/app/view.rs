@@ -170,7 +170,9 @@ impl App {
                 }
                 // Rattlesnake Ravine's night: its dome, stars, Milky Way,
                 // moon and the glows' pools of light
-                if let Some(r) = &c.ravine {
+                // (Clean-Up on Aisle Ape's solids are a Ravine layout, but
+                // it is indoors: no night sky)
+                if let (Some(r), None) = (&c.ravine, &c.grocery) {
                     let mut own = Batch::new();
                     crate::ravinescape::dynamic(&mut own, c, r, cam.eye, self.ticks);
                     crate::bayscape::follow(

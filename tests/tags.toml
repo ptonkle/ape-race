@@ -55,6 +55,7 @@ maps-ruins = "Sunset Ruins"
 maps-bay = "Banana Bay Battle"
 maps-tower = "Mape's Tower (the wizard tower)"
 maps-ravine = "Rattlesnake Ravine (the slot canyon)"
+maps-grocery = "Clean-Up on Aisle Ape (the grocery store; its solids are a Ravine layout, so its tests also carry maps-ravine)"
 # a map's art: its scenery and model files. Carried by that map's drawing,
 # scene and scenery tests, not its AI, physics or course tests (a mesh
 # change cannot move a racer). Narrow: it runs a map's test on its own.
@@ -65,6 +66,7 @@ art-ruins = "Sunset Ruins' scenery and models (ruinsscape.rs, ruinsmodels.rs)"
 art-bay = "Banana Bay Battle's scenery and ships (bayscape/, baymodels.rs)"
 art-tower = "Mape's Tower's scenery and models (towerscape/, towermodels/)"
 art-ravine = "Rattlesnake Ravine's art alone (its sky and light: ravinescape's own files)"
+art-grocery = "Clean-Up on Aisle Ape's art alone (groceryscape/, grocerymodels/, models/food.rs)"
 
 # A hit tag on the left also hits the tags on the right: a change to the
 # drawing's core can break any drawn thing.
@@ -215,6 +217,12 @@ tags = ["boundary"]
 "crates/core/src/ravinemodels/**" = ["maps-ravine", "scenery"]
 "crates/core/src/ravinescape.rs" = ["maps-ravine", "scenery", "sky"]
 "crates/core/src/ravinescape/**" = ["art-ravine"]
+"crates/core/src/grocery.rs" = ["maps-grocery"]
+"crates/core/src/grocery/**" = ["maps-grocery"]
+"crates/core/src/grocerymodels.rs" = ["art-grocery", "scenery"]
+"crates/core/src/grocerymodels/**" = ["art-grocery", "scenery"]
+"crates/core/src/groceryscape.rs" = ["art-grocery", "scenery", "sky"]
+"crates/core/src/groceryscape/**" = ["art-grocery", "scenery"]
 
 # integration tests: a change to one runs it
 "crates/core/tests/ai.rs" = ["ai", "maps-jungle"]
@@ -240,6 +248,7 @@ tags = ["boundary"]
 # tools: clippy (always run) compiles them; no test runs them
 "crates/core/examples/**" = []
 "crates/core/examples/ravine_*.rs" = ["maps-ravine"]
+"crates/core/examples/grocery_*.rs" = ["maps-grocery"]
 
 # data
 "data/strings.json" = ["menus"]
@@ -539,6 +548,7 @@ tags = ["boundary"]
 "lib:ravinescape::course::tests::the_canyon_mouths_steps" = ["art-ravine"]
 "lib:ravinescape::course::tests::a_wall_lizard_glows" = ["art-ravine"]
 "lib:ravinescape::lobby::" = ["art-ravine"]
+"lib:grocery::" = ["maps-grocery", "maps-ravine", "physics", "race", "maps-jungle"]
 "lib:rules::" = ["physics", "race"]
 "lib:scene::" = ["render", "maps-city", "maps-jungle", "maps-ski", "lava", "vines", "art-city", "art-ski", "art-sector", "art-ruins", "art-bay", "art-tower"]
 "lib:sector::" = ["maps-sector", "physics"]
@@ -583,6 +593,7 @@ tags = ["boundary"]
 "test:map_checks:start::bay" = ["maps-bay", "art-bay"]
 "test:map_checks:start::tower" = ["maps-tower", "art-tower"]
 "test:map_checks:start::ravine" = ["maps-ravine", "art-ravine"]
+"test:map_checks:start::grocery" = ["maps-grocery", "art-grocery", "maps-ravine"]
 "test:map_checks:finish::jungle" = ["maps-jungle"]
 "test:map_checks:finish::city" = ["maps-city", "maps-jungle"]
 "test:map_checks:finish::ski" = ["maps-ski", "maps-jungle"]
@@ -591,6 +602,7 @@ tags = ["boundary"]
 "test:map_checks:finish::bay" = ["maps-bay", "maps-jungle"]
 "test:map_checks:finish::tower" = ["maps-tower", "maps-jungle"]
 "test:map_checks:finish::ravine" = ["maps-ravine", "maps-jungle"]
+"test:map_checks:finish::grocery" = ["maps-grocery", "maps-ravine", "maps-jungle"]
 "test:map_checks:every_map_is_checked" = ["menus"]
 
 # ---------------------------------------------------------------------------
