@@ -320,6 +320,11 @@ tags = ["boundary"]
 # A map's art feeds its logic in a few named places: those keep the map's
 # tag (and the weather looks keep weather). Everything else in an art file
 # is drawing (art-<map>, scenery).
+[functions."crates/core/src/map.rs"]
+# which maps the map choice and Random offer (a map put on or off hold at
+# its release): the menus, the setup and the online lobby, not every course
+'^(held|offered|random)$' = ["menus", "setup", "online"]
+
 [functions."crates/core/src/spacecraft.rs"]
 '^(pose|tumble|halves|wreck_halves|clamp_gap|wreck_passage|joint|mech_pose|mech_frame|mech_anchors|mech_anchor|Passage|MechKind|Gait|Mech|MechAnchors|MechPose|RECESS|WRECK_GAP|MECH_HEIGHT|BREAK|PASSAGE_Z|HULL_W|HULL_H|MOTHERSHIP_LENGTH)$' = ["maps-sector", "art-sector", "scenery"]
 
