@@ -129,20 +129,14 @@ impl App {
               "value": self.settings.ai_level.key(), "options": levels }),
             );
         }
-        items.push(
-            json!({ "type": "toggle", "id": "setup.equal", "label": self.t("setup.equal"),
-          "value": self.settings.equal_stats }),
-        );
-        if !self.trial {
-            // a series of races for points (TRIAGE T103)
-            items.extend(self.tour_items(
+        if self.trial {
+            items.push(self.equal_toggle("setup.equal", self.settings.equal_stats));
+        } else {
+            items.extend(self.race_rules(
                 "setup",
-                self.settings.tournament,
-                self.settings.tour_races,
-                true,
+                self.settings.equal_stats,
+                Some((self.settings.tournament, self.settings.tour_races)),
             ));
-            items.push(self.lava_toggle("setup.lava"));
-            items.extend(self.item_toggles());
         }
         items.push(self.button("menu.start"));
         if self.best_replay().is_some() {
@@ -185,6 +179,30 @@ impl App {
 
     /// The Floor is Lava checkbox (TRIAGE T37), on the setup (`setup.lava`)
     /// or the host's lobby (`lobby.lava`).
+    /// The race's rules, in one order on Race Setup and in the host's lobby:
+    /// Equal Stats, the tournament (`tour`: on and its race count; None
+    /// while one is under way), Floor is Lava, the items. `prefix` is
+    /// "setup" or "lobby".
+    pub(crate) fn race_rules(
+        &self,
+        prefix: &str,
+        equal: bool,
+        tour: Option<(bool, u8)>,
+    ) -> Vec<Value> {
+        let mut out = vec![self.equal_toggle(&format!("{prefix}.equal"), equal)];
+        if let Some((on, races)) = tour {
+            // a series of races for points (TRIAGE T103)
+            out.extend(self.tour_items(prefix, on, races, true));
+        }
+        out.push(self.lava_toggle(&format!("{prefix}.lava")));
+        out.extend(self.item_toggles());
+        out
+    }
+
+    pub(crate) fn equal_toggle(&self, id: &str, value: bool) -> Value {
+        json!({ "type": "toggle", "id": id, "label": self.t("setup.equal"), "value": value })
+    }
+
     pub(crate) fn lava_toggle(&self, id: &str) -> Value {
         json!({ "type": "toggle", "id": id, "label": self.t("setup.lava"),
           "value": self.settings.lava })

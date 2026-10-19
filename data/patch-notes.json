@@ -1,5 +1,12 @@
 [
   {
+    "version": "1.18.1",
+    "date": "2026-10-19",
+    "notes": [
+      "Tournament settings sit in the same place on Race Setup and in the online lobby."
+    ]
+  },
+  {
     "version": "1.18.0",
     "date": "2026-10-18",
     "notes": [

@@ -740,12 +740,11 @@ impl App {
                 json!({ "type": "select", "id": "lobby.ai", "label": self.t("online.ai_count"),
                               "value": view.ai_count.to_string(), "options": options }),
             );
-            mine.push(
-                json!({ "type": "toggle", "id": "lobby.equal", "label": self.t("setup.equal"),
-                              "value": view.equal_stats }),
-            );
-            mine.push(self.lava_toggle("lobby.lava"));
-            mine.extend(self.item_toggles());
+            let tour = o
+                .tour()
+                .is_none()
+                .then_some((view.tour_races > 0, self.settings.tour_races));
+            mine.extend(self.race_rules("lobby", view.equal_stats, tour));
             match o.tour() {
                 // T103: the races so far; then Next race, or after the
                 // last, back to an ordinary lobby
@@ -762,12 +761,6 @@ impl App {
                     mine.push(end);
                 }
                 None => {
-                    mine.extend(self.tour_items(
-                        "lobby",
-                        view.tour_races > 0,
-                        self.settings.tour_races,
-                        true,
-                    ));
                     let mut start = self.button("lobby.start");
                     start["disabled"] = json!(!view.can_start);
                     mine.push(start);
@@ -781,11 +774,12 @@ impl App {
             );
             mine.push(json!({ "type": "list", "rows": [[self.t("setup.equal"),
                 self.t(if view.equal_stats { "on" } else { "off" })]] }));
-            mine.push(json!({ "type": "list", "rows": [[self.t("setup.lava"),
-                self.t(if view.lava { "on" } else { "off" })]] }));
+            // the same order as the host's race_rules
             if o.tour().is_none() {
                 mine.extend(self.tour_items("lobby", view.tour_races > 0, view.tour_races, false));
             }
+            mine.push(json!({ "type": "list", "rows": [[self.t("setup.lava"),
+                self.t(if view.lava { "on" } else { "off" })]] }));
             let mut ready = self.button("lobby.ready");
             ready["text"] = json!(self.t(if view.ready {
                 "online.cancel_ready"
