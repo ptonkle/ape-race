@@ -79,6 +79,10 @@ td.fail { color: var(--vine); }
 .chips button[aria-pressed="true"] { background: var(--fg); color: var(--bg); border-color: var(--fg); }
 .chips button[aria-pressed="true"] span { color: var(--bg); opacity: .75; }
 button:focus-visible, a:focus-visible, summary:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+/* the tags beside what they slice, the result kept in view while scrolling the tags */
+.slicer { display: grid; grid-template-columns: minmax(300px, 420px) minmax(0, 1fr); gap: 20px; align-items: start; }
+.slicer .slice { position: sticky; top: 16px; max-height: calc(100vh - 32px); overflow: auto; }
+.slicer .chips { align-content: start; }
 .slice { display: grid; gap: 14px; background: var(--bg); border: 1px solid var(--line); border-radius: 5px; padding: 16px; min-width: 0; }
 .slice h4 { margin: 0; font-family: var(--display); font-size: 20px; }
 .slice p { margin: 0; color: var(--muted); max-width: 90ch; }
@@ -91,6 +95,9 @@ button:focus-visible, a:focus-visible, summary:focus-visible { outline: 3px soli
 .slice li { display: flex; justify-content: space-between; gap: 12px; min-width: 0; }
 .slice li code { overflow-wrap: anywhere; }
 .slice li span { color: var(--muted); flex: none; }
+/* a run's date and version stay on one line; its times wrap instead */
+.slice .runs li code { white-space: nowrap; flex: none; }
+.slice .runs li span { flex: 1 1 auto; min-width: 0; text-align: right; }
 .none { color: var(--muted); font-family: var(--mono); font-size: 13px; }
 .share { height: 8px; background: var(--line); border-radius: 3px; overflow: hidden; max-width: 600px; }
 .share i { display: block; height: 100%; background: var(--accent); }
@@ -121,7 +128,7 @@ SLICER_JS = r"""
       '<div><h5>Browser steps</h5>' + list(t.browser.map(s => li(esc(s))), 'None') +
       '<h5 style="margin-top:10px">Files tagged</h5>' + list(t.files.slice(0, 14).map(f => li(esc(f)))
         .concat(more(t.files, 14, '')), 'None directly') + '</div>' +
-      '<div><h5>Quick-check runs that hit it, newest first</h5>' + list(runs.slice(0, 20).map(r => li(esc(r.when.slice(5)) + ' v' + esc(r.ver),
+      '<div class="runs"><h5>Quick-check runs that hit it, newest first</h5>' + list(runs.slice(0, 20).map(r => li(esc(r.when.slice(5)) + ' v' + esc(r.ver),
         'core ' + r.core.toFixed(1) + ' s' + (r.browser ? ' · browser ' + r.browser.toFixed(0) + ' s' : '') + ' · ' + esc(r.result.toLowerCase()))), 'No quick run hit it yet') + '</div>' +
       '</div>';
     try { localStorage.setItem('tag-slice', name); } catch (e) {}
@@ -312,13 +319,13 @@ def quick_panel(dash, runs):
           </table></div>
           <p class="lede" style="margin-top:8px">Files in <code>crates/core/src/</code>. Not counting the {lc["baseline"]} boundary tests every check runs. A file that holds only tests runs just its own. * Tagged function by function: the number is for a line outside those functions, so most edits there run far fewer.</p>
         </div>
-        <div>
-          <h3>Slice by tag</h3>
-          <p class="lede" style="margin-bottom:10px">Pick a tag to see how many tests carry it, which browser steps it runs, which files it is attached to, and the quick-check runs that hit it.</p>
-          <div class="chips" id="tag-chips" role="group" aria-label="Tags"></div>
-        </div>
       </div>
-      <div class="slice" id="tag-slice" aria-live="polite"></div>
+      <h3>Slice by tag</h3>
+      <p class="lede" style="margin-bottom:10px">Pick a tag to see how many tests carry it, which browser steps it runs, which files it is attached to, and the quick-check runs that hit it.</p>
+      <div class="slicer">
+        <div class="chips" id="tag-chips" role="group" aria-label="Tags"></div>
+        <div class="slice" id="tag-slice" aria-live="polite"></div>
+      </div>
     </section>
 <script type="application/json" id="tagdata">{safe}</script>"""
 
