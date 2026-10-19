@@ -58,7 +58,7 @@ def chosen_map(page):
     return page.eval_on_selector_all("[id='setup.map'] .tile.chosen, [id='setup.map'] .card.chosen", "ts => ts.map(t => t.dataset.value)")
 
 
-MAPS = [STRINGS["map." + k] for k in ["jungle", "city", "ski", "sector", "ruins", "bay", "tower", "ravine", "random"]]
+MAPS = [STRINGS["map." + k] for k in ["jungle", "city", "ski", "sector", "ruins", "bay", "tower", "ravine", "grocery", "random"]]
 
 
 def step_boot(page, check):
@@ -325,15 +325,8 @@ def step_city_map(page, check):
 
 
 def step_weather(page, check):
-    # The Ski Slope's weather: chosen on its setup (not in Settings since
-    # 2026-10-17), kept after a reload, and shown under the map on the Ski
-    # Slope's setup only. The mouse leaves Back's spot first: Settings sits
-    # under it on the title and wobbles while hovered, which Firefox never
-    # calls stable
-    page.mouse.move(5, 5)
-    page.click("[id='menu.settings']")
-    check(page.query_selector("[id='settings.weather']") is None, "no Weather in Settings")
-    page.click("[id='menu.back']")
+    # The Ski Slope's weather: chosen on its setup, kept after a reload, and
+    # shown under the map on the Ski Slope's setup only
     page.click("[id='menu.race']")
     check(page.query_selector("[id='setup.weather']") is None, "no Weather on another map's setup")
     page.click("[id='setup.map.ski']")

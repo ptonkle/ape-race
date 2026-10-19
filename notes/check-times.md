@@ -61,3 +61,6 @@ One row per run of `scripts/timed-checks.sh`, newest last. Seconds per step; `lo
 | 2026-10-17 15:45 | 1.15.0 | 3ab9c3c | ~8-40 | rerun of browser + online after the load timeout (chromium+firefox+webkit) | browser, online | - | pass |
 | 2026-10-17 15:58 | 1.15.0 | 702e712 | 0.88 | quick (; tags ) | format=0.7 lint=6.3 list=0.1 core=55.9 release=0.3 WebAssembly=0.1 browser=30.8 online-transport=6.5 online-race=15.9 | 116.6 | pass |
 | 2026-10-17 19:02 | 1.15.0 | 14a0586 | 0.32 | quick (chromium; tags all, art-ravine, art-ruins, art-sector, art-ski, boundary, camera, items, maps-ravine, maps-ruins, menus, online, page, race, replay, scenery) | format=0.7 lint=3.1 list=0.1 core=50.1 release=7.1 WebAssembly=0.1 browser=23.0 online-transport=5.9 online-race=15.8 | 105.9 | pass |
+| 2026-10-18 20:30 | 1.15.0 | 214aa06 | 0.00 | check (chromium+firefox+webkit) | format=1.1 lint=7.1 core=85.3 test=0.9 release=8.3 WebAssembly=0.1 browser=103.1 | 206.0 | pass |
+| 2026-10-18 20:33 | 1.15.0 | 214aa06 | 11.33 | online (chromium+firefox+webkit) | release=0.3 transport=18.5 a=56.8 | 75.7 | pass |
+| 2026-10-18 20:37 | 1.16.0 | 214aa06+ | 2.71 | quick (chromium; tags all, boundary, notes, page) | format=0.8 lint=3.0 list=17.8 core=53.1 release=8.3 WebAssembly=0.1 browser=24.5 online-transport=7.0 online-race=15.9 | 112.5 | pass |

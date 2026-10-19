@@ -22,7 +22,7 @@ The standard map-build steps (MAPS.md "Build steps"), one row each. Status is on
 | 16 | Other maps unchanged | Done | the three unchanged-race tests pass in the full check |
 | 17 | Docs | Done | README (How to Play row, held; code table), maps-archive lesson, MAPS gotcha 17, HANDOFF; TRIAGE row added before the PR |
 | 18 | Full checks | Done (first pass, GR9); rerun before the PRs | HANDOFF |
-| 19 | Deploy | Waiting on Peter | held. At release: drop `Map::Grocery` from `Map::held`, bump `VERSION`, add the patch note, the README intro and catch-up lists. Patch-note draft: "New map: Aisle Ape. Race the store's staff through a supermarket: down the cereal aisle, under the frozen aisle's drop ceiling and over the ice, down the snacks, round the misting produce and out of the doors into the parking lot. Swing from licorice ropes and shoppers' balloons, dodge their swats, and grab the four items on your shopping list for speed and air control; finish with all four and a plane picks up your order." |
+| 19 | Deploy | Done | released in 1.16.0 (2026-10-18): off hold, patch note "New map: Aisle Ape.", README nine maps and catch-up list |
 
 ## This map's features
 

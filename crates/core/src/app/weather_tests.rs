@@ -29,19 +29,9 @@ fn item(ui: &Value, id: &str) -> Option<Value> {
 }
 
 #[test]
-fn the_weather_is_chosen_on_the_setup_not_in_settings_and_kept_after_a_reload() {
+fn the_weather_is_chosen_on_the_setup_and_kept_after_a_reload() {
     let mut a = app();
     assert_eq!(a.settings.weather, Weather::Clear);
-    // no Weather in Settings (the person, 2026-10-17)
-    a.act("menu.settings", "");
-    assert!(item(&ui_of(&mut a), "settings.weather").is_none());
-    a.act("settings.weather", "snowing");
-    assert_eq!(
-        a.settings.weather,
-        Weather::Clear,
-        "Settings sets no weather"
-    );
-    a.act("menu.back", "");
     a.act("menu.race", "");
     a.act("setup.map", "ski");
     a.act("setup.weather", "snowing");

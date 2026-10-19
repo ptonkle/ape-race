@@ -81,10 +81,7 @@ fn race_setup_and_time_trial_offer_every_map_as_a_grid_of_pictures() {
         let mut keys: Vec<&str> = Map::offered().map(|m| m.key()).collect();
         keys.push("random");
         assert_eq!(all, keys, "every offered map, then Random (TRIAGE T64)");
-        assert!(
-            all.iter().any(|k| k == "ravine"),
-            "Rattlesnake Ravine is offered"
-        );
+        assert!(all.iter().any(|k| k == "grocery"), "Aisle Ape is offered");
         assert_eq!(chosen, ["jungle"]);
         for (o, m) in grid["options"]
             .as_array()

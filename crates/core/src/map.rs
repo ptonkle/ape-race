@@ -80,10 +80,11 @@ impl Map {
     /// is still in `ALL`: it builds, has its caches, and is reached by its
     /// key (settings, replays, online, the tests).
     pub fn held(self) -> bool {
-        // Rattlesnake Ravine was held until its real course and art
-        // landed (SECOND-ORDER RV1), released in 1.15.0; Aisle Ape is held
-        // until Peter releases it
-        self == Map::Grocery
+        // none now: Rattlesnake Ravine was held until its real course and
+        // art landed (SECOND-ORDER RV1), released in 1.15.0; Aisle Ape
+        // released in 1.16.0
+        let _ = self;
+        false
     }
 
     /// The maps offered on the map choice and picked by Random: `ALL`

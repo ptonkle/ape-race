@@ -14,9 +14,13 @@ fn store() -> (Course, Solids) {
 }
 
 #[test]
-fn the_grocery_is_held_from_the_map_choice_and_random() {
-    assert!(Map::Grocery.held());
-    assert!(Map::offered().all(|m| m != Map::Grocery));
+fn the_grocery_is_on_the_map_choice_and_in_random() {
+    assert!(!Map::Grocery.held());
+    assert!(Map::offered().any(|m| m == Map::Grocery));
+    assert!(
+        (0..500u64).any(|seed| Map::random(seed, Map::Jungle) == Map::Grocery),
+        "Random never picks Aisle Ape"
+    );
     assert_eq!(Map::from_key("grocery"), Some(Map::Grocery));
     assert_eq!(Map::Grocery.course().name, "grocery");
 }
