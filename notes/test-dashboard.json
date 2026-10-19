@@ -49,7 +49,7 @@
     "browser": 1,
     "file": "jaguar.rs",
     "split": true,
-    "tests": 103,
+    "tests": 116,
     "what": "Floor is Lava jaguar"
    },
    {
@@ -63,7 +63,7 @@
     "browser": 1,
     "file": "models/tourist.rs",
     "split": false,
-    "tests": 33,
+    "tests": 41,
     "what": "City outfits"
    },
    {
@@ -84,14 +84,14 @@
     "browser": 11,
     "file": "map.rs",
     "split": true,
-    "tests": 830,
+    "tests": 866,
     "what": "the list of maps"
    },
    {
     "browser": 3,
     "file": "course.rs",
     "split": false,
-    "tests": 109,
+    "tests": 110,
     "what": "Jungle course"
    },
    {
@@ -147,7 +147,7 @@
     "browser": 0,
     "file": "grocery.rs",
     "split": false,
-    "tests": 18,
+    "tests": 23,
     "what": "Aisle Ape course"
    }
   ]
@@ -360,7 +360,7 @@
   },
   "art-grocery": {
    "browser": [],
-   "desc": "Aisle Ape's art alone (groceryscape/, grocerymodels/, models/food.rs)",
+   "desc": "Aisle Ape's art alone (groceryscape/, grocerymodels/, models/food.rs, models/errands.rs)",
    "files": [
     "crates/core/src/grocerymodels.rs",
     "crates/core/src/grocerymodels/catalogue.rs",
@@ -380,6 +380,7 @@
     "crates/core/src/groceryscape/shelves.rs",
     "crates/core/src/groceryscape/tests.rs",
     "crates/core/src/groceryscape/walls.rs",
+    "crates/core/src/models/errands.rs",
     "crates/core/src/models/food.rs",
     "crates/core/src/models/grocer.rs"
    ],
@@ -544,6 +545,32 @@
     ]
    ],
    "tests": 25
+  },
+  "art-spindle": {
+   "browser": [],
+   "desc": "The Spindle's art alone (spindlescape/, spindlemodels/, models/mech.rs)",
+   "files": [
+    "crates/core/src/models/mech.rs",
+    "crates/core/src/spindlescape.rs",
+    "crates/core/src/spindlescape/lobby.rs",
+    "crates/core/src/spindlescape/space.rs",
+    "crates/core/src/spindlescape/tests.rs"
+   ],
+   "modules": [
+    [
+     "models::mech::tests",
+     8
+    ],
+    [
+     "spindlescape::tests",
+     4
+    ],
+    [
+     "tests/map_checks.rs",
+     1
+    ]
+   ],
+   "tests": 13
   },
   "art-tower": {
    "browser": [],
@@ -713,6 +740,7 @@
    "files": [
     "crates/core/src/app/costume_tests.rs",
     "crates/core/src/app/costumes.rs",
+    "crates/core/src/app/errands_tests.rs",
     "crates/core/src/app/look_tests.rs",
     "crates/core/src/costume.rs"
    ],
@@ -726,11 +754,23 @@
      15
     ],
     [
+     "models::mech::tests",
+     8
+    ],
+    [
      "app::costume_tests",
      7
     ],
     [
+     "app::errands_tests",
+     5
+    ],
+    [
      "app::look_tests",
+     5
+    ],
+    [
+     "models::errands::tests",
      5
     ],
     [
@@ -770,7 +810,7 @@
      1
     ]
    ],
-   "tests": 80
+   "tests": 98
   },
   "dock": {
    "browser": [
@@ -825,8 +865,10 @@
    "desc": "outfit meshes: each map's gear and the costumes' clothes (tourist, wizard, explorer, pirate, space, ski)",
    "files": [
     "crates/core/src/models/cowboy.rs",
+    "crates/core/src/models/errands.rs",
     "crates/core/src/models/food.rs",
     "crates/core/src/models/grocer.rs",
+    "crates/core/src/models/mech.rs",
     "crates/core/src/models/tourist.rs",
     "crates/core/src/models/wizard.rs"
    ],
@@ -834,6 +876,10 @@
     [
      "models::tests",
      16
+    ],
+    [
+     "models::mech::tests",
+     8
     ],
     [
      "models::grocer::tests",
@@ -868,7 +914,7 @@
      1
     ]
    ],
-   "tests": 33
+   "tests": 41
   },
   "hud": {
    "browser": [
@@ -1255,6 +1301,7 @@
     "crates/core/examples/grocery_report.rs",
     "crates/core/examples/grocery_stalls.rs",
     "crates/core/examples/grocery_trace.rs",
+    "crates/core/src/app/errands_tests.rs",
     "crates/core/src/grocery.rs",
     "crates/core/src/grocery/layout.rs",
     "crates/core/src/grocery/list.rs",
@@ -1266,6 +1313,10 @@
     [
      "grocery::tests",
      13
+    ],
+    [
+     "app::errands_tests",
+     5
     ],
     [
      "tests/grocery_ai.rs",
@@ -1280,7 +1331,7 @@
      1
     ]
    ],
-   "tests": 18
+   "tests": 23
   },
   "maps-jungle": {
    "browser": [
@@ -1319,7 +1370,7 @@
     ],
     [
      "tests/map_checks.rs",
-     10
+     11
     ],
     [
      "tests/ai.rs",
@@ -1342,7 +1393,7 @@
      1
     ]
    ],
-   "tests": 109
+   "tests": 110
   },
   "maps-ravine": {
    "browser": [],
@@ -1600,6 +1651,38 @@
    ],
    "tests": 66
   },
+  "maps-spindle": {
+   "browser": [],
+   "desc": "The Spindle (the spinning tube, simulated flat and drawn bent)",
+   "files": [
+    "crates/core/examples/spindle_stalls.rs",
+    "crates/core/src/spindle.rs",
+    "crates/core/src/spindle/layout.rs",
+    "crates/core/src/spindle/rules.rs",
+    "crates/core/src/spindle/tests.rs",
+    "crates/core/src/spindlescape.rs",
+    "crates/core/tests/spindle_ai.rs"
+   ],
+   "modules": [
+    [
+     "spindle::tests",
+     10
+    ],
+    [
+     "spindlescape::tests",
+     4
+    ],
+    [
+     "tests/map_checks.rs",
+     2
+    ],
+    [
+     "tests/spindle_ai.rs",
+     2
+    ]
+   ],
+   "tests": 18
+  },
   "maps-tower": {
    "browser": [],
    "desc": "the tower map (map.tower in data/strings.json)",
@@ -1699,6 +1782,10 @@
      5
     ],
     [
+     "app::errands_tests",
+     5
+    ],
+    [
      "tests/sector_ai.rs",
      5
     ],
@@ -1727,11 +1814,15 @@
      2
     ],
     [
+     "tests/spindle_ai.rs",
+     2
+    ],
+    [
      "app::trial_tests",
      1
     ]
    ],
-   "tests": 71
+   "tests": 78
   },
   "menus": {
    "browser": [
@@ -1763,6 +1854,7 @@
     "data/maps/ruins.webp",
     "data/maps/sector.webp",
     "data/maps/ski.webp",
+    "data/maps/spindle.webp",
     "data/maps/tower.webp",
     "data/strings.json"
    ],
@@ -1786,6 +1878,10 @@
     [
      "app::menu_dock::tests",
      6
+    ],
+    [
+     "app::errands_tests",
+     5
     ],
     [
      "app::lava_tests",
@@ -1860,7 +1956,7 @@
      1
     ]
    ],
-   "tests": 95
+   "tests": 100
   },
   "models": {
    "browser": [
@@ -1881,7 +1977,15 @@
      35
     ],
     [
+     "models::mech::tests",
+     8
+    ],
+    [
      "app::look_tests",
+     5
+    ],
+    [
+     "models::errands::tests",
      5
     ],
     [
@@ -1937,7 +2041,7 @@
      1
     ]
    ],
-   "tests": 66
+   "tests": 79
   },
   "notes": {
    "browser": [
@@ -1999,11 +2103,15 @@
      6
     ],
     [
+     "app::errands_tests",
+     5
+    ],
+    [
      "online::tests",
      3
     ]
    ],
-   "tests": 63
+   "tests": 68
   },
   "page": {
    "browser": [
@@ -2090,6 +2198,10 @@
      11
     ],
     [
+     "spindle::tests",
+     10
+    ],
+    [
      "tests/ai.rs",
      9
     ],
@@ -2162,7 +2274,7 @@
      1
     ]
    ],
-   "tests": 292
+   "tests": 302
   },
   "race": {
    "browser": [
@@ -2212,6 +2324,10 @@
     [
      "race::tests",
      11
+    ],
+    [
+     "spindle::tests",
+     10
     ],
     [
      "app::items_hype_tests",
@@ -2334,7 +2450,7 @@
      1
     ]
    ],
-   "tests": 274
+   "tests": 284
   },
   "render": {
    "browser": [
@@ -2489,6 +2605,10 @@
      5
     ],
     [
+     "app::errands_tests",
+     5
+    ],
+    [
      "app::lava_tests",
      5
     ],
@@ -2521,7 +2641,7 @@
      1
     ]
    ],
-   "tests": 51
+   "tests": 56
   },
   "scenery": {
    "browser": [
@@ -2570,6 +2690,10 @@
     "crates/core/src/sectorscape.rs",
     "crates/core/src/skiscape.rs",
     "crates/core/src/spacecraft.rs",
+    "crates/core/src/spindlescape.rs",
+    "crates/core/src/spindlescape/lobby.rs",
+    "crates/core/src/spindlescape/space.rs",
+    "crates/core/src/spindlescape/tests.rs",
     "crates/core/src/towermodels.rs",
     "crates/core/src/towermodels/creatures.rs",
     "crates/core/src/towermodels/deep.rs",
@@ -2641,6 +2765,10 @@
      5
     ],
     [
+     "spindlescape::tests",
+     4
+    ],
+    [
      "towerscape::art::tests",
      4
     ],
@@ -2689,7 +2817,7 @@
      1
     ]
    ],
-   "tests": 132
+   "tests": 136
   },
   "settings": {
    "browser": [
@@ -2756,6 +2884,10 @@
      6
     ],
     [
+     "app::errands_tests",
+     5
+    ],
+    [
      "app::lava_tests",
      5
     ],
@@ -2796,7 +2928,7 @@
      1
     ]
    ],
-   "tests": 82
+   "tests": 87
   },
   "sky": {
    "browser": [
@@ -2807,6 +2939,7 @@
     "crates/core/src/groceryscape.rs",
     "crates/core/src/ravinescape.rs",
     "crates/core/src/sky.rs",
+    "crates/core/src/spindlescape.rs",
     "crates/core/src/towerscape.rs",
     "crates/core/src/towerscape/art.rs",
     "crates/core/src/towerscape/lobby.rs"
@@ -2829,6 +2962,10 @@
      4
     ],
     [
+     "spindlescape::tests",
+     4
+    ],
+    [
      "towerscape::art::tests",
      4
     ],
@@ -2845,7 +2982,7 @@
      1
     ]
    ],
-   "tests": 31
+   "tests": 35
   },
   "sound": {
    "browser": [
@@ -2972,6 +3109,10 @@
      5
     ],
     [
+     "app::errands_tests",
+     5
+    ],
+    [
      "tests/sector_ai.rs",
      5
     ],
@@ -2996,7 +3137,7 @@
      1
     ]
    ],
-   "tests": 67
+   "tests": 72
   },
   "vines": {
    "browser": [],
@@ -3065,5 +3206,5 @@
    "tests": 26
   }
  },
- "total": 843
+ "total": 879
 }
