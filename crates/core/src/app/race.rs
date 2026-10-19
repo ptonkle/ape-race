@@ -204,6 +204,15 @@ impl App {
                         self.save = true;
                     }
                 }
+                // and on Aisle Ape with every list item too, Grocery Run
+                // (GR-T11)
+                let full = crate::grocery::list::full(&p.race.racers[p.local].ape);
+                if Costume::errands_earned(Map::of(&p.race.course), t, full)
+                    && self.settings.unlock(Costume::Errands)
+                {
+                    p.new_costume = Some(Costume::Errands);
+                    self.save = true;
+                }
             }
             let since = p.since_out.map(|t| t + 1).unwrap_or(0);
             p.since_out = Some(since);

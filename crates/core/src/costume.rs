@@ -146,6 +146,23 @@ impl Costume {
     }
 }
 
+impl Costume {
+    /// Whether a finish in `ticks` on `map` earns Grocery Run (GR-T11): on
+    /// Aisle Ape, within its Author time, with every item on the shopping
+    /// list (`full_list`) in the same race.
+    pub fn errands_earned(map: Map, ticks: u32, full_list: bool) -> bool {
+        map == Map::Grocery && full_list && trial::earned_on(map, ticks) == Some(Medal::Author)
+    }
+
+    /// Whether it may be worn without unlocking in an online lobby on
+    /// `map` (Sam, GR-T11: "you can select between costumes in a dropdown
+    /// online when you play aisle ape, and is only selectable on other maps
+    /// if you've unlocked it"): Grocery Run on Aisle Ape.
+    pub fn lent_on(self, map: Map) -> bool {
+        self == Costume::Errands && map == Map::Grocery
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

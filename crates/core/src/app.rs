@@ -1076,6 +1076,8 @@ mod call_tests;
 #[cfg(test)]
 mod costume_tests;
 #[cfg(test)]
+mod errands_tests;
+#[cfg(test)]
 #[path = "app/items_hype_tests.rs"]
 mod items_hype_tests;
 #[cfg(test)]
