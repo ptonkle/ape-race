@@ -85,4 +85,6 @@ const JUNGLE_MUSHROOMS: usize = 22;
 /// longer pulls the hooked ape back, a deliberate item change)
 /// (retaken 2026-10-17 for 1.14.4: the Monkey level was removed, so the
 /// race's second seat is a Sloth, SECOND-ORDER DM-4)
-const JUNGLE_RACE: u64 = 17_326_176_234_539_515_065;
+/// (retaken 2026-10-19 for 1.19.1: the Hook pulls much harder and lets go
+/// once past the hooked ape, a deliberate item change)
+const JUNGLE_RACE: u64 = 17_973_973_468_558_708_902;

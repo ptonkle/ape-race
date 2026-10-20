@@ -99,10 +99,12 @@ fn the_jungle_with_floor_is_lava_plays_out_as_before_sector_ape() {
 /// deliberate AI change; the layout fingerprint is unchanged).
 /// (retaken 2026-10-17 for 1.14.4: the Monkey level was removed, so the
 /// race's second seat is a Sloth, SECOND-ORDER DM-4)
+/// (retaken 2026-10-19 for 1.19.1: the Hook pulls much harder and lets go
+/// once past the hooked ape, a deliberate item change)
 const CITY: (u32, u64, u64) = (
     3_200_548_462,
-    2_107_152_609_342_677_241,
-    546_866_009_098_367_649,
+    12_090_434_357_258_695_087,
+    11_659_250_203_855_831_064,
 );
 /// The Ski Slope's, retaken 2026-10-15 for TRIAGE T84 (low vines thinned
 /// to one a station, by each fence or in each fork branch in turn; before
@@ -112,11 +114,15 @@ const CITY: (u32, u64, u64) = (
 /// and no longer pulls the hooked ape back (a deliberate item change).
 /// (retaken 2026-10-17 for 1.14.4: the Monkey level was removed, so the
 /// race's second seat is a Sloth, SECOND-ORDER DM-4)
+/// (retaken 2026-10-19 for 1.19.1: the Hook pulls much harder and lets go
+/// once past the hooked ape, a deliberate item change)
 const SKI: (u32, u64, u64) = (
     3_897_725_592,
-    13_812_632_743_768_814_292,
-    18_329_784_954_751_542_044,
+    18_247_521_336_409_730_787,
+    17_650_218_820_247_861_436,
 );
 /// (retaken 2026-10-17 for 1.14.4: the Monkey level was removed, so the
 /// race's second seat is a Sloth, SECOND-ORDER DM-4)
-const JUNGLE_LAVA: u64 = 4_813_789_052_288_605_790;
+/// (retaken 2026-10-19 for 1.19.1: the Hook pulls much harder and lets go
+/// once past the hooked ape, a deliberate item change)
+const JUNGLE_LAVA: u64 = 6_979_143_483_583_779_916;

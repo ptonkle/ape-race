@@ -1,5 +1,12 @@
 [
   {
+    "version": "1.19.1",
+    "date": "2026-10-19",
+    "notes": [
+      "The Hook pulls you much harder, and you can slingshot past the ape you hooked."
+    ]
+  },
+  {
     "version": "1.19.0",
     "date": "2026-10-19",
     "notes": [

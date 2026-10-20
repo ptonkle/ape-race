@@ -520,9 +520,13 @@ fn hooked(race: &mut Race, target: usize, by: usize) {
     });
 }
 
-/// Each tow pulls its user toward the ape it hooked (only an ape this
-/// browser moves; the others' tows are kept for the rope), until its time
-/// is up, the user catches it, or either is out of the race.
+/// Each tow pulls its user toward the ape it hooked like a rope (only an
+/// ape this browser moves; the others' tows are kept for the rope): hard,
+/// up to `HOOK_TOW_TOP` closing speed, and the rope takes any speed away
+/// from it. It lets go once the user is past the hooked ape, keeping its
+/// speed so it slingshots by; once something blocks the user (after
+/// `HOOK_GRIP`, closing slower than `HOOK_BLOCKED`); or when its time is
+/// up or either is out.
 fn tow(race: &mut Race) {
     let tows = std::mem::take(&mut race.tows);
     for mut t in tows {
@@ -531,12 +535,23 @@ fn tow(race: &mut Race) {
             continue;
         };
         let gap = to.ape.middle().sub(by.ape.middle());
-        if t.left <= 0 || by.out() || to.out() || !gap.longer_than(HOOK_CAUGHT) {
+        let closing = by.ape.vel.dot(gap.norm());
+        let past = !gap.longer_than(HOOK_CAUGHT) && closing < 0;
+        let blocked = HOOK_TOW_TIME - t.left > HOOK_GRIP && closing < HOOK_BLOCKED;
+        if t.left <= 0 || by.out() || to.out() || past || blocked || gap == V3::ZERO {
             continue;
         }
         if by.driver != Driver::Remote {
             let me = &mut race.racers[t.by].ape;
-            me.vel = me.vel.add(gap.with_len(mul(HOOK_TOW, DT)));
+            let dir = gap.norm();
+            if closing < 0 {
+                me.vel = me.vel.sub(dir.scale(closing));
+            }
+            let closing = closing.max(0);
+            if closing < HOOK_TOW_TOP {
+                let pull = mul(HOOK_TOW, DT).min(HOOK_TOW_TOP - closing);
+                me.vel = me.vel.add(dir.scale(pull));
+            }
         }
         race.tows.push(t);
     }

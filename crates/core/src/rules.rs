@@ -327,12 +327,18 @@ pub const STICK_PUSH: i32 = int(5);
 
 /// The Hook reaches the nearest ape ahead within this distance.
 pub const HOOK_RANGE: i32 = int(60);
-/// A caught Hook tows its user toward the hooked ape this hard (m/s²) for
-/// this long, ending sooner once the user is within `HOOK_CAUGHT` of it;
-/// the hooked ape is not pulled back (TRIAGE T90).
-pub const HOOK_TOW: i32 = int(7);
-pub const HOOK_TOW_TIME: i32 = secs_to_ticks(200);
+/// A caught Hook tows its user toward the hooked ape this hard (m/s²),
+/// up to this closing speed, for at most this long; it lets go once the
+/// user is within `HOOK_CAUGHT` of it and moving away (past it), so the
+/// user slingshots by. The hooked ape is not pulled back (TRIAGE T90).
+pub const HOOK_TOW: i32 = int(45);
+pub const HOOK_TOW_TOP: i32 = int(40);
+pub const HOOK_TOW_TIME: i32 = secs_to_ticks(400);
 pub const HOOK_CAUGHT: i32 = int(4);
+/// After this long, a tow closing slower than this is blocked (a wall or
+/// ledge in the way) and lets go.
+pub const HOOK_GRIP: i32 = secs_to_ticks(50);
+pub const HOOK_BLOCKED: i32 = int(3);
 /// The Hook flies this fast, for at most this long.
 pub const HOOK_SPEED: i32 = int(80);
 pub const HOOK_LIFE: i32 = secs_to_ticks(100);

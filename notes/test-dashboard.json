@@ -77,14 +77,14 @@
     "browser": 10,
     "file": "app.rs",
     "split": true,
-    "tests": 242,
+    "tests": 243,
     "what": "the app's top level"
    },
    {
     "browser": 11,
     "file": "map.rs",
     "split": true,
-    "tests": 866,
+    "tests": 867,
     "what": "the list of maps"
    },
    {
@@ -1048,7 +1048,7 @@
    "modules": [
     [
      "items::tests",
-     27
+     28
     ],
     [
      "race::tests",
@@ -1107,7 +1107,7 @@
      1
     ]
    ],
-   "tests": 94
+   "tests": 95
   },
   "lava": {
    "browser": [],
@@ -2155,7 +2155,7 @@
     ],
     [
      "items::tests",
-     27
+     28
     ],
     [
      "city::tests",
@@ -2274,7 +2274,7 @@
      1
     ]
    ],
-   "tests": 302
+   "tests": 303
   },
   "race": {
    "browser": [
@@ -2299,7 +2299,7 @@
     ],
     [
      "items::tests",
-     27
+     28
     ],
     [
      "app::online_play::tests",
@@ -2450,7 +2450,7 @@
      1
     ]
    ],
-   "tests": 284
+   "tests": 285
   },
   "render": {
    "browser": [
@@ -3206,5 +3206,5 @@
    "tests": 26
   }
  },
- "total": 879
+ "total": 880
 }

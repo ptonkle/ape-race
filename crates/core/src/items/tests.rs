@@ -46,6 +46,14 @@ fn put(r: &mut Race, i: usize, x: i32, height: i32) {
     put_at(r, i, x, int(100), height);
 }
 
+/// Moves every ape on by its speed for a tick (`step` runs no physics).
+fn drift(r: &mut Race) {
+    for racer in &mut r.racers {
+        let a = &mut racer.ape;
+        a.pos = a.pos.add(a.vel.scale(DT));
+    }
+}
+
 fn hits(r: &Race) -> Vec<(usize, usize, Item)> {
     r.events
         .iter()
@@ -370,34 +378,58 @@ fn a_hook_takes_the_nearest_ape_ahead_and_tows_the_user_without_pulling_it_back(
     assert!(hits(&r).is_empty());
     assert_eq!(r.racers[2].ape.stun, 0);
     assert_eq!(r.tows.len(), 1);
-    // the user is towed forward, for longer than one tick: hold everyone
-    // still in the air and watch the user's speed toward it build
-    let mut gained = Vec::new();
-    for _ in 0..secs_to_ticks(150) {
+    // the user is towed hard and lets go only once past it: hold everyone
+    // still in the air
+    let mut top = 0;
+    for _ in 0..HOOK_TOW_TIME {
+        if r.tows.is_empty() {
+            break;
+        }
         for i in 0..4 {
             r.racers[i].ape.pos.y = int(20);
             r.racers[i].ape.vel.y = 0;
         }
         r.racers[2].ape.vel = v3(0, 0, int(15));
-        let before = r.racers[0].ape.vel.z;
         step(&mut r);
-        gained.push(r.racers[0].ape.vel.z - before);
+        drift(&mut r);
+        top = top.max(r.racers[0].ape.vel.z);
     }
-    let late = &gained[gained.len() - 10..];
+    assert!(r.tows.is_empty());
+    assert!(top > int(15) + int(20), "towed hard: top {top}");
     assert!(
-        late.iter().all(|&g| g > 0),
-        "still towed after 1.5 s: {late:?}"
+        r.racers[0].ape.pos.z > r.racers[2].ape.pos.z,
+        "past it when it lets go"
     );
     assert!(
         r.racers[2].ape.vel.z >= int(15) - ONE / 10,
         "{:?}",
         r.racers[2].ape.vel
     );
-    // it lets go by `HOOK_TOW_TIME`
-    for _ in 0..HOOK_TOW_TIME {
+}
+
+#[test]
+fn a_hook_used_up_close_slingshots_the_user_past() {
+    let mut r = race(2);
+    put_at(&mut r, 0, 0, int(100), int(20));
+    put_at(&mut r, 1, 0, int(103), int(20));
+    r.racers[1].ape.vel = v3(0, 0, int(15));
+    r.racers[0].item = Some(Item::Hook);
+    use_item(&mut r, 0, &press());
+    for _ in 0..HOOK_LIFE + HOOK_TOW_TIME {
+        for i in 0..2 {
+            r.racers[i].ape.pos.y = int(20);
+            r.racers[i].ape.vel.y = 0;
+        }
+        r.racers[1].ape.vel = v3(0, 0, int(15));
         step(&mut r);
+        drift(&mut r);
+        if r.shots.is_empty() && r.tows.is_empty() {
+            break;
+        }
     }
-    assert!(r.tows.is_empty());
+    let (me, it) = (&r.racers[0].ape, &r.racers[1].ape);
+    assert!(me.pos.z > it.pos.z, "past it: {} vs {}", me.pos.z, it.pos.z);
+    assert!(me.vel.z > it.vel.z + int(5), "still faster: {:?}", me.vel);
 }
 
 #[test]
